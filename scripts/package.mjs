@@ -3,6 +3,7 @@ import { copyFileSync, cpSync, existsSync, readFileSync, rmSync, writeFileSync }
 import { join } from "node:path";
 import { createRequire } from "node:module";
 import { archOf, produtoFromArgv, versaoFromArgv } from "./produtos.mjs";
+import { avisoSemGoogle, decideGoogleConta } from "./google-client.mjs";
 
 // `--variant <id>` (ou `--admin`) empacota outro produto da tabela (src/main/app/variant-core.ts): mesmo código, outro
 // nome, bundle id e ícone. O app sabe qual é pelo Resources/variant.json e usa userData próprio
@@ -32,6 +33,12 @@ if (modulos !== null) {
   try { const m = parseManifesto(JSON.parse(readFileSync(manifesto, "utf8"))); console.log(`módulos de ${m.produto}: ${m.modulos.map((x) => `${x.id} ${x.versao}`).join(", ")}`); }
   catch (e) { console.error(`✗ ${e instanceof Error ? e.message : String(e)}`); process.exit(1); }
 }
+// Client OAuth da Conta Google (config/google-conta-oauth.json, fora do git): sem ele o app sai sem Google. Aviso
+// destacado sempre; num release (`--versao`) o build falha, a menos que `--sem-google` permita de propósito.
+const googleConta = decideGoogleConta({ admin, existe: existsSync(join("config", "google-conta-oauth.json")), semGoogle: process.argv.includes("--sem-google"), release: versao !== null });
+if (googleConta === "falha") { console.error(avisoSemGoogle(name)); console.error("✗ release sem o client OAuth do Google: coloque o arquivo em config/ ou use --sem-google"); process.exit(1); }
+if (googleConta === "aviso") console.warn(avisoSemGoogle(name));
+if (googleConta === "permitido") console.warn(`⚠ ${name} sai sem Conta Google (--sem-google)`);
 // Só a pasta desta variante: empacotar uma não apaga a outra (nem os .dmg em out/).
 rmSync(join("out", `${name}-darwin-${arch}`), { recursive: true, force: true });
 const paths = await packager({

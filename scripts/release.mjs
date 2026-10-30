@@ -79,7 +79,7 @@ for (const p of produtosDoCanal(PRODUTOS, staging ? "staging" : "estavel")) {
   const name = p.nome;
   step(`empacotando ${name}`);
   const extensao = p.extensoes.length === 0 ? "" : " && npm run build:extensao";
-  execSync(`npm run build${extensao} && node scripts/package.mjs --variant ${p.variant} --versao ${version} && node scripts/fuses.mjs --variant ${p.variant} --no-install`, { stdio: "inherit" });
+  execSync(`npm run build${extensao} && node scripts/package.mjs --variant ${p.variant} --versao ${version}${process.argv.includes("--sem-google") ? " --sem-google" : ""} && node scripts/fuses.mjs --variant ${p.variant} --no-install`, { stdio: "inherit" });
   const app = join("out", `${name}-darwin-${arch}`, `${name}.app`);
   if (!existsSync(app)) { console.error(`✗ não achei ${app}`); process.exit(1); }
   const zip = join("out", `${name}-${version}-${arch}.zip`);

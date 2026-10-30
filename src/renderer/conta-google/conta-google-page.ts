@@ -100,7 +100,7 @@ export function mountContaGoogle(deps: ContaGoogleDeps): { open: () => void; ref
       panel.append(c); if (msg) panel.append(el("p", `hint ${msg.bad ? "bad-hint" : ""}`, msg.text)); return;
     }
     if (status === null) { panel.append(carregando("Consultando a Conta Google desta máquina…")); return; }
-    if (!status.configurado) { const c = card("Google não configurado neste app"); c.append(el("p", "", "Falta o client OAuth do Google (google-oauth.json) neste build. Instale a versão com o CRM/Google habilitado.")); panel.append(c); return; }
+    if (!status.configurado) { const c = card("Google não configurado neste app"); c.append(el("p", "", "Falta o client OAuth do Google (google-conta-oauth.json) neste build. Para testar sem reempacotar, coloque o JSON em ~/Library/Application Support/<nome do app>/google-conta-oauth.json e reabra o app; para distribuir, empacote com o arquivo em config/ (veja docs/guia/google.md).")); panel.append(c); return; }
 
     // Perfil
     const pc = card("Sua conta");

@@ -134,3 +134,22 @@ mostrava a conta do dono e desconectar numa máquina desconectava todas (agente-
 - O login abre no Navegador da própria máquina (partição `persist:navegador-<host>`), então os cookies também são dela.
 - Fica de fora: o token de Contatos do CRM (`google-contatos.bin`, usado em "guardar conversa no Drive") ainda é um
   por app.
+
+## Client OAuth da Conta Google (30 out)
+
+A Conta Google (login, Gmail, Agenda, Planilhas, importação do financeiro, backup no Drive) precisa do client OAuth do
+app, `google-conta-oauth.json`. É credencial: fica **fora do git** (`.gitignore`) e `scripts/package.mjs` só o copia
+para `Resources/` se existir em `config/`. Sem ele o build sai sem Google e a página mostra "Google não configurado".
+
+- **Empacotamento barulhento:** em app cliente (não admin) sem `config/google-conta-oauth.json`, o `package.mjs` imprime
+  um aviso destacado; num release (`--versao`, como faz o `release.mjs`) o build **falha**. `--sem-google` permite
+  empacotar sem Google de propósito (`npm run dist:staging -- --sem-google`).
+- **Criar o client** (igual ao do CRM, em [crm.md](crm.md)): console.cloud.google.com → projeto → tela de consentimento
+  OAuth com os escopos da Conta Google (`openid`, `email`, Gmail, Agenda, Planilhas, `drive.file`) → Credenciais → ID do
+  cliente OAuth → **App para computador** → baixar o JSON → salvar como `config/google-conta-oauth.json`.
+- **Onde o arquivo mora fora do git:** no cofre da equipe (ex.: 1Password) ou na cópia do Mac que já empacotou. Quem
+  vai empacotar numa máquina nova copia para `config/` antes do `npm run dist*`. O mesmo vale para
+  `config/google-oauth.json` (Contatos do CRM).
+- **Testar sem reempacotar:** copiar o JSON para `~/Library/Application Support/<app>/google-conta-oauth.json` e reabrir
+  (é o primeiro lugar que `clienteContaOrigem()` procura). Cuidado: o arquivo ali sobrevive às atualizações e vence o do
+  pacote; a tela mostra a origem.

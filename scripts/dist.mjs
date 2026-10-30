@@ -15,5 +15,5 @@ passo("npm", ["run", "build"]);
 const { produtoFromArgv } = await import("./produtos.mjs");
 const produto = produtoFromArgv();
 if (produto.extensoes.length > 0) passo("npm", ["run", "build:extensao"]);
-passo("node", ["scripts/package.mjs", "--variant", produto.variant]);
+passo("node", ["scripts/package.mjs", "--variant", produto.variant, ...(process.argv.includes("--sem-google") ? ["--sem-google"] : [])]);
 passo("node", ["scripts/fuses.mjs", "--variant", produto.variant]);
