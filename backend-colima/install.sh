@@ -58,8 +58,28 @@ if [ -f "$DEST/.env" ]; then
   EP=$(grep '^PORT=' "$DEST/.env" | head -1 | cut -d= -f2- | tr -dc 0-9)
   if [ -n "$EP" ] && [ "$EP" != "$PORT" ]; then echo "porta: o .env desta máquina usa $EP (pedida: $PORT); mantendo $EP"; PORT=$EP; fi
 elif listening "$PORT"; then
-  echo "ERRO: a porta $PORT já está ocupada nesta máquina (outra conta ou outro programa). Instale em outra porta: PORT=<n> bash install.sh" >&2
-  exit 4
+  # --- porta: início (o teste install-backend-porta.test.mjs roda este trecho sozinho)
+  # Sem .env a instalação parece "do zero", mas a porta pode ser do nosso meu-bot-backend antigo rodando de memória:
+  # a pasta do backend foi apagada e o node segue vivo (root da VM, 1/11). Parar o serviço desta conta libera a porta
+  # e a reinstalação fica na mesma; porta de outra conta ou de outro programa continua sendo erro.
+  liberar_porta_propria() { # $1 porta → 0 se era do meu-bot-backend desta conta (e ele foi parado); 1 se não
+    local pid sistema=""
+    pid=$(systemctl --user show -p MainPID --value meu-bot-backend.service 2>/dev/null | tr -dc 0-9)
+    if [ "${pid:-0}" -le 0 ] && [ "$(systemctl show -p User --value meu-bot-backend.service 2>/dev/null)" = "$(id -un)" ]; then
+      pid=$(systemctl show -p MainPID --value meu-bot-backend.service 2>/dev/null | tr -dc 0-9); sistema=1
+    fi
+    [ "${pid:-0}" -gt 0 ] || return 1
+    (ss -ltnp 2>/dev/null || netstat -ltnp 2>/dev/null) | grep ":$1 " | grep -qE "pid=$pid,|[[:space:]]$pid/" || return 1
+    echo "a porta $1 é do meu-bot-backend antigo desta conta (os arquivos sumiram do disco): parando o serviço para reinstalar na mesma porta"
+    if [ -z "$sistema" ]; then systemctl --user stop meu-bot-backend.service
+    elif [ "$(id -u)" -eq 0 ]; then systemctl stop meu-bot-backend.service
+    else sudo -n systemctl stop meu-bot-backend.service || { echo "ERRO: não consegui parar o serviço de sistema (sem sudo)" >&2; return 1; }; fi
+  }
+  # --- porta: fim
+  if ! liberar_porta_propria "$PORT"; then
+    echo "ERRO: a porta $PORT já está ocupada nesta máquina (outra conta ou outro programa). Instale em outra porta: PORT=<n> bash install.sh" >&2
+    exit 4
+  fi
 fi
 mkdir -p "$DEST/data" "$HOME/chat-workspace" "$HOME/agent-workspace"
 # --- copiar: início (o teste install-backend-copia.test.mjs roda este trecho sozinho)

@@ -11,7 +11,8 @@ import { deveAtualizar, precisaAtualizarBackend } from "../atualizacao/updater-c
 import { app, BrowserWindow, screen, shell } from "electron";
 import path from "node:path";
 import type { HostProbe, InstallBackendResult, PickerInit, PlanName } from "../../shared/ipc";
-import { approveTailscaleCheck, bundledBackendVersion, bundledCrmVersion, bundledFinanceVersion, bundledGuardaVersion, bundledHermesPausaVersion, installAudio, installHermesPausa, installBackend, installClaudeCode, installCrm, installFinance, installGuarda, installStatusLine, probeHost, portaParaInstalar } from "./hostProbe";
+import { approveTailscaleCheck, bundledBackendVersion, bundledCrmVersion, bundledFinanceVersion, bundledGuardaVersion, bundledHermesPausaVersion, installAudio, installHermesPausa, installBackend, installClaudeCode, installCrm, installFinance, installGuarda, installStatusLine, probeHost } from "./hostProbe";
+import { portaParaInstalar } from "./porta-backend-core";
 import { isSupportAlias } from "../suporte/support-code";
 import { LOCAL_HOST } from "./localBackend";
 import { runSsh } from "../whatsapp/whatsapp";

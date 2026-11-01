@@ -484,3 +484,13 @@ humano. "Criar usuário" aplica o que falta antes de criar. Ver `docs/guia/supor
 **Aviso sobre a janela root:** o chat do root (meu-bot comum aberto no host root) é bancada de teste do dono, só em
 staging; o agente ali roda como root e hoje tem login do GitHub, da Cloudflare e a tela do bot. Em produção, cada
 pessoa conversa pela box dela; o root fica para as abas de admin.
+
+## Backend no ar sem os arquivos no disco (1 nov 2026)
+
+- No root da VM a pasta `/root/.hermes` sumiu inteira (com o backend herdado, `.env`, `providers.json`, sessões e a
+  credencial xAI do Hermes) e o `meu-bot-backend` continuou "active" rodando de memória. A sondagem lia `server=0` com a
+  porta ocupada e o seletor oferecia instalar na porta seguinte: dois backends na mesma conta.
+- Agora a sondagem traz `unitpid`/`unitport` (PID principal da unidade desta conta e a porta dele): `backendSumiu` →
+  o seletor explica e "Reinstalar backend" vai para a mesma porta (`portaParaInstalar`, `porta-backend-core.ts`); o
+  `install.sh` (1.9.3) para o serviço próprio antes de reclamar de porta ocupada (`liberar_porta_propria`). Sessões e
+  `providers.json` não voltam: o Grok precisa de "preparar" e login de novo.

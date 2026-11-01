@@ -82,6 +82,19 @@ test("porta ocupada sem backend nesta conta: instala na primeira livre e avisa; 
 
 function pick(t) { return { kind: t.kind, install: t.install, canOpen: t.canOpen }; }
 
+test("serviço meu-bot-backend no ar sem os arquivos no disco: explica e reinstala na porta do serviço, nunca instala outro ao lado", () => {
+  const t = describeProbe({ ...base, backendSumiu: true, backendUnitPort: 8083, appPort: 8083, portBusy: true, freePort: 8084 });
+  assert.deepEqual(pick(t), { kind: "warn", install: "reinstall", canOpen: false });
+  assert.equal(t.port, 8083);
+  assert.match(t.text, /arquivos do backend sumiram do disco/);
+  assert.match(t.text, /responde na porta 8083/);
+  assert.doesNotMatch(t.text, /8084/);
+  // Sem a porta do processo, a do app.
+  assert.equal(describeProbe({ ...base, backendSumiu: true, backendUnitPort: null }).port, 8080);
+  // Vem antes do login: reinstalar não depende do Claude logado.
+  assert.equal(describeProbe({ ...base, backendSumiu: true, backendUnitPort: 8083, claudeLoggedIn: false }).install, "reinstall");
+});
+
 test("backend de outro agente na pasta herdada: não é instalado; instalar vai para a porta livre e explica de quem é a 8080", () => {
   const t = describeProbe({ ...base, backendForeign: true, portBusy: true, freePort: 8081 });
   assert.equal(t.install, "install"); assert.equal(t.port, 8081); assert.match(t.text, /outro agente desta máquina/);

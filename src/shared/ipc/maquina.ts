@@ -26,6 +26,10 @@ export interface HostProbe {
   backendForeign: boolean;
   /** Alguém escuta na porta do backend (a do .env dele quando existe; senão `appPort`). */
   backendListening: boolean;
+  /** O serviço meu-bot-backend desta conta está no ar, mas os arquivos sumiram do disco (pasta apagada; o node antigo roda de memória): reinstalar na porta dele, nunca instalar outro ao lado. */
+  backendSumiu: boolean;
+  /** Porta em que o processo desse serviço escuta (só com `backendSumiu`); null se não deu para ler. */
+  backendUnitPort: number | null;
   /** Versão do backend instalado (VERSION gravado pelo install.sh); null = sem arquivo (anterior ao versionamento) ou sem backend. */
   backendVersion: string | null;
   /** Chats em andamento no backend (/health); null = não respondeu ou backend antigo. */
