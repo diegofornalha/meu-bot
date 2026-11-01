@@ -19,12 +19,14 @@ export function rotuloReversos(nav: number | null, gmail: number | null): string
   if (gmail !== null) p.push(`gmail :${gmail}`);
   return p.join(" · ");
 }
-export function rotuloTunel(state: string | null): string {
+/** Estado do túnel na faixa; fora do "ativo", o `detail` do backend:status vai junto (o motivo: backend parado, SSH, timeout). */
+export function rotuloTunel(state: string | null, detail = ""): string {
+  const motivo = detail.trim() === "" ? "" : `: ${detail.trim().slice(0, 70)}`;
   switch (state) {
     case "ready": return "túnel ativo";
-    case "connecting": return "túnel conectando…";
-    case "degraded": return "túnel instável";
-    case "error": return "túnel: erro";
+    case "connecting": return motivo === "" ? "túnel conectando…" : `túnel conectando${motivo}`;
+    case "degraded": return `túnel instável${motivo}`;
+    case "error": return `túnel: erro${motivo}`;
     case "idle": return "túnel parado";
     default: return "túnel: ?";
   }

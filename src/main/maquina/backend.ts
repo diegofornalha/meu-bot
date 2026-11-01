@@ -13,7 +13,9 @@ import { persistConversations, saveTranscript, type BackendMessage, type Convers
 import { alreadySeenPrefix, buildSummaryRequest, estimateTokens, planContext, toWire, validateSummary, type OutgoingMessage } from "../conversa/context";
 import { applyOps, buildMemoryRequest, getMemory, memorySystemMessage, NOTAS_MAX, parseOps, PERFIL_MAX, setMemory } from "../conversa/memory";
 import { getBackendPort, getContextBudget, getMemoryEveryTurns } from "../app/settings";
-import { ensureTunnel, markDegraded, TunnelFatalError } from "./tunnel";
+import { ensureTunnel, execNaMaquina, markDegraded, TunnelFatalError } from "./tunnel";
+import { COMANDO_LOG_BACKEND, classificarPreflight, detalheTentativa, dicaDoLog, erroFinal, podeDiagnosticar, textoPreflight, type FalhaPreflight } from "./preflight-core";
+import { evento } from "../app/depuracao";
 import { netState, noteNetworkError } from "../app/net";
 import { browserAgentPort } from "../navegador/browser";
 import { gmailAgentePort } from "../google/gmail-api";
@@ -63,9 +65,9 @@ function describeFetchError(err: unknown, model: BackendModel): string {
   const code = errCode(err);
   if (looksLikeOffline({ code, text: err instanceof Error ? err.message : null })) return offlineMessage("chat");
   if (code === "ETIMEDOUT_LOCAL" || (err instanceof Error && err.name === "AbortError")) return `O backend não respondeu em ${timeoutFor(model) / 1000}s.`;
-  if (code === "ECONNREFUSED") return "O túnel SSH caiu (conexão recusada na porta local). Vou reabrir na próxima mensagem.";
+  if (code === "ECONNREFUSED") return "A conexão na porta local foi recusada (ECONNREFUSED): o túnel SSH caiu. Vou reabrir na próxima mensagem.";
   if (code === "ECONNRESET" || code === "UND_ERR_SOCKET" || code === "EPIPE") {
-    return `A conexão com o backend foi cortada no meio da resposta (${code}). Causa provável: a VM pausou ou o túnel SSH fechou o canal. Tente de novo.`;
+    return `A conexão com o backend foi cortada no meio da resposta (${code}). Causa provável: o backend da máquina caiu ou reiniciou, a VM pausou, ou o túnel SSH fechou o canal. Tente de novo.`;
   }
   if (code === "ETIMEDOUT" || code === "EHOSTUNREACH") return "A VM não respondeu pela rede (Tailscale oscilando).";
   const msg = err instanceof Error ? err.message : String(err);
@@ -203,17 +205,51 @@ async function postWithReconnect(host: string, localPort: number, apiKey: string
 
 const PREFLIGHT_MS = 8000;
 
-/** GET /v1/models pelo túnel: barato e detecta um túnel meio morto depois de uma pausa da VM. */
-function tunnelHealthy(localPort: number, apiKey: string): Promise<boolean> {
+/**
+ * GET /v1/models pelo túnel: barato e detecta um túnel meio morto depois de uma pausa da VM. null = respondeu; senão a
+ * falha classificada (preflight-core.ts), para o log e a pessoa saberem se foi o backend, o túnel ou um timeout.
+ */
+function preflight(localPort: number, apiKey: string): Promise<FalhaPreflight | null> {
   return new Promise((resolve) => {
     const req = http.request({ host: "127.0.0.1", port: localPort, path: "/v1/models", method: "GET", headers: { Authorization: `Bearer ${apiKey}` } }, (res) => {
       res.resume();
-      resolve((res.statusCode ?? 0) < 500);
+      const status = res.statusCode ?? 0;
+      resolve(status < 500 ? null : classificarPreflight(null, status));
     });
-    req.setTimeout(PREFLIGHT_MS, () => { req.destroy(); resolve(false); });
-    req.on("error", () => resolve(false));
+    req.setTimeout(PREFLIGHT_MS, () => { req.destroy(); resolve(classificarPreflight({ code: "ETIMEDOUT_LOCAL" }, null)); });
+    req.on("error", (e) => resolve(classificarPreflight(e as { code?: string; message?: string; name?: string }, null)));
     req.end();
   });
+}
+
+/** Quando foi o último diagnóstico por máquina (um por episódio; preflight ok zera). */
+const diagnosticoEm = new Map<string, number>();
+
+/**
+ * O backend não respondeu na porta com o túnel de pé: lê na máquina o estado do serviço e as últimas linhas do log
+ * (journalctl ou backend.log; no Mac, backend-local.log), grava tudo no meu-bot.log, manda o resumo à faixa de depuração
+ * e devolve a dica ("MODULE_NOT_FOUND ./gmail") para a mensagem de erro. Nunca lança.
+ */
+async function diagnosticarBackend(host: string, porta: number): Promise<string | null> {
+  const t0 = Date.now();
+  let linhas: string[];
+  try {
+    if (host === LOCAL_HOST) {
+      const p = path.join(app.getPath("userData"), "backend-local.log");
+      linhas = fs.existsSync(p) ? fs.readFileSync(p, "utf8").split("\n").slice(-40) : ["(sem backend-local.log)"];
+    } else {
+      const r = await execNaMaquina(host, COMANDO_LOG_BACKEND, 10_000);
+      linhas = `${r.stdout}\n${r.stderr}`.split("\n");
+    }
+  } catch (e) {
+    linhas = [`(não consegui ler o log do backend: ${e instanceof Error ? e.message : String(e)})`];
+  }
+  linhas = linhas.map((l) => l.trimEnd()).filter((l) => l !== "");
+  const dica = dicaDoLog(linhas);
+  log(`[${host}] log do backend (porta ${porta}, ${linhas.length} linhas): ${dica ?? "sem erro reconhecido"}`);
+  for (const l of linhas.slice(-40)) log(`[${host}]   ${l}`);
+  evento({ origem: "main", dono: null, rota: `backend/log ${host}`, ok: false, ms: Date.now() - t0, resumo: dica ?? "backend parado: sem erro reconhecido nas últimas linhas do log", detalhe: { porta, linhas: linhas.slice(-15) } });
+  return dica;
 }
 
 /** Num turno interativo, por quanto tempo insistir em reabrir o túnel antes de devolver erro. */
@@ -238,33 +274,38 @@ async function readyTunnel(host: string, out: Sender | null, signal?: AbortSigna
   const status = (detail: string): void => out?.send("backend:status", { host, state: "connecting", detail });
   const interactive = out !== null;
   const deadline = Date.now() + RECONNECT_WINDOW_MS;
+  const porta = getBackendPort(host); const local = host === LOCAL_HOST;
   let attempt = 0; let lastErr: unknown = null;
+  // Duas causas com cara diferente: o SSH não entrou (sshErr) ou entrou e o backend não respondeu na porta (falha).
+  let sshErr: string | null = null; let falha: FalhaPreflight | null = null; let dica: Promise<string | null> | null = null;
   for (;;) {
     if (signal?.aborted) throw Object.assign(new Error("cancelado"), { code: "ABORTED" });
+    sshErr = null; falha = null; lastErr = null;
     try {
-      const tunnel = await ensureTunnel(host, getBackendPort(host), status);
-      if (await tunnelHealthy(tunnel.localPort, tunnel.apiKey)) { if (host !== LOCAL_HOST && !announced.has(host)) setTimeout(() => announceMachine(host), 0); return tunnel; }
-      lastErr = null;
+      const tunnel = await ensureTunnel(host, porta, status);
+      falha = await preflight(tunnel.localPort, tunnel.apiKey);
+      if (falha === null) { diagnosticoEm.delete(host); if (host !== LOCAL_HOST && !announced.has(host)) setTimeout(() => announceMachine(host), 0); return tunnel; }
     } catch (err) {
       if (err instanceof TunnelFatalError) throw err;
-      lastErr = err;
+      lastErr = err; sshErr = err instanceof Error ? err.message : String(err);
     }
     attempt += 1;
-    markDegraded(host, "preflight");
+    const texto = falha !== null ? textoPreflight(falha, porta, local) : sshErr ?? "preflight";
+    markDegraded(host, texto);
     // Sem internet não adianta insistir 75 s culpando a VM: a faixa OFFLINE explica, e a volta da rede reabre.
     if (lastErr !== null && (await noteNetworkError(lastErr))) throw Object.assign(new Error(offlineMessage("tunnel")), { code: "OFFLINE" });
     if (netState().online === false) throw Object.assign(new Error(offlineMessage("tunnel")), { code: "OFFLINE" });
+    // Backend parado com o túnel de pé: busca o erro real do serviço uma vez por episódio, sem segurar o laço.
+    if (falha !== null && dica === null && podeDiagnosticar(diagnosticoEm.get(host) ?? null, Date.now())) { diagnosticoEm.set(host, Date.now()); dica = diagnosticarBackend(host, porta); }
     const left = deadline - Date.now();
     if (!interactive ? attempt >= 2 : left <= 0) break;
     const wait = Math.min(RECONNECT_DELAYS_MS[Math.min(attempt - 1, RECONNECT_DELAYS_MS.length - 1)]!, Math.max(left, 1_000));
-    status(`VM sem resposta; tentando de novo em ${Math.round(wait / 1000)} s (${attempt}ª vez)…`);
-    log(`[${host}] túnel sem resposta (${attempt}ª vez${lastErr instanceof Error ? `: ${lastErr.message}` : ""}); nova tentativa em ${wait} ms`);
+    status(detalheTentativa(falha, sshErr, porta, Math.round(wait / 1000), attempt, local));
+    log(`[${host}] ${falha !== null ? "preflight falhou" : "túnel sem resposta"} (${attempt}ª vez): ${texto}; nova tentativa em ${wait} ms`);
     await sleepAbortable(wait, signal);
   }
-  const why = lastErr instanceof Error ? ` (${lastErr.message})` : "";
-  throw new Error(interactive
-    ? `A VM não respondeu pelo túnel em ${Math.round(RECONNECT_WINDOW_MS / 1000)} s, mesmo reabrindo. Ela pode estar pausada pelo host; tente de novo daqui a pouco.${why}`
-    : `A VM não respondeu pelo túnel, mesmo depois de reabrir.${why}`);
+  const d = dica !== null ? await Promise.race([dica, new Promise<null>((r) => setTimeout(() => r(null), 3_000))]) : null;
+  throw Object.assign(new Error(erroFinal({ falha, sshErr, porta, segundos: Math.round(RECONNECT_WINDOW_MS / 1000), interativo: interactive, dica: d, local })), { code: falha !== null ? "BACKEND_PARADO" : "TUNEL" });
 }
 
 /** Uma chamada completa ao backend (túnel pronto + POST + parse). Reutilizada pelo chat e pelas tarefas de fundo. */

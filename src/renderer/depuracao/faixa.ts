@@ -36,7 +36,7 @@ function pintar(): void {
   const b = estadoBatimento(ultimoTique, Date.now());
   bar.classList.toggle("dep-travado", !b.ok);
   const st = ctx.hostStatus.get(ctx.windowHost) ?? null;
-  saudeEl.textContent = [textoSaude(b, b.ok ? null : marca), rotuloTunel(st?.state ?? null), rotuloReversos(navPorta, gmailPorta)].filter((x) => x !== "").join(" · ");
+  saudeEl.textContent = [textoSaude(b, b.ok ? null : marca), rotuloTunel(st?.state ?? null, st?.detail ?? ""), rotuloReversos(navPorta, gmailPorta)].filter((x) => x !== "").join(" · ");
   const ultimo = eventos[eventos.length - 1];
   feedEl.textContent = ultimo !== undefined ? linhaEvento(ultimo, hora) : "sem ações de fora ainda";
   feedEl.classList.toggle("dep-nota", ultimo?.origem === "nota");
