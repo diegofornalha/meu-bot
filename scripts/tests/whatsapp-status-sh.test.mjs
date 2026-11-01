@@ -71,7 +71,7 @@ test("máquina pronta: uma chamada só da CLI (channels status) e o resto vem do
   assert.deepEqual(JSON.parse(kv.get("channel")), CONFIG_PRONTA.channels.whatsapp);
   assert.equal(kv.get("audioin"), "1"); assert.equal(kv.get("voz"), "inbound");
   assert.equal(kv.get("me"), "5511999999999:12@s.whatsapp.net");
-  assert.deepEqual(JSON.parse(kv.get("oc")), { linked: true, connected: true, state: "connected", lifecycle: "running", loggedOut: null, e164: "+5511999999999", starting: false });
+  assert.deepEqual(JSON.parse(kv.get("oc")), { linked: true, connected: true, state: "connected", lifecycle: "running", loggedOut: null, e164: "+5511999999999", starting: false, conta: true });
   assert.equal(kv.get("ocmodel"), "0"); assert.equal(kv.get("ocfallback"), "0"); // modelo e reserva já existem: nada a gravar (e nenhum config set nas chamadas)
 });
 

@@ -33,32 +33,51 @@ function pausedNumberOfRule(r: unknown): string | null {
   const x = /(?:^|:)whatsapp:(?:[^:]+:)?direct:\+?(\d{8,15})$/i.exec(prefix);
   return x === null ? null : x[1]!;
 }
-/** Números pausados pela lista durável (session.sendPolicy do openclaw.json; formato desconhecido = nenhum). */
-export function pausedNumbersOfPolicy(policy: unknown): Set<string> {
+/** A regra é de um agente (`rawKeyPrefix: agent:<id>:…`)? null = regra sem agente (`keyPrefix`, vale para qualquer agente). */
+function agentOfRule(r: unknown): string | null {
+  if (!isObj(r) || !isObj(r.match) || typeof r.match.rawKeyPrefix !== "string") return null;
+  return /^agent:([^:]+):/.exec(r.match.rawKeyPrefix)?.[1] ?? null;
+}
+/**
+ * Números pausados pela lista durável (session.sendPolicy do openclaw.json; formato desconhecido = nenhum). Com `agentId`
+ * (gateway compartilhado), só as regras desse agente: a pausa de um contato no agente de outro usuário não é deste.
+ */
+export function pausedNumbersOfPolicy(policy: unknown, agentId: string | null = null): Set<string> {
   const out = new Set<string>();
   if (!isObj(policy) || !Array.isArray(policy.rules)) return out;
-  for (const r of policy.rules) { const n = pausedNumberOfRule(r); if (n !== null) out.add(n); }
+  for (const r of policy.rules) {
+    if (agentId !== null && agentOfRule(r) !== agentId) continue;
+    const n = pausedNumberOfRule(r); if (n !== null) out.add(n);
+  }
   return out;
 }
 /**
- * Prefixos das regras para um contato: a chave de cada sessão própria sem o "agent:<id>:" (vale para qualquer
- * agente); sem sessão própria ainda, a forma padrão `whatsapp:direct:+N` (dmScope per-channel-peer).
+ * Prefixos das regras para um contato. Sem `agentId`: a chave de cada sessão própria sem o "agent:<id>:" (vale para
+ * qualquer agente; `keyPrefix`); sem sessão própria ainda, a forma padrão `whatsapp:direct:+N` (dmScope per-channel-peer).
+ * Com `agentId` (gateway compartilhado, `rawKeyPrefix`): a chave inteira com o agente, só as sessões dele; sem sessão,
+ * `agent:<id>:whatsapp:direct:+N`. Sem o agente na regra, pausar num usuário pausaria o contato nos agentes de todos.
  */
-export function pauseRulePrefixes(number: string, ownKeys: readonly string[]): string[] {
+export function pauseRulePrefixes(number: string, ownKeys: readonly string[], agentId: string | null = null): string[] {
   const n = number.replace(/\D/g, "");
-  const fromKeys = ownKeys.filter((k) => SAFE_KEY.test(k)).map((k) => k.replace(/^agent:[^:]+:/, "")).filter((k) => new RegExp(`^whatsapp:(?:[^:]+:)?direct:\\+?${n}$`).test(k));
+  const seguras = ownKeys.filter((k) => SAFE_KEY.test(k));
+  if (agentId !== null) {
+    const doAgente = seguras.filter((k) => k.startsWith(`agent:${agentId}:`) && new RegExp(`:whatsapp:(?:[^:]+:)?direct:\\+?${n}$`).test(k));
+    return [...new Set(doAgente.length > 0 ? doAgente : [`agent:${agentId}:whatsapp:direct:+${n}`])];
+  }
+  const fromKeys = seguras.map((k) => k.replace(/^agent:[^:]+:/, "")).filter((k) => new RegExp(`^whatsapp:(?:[^:]+:)?direct:\\+?${n}$`).test(k));
   return [...new Set(fromKeys.length > 0 ? fromKeys : [`whatsapp:direct:+${n}`])];
 }
 /**
- * A política com o contato pausado ou retomado: tira as regras de pausa dele e, se pausado, põe as novas no
- * começo (primeira negação vence). As outras regras e o `default` ficam como estavam. Devolve null quando não
- * sobra nada para guardar (aí a chave sai do openclaw.json, como era antes da primeira pausa).
+ * A política com o contato pausado ou retomado: tira as regras de pausa dele (as deste agente, com `agentId`; todas,
+ * sem) e, se pausado, põe as novas no começo (primeira negação vence). As outras regras e o `default` ficam como
+ * estavam. Devolve null quando não sobra nada para guardar (aí a chave sai do openclaw.json, como era antes da primeira
+ * pausa). Com `agentId` as regras novas vão em `rawKeyPrefix` (a chave inteira, com o agente).
  */
-export function withPauseRule(policy: unknown, number: string, paused: boolean, prefixes: readonly string[]): SendPolicy | null {
+export function withPauseRule(policy: unknown, number: string, paused: boolean, prefixes: readonly string[], agentId: string | null = null): SendPolicy | null {
   const n = number.replace(/\D/g, "");
   const base: SendPolicy = isObj(policy) ? { ...(policy as SendPolicy) } : {};
-  const others = (Array.isArray(base.rules) ? base.rules : []).filter((r) => pausedNumberOfRule(r) !== n);
-  const rules = paused ? [...prefixes.map((p): SendPolicyRule => ({ action: "deny", match: { keyPrefix: p } })), ...others] : others;
+  const others = (Array.isArray(base.rules) ? base.rules : []).filter((r) => pausedNumberOfRule(r) !== n || (agentId !== null && agentOfRule(r) !== agentId));
+  const rules = paused ? [...prefixes.map((p): SendPolicyRule => ({ action: "deny", match: agentId === null ? { keyPrefix: p } : { rawKeyPrefix: p } })), ...others] : others;
   const out: SendPolicy = { ...base, rules };
   if (rules.length === 0) delete out.rules;
   return Object.keys(out).length === 0 ? null : out;
@@ -129,9 +148,9 @@ export function pauseNoteSh(key: string, text: string): string {
  * Idempotente: sem bloco acrescenta no fim; bloco de outra versão é trocado; igual, nada. Imprime REGRA=1
  * (gravou/trocou), REGRA=0 (já estava) ou REGRA=erro.
  */
-export function pauseRuleSh(): string {
+export function pauseRuleSh(workspaceSh = `W="$(openclaw config get agents.defaults.workspace 2>/dev/null | tr -d '\\n')"; case "$W" in /*) ;; *) W="$HOME/.openclaw/workspace" ;; esac`): string {
   const b64 = Buffer.from(PAUSE_RULE_BLOCK, "utf8").toString("base64");
-  return `W="$(openclaw config get agents.defaults.workspace 2>/dev/null | tr -d '\\n')"; case "$W" in /*) ;; *) W="$HOME/.openclaw/workspace" ;; esac
+  return `${workspaceSh}
 mkdir -p "$W" && printf '%s' '${b64}' | base64 -d | python3 -c '
 import re, sys, os
 f = sys.argv[1]

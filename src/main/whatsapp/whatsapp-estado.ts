@@ -6,6 +6,9 @@
 import type { Gateway, WhatsappAlvoResolvido, WhatsappChat, WhatsappGroups, WhatsappStatus } from "../../shared/ipc";
 import type { HermesPausaModo } from "./whatsapp-hermes-core";
 import { TtlCache } from "./whatsapp-cache-core";
+import { alvoSemAlias, parseAlvo, resolverAlvo } from "./whatsapp-capacidades";
+import { listSshHostInfos } from "../maquina/sshConfig";
+import { jsonOr } from "./whatsapp-kv";
 
 /** Gateway visto na última consulta de cada máquina (status ou lista): decide o menu "…" e o leitor da conversa. */
 export const gatewayByHost = new Map<string, Gateway>();
@@ -15,6 +18,25 @@ export const pausaModoByHost = new Map<string, HermesPausaModo>();
 export const whatsappPausaModoOf = (host: string): HermesPausaModo => pausaModoByHost.get(host) ?? "allowlist";
 /** Onde vive o WhatsApp de cada máquina (conta, agente, gateway), visto na última consulta; ausente = o padrão (próprio). */
 export const alvoByHost = new Map<string, WhatsappAlvoResolvido>();
+export const ALVO_PROPRIO: WhatsappAlvoResolvido = { accountId: "default", agentId: "main", gatewayUser: null, gatewayHost: null, proprio: true };
+/** O alvo que a máquina gravou (whatsapp-alvo.json, linha `alvo=`), resolvido neste Mac e guardado para as próximas chamadas. */
+export function alvoDoScript(host: string, kv: Map<string, string>): WhatsappAlvoResolvido {
+  const alvo = resolverAlvo(parseAlvo(jsonOr(kv.get("alvo"))), host, listSshHostInfos());
+  alvoByHost.set(host, alvo);
+  return alvo;
+}
+/** Onde vive o WhatsApp da máquina, pela última consulta; sem ela, o padrão (gateway próprio). */
+export const whatsappAlvoDe = (host: string): WhatsappAlvoResolvido => alvoByHost.get(host) ?? ALVO_PROPRIO;
+/**
+ * Em que alias os comandos do OpenClaw desta máquina rodam: o próprio, ou o alias do gateway de outro usuário. Sem alias
+ * para o gateway, erro com o que falta (o app não inventa conexão). Marcas, escolha e alvo continuam no próprio alias.
+ */
+export function execHostDe(host: string): string {
+  const a = whatsappAlvoDe(host);
+  if (a.proprio) return host;
+  if (a.gatewayHost !== null) return a.gatewayHost;
+  throw new Error(alvoSemAlias(a) ?? "sem alias para o gateway");
+}
 /** Nomes (pushname) dos contatos vistos nesta sessão, por máquina. */
 const chatNames = new Map<string, Map<string, string>>();
 export const namesOf = (host: string): Map<string, string> => { let m = chatNames.get(host); if (m === undefined) { m = new Map(); chatNames.set(host, m); } return m; };

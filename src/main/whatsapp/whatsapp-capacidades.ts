@@ -34,8 +34,14 @@ export const WA_MOTOR_SH = `ESC=$(tr -d ' \n' < "${WA_AGENTE_FILE}" 2>/dev/null 
 
 /** Arquivo da máquina com onde vive o WhatsApp (conta, agente e dono do gateway); sem ele, o padrão. Dono: este módulo. */
 export const WA_ALVO_FILE = "$HOME/.local/share/meu-bot/whatsapp-alvo.json";
-/** Trecho de shell (uma linha) que imprime `alvo=<json ou vazio>`; vai junto do status e da sonda do motor. */
-export const WA_ALVO_SH = `echo "alvo=$(cat "${WA_ALVO_FILE}" 2>/dev/null | tr -d '\n')"`;
+/**
+ * Trecho de shell (uma linha, seguro sob set -e) que imprime `alvo=<json ou vazio>` e deixa $ALVO_GW com o usuário dono
+ * do gateway (vazio = próprio): os fragmentos do OpenClaw param cedo quando o gateway é de outro usuário (o Mac consulta
+ * o gateway pelo alias dele). Vai junto do status, da lista, dos grupos e da sonda do motor.
+ */
+export const WA_ALVO_SH = `ALVO=$(cat "${WA_ALVO_FILE}" 2>/dev/null | tr -d '\n' || true); echo "alvo=$ALVO"; ALVO_GW=$(printf '%s' "$ALVO" | python3 -c 'import json,sys
+try: print(json.load(sys.stdin).get("gatewayUser") or "")
+except Exception: print("")' 2>/dev/null || true); [ "$ALVO_GW" = "$(id -un 2>/dev/null)" ] && ALVO_GW=; export ALVO_GW`;
 const ID_RE = /^[a-z0-9][a-z0-9_.-]{0,31}$/;
 const USUARIO_RE = /^[a-z_][a-z0-9_-]{0,31}$/;
 export const ALVO_PADRAO: WhatsappAlvo = { accountId: "default", agentId: "main", gatewayUser: null };

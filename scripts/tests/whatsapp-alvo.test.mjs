@@ -17,7 +17,7 @@ test("parseAlvo: sem arquivo ou com lixo vale o padrão; ids fora do padrão cae
   assert.equal(alvoValido({ accountId: "box", agentId: "box", gatewayUser: "root" }), null);
   assert.match(alvoValido({ accountId: "Box", agentId: "box", gatewayUser: null }), /conta inválida/);
   assert.match(alvoValido({ accountId: "box", agentId: "box", gatewayUser: "r oot" }), /usuário do gateway/);
-  assert.match(WA_ALVO_SH, /^echo "alvo=\$\(cat /, "uma linha, imprime alvo=");
+  assert.match(WA_ALVO_SH, /echo "alvo=\$ALVO"/); assert.match(WA_ALVO_SH, /export ALVO_GW/, "deixa o dono do gateway para os fragmentos");
 });
 
 const HOSTS = parseSshConfigText(`

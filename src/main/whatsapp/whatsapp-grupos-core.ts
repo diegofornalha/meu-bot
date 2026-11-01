@@ -189,6 +189,16 @@ export function patchGrupo(waConfig: unknown, jid: string, pedido: WhatsappGroup
   return Object.keys(out).length === 0 ? null : { channels: { whatsapp: out } };
 }
 
+/**
+ * O mesmo patch endereçado a uma conta nomeada: `channels.whatsapp.accounts.<id>` em vez da raiz (a conta `default` fica
+ * na raiz, como sempre). A conferência depois continua pela vista efetiva da conta (`aplicarPatch` sobre ela).
+ */
+export function envolverPatch(patch: Record<string, unknown>, accountId: string): Record<string, unknown> {
+  if (accountId === "default") return patch;
+  const wa = isObj(patch.channels) && isObj(patch.channels.whatsapp) ? patch.channels.whatsapp : {};
+  return { channels: { whatsapp: { accounts: { [accountId]: wa } } } };
+}
+
 /** Aplica um patch de merge (o mesmo que o `config patch` faz) em `channels.whatsapp`: para conferir o que foi gravado. */
 export function aplicarPatch(waConfig: unknown, patch: Record<string, unknown>): Record<string, unknown> {
   const merge = (a: unknown, b: unknown): unknown => {

@@ -6,9 +6,8 @@
  * O que é decidido pelos dados (chaves de sessão do Hermes vs. do OpenClaw) fica aqui; o IO de cada motor, no adaptador.
  * Capacidades: a tabela de whatsapp-capacidades.ts decide o que a tela pode oferecer, nunca o nome do motor.
  */
-import type { Gateway, WhatsappAgente, WhatsappAlvo, WhatsappAlvoResolvido, WhatsappChat, WhatsappGroupPatch, WhatsappGroups, WhatsappReplyChoice, WhatsappStatus, WhatsappThreadMessage } from "../../shared/ipc";
-import { agenteEscolhido, alvoSemAlias, alvoValido, capacidadesDe, parseAlvo, resolverAlvo, WA_AGENTE_FILE, WA_ALVO_FILE, WA_ALVO_SH, WA_MOTOR_SH } from "./whatsapp-capacidades";
-import { listSshHostInfos } from "../maquina/sshConfig";
+import type { Gateway, WhatsappAgente, WhatsappAlvo, WhatsappChat, WhatsappGroupPatch, WhatsappGroups, WhatsappReplyChoice, WhatsappStatus, WhatsappThreadMessage } from "../../shared/ipc";
+import { agenteEscolhido, alvoSemAlias, alvoValido, capacidadesDe, WA_AGENTE_FILE, WA_ALVO_FILE, WA_ALVO_SH, WA_MOTOR_SH } from "./whatsapp-capacidades";
 import { ownSessionKeys, grupoToMarkdown, SAFE_KEY, threadToMarkdown, whatsappContextNote } from "./whatsapp-chats";
 import { WA_MARKS_FILE, waMarkSh, type WaDonoPatch, type WaGroupMarkPatch, type WaMarkPatch } from "./whatsapp-marks";
 import { HERMES_ID_RE, isHermesKey } from "./whatsapp-hermes-core";
@@ -19,8 +18,8 @@ import { hermesAudioStatus } from "./hermes-audio";
 import { LOCAL_HOST } from "../maquina/localBackend";
 import { isValidHost } from "../app/settings";
 import { runSsh } from "./whatsapp-ssh";
-import { jsonOr, kvOf, kvTrimOf } from "./whatsapp-kv";
-import { CHATS_VALIDADE_MS, GROUPS_VALIDADE_MS, STATUS_VALIDADE_MS, alvoByHost, chatsCache, esquecerWhatsapp, gatewayByHost, groupsCache, namesOf, statusCache, whatsappPausaModoOf } from "./whatsapp-estado";
+import { kvOf, kvTrimOf } from "./whatsapp-kv";
+import { CHATS_VALIDADE_MS, GROUPS_VALIDADE_MS, STATUS_VALIDADE_MS, alvoByHost, alvoDoScript, chatsCache, esquecerWhatsapp, execHostDe, gatewayByHost, groupsCache, namesOf, statusCache, whatsappAlvoDe, whatsappPausaModoOf } from "./whatsapp-estado";
 import { MOTORES, motorDe, motorPorNome, type MotorWhatsapp } from "./whatsapp-motor";
 import { pairingInProgress } from "./whatsapp-pair";
 
@@ -28,7 +27,7 @@ import { pairingInProgress } from "./whatsapp-pair";
 export { runSsh, scpPara } from "./whatsapp-ssh";
 export { CREDS_ME, NON_OWNER_DENY, SELF_POLICY_SH, ownerLockSh } from "./whatsapp-openclaw-core";
 export { picoclawStatus } from "./whatsapp-picoclaw";
-export { esquecerWhatsapp, whatsappGatewayOf, whatsappPausaModoOf } from "./whatsapp-estado";
+export { esquecerWhatsapp, whatsappAlvoDe, whatsappGatewayOf, whatsappPausaModoOf } from "./whatsapp-estado";
 export { cancelPairing, pairingInProgress, startPairing } from "./whatsapp-pair";
 
 /** Um script por motor, numa viagem só: `case "$MOTOR"` com o fragmento de cada um. */
@@ -46,6 +45,7 @@ export PATH=$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/bin:$PATH
 ${WA_MOTOR_SH}
 echo "escolha=$ESC"
 ${WA_ALVO_SH}
+echo "marks=$(cat "${WA_MARKS_FILE}" 2>/dev/null | tr -d '\n')"
 ${porMotor((m) => m.statusSh)}
 echo present=0
 `;
@@ -65,32 +65,44 @@ async function lerStatusCompleto(host: string): Promise<WhatsappStatus> {
   const proprio = st.alvo?.proprio !== false;
   return { ...st, ...(audio === null ? {} : { audioIn: audio.audioIn, audioOut: audio.audioOut }), capacidades: capacidadesDe(st.gateway, st.ready, st.connected, { pausaModo: whatsappPausaModoOf(host), proprio }) };
 }
-/** O alvo que a máquina gravou (whatsapp-alvo.json), resolvido neste Mac e guardado para as próximas chamadas. */
-function alvoDoScript(host: string, kv: Map<string, string>): WhatsappAlvoResolvido {
-  const alvo = resolverAlvo(parseAlvo(jsonOr(kv.get("alvo"))), host, listSshHostInfos());
-  alvoByHost.set(host, alvo);
-  return alvo;
+/**
+ * A máquina tem um alvo gravado (conta nomeada ou gateway de outro usuário): o ramo do OpenClaw que rodou no alias dela
+ * parou cedo (`poralvo=1`), e o fragmento do alvo roda no alias do gateway. O que veio do gateway vence; marcas, escolha
+ * e alvo continuam os do alias da conta. Sem alias para o gateway, erro com o que falta.
+ */
+async function completarPorAlvo(host: string, kv: Map<string, string>, de: (m: MotorWhatsapp, a: ReturnType<typeof whatsappAlvoDe>) => string, timeoutMs: number): Promise<Map<string, string>> {
+  const a = whatsappAlvoDe(host);
+  const motor = MOTORES.openclaw;
+  const r = await runSsh(execHostDe(host), `export PATH=$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/bin:$PATH\n${de(motor, a)}\n`, timeoutMs);
+  if (r.code !== 0) throw new Error(`não consegui consultar o gateway (${execHostDe(host)}): ${ultimaLinha(r.stderr) || "ssh falhou"}`);
+  const out = new Map(kv);
+  for (const [k, v] of kvTrimOf(r.stdout)) out.set(k, v);
+  out.delete("poralvo");
+  return out;
 }
-/** Onde vive o WhatsApp da máquina, pela última consulta; sem ela, o padrão (gateway próprio). */
-export const whatsappAlvoDe = (host: string): WhatsappAlvoResolvido => alvoByHost.get(host) ?? { accountId: "default", agentId: "main", gatewayUser: null, gatewayHost: null, proprio: true };
 async function lerWhatsappStatus(host: string): Promise<Omit<WhatsappStatus, "capacidades">> {
   const none: Omit<WhatsappStatus, "capacidades"> = { present: false, gateway: null, agent: "", ready: false, missing: null, connected: false, state: "ausente", number: null, loggedOut: false, detail: "", dmPolicy: null, channelConfig: null };
   if (host === LOCAL_HOST || !isValidHost(host)) return none;
   // Normalmente segundos; com o conserto do gateway (gw_fix: install --force + espera) passa de um minuto.
   const r = await runSsh(host, STATUS_SCRIPT, 240_000);
   if (r.code !== 0) return { ...none, detail: `não consegui consultar: ${ultimaLinha(r.stderr) || "ssh falhou"}` };
-  const kv = kvTrimOf(r.stdout);
+  let kv = kvTrimOf(r.stdout);
   const escolha = agenteEscolhido(kv.get("escolha"));
   const alvo = alvoDoScript(host, kv);
   if (kv.get("present") !== "1") return { ...none, escolha };
   const motor = motorDoScript(host, kv);
   if (motor === null) return { ...none, escolha };
-  const st = { ...motor.parseStatus(host, kv), escolha };
-  if (motor.nome !== "openclaw" || alvo.proprio) return st;
-  // Conta num gateway de outro usuário da máquina: a tela diz onde o WhatsApp vive; sem alias para o gateway, o que falta.
   const semAlias = alvoSemAlias(alvo);
-  const agent = `${st.agent} · gateway de ${alvo.gatewayUser ?? "?"}${alvo.gatewayHost === null ? "" : ` (${alvo.gatewayHost})`}, conta ${alvo.accountId}, agente ${alvo.agentId}`;
-  return { ...st, agent, alvo, ...(semAlias === null ? {} : { ready: false, missing: [st.missing, semAlias].filter((x) => x !== null).join("\n") }) };
+  if (kv.get("poralvo") === "1" && motor.porAlvo !== undefined) {
+    // Sem alias para o gateway, não há o que consultar: a tela explica o que falta.
+    if (semAlias !== null) return { ...none, present: true, gateway: "openclaw", agent: `OpenClaw · gateway de ${alvo.gatewayUser ?? "?"}, conta ${alvo.accountId}`, state: "sem alias para o gateway", detail: semAlias, missing: semAlias, escolha, alvo };
+    kv = await completarPorAlvo(host, kv, (m, a) => m.porAlvo!.statusSh(a), 240_000);
+  }
+  const st = { ...motor.parseStatus(host, kv), escolha };
+  if (motor.nome !== "openclaw" || (alvo.proprio && alvo.accountId === "default")) return st;
+  // Conta nomeada, ou num gateway de outro usuário da máquina: a tela diz onde o WhatsApp vive.
+  const agent = alvo.proprio ? `${st.agent} · conta ${alvo.accountId}, agente ${alvo.agentId}` : `${st.agent} · gateway de ${alvo.gatewayUser ?? "?"}${alvo.gatewayHost === null ? "" : ` (${alvo.gatewayHost})`}, conta ${alvo.accountId}, agente ${alvo.agentId}`;
+  return { ...st, agent, alvo };
 }
 
 /**
@@ -181,14 +193,18 @@ async function lerChats(host: string): Promise<WhatsappChat[]> {
   // A lista de pausados do openclaw.json (sendPolicy) vem junto; o Hermes a ignora.
   const script = `export PATH=$HOME/.openclaw/bin:$HOME/.local/bin:$PATH
 ${WA_MOTOR_SH}
+${WA_ALVO_SH}
 ${porMotor((m) => m.chatsSh, MOTORES.openclaw.chatsSh)}
 echo "marks=$(cat "${WA_MARKS_FILE}" 2>/dev/null | tr -d '\n')"
 ${SEND_POLICY_READ_SH}
 `;
   const r = await runSsh(host, script, 60_000);
   if (r.code !== 0) throw new Error(`não consegui ler as conversas do WhatsApp: ${ultimaLinha(r.stderr) || "ssh falhou"}`);
-  const kv = kvOf(r.stdout);
+  let kv = kvOf(r.stdout);
+  alvoDoScript(host, kvTrimOf(r.stdout));
   const motor = motorDoScript(host, kv) ?? MOTORES.openclaw;
+  // Alvo gravado: as sessões e a lista de pausados vêm do gateway certo; as marcas continuam as da conta.
+  if (kv.get("poralvo")?.trim() === "1" && motor.porAlvo !== undefined) kv = await completarPorAlvo(host, kv, (m, a) => `${m.porAlvo!.chatsSh(a)}\n${SEND_POLICY_READ_SH}`, 60_000);
   return motor.parseChats(host, kv);
 }
 
@@ -339,12 +355,17 @@ export async function whatsappLogout(host: string, qual?: WhatsappAgente): Promi
   if (host === LOCAL_HOST || !isValidHost(host)) throw new Error("este Mac não tem agente com WhatsApp");
   if (pairingInProgress() !== null) throw new Error("há um pareamento em andamento; feche o QR antes de desconectar");
   // `qual`: desconecta esse agente mesmo que a escolha gravada já seja outra (trocar de agente).
-  const script = `export PATH=$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/bin:$PATH
+  // Alvo do OpenClaw fora do padrão (conta nomeada ou gateway de outro usuário): o logout da conta, no alias do gateway.
+  const a = whatsappAlvoDe(host);
+  const porAlvo = (qual === undefined || qual === "openclaw") && (!a.proprio || a.accountId !== "default");
+  const script = porAlvo
+    ? `export PATH=$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/bin:$PATH\n${MOTORES.openclaw.porAlvo!.logoutSh(a)}\n`
+    : `export PATH=$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/bin:$PATH
 ${WA_MOTOR_SH}
 ${qual === undefined ? "" : `MOTOR=${qual}`}
 ${porMotor((m) => m.logoutSh, "echo OUT=none")}
 `;
-  const r = await runSsh(host, script, 90_000);
+  const r = await runSsh(porAlvo ? execHostDe(host) : host, script, 90_000);
   const out = /OUT=(\w+)/.exec(r.stdout)?.[1];
   if (out === "none") throw new Error("não achei WhatsApp configurado nesta máquina");
   if (out === "still" || out === undefined) throw new Error(`não consegui desconectar${r.stderr.trim() !== "" ? `: ${ultimaLinha(r.stderr)}` : ""}`);
@@ -360,13 +381,16 @@ async function lerGroups(host: string): Promise<WhatsappGroups> {
   if (host === LOCAL_HOST || !isValidHost(host)) throw new Error("este Mac não tem agente com WhatsApp");
   const script = `export PATH=$HOME/.openclaw/bin:$HOME/.local/bin:$PATH
 ${WA_MOTOR_SH}
+${WA_ALVO_SH}
 ${porMotor((m) => m.groupsSh, MOTORES.openclaw.groupsSh)}
 echo "marks=$(cat "${WA_MARKS_FILE}" 2>/dev/null | tr -d '\n')"
 `;
   const r = await runSsh(host, script, 60_000);
   if (r.code !== 0) throw new Error(`não consegui ler os grupos do WhatsApp: ${ultimaLinha(r.stderr) || "ssh falhou"}`);
-  const kv = kvOf(r.stdout);
+  let kv = kvOf(r.stdout);
+  alvoDoScript(host, kvTrimOf(r.stdout));
   const motor = motorDoScript(host, kv) ?? MOTORES.openclaw;
+  if (kv.get("poralvo")?.trim() === "1" && motor.porAlvo !== undefined) kv = await completarPorAlvo(host, kv, (m, a) => m.porAlvo!.groupsSh(a), 60_000);
   return motor.parseGroups(host, kv);
 }
 

@@ -5,12 +5,13 @@
  * monta `case "$MOTOR"` com a regra única (WA_MOTOR_SH); o parse é despachado pelo `gateway=` que o fragmento imprime.
  * O que é decidido pelos dados (chaves de sessão do Hermes vs. do OpenClaw) fica na fachada; o que é IO do motor, aqui.
  */
-import type { Gateway, WhatsappChat, WhatsappGroupPatch, WhatsappGroups, WhatsappReplyChoice, WhatsappStatus, WhatsappThreadMessage } from "../../shared/ipc";
+import type { Gateway, WhatsappAlvoResolvido, WhatsappChat, WhatsappGroupPatch, WhatsappGroups, WhatsappReplyChoice, WhatsappStatus, WhatsappThreadMessage } from "../../shared/ipc";
 import type { WaQuem } from "./whatsapp-marks";
 import type { PauseBy } from "./whatsapp-pause";
-import { agenteEscolhido, WA_MOTOR_SH } from "./whatsapp-capacidades";
+import { agenteEscolhido, WA_ALVO_SH, WA_MOTOR_SH } from "./whatsapp-capacidades";
 import { runSsh } from "./whatsapp-ssh";
-import { gatewayByHost } from "./whatsapp-estado";
+import { alvoDoScript, gatewayByHost } from "./whatsapp-estado";
+import { kvTrimOf } from "./whatsapp-kv";
 import { criarMotorOpenclaw } from "./whatsapp-openclaw";
 import { criarMotorHermes } from "./whatsapp-hermes";
 import { criarMotorPicoclaw } from "./whatsapp-picoclaw";
@@ -59,6 +60,11 @@ export interface MotorWhatsapp {
   setGroup(host: string, jid: string, pedido: WhatsappGroupPatch, lerGrupos: () => Promise<WhatsappGroups>): Promise<WhatsappGroups>;
   /** Atualiza a lista de grupos pelo WhatsApp (para o gateway uns 30 s). */
   refreshGroups(host: string): Promise<void>;
+  /**
+   * Os mesmos fragmentos, para um alvo (conta e agente num gateway que pode ser de outro usuário): a fachada os roda no
+   * alias do gateway quando a máquina tem um alvo gravado. Só o OpenClaw tem contas.
+   */
+  readonly porAlvo?: { statusSh(a: WhatsappAlvoResolvido): string; chatsSh(a: WhatsappAlvoResolvido): string; groupsSh(a: WhatsappAlvoResolvido): string; pairSh(a: WhatsappAlvoResolvido): string; logoutSh(a: WhatsappAlvoResolvido): string };
 }
 
 export const MOTORES: Record<Gateway, MotorWhatsapp> = { openclaw: criarMotorOpenclaw(), hermes: criarMotorHermes(), picoclaw: criarMotorPicoclaw() };
@@ -71,9 +77,9 @@ export const motorPorNome = (g: Gateway | null | undefined): MotorWhatsapp | nul
 export async function motorDe(host: string, run: Exec = runSsh): Promise<MotorWhatsapp> {
   let g = gatewayByHost.get(host) ?? null;
   if (g === null) {
-    const r = await run(host, `${WA_MOTOR_SH}\necho "motor=$MOTOR"\n`, 20_000);
+    const r = await run(host, `${WA_MOTOR_SH}\necho "motor=$MOTOR"\n${WA_ALVO_SH}\n`, 20_000);
     g = agenteEscolhido(/^motor=(\S*)$/m.exec(r.stdout)?.[1]);
-    if (r.code === 0 && g !== null) gatewayByHost.set(host, g);
+    if (r.code === 0 && g !== null) { gatewayByHost.set(host, g); alvoDoScript(host, kvTrimOf(r.stdout)); }
   }
   if (g === null) throw new Error("esta máquina não tem agente com WhatsApp (Hermes, OpenClaw ou PicoClaw)");
   return MOTORES[g];
