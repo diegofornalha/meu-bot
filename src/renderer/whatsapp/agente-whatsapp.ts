@@ -554,20 +554,28 @@ let waRefreshing = false;
 /** Consulta em andamento: quem chama de novo (o botão Atualizar) espera por ela em vez de ser ignorado. */
 let waInflight: Promise<void> | null = null;
 let waCheckedAt: Date | null = null;
-export function refreshWhatsapp(): Promise<void> {
+export function refreshWhatsapp(force = false): Promise<void> {
   if (waInflight !== null) return waInflight;
   waRefreshing = true;
   if (ctx.waTimer !== null) { clearTimeout(ctx.waTimer); ctx.waTimer = null; }
   waInflight = (async () => {
-    try { const raw = await window.meuBot.whatsappStatus(); waRealConectado = raw.connected; ctx.waStatus = comPareamento(raw); waCheckedAt = new Date(); if (raw.present) ctx.cacheWrite("waStatus", raw); else ctx.cacheDrop("waStatus"); } catch { ctx.waStatus = null; }
+    try { const raw = await window.meuBot.whatsappStatus(force); waRealConectado = raw.connected; ctx.waStatus = comPareamento(raw); waCheckedAt = new Date(); if (raw.present) ctx.cacheWrite("waStatus", raw); else ctx.cacheDrop("waStatus"); } catch { ctx.waStatus = null; }
     finally { waRefreshing = false; waInflight = null; }
     paintWhatsapp();
     if (ctx.waStatus?.capacidades.grupos === true && ctx.waGroups === null && ctx.waGroupsInflight === null && ctx.waGroupsAt === 0) void ctx.refreshWaGroups();
     if (waPairing && ctx.waStatus?.connected === true) waShowSuccess(ctx.waStatus.number);
     const soon = ctx.waStatus !== null && ctx.waStatus.present && !ctx.waStatus.connected;
-    ctx.waTimer = setTimeout(() => { void refreshWhatsapp(); }, waPairing && !waConnected ? 8_000 : soon ? 10_000 : 60_000);
+    agendarWa(waPairing && !waConnected ? 8_000 : soon ? 10_000 : 120_000);
   })();
   return waInflight;
+}
+/**
+ * Agenda a próxima consulta. Com a janela escondida (outra área de trabalho, minimizada) não consulta: só reagenda, e o
+ * `focus` traz o estado na hora quando a pessoa volta. Cada consulta sobe um `openclaw` de ~300 MB na máquina; conectado,
+ * a cada 2 min basta (o main ainda guarda a resposta por 45 s para as outras janelas da mesma máquina).
+ */
+function agendarWa(ms: number): void {
+  ctx.waTimer = setTimeout(() => { if (document.visibilityState === "hidden") { agendarWa(30_000); return; } void refreshWhatsapp(); }, ms);
 }
 
 export function openWhatsapp(): void {
@@ -705,7 +713,7 @@ export function ligarAgenteWhatsapp(): void {
   });
   waRefreshBtn.addEventListener("click", () => {
     waRefreshBtn.disabled = true; waRefreshBtn.textContent = "Consultando a máquina…";
-    void refreshWhatsapp().finally(() => {
+    void refreshWhatsapp(true).finally(() => {
       waRefreshBtn.disabled = false; waRefreshBtn.textContent = "Atualizar";
       // Mesmo sem mudança, dizer que consultou: senão o clique parece não fazer nada.
       if (waCheckedAt !== null) waStatusEl.textContent = `${waStatusEl.textContent ?? ""}\nConsultado às ${waCheckedAt.toLocaleTimeString("pt-BR")}.`;

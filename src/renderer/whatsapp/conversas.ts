@@ -89,6 +89,10 @@ export function setListMode(mode: ListMode): void {
   paintListMode();
   ctx.renderSidebar();
 }
+/** Próxima leitura da lista; com a janela escondida só reagenda (cada leitura é uma chamada ao gateway na máquina). */
+function agendarWaChats(ms: number): void {
+  waChatsTimer = window.setTimeout(() => { waChatsTimer = null; if (document.visibilityState === "hidden") { agendarWaChats(30_000); return; } void refreshWaChats(); }, ms);
+}
 function refreshWaChats(): Promise<void> {
   if (waChatsInflight !== null) return waChatsInflight;
   if (waChatsTimer !== null) { clearTimeout(waChatsTimer); waChatsTimer = null; }
@@ -101,7 +105,7 @@ function refreshWaChats(): Promise<void> {
     catch (err) { waChatsErr = err instanceof Error ? err.message : String(err); }
     finally { waChatsInflight = null; }
     for (const g of ctx.waChatPages.values()) { const c = ctx.waChats.find((x) => x.number === g.chat.number); if (c !== undefined) { g.chat = c; ctx.paintWaChatTab(g); } }
-    if (getListMode() === "whatsapp") { ctx.renderSidebar(); waChatsTimer = window.setTimeout(() => { waChatsTimer = null; void refreshWaChats(); }, 20_000); }
+    if (getListMode() === "whatsapp") { ctx.renderSidebar(); agendarWaChats(30_000); }
   })();
   return waChatsInflight;
 }

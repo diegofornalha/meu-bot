@@ -182,12 +182,13 @@ export function registerSharedIpc(deps: SharedIpcDeps): void {
   });
 
   // Leituras da máquina desta janela.
-  handleShared("whatsapp:status", (event) => {
+  handleShared("whatsapp:status", (event, payload: unknown) => {
     const h = hostFromEvent(event);
     if (h === null) throw new Error("origem inválida");
-    // O áudio do Hermes (config.yaml) já vem no próprio whatsappStatus.
+    // O áudio do Hermes (config.yaml) já vem no próprio whatsappStatus. `force` (botão Atualizar) pula a validade do cache.
+    const force = (payload as { force?: unknown } | null)?.force === true;
     const t0 = Date.now();
-    return whatsappStatus(h.host).then((st) => { log(`[whatsapp] status de ${h.host}: ${st.gateway ?? "-"} ${st.state} connected=${st.connected} em ${Date.now() - t0} ms`); return st; });
+    return whatsappStatus(h.host, { force }).then((st) => { log(`[whatsapp] status de ${h.host}: ${st.gateway ?? "-"} ${st.state} connected=${st.connected} em ${Date.now() - t0} ms${force ? " (forçado)" : ""}`); return st; });
   });
   handleShared("whatsapp:chats", (event) => {
     const h = hostFromEvent(event);
