@@ -11,7 +11,8 @@ import os from "node:os";
 import path from "node:path";
 import { app } from "electron";
 import type { UsuarioMacCriado, UsuariosMacVisao } from "../../shared/ipc";
-import { LISTAR_MAC_SH, apagarNoTerminalCmd, apelidoMacSh, criarMacSh, lerUsuariosMac, nomeNovoInvalido, saidaMac, senhaDe, senhaEscolhidaInvalida } from "./usuarios-mac-core";
+import { LISTAR_MAC_SH, OAUTH_GOOGLE, apagarNoTerminalCmd, apelidoMacSh, criarMacSh, type OauthGoogle, lerUsuariosMac, nomeNovoInvalido, saidaMac, senhaDe, senhaEscolhidaInvalida } from "./usuarios-mac-core";
+import { parseClienteOAuth } from "../google/google-core";
 
 function rodar(cmd: string, args: string[], timeoutMs: number): Promise<{ code: number; stdout: string; stderr: string }> {
   return new Promise((resolve) => {
@@ -48,6 +49,25 @@ function claudeDesteUsuario(): string | null {
   try { const real = fs.realpathSync(path.join(os.homedir(), ".local", "bin", "claude")); return /\/\.local\/share\/claude\/versions\/[\w.-]+$/.test(real) && real.startsWith("/Users/") ? real : null; } catch { return null; }
 }
 
+/**
+ * Os clients do Google de quem administra, para levar à conta nova: o checkout em ~/Desktop/meu-bot/config, senão a
+ * pasta de dados do meu-bot. Só vai o que é um client OAuth válido (nada de .bak nem arquivo quebrado).
+ */
+function oauthDesteUsuario(): { nome: OauthGoogle; base64: string }[] {
+  const out: { nome: OauthGoogle; base64: string }[] = [];
+  for (const nome of OAUTH_GOOGLE) {
+    for (const dir of [path.join(os.homedir(), "Desktop", "meu-bot", "config"), path.join(os.homedir(), "Library", "Application Support", "meu-bot")]) {
+      try {
+        const bruto = fs.readFileSync(path.join(dir, nome));
+        if (parseClienteOAuth(JSON.parse(bruto.toString("utf8"))) === null) continue;
+        out.push({ nome, base64: bruto.toString("base64") });
+        break;
+      } catch { /* próximo lugar */ }
+    }
+  }
+  return out;
+}
+
 function registrar(acao: string, alvo: string): void {
   try { fs.appendFileSync(path.join(app.getPath("userData"), "auditoria-mac.jsonl"), `${JSON.stringify({ em: new Date().toISOString(), quem: os.userInfo().username, acao, alvo })}\n`, { mode: 0o600 }); } catch { /* registro é cortesia */ }
 }
@@ -72,11 +92,12 @@ export async function criarUsuarioMac(nome: unknown, senhaPedida: unknown): Prom
   const escolhida = typeof senhaPedida === "string" && senhaPedida !== "" ? senhaPedida : null;
   if (escolhida !== null) { const e = senhaEscolhidaInvalida(escolhida); if (e !== null) throw new Error(e); }
   const senha = escolhida ?? senhaDe(crypto.randomBytes(32));
-  const out = await comoAdministrador(criarMacSh({ nome: n, senha, claude: claudeDesteUsuario() }), `criar a conta ${n} (com o meu-bot na mesa)`);
+  const out = await comoAdministrador(criarMacSh({ nome: n, senha, claude: claudeDesteUsuario(), oauth: oauthDesteUsuario() }), `criar a conta ${n} (com o meu-bot na mesa)`);
   saidaMac(out, new RegExp(`^CRIADO=${n}$`, "m"), "o macOS não confirmou a conta nova");
   const repo = (/^REPO=(ok|falhou|sem-git)$/m.exec(out)?.[1] ?? "falhou") as UsuarioMacCriado["repo"];
-  registrar("conta.criar", `${n} (meu-bot na mesa: ${repo})`);
-  return { nome: n, senha: escolhida === null ? senha : null, repo, visao: await listarUsuariosMac() };
+  const oauth = /^OAUTH=ok$/m.test(out) ? "ok" : "sem-origem";
+  registrar("conta.criar", `${n} (meu-bot na mesa: ${repo}; Google: ${oauth})`);
+  return { nome: n, senha: escolhida === null ? senha : null, repo, oauth, visao: await listarUsuariosMac() };
 }
 
 export async function apagarUsuarioMac(nome: unknown): Promise<UsuariosMacVisao> {

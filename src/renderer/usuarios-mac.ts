@@ -62,6 +62,7 @@ function cartaoCriar(): HTMLElement {
       const l = el("div", "admin-actions"); l.append(s, copiar); r.append(l);
     } else r.append(el("p", "hint", "Com a senha que você escolheu."));
     r.append(el("p", criado.repo === "ok" ? "hint audio-ok" : "hint bad-hint", criado.repo === "ok" ? "meu-bot na mesa da conta nova (Desktop/meu-bot)." : criado.repo === "sem-git" ? "Sem as ferramentas de linha de comando do Xcode neste Mac: o meu-bot não foi para a mesa (xcode-select --install e clone depois)." : "O clone do meu-bot falhou (internet?): a conta foi criada; clone depois em Desktop/meu-bot."));
+    r.append(el("p", criado.oauth === "ok" ? "hint audio-ok" : "hint bad-hint", criado.oauth === "ok" ? "Client do Google levado junto: a Conta Google abre no meu-bot dela." : "Este Mac não tem o client do Google (config/google-oauth.json) para levar: a Conta Google dela vai mostrar \"não configurado\" até alguém copiar o arquivo (docs/guia/google.md)."));
     r.append(botao(criado.senha !== null ? "Esconder a senha" : "Ok", "btn-ghost", () => { criado = null; render(); }));
     c.append(r);
   }

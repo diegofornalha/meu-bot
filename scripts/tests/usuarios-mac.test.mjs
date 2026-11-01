@@ -100,3 +100,18 @@ test("usuário na VM (meu-bot-admin e admin-mac): todas as chaves entram, inclus
   assert.throws(() => c.usuarioComChavesSh("root", [k1], "erro"), /nome inválido/);
   assert.throws(() => c.usuarioComChavesSh("meu-box", ["ssh-ed25519 x'; rm -rf /"], "erro"), /chave/);
 });
+
+test("conta nova leva os clients do Google (issue #36): para o config/ do clone e para a pasta de dados, como ela, 0600", async () => {
+  const { criarMacSh, oauthContaNovaSh } = await import("../../dist/main/usuarios-mac/usuarios-mac-core.js");
+  const b64 = Buffer.from('{"installed":{}}').toString("base64");
+  const sh = oauthContaNovaSh("ana", [{ nome: "google-oauth.json", base64: b64 }]);
+  assert.match(sh, /mktemp \/tmp\/meu-bot-oauth\./, "temporário que a conta nova consegue ler");
+  assert.match(sh, /sudo -u "ana" -H sh -c 'umask 077;/);
+  assert.match(sh, /Desktop\/meu-bot\/config/); assert.match(sh, /Library\/Application Support\/meu-bot/);
+  assert.match(sh, /rm -f "\$T"\necho "OAUTH=ok"$/);
+  assert.equal(oauthContaNovaSh("ana", []), 'echo "OAUTH=sem-origem"');
+  assert.throws(() => oauthContaNovaSh("ana", [{ nome: "outro.json", base64: b64 }]), /inválido/);
+  assert.throws(() => oauthContaNovaSh("ana", [{ nome: "google-oauth.json", base64: "x' ; rm -rf / ; '" }]), /inválido/);
+  const tudo = criarMacSh({ nome: "ana", senha: "Abcdef12345!xyz", oauth: [{ nome: "google-oauth.json", base64: b64 }] });
+  assert.ok(tudo.indexOf("REPO=") < tudo.indexOf("OAUTH=ok"), "depois do clone, para cair também no config/ dele");
+});

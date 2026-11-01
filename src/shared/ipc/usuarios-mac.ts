@@ -13,7 +13,8 @@ export interface UsuarioMac {
 export interface UsuariosMacVisao { usuarios: UsuarioMac[]; atual: string; naTela: string | null }
 
 /** Conta criada. `senha`: a gerada pelo app, mostrada só aqui, uma vez (null = a pessoa escolheu a dela). `repo`: o meu-bot clonado na mesa. */
-export interface UsuarioMacCriado { nome: string; senha: string | null; repo: "ok" | "falhou" | "sem-git"; visao: UsuariosMacVisao }
+/** `oauth`: os clients do Google foram para a conta nova ("sem-origem" = este Mac não tem nenhum para levar). */
+export interface UsuarioMacCriado { nome: string; senha: string | null; repo: "ok" | "falhou" | "sem-git"; oauth: "ok" | "sem-origem"; visao: UsuariosMacVisao }
 
 export interface UsuariosMacApi {
   listar(): Promise<UsuariosMacVisao>;
