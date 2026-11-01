@@ -20,7 +20,7 @@ import { BlockQrCollector, blocksToSvgDataUrl, stripAnsi } from "./qr-blocks";
 import type { Gateway, VoiceReplyMode, WhatsappAgente, WhatsappChat, WhatsappDmPolicy, WhatsappEvent, WhatsappGroupPatch, WhatsappGroups, WhatsappReplyChoice, WhatsappStatus, WhatsappThreadMessage } from "../../shared/ipc";
 import { DESCONHECIDO_DENY, NAV_DENY } from "../navegador/navegador-whatsapp-core";
 import { JID_RE, aplicarPatch, estadoDoGrupo, gruposDaMaquina, patchGrupo, threadDoGrupo } from "./whatsapp-grupos-core";
-import { agenteEscolhido, capacidadesDe, WA_AGENTE_FILE, WA_ESCOLHA_SH } from "./whatsapp-capacidades";
+import { agenteEscolhido, capacidadesDe, WA_AGENTE_FILE, WA_MOTOR_SH } from "./whatsapp-capacidades";
 import { HERMES_GRUPOS_LISTAR_SH, lerListagemHermes } from "./hermes-grupos-listar";
 import { chatsFromSessions, ownSessionKeys, gatewayFailures, grupoToMarkdown, peerOfSessionKey, SAFE_KEY, threadFor, threadToMarkdown, whatsappContextNote, type SessionHistory } from "./whatsapp-chats";
 import { WA_MARKS_FILE, applyWaGroupMarks, applyWaMarks, parseWaMarks, pausaVigente, pausadosDe, quemDe, souEu, donosDe, waMarkSh, type WaDonoPatch, type WaGroupMarkPatch, type WaMarkPatch, type WaMarks, type WaQuem } from "./whatsapp-marks";
@@ -120,7 +120,7 @@ gw_ensure() {
 const STATUS_SCRIPT = `
 export PATH=$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/bin:$PATH
 ${GATEWAY_FIX_SH}
-${WA_ESCOLHA_SH}
+${WA_MOTOR_SH}
 echo "escolha=$ESC"
 S=$HOME/.hermes/whatsapp
 if usa_hermes; then
@@ -140,7 +140,7 @@ if usa_hermes; then
   echo "marks=$(cat "${WA_MARKS_FILE}" 2>/dev/null | tr -d '\n')"
   exit 0
 fi
-if command -v openclaw >/dev/null 2>&1; then
+if [ "$MOTOR" = openclaw ] && command -v openclaw >/dev/null 2>&1; then
   echo gateway=openclaw; echo present=1
   echo "bin=$(command -v openclaw)"
   echo "real=$(readlink -f "$(command -v openclaw)" 2>/dev/null)"
@@ -179,10 +179,10 @@ print(json.dumps({"linked":c.get("linked"),"connected":c.get("connected"),"state
   exit 0
 fi
 # Escolheu OpenClaw e ele ainda não está aqui: o passo "preparar" instala (status sem binário = falta instalar).
-if [ "$ESC" = openclaw ]; then echo gateway=openclaw; echo present=1; echo bin=; exit 0; fi
+if [ "$MOTOR" = openclaw ]; then echo gateway=openclaw; echo present=1; echo bin=; exit 0; fi
 # PicoClaw (sipeed): o canal "whatsapp" do config.json em modo nativo (whatsmeow dentro do gateway). A sessão
 # é o store.db na pasta do canal; "no ar" é o /health do gateway. Serviço: runit no Termux, systemd de usuário fora.
-if command -v picoclaw >/dev/null 2>&1 && [ -f "$HOME/.picoclaw/config.json" ]; then
+if [ "$MOTOR" = picoclaw ]; then
   echo gateway=picoclaw; echo present=1
   echo "bin=$(command -v picoclaw)"
   echo "ver=$(NO_COLOR=1 timeout 10 picoclaw version 2>/dev/null | grep -o 'picoclaw [^ ]*' | head -1)"
@@ -548,7 +548,7 @@ const PAIR_SCRIPT = `
 set -u
 export PATH=$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/bin:$PATH
 ${GATEWAY_FIX_SH}
-${WA_ESCOLHA_SH}
+${WA_MOTOR_SH}
 S=$HOME/.hermes/whatsapp
 if usa_hermes; then
   command -v hermes >/dev/null 2>&1 || { echo '{"event":"error","error":"o Hermes não está instalado nesta máquina; use \\"Preparar\\" antes de gerar o QR"}'; exit 2; }
@@ -610,7 +610,7 @@ ${HERMES_WA_ENSURE_SH}
   restart
   exit $rc
 fi
-if command -v openclaw >/dev/null 2>&1; then
+if [ "$MOTOR" = openclaw ] && command -v openclaw >/dev/null 2>&1; then
   echo '{"event":"meu-bot","step":"openclaw"}'
   if [ ! -f "$HOME/.openclaw/openclaw.json" ]; then echo '{"event":"error","error":"OpenClaw instalado, mas sem configurar nesta máquina (não há ~/.openclaw/openclaw.json); rode o onboarding do OpenClaw antes de parear"}'; exit 2; fi
   # Sem o plugin do WhatsApp (VM nova: ele não vem de fábrica), instala do ClawHub e segue para o QR.
@@ -801,7 +801,7 @@ export async function whatsappChats(host: string): Promise<WhatsappChat[]> {
   if (host === LOCAL_HOST || !isValidHost(host)) return [];
   // Hermes (escolhido ou já configurado): a lista vem do state.db dele, só-leitura; senão, o gateway do OpenClaw.
   const script = `export PATH=$HOME/.openclaw/bin:$HOME/.local/bin:$PATH
-${WA_ESCOLHA_SH}
+${WA_MOTOR_SH}
 if usa_hermes; then
   echo gateway=hermes
   echo "self=$(${HERMES_SELF_SH})"
@@ -992,14 +992,14 @@ export async function whatsappGroupExportBody(host: string, jid: string, limit =
   return { nome, body: grupoToMarkdown(nome, jid, host, messages, new Date().toISOString()), messages };
 }
 
-/** A máquina roda o Hermes? Pelo gateway da última consulta; sem ela, a mesma regra do status (escolha, senão o instalado). */
+/** A máquina roda o Hermes? Pelo gateway da última consulta; sem ela, a regra única do motor (WA_MOTOR_SH), que fica em cache. */
 async function hostIsHermes(host: string): Promise<boolean> {
   const g = gatewayByHost.get(host);
   if (g !== undefined) return g === "hermes";
-  const r = await runSsh(host, `${WA_ESCOLHA_SH}\nusa_hermes && echo hermes || echo outro\n`, 20_000);
-  const hermes = /^hermes$/m.test(r.stdout);
-  if (r.code === 0) gatewayByHost.set(host, hermes ? "hermes" : "openclaw");
-  return hermes;
+  const r = await runSsh(host, `${WA_MOTOR_SH}\necho "motor=$MOTOR"\n`, 20_000);
+  const motor = agenteEscolhido(/^motor=(\S*)$/m.exec(r.stdout)?.[1]);
+  if (r.code === 0 && motor !== null) gatewayByHost.set(host, motor);
+  return motor === "hermes";
 }
 /** Sessões de um grupo no Hermes (todas; `ended` marca as já encerradas). */
 async function hermesGroupSessionsOf(host: string, jid: string): Promise<HermesGroupSession[]> {
@@ -1205,8 +1205,8 @@ export async function whatsappLogout(host: string, qual?: WhatsappAgente): Promi
   if (current !== null) throw new Error("há um pareamento em andamento; feche o QR antes de desconectar");
   // `qual`: desconecta esse agente mesmo que a escolha gravada já seja outra (trocar de agente).
   const script = `export PATH=$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/bin:$PATH
-${WA_ESCOLHA_SH}
-${qual === undefined ? "" : `ESC=${qual}`}
+${WA_MOTOR_SH}
+${qual === undefined ? "" : `MOTOR=${qual}`}
 S=$HOME/.hermes/whatsapp
 if usa_hermes; then
   ${HERMES_PATH_SH}
@@ -1282,7 +1282,7 @@ export async function whatsappGroups(host: string): Promise<WhatsappGroups> {
   if (host === LOCAL_HOST || !isValidHost(host)) throw new Error("este Mac não tem agente com WhatsApp");
   // A máquina escolhe o caminho: Hermes (config.yaml + state.db + .env, whatsapp-hermes-core.ts) ou OpenClaw.
   const script = `export PATH=$HOME/.openclaw/bin:$HOME/.local/bin:$PATH
-${WA_ESCOLHA_SH}
+${WA_MOTOR_SH}
 if usa_hermes; then
   echo gateway=hermes
   echo "skill=$([ -f "$HOME/.hermes/whatsapp/session/creds.json" ] && echo 1 || echo 0)"
@@ -1457,7 +1457,7 @@ export async function whatsappSetGroup(host: string, jid: string, pedido: Whatsa
 export async function whatsappRefreshGroups(host: string): Promise<WhatsappGroups> {
   if (host === LOCAL_HOST || !isValidHost(host)) throw new Error("este Mac não tem agente com WhatsApp");
   // Hermes: pelo próprio bridge (hermes-grupos-listar.ts), também parando o gateway uns 30 s. A escolha gravada manda.
-  const esc = await runSsh(host, `${WA_ESCOLHA_SH}\nusa_hermes && echo hermes || echo outro\n`, 20_000);
+  const esc = await runSsh(host, `${WA_MOTOR_SH}\nusa_hermes && echo hermes || echo outro\n`, 20_000);
   if (/^hermes$/m.test(esc.stdout)) {
     const h = await runSsh(host, HERMES_GRUPOS_LISTAR_SH, 240_000);
     const l = lerListagemHermes(h.stdout);

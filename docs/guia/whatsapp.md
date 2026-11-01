@@ -440,3 +440,23 @@ andamento; avisa no WhatsApp ao cruzar 80, 95 e 100% uma vez por cruzamento (rea
 `saude-avisos.json › cota`. O resultado vai em `/health.cota`, `/v1/meu-bot/status.cota` e `GET /v1/meu-bot/cota?fresco=1`.
 A cota macia é o limite que a pessoa vê; a dura (folga de 10%/300 MB, 7 dias) é o que deixa o aviso de 100% ainda sair.
 Os avisos (Mac novo, vigia, cota) vão só pelo WhatsApp da pessoa: o e-mail pela Resend saiu em 30 out.
+
+## Regra única do motor do WhatsApp (1 nov)
+
+- Motivo: havia quatro regras para decidir se a máquina atende pelo Hermes, OpenClaw ou PicoClaw, e elas divergiam: o
+  status da janela (`WA_ESCOLHA_SH`: Hermes vence sem escolha), a sondagem do seletor (`hostProbe.ts`: OpenClaw vence e
+  o arquivo de escolha era ignorado), os módulos (`modulos.ts`: sem PicoClaw) e o backend (`server.js`, cópia em JS).
+  Numa máquina com os dois motores, o seletor dizia OpenClaw e a janela, Hermes.
+- `WA_MOTOR_SH` (`src/main/whatsapp/whatsapp-capacidades.ts`) é a regra: deixa `$ESC` (a escolha gravada em
+  `~/.local/share/meu-bot/whatsapp-agente`, que agora aceita `picoclaw`), `$MOTOR` e `usa_hermes`. Precedência: escolha
+  gravada > Hermes já com o WhatsApp configurado > binário `openclaw` (PATH ou `~/.openclaw/bin`) > binário `hermes`
+  (PATH ou `~/.local/bin`) > `picoclaw` com `~/.picoclaw/config.json`. Uma linha, sem comentários (o `probeScript` junta
+  por `; `) e só com `if` (segura sob `set -e`). Todos os consumidores passaram a usá-la: status, pareamento, lista,
+  logout (`MOTOR=<qual>` quando a tela manda desconectar o outro motor), grupos, sondagem, módulos, reinício no admin
+  (`case "$MOTOR"`) e a pasta de skills do objetivo.
+- `backend-colima/motor-whatsapp.js` é o espelho em JS (entra no pacote do backend; VERSION 1.10.0); o `server.js` decide
+  por ele por onde mandar mensagem. `scripts/tests/motor-whatsapp.test.mjs` roda o shell e o JS no mesmo HOME de mentira
+  em 100 combinações e exige o mesmo resultado.
+- Mudança de comportamento: na sondagem do seletor, uma máquina com Hermes configurado e OpenClaw instalado passa a
+  aparecer como Hermes (como a janela já dizia); uma máquina com o binário do Hermes mas sem o WhatsApp dele e sem OpenClaw
+  aparece como "Hermes sem bridge" em vez de "sem agente".

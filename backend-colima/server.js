@@ -17,6 +17,7 @@ const http = require('node:http');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { motorWhatsapp } = require('./motor-whatsapp');
 const { execFile } = require('node:child_process');
 const crypto = require('node:crypto');
 const { spawn } = require('node:child_process');
@@ -115,17 +116,15 @@ function selfWhatsappNumber() {
 /** Aviso ao próprio dono (Mac novo, vigia): pelo gateway da máquina, OpenClaw ou Hermes (sendWhatsapp). */
 const sendWhatsappSelf = (text) => sendWhatsapp({ texto: text });
 /**
- * WhatsApp pelo gateway da máquina (o mesmo que o app escolheu em whatsapp-agente; sem escolha, o Hermes quando ele
- * tem WhatsApp). `para` = número E.164 sem o "+" (padrão: o próprio dono); `midia` = caminho de arquivo na máquina.
- * OpenClaw: `openclaw message send` (--media). Hermes: `hermes send --to whatsapp[:<número>]` (MEDIA:<caminho>).
+ * WhatsApp pelo motor da máquina, pela mesma regra do app (motor-whatsapp.js: a escolha em whatsapp-agente; sem ela, o
+ * Hermes com WhatsApp configurado, senão o binário que existir). `para` = número E.164 sem o "+" (padrão: o próprio
+ * dono); `midia` = caminho de arquivo na máquina. OpenClaw: `openclaw message send` (--media). Hermes:
+ * `hermes send --to whatsapp[:<número>]` (MEDIA:<caminho>). PicoClaw ainda não envia por aqui.
  */
-function usaHermes() {
-  let esc = '';
-  try { esc = fs.readFileSync(path.join(MEU_BOT_DIR, 'whatsapp-agente'), 'utf8').trim(); } catch (_) { /* sem escolha */ }
-  return esc === 'hermes' || (esc !== 'openclaw' && fs.existsSync(path.join(os.homedir(), '.hermes', 'whatsapp')));
-}
+const PATH_MOTORES = `${os.homedir()}/.openclaw/bin:${os.homedir()}/.local/bin:${process.env.PATH || ''}`;
+const usaHermes = () => motorWhatsapp({ PATH: PATH_MOTORES }).motor === 'hermes';
 function sendWhatsapp({ texto, para, midia }) {
-  const env = { ...process.env, PATH: `${os.homedir()}/.openclaw/bin:${os.homedir()}/.local/bin:${process.env.PATH || ''}` };
+  const env = { ...process.env, PATH: PATH_MOTORES };
   const hermes = usaHermes();
   const num = para || (hermes ? null : selfWhatsappNumber());
   if (!hermes && !num) return Promise.resolve(false);

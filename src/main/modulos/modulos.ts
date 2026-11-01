@@ -12,7 +12,7 @@ import { lerLicenca } from "../licenca/licenca-maquina";
 import { acessoAddon } from "../licenca/licenca";
 import { enviarModulo } from "../maquina/hostProbe";
 import { runSsh } from "../whatsapp/whatsapp";
-import { WA_ESCOLHA_SH } from "../whatsapp/whatsapp-capacidades";
+import { WA_MOTOR_SH } from "../whatsapp/whatsapp-capacidades";
 import { MODULOS_DIR, ambienteSh, credenciaisSh, desatualizado, estadoSh, mesclarOpcoes, opcoesSh, parseEstado, parseManifesto } from "./modulos-core";
 
 /** Pasta do repositório do produto que veio com este app; null = este app não tem módulos. */
@@ -39,7 +39,8 @@ const moduloDe = (id: string): Modulo => {
   return m;
 };
 
-const GATEWAY_SH = `${WA_ESCOLHA_SH}; export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:/opt/node/bin:$PATH"; if usa_hermes; then echo gw=hermes; elif command -v openclaw >/dev/null 2>&1; then echo gw=openclaw; else echo gw=; fi`;
+// O motor pela regra única (WA_MOTOR_SH); os módulos só conhecem Hermes e OpenClaw (PicoClaw sai vazio, como antes).
+const GATEWAY_SH = `export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:/opt/node/bin:$PATH"; ${WA_MOTOR_SH}; case "$MOTOR" in hermes|openclaw) echo "gw=$MOTOR";; *) echo gw=;; esac`;
 const gatewayDe = (stdout: string): ModuloGateway | null => { const m = /^gw=(hermes|openclaw)$/m.exec(stdout); return m === null ? null : (m[1] as ModuloGateway); };
 
 export async function listarModulos(host: string): Promise<ModulosLista> {
