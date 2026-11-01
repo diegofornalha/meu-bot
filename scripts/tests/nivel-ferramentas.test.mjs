@@ -31,8 +31,8 @@ test("backend: o perfil whatsapp existe, passa --disallowedTools e segue a corre
   assert.match(src, /whatsapp: \{[^}]*nivel: true/);
   assert.match(src, /'--disallowedTools', bloqueadas\.join\(','\)/);
   assert.match(src, /model === 'whatsapp' \? \['whatsapp', \.\.\.providers\.chain\(PROVIDERS, 'agente'\)\.slice\(1\)\]/);
-  const lista = fs.readFileSync(new URL("../../backend-colima/install.sh", import.meta.url), "utf8");
-  assert.match(lista, /nivel-ferramentas\.js/, "o install.sh copia o módulo");
+  const { BACKEND_RUNTIME_FILES } = require("../../dist/main/maquina/backend-bundle-core.js");
+  assert.ok(BACKEND_RUNTIME_FILES.includes("nivel-ferramentas.js"), "a lista única do pacote leva o módulo para a máquina");
 });
 
 test("Hermes: o WhatsApp usa o modelo 'whatsapp' só com backend 1.3.0+, e o tutorial 8 informa a trava pelo backend", () => {

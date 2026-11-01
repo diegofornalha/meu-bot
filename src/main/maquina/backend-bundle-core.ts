@@ -5,16 +5,61 @@
  * máquinas nunca recebem a mudança (o seletor só atualiza para cima).
  */
 
-// Tudo que o install.sh copia: server.js exige providers.js e account-status.js ao lado (sem eles o cp aborta
-// e a VM nova fica sem backend). A status line vai junto e o install.sh a encadeia no fim; VERSION ele grava por último.
-export const BUNDLE_FILES = [
-  "server.js", "session-map.js", "nivel-ferramentas.js", "modulos.js", "providers.js", "providers.json", "account-status.js", "contas-claude.js", "tool-events.js", "navegador.js", "licenca.js", "crm-modelo.js", "crm-store.js", "crm-api.js", "finance-modelo.js", "finance-store.js", "finance-api.js", "finance-crm-sync.js", "crm-finance-vendas.js", "autenticador.js", "saude-maquina.js", "cota.js", "faxina.js", "auditoria.py", "fala-texto.py", "meu-bot-backend.service", "install.sh", "VERSION",
+/**
+ * O que precisa estar ao lado do server.js na pasta do backend (os `require('./x')` dele e dos módulos que ele puxa,
+ * mais o que ele abre por __dirname). Esta é a ÚNICA lista: o install.sh não tem a sua (copia tudo que chegou no stage,
+ * depois de conferir os requires), o backend local deste Mac copia daqui (localBackend.ts) e o teste
+ * backend-bundle.test.mjs prova que ela cobre o fecho dos requires. Em 1/11 as três listas de antes desviaram
+ * (gmail.js e pontes.js só no install.sh): o scp mandou o pacote sem eles, o cp copiou o server.js novo e parou no que
+ * faltava, e as quatro VMs caíram em MODULE_NOT_FOUND no reinício seguinte.
+ */
+export const BACKEND_RUNTIME_FILES = [
+  "server.js", "session-map.js", "nivel-ferramentas.js", "modulos.js", "providers.js", "providers.json", "account-status.js", "contas-claude.js", "tool-events.js", "navegador.js", "gmail.js", "pontes.js", "licenca.js", "crm-modelo.js", "crm-store.js", "crm-api.js", "finance-modelo.js", "finance-store.js", "finance-api.js", "finance-crm-sync.js", "crm-finance-vendas.js", "autenticador.js", "saude-maquina.js", "cota.js", "faxina.js", "auditoria.py",
+  // Porteiro do claude (rodízio de contas para o OpenClaw/WhatsApp e o Terminal): mora na pasta do backend e puxa contas-claude.js.
+  "claude-porteiro.js",
+];
+/** O resto do pacote: instalador, unidade, versão e os scripts que o install.sh encadeia no fim (VERSION ele grava por último). */
+export const BUNDLE_EXTRAS = [
+  "fala-texto.py", "meu-bot-backend.service", "install.sh", "VERSION",
   "statusline.sh", "install-statusline.sh", "uninstall-statusline.sh",
-  // Porteiro do claude (rodízio de contas para o OpenClaw/WhatsApp e o Terminal).
-  "claude-porteiro.js", "claude-porteiro.sh", "install-porteiro.sh", "uninstall-porteiro.sh",
+  "claude-porteiro.sh", "install-porteiro.sh", "uninstall-porteiro.sh",
   // wa-enviar: o agente da máquina manda mensagem no WhatsApp do Hermes registrando na conversa (install-porteiro.sh o grava em bin/ e põe a regra no CLAUDE.md).
   "wa-enviar",
 ];
+/** Tudo que o hostProbe.ts manda por scp para o stage da máquina antes de rodar o install.sh. */
+export const BUNDLE_FILES = [...BACKEND_RUNTIME_FILES, ...BUNDLE_EXTRAS];
+
+/**
+ * Os arquivos locais que um fonte do backend exige: `require('./x')`, `require("./x")`,
+ * `require(path.join(__dirname, 'x.js'))` e `path.join(__dirname, 'x.py')` (o auditoria.py do server.js).
+ * Devolve nomes de arquivo (`x.js`, `x.py`), sem repetição, na ordem em que aparecem.
+ */
+export function requiresLocais(src: string): string[] {
+  const achados: string[] = [];
+  const add = (nome: string): void => { if (!achados.includes(nome)) achados.push(nome); };
+  for (const m of src.matchAll(/require\(\s*['"]\.\/([A-Za-z0-9_-]+)(\.js)?['"]\s*\)/g)) add(`${m[1]}.js`);
+  for (const m of src.matchAll(/path\.join\(\s*__dirname\s*,\s*['"]([A-Za-z0-9_-]+\.(?:js|py))['"]\s*\)/g)) add(m[1]!);
+  return achados;
+}
+/** Fecho transitivo dos requires a partir das entradas; `ler` devolve o fonte de um `.js` (null se não existe). */
+export function fechoDeRequires(entradas: readonly string[], ler: (nome: string) => string | null): string[] {
+  const vistos: string[] = [];
+  const fila = [...entradas];
+  while (fila.length > 0) {
+    const nome = fila.shift()!;
+    if (vistos.includes(nome)) continue;
+    vistos.push(nome);
+    if (!nome.endsWith(".js")) continue;
+    const src = ler(nome);
+    if (src !== null) for (const dep of requiresLocais(src)) if (!vistos.includes(dep)) fila.push(dep);
+  }
+  return vistos;
+}
+/** As últimas `n` linhas úteis do instalador numa frase, para o log dizer o erro de verdade (não só "código 1"). */
+export function resumoDoInstalador(linhas: readonly string[], n = 5): string {
+  const uteis = linhas.map((l) => l.trim()).filter((l) => l !== "");
+  return uteis.length === 0 ? "?" : uteis.slice(-n).join(" | ");
+}
 /** Claude Code Global: o intermediário do root, o que ele lê e o instalador (rodado como root pelo admin). */
 export const CLAUDE_GLOBAL_FILES = ["claude-global.js", "contas-claude.js", "account-status.js", "install-claude-global.sh"];
 /** Guarda do WhatsApp: o plugin (pasta guarda/) e os dois scripts. */
