@@ -9,11 +9,16 @@ import { el } from "./dom.js";
 export const MOSTRA_TEMPO_S = 3;
 export const DEMORA_S = 10;
 
-/** O texto da espera depois de `segundos`: o rótulo, o tempo (≥ 3 s) e o aviso de demora (≥ 10 s). Puro. */
-export function textoEspera(rotulo: string, segundos: number): { linha: string; aviso: string | null } {
+export const AVISO_DEMORA = "A máquina está respondendo devagar; continuo buscando. Não precisa clicar de novo.";
+
+/**
+ * O texto da espera depois de `segundos`: o rótulo, o tempo (≥ 3 s) e o aviso de demora (≥ 10 s). Puro. `avisoDemora`
+ * troca o aviso quando a espera não é uma busca (a cópia no Drive leva perto de um minuto por natureza, 1 nov).
+ */
+export function textoEspera(rotulo: string, segundos: number, avisoDemora: string = AVISO_DEMORA): { linha: string; aviso: string | null } {
   const s = Math.max(0, Math.floor(segundos));
   const linha = s >= MOSTRA_TEMPO_S ? `${rotulo} ${s} s` : rotulo;
-  const aviso = s >= DEMORA_S ? "A máquina está respondendo devagar; continuo buscando. Não precisa clicar de novo." : null;
+  const aviso = s >= DEMORA_S ? avisoDemora : null;
   return { linha, aviso };
 }
 
@@ -23,7 +28,7 @@ const inicio = new Map<string, { desde: number; vistoEm: number }>();
 const ESQUECE_MS = 2000;
 
 /** Elemento de espera para pôr no lugar do dado que ainda não chegou. `chave` separa duas esperas com o mesmo texto. */
-export function carregando(rotulo: string, chave: string = rotulo): HTMLElement {
+export function carregando(rotulo: string, chave: string = rotulo, avisoDemora: string = AVISO_DEMORA): HTMLElement {
   const agora = Date.now();
   const atual = inicio.get(chave);
   const desde = atual !== undefined && agora - atual.vistoEm < ESQUECE_MS ? atual.desde : agora;
@@ -35,7 +40,7 @@ export function carregando(rotulo: string, chave: string = rotulo): HTMLElement 
   const aviso = el("p", "hint carregando-aviso"); aviso.hidden = true;
   box.append(linha, aviso);
   const pinta = (): void => {
-    const t = textoEspera(rotulo, (Date.now() - desde) / 1000);
+    const t = textoEspera(rotulo, (Date.now() - desde) / 1000, avisoDemora);
     texto.textContent = t.linha; aviso.hidden = t.aviso === null; aviso.textContent = t.aviso ?? "";
   };
   pinta();

@@ -8,6 +8,14 @@ export interface GoogleContaStatus { configurado: boolean; conectado: boolean; c
 export interface BackupDadosEnvio { conjunto: string; caminho: string; bytes: number; apagados: number; /** Caminho da cópia local no Mac, gravada antes do envio. */ local: string }
 /** Cópia diária do CRM e do financeiro desta máquina no Drive da Conta Google do dono. */
 export interface BackupDadosView { ligado: boolean; /** Só se existe senha do pacote cifrado; o valor nunca atravessa o IPC. */ temSenha: boolean; ultimaEm: string | null; /** Quando a última tentativa rodou (com ou sem sucesso); o erro é dessa hora. */ tentativaEm: string | null; conta: string | null; enviados: BackupDadosEnvio[]; erro: string | null }
+/** Etapa de um conjunto durante a cópia: `pulado` = cifrado sem senha; `ausente` = a máquina não tem o conjunto (não é erro). */
+export type BackupDadosEtapa = "enviando" | "enviado" | "pulado" | "ausente" | "erro";
+/**
+ * Andamento da cópia em curso (evento `backup-dados:progress`, um por etapa de cada conjunto, na ordem em que sobem): a
+ * tela mostra "CRM ✓ 1 KB · Agente enviando…" em vez de um botão mudo por 40 s (1 nov). `bytes` só em `enviado`;
+ * `detalhe` é o motivo do pulo ou a mensagem do erro.
+ */
+export interface BackupDadosProgresso { conjunto: string; nome: string; etapa: BackupDadosEtapa; indice: number; total: number; bytes: number | null; detalhe: string | null }
 export interface GmailMensagem { id: string; de: string; assunto: string; data: string; resumo: string; naoLida: boolean }
 /** Uma página da caixa (ou de uma busca): `proxima` é o token da página seguinte, null no fim. */
 export interface GmailLista { email: string | null; naoLidas: number; mensagens: GmailMensagem[]; proxima: string | null; busca: string }

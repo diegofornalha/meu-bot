@@ -335,3 +335,15 @@ mostrava a conta do dono e desconectar numa máquina desconectava todas (agente-
   entrada e devolve o arquivo: a mensagem passa a ser "…token do GitHub em chat-workspace/.env.exemplo…; confira
   esse arquivo (apague a linha, ou tire-o do conjunto) ou mova o conjunto para cifrado". Testes em
   `google-core.test.mjs` com um tar montado à mão.
+
+## "Guardar agora" mostra o andamento, conjunto a conjunto (1 nov)
+
+- **O que acontecia:** clicar em "Guardar agora" só apagava os botões por uns 40 s (cinco conjuntos, cada um
+  empacotado por SSH e subido ao Drive) sem dizer que estava rodando nem em que ponto; parecia que o clique não pegou.
+- **Agora:** o main manda `backup-dados:progress` (uma etapa por conjunto: `enviando`, `enviado` com o tamanho,
+  `pulado` sem senha, `ausente`, `erro` com a mensagem) só para as janelas da máquina que está copiando
+  (`dados-drive.ts`, `enviarDadosAoDrive`). O cartão "Backup no Drive" troca a última cópia pelo indicador de espera
+  "Guardando no Drive…" e a linha "2 de 5 · CRM ✓ 1 KB · Agente enviando…"; o botão vira "Guardando…"; o erro da
+  tentativa anterior sai da tela enquanto a nova roda. A cópia diária (sem clique) aparece do mesmo jeito e, ao
+  acabar, a página relê o estado. Cada etapa também entra na faixa de depuração como origem `hook`. Puro em
+  `src/renderer/conta-google/backup-andamento.ts` (`backup-andamento.test.mjs`).

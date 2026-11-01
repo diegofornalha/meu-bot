@@ -23,6 +23,9 @@ import { cifrarPacote } from "./backup-cifra";
 import { gravar } from "./comum";
 import { registrar } from "../auditoria/auditoria";
 import { log } from "../maquina/tunnel";
+import { sendToHost } from "../app/windows";
+import { eventoHook } from "../app/depuracao";
+import type { BackupDadosEtapa, BackupDadosProgresso } from "../../shared/ipc";
 
 const SSH_OPTS = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=30", "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=8", "-o", "ControlMaster=no", "-o", "ControlPath=none"];
 const INTERVALO = 24 * 60 * 60_000;
@@ -153,9 +156,21 @@ export async function enviarDadosAoDrive(host: string): Promise<EstadoDadosDrive
   const s = sessaoDriveCom(await acessoValido(host));
   const enviados: EnvioDados[] = []; const erros: string[] = [];
   const pulados: string[] = [];
-  for (const c of CONJUNTOS_DADOS) {
-    try { const r = await enviarConjunto(s, host, c); if (r === "sem-senha") pulados.push(c.nome); else if (r !== "ausente") enviados.push(r); }
-    catch (e) { erros.push(`${c.id}: ${e instanceof Error ? e.message : String(e)}`); }
+  // Cada etapa vai para as janelas da máquina (a página Conta Google mostra o andamento) e para a faixa de depuração.
+  const total = CONJUNTOS_DADOS.length;
+  const avisar = (c: ConjuntoDados, indice: number, etapa: BackupDadosEtapa, bytes: number | null, detalhe: string | null): void => {
+    const p: BackupDadosProgresso = { conjunto: c.id, nome: c.nome, etapa, indice, total, bytes, detalhe };
+    sendToHost(host, "backup-dados:progress", p);
+    eventoHook("backup-dados:progress", `${host}: ${c.nome} (${indice}/${total}) ${etapa}${bytes !== null ? ` ${bytes} bytes` : ""}${detalhe !== null ? `: ${detalhe}` : ""}`);
+  };
+  for (const [i, c] of CONJUNTOS_DADOS.entries()) {
+    avisar(c, i + 1, "enviando", null, null);
+    try {
+      const r = await enviarConjunto(s, host, c);
+      if (r === "sem-senha") { pulados.push(c.nome); avisar(c, i + 1, "pulado", null, "sem senha de backup"); }
+      else if (r === "ausente") avisar(c, i + 1, "ausente", null, null);
+      else { enviados.push(r); avisar(c, i + 1, "enviado", r.bytes, null); }
+    } catch (e) { const m = e instanceof Error ? e.message : String(e); erros.push(`${c.id}: ${m}`); avisar(c, i + 1, "erro", null, m); }
   }
   if (pulados.length > 0) erros.push(`${pulados.join(" e ")}: sem senha de backup definida, não subiu (credencial nunca vai sem cifra)`);
   const estado: EstadoDadosDrive = { ultimaEm: enviados.length > 0 ? agora : anterior.ultimaEm, tentativaEm: agora, conta: st.perfil?.email ?? null, enviados: enviados.length > 0 ? enviados : anterior.enviados, erro: erros.length > 0 ? erros.join("; ") : null };

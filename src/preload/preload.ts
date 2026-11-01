@@ -52,6 +52,7 @@ const MAIN_EVENT_CHANNELS: readonly MainEventChannel[] = [
   "browser:workspaces",
   "window:zoom-changed",
   "google-conta:changed",
+  "backup-dados:progress",
   "depuracao:batimento",
   "depuracao:estado",
   "depuracao:evento",

@@ -7,7 +7,7 @@ import type { TelaEndereco, TelaInstalacao, TelaStatus } from "./computador";
 import type { ClaudeSessionRef, ContextEvent, ConversationRef, DoneEvent, ErrorEvent, ExportFormat, MemoryView, StoredConversationView, TabMenuAction, ToolEvent } from "./conversa";
 import type { CrmDiag, CrmInfo, CrmLocal } from "./crm";
 import type { FinanceAbc, FinanceAbcLado, FinanceAbcPor, FinanceCategoria, FinanceConfig, FinanceConta, FinanceImportacao, FinanceInfo, FinanceLancamento, FinanceLancarInput, FinanceMoeda, FinanceTipoLinha } from "./financeiro";
-import type { AgendaEvento, BackupDadosView, GmailAgenteState, GmailApagado, GmailDetalhe, GmailLista, GoogleContaStatus, PlanilhaLeitura } from "./google";
+import type { AgendaEvento, BackupDadosProgresso, BackupDadosView, GmailAgenteState, GmailApagado, GmailDetalhe, GmailLista, GoogleContaStatus, PlanilhaLeitura } from "./google";
 import type { LicensePatch, LicenseView } from "./licenca";
 import type { ModuloResultado, ModulosLista } from "./modulos";
 import type { BackendStatusEvent, InstallBackendResult, TailscaleSshResult } from "./maquina";
@@ -109,6 +109,8 @@ export interface MainEvents {
   "window:zoom-changed": ZoomState;
   /** Conta Google deste Mac conectou/desconectou: a página Conta Google relê o estado. */
   "google-conta:changed": GoogleContaStatus;
+  /** Cópia no Drive em curso: uma etapa de um conjunto (só para as janelas da máquina que está copiando). */
+  "backup-dados:progress": BackupDadosProgresso;
 }
 
 export type MainEventChannel = keyof MainEvents;

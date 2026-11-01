@@ -3,7 +3,7 @@
  * no Keychain, via main › conta-google.ts); aqui só se conecta, lê e escreve. A verificação de telefone/QR, quando o
  * Google pede, é feita pela pessoa na tela oficial. Fábrica com dependências explícitas, como finance-page.ts.
  */
-import type { BackupDadosView, GoogleContaStatus, MeuBotApi } from "../../shared/ipc";
+import type { BackupDadosProgresso, BackupDadosView, GoogleContaStatus, MeuBotApi } from "../../shared/ipc";
 import type { LicenseView, PlanName } from "../../shared/ipc";
 import { browserAccess, proBlockText, pagamentoDoBloqueio } from "../lib/pro.js";
 import { blocoPagamento } from "../lib/aviso-pagamento.js";
@@ -11,6 +11,7 @@ import { el } from "../lib/dom.js";
 import { carregando } from "../lib/carregando.js";
 import type { PageTab } from "../lib/pages-types.js";
 import { ipcErrorText } from "../lib/ipc-error.js";
+import { aplicarProgresso, fmtBytes, terminou, textoAndamento } from "./backup-andamento.js";
 
 export interface ContaGoogleDeps {
   panelsEl: HTMLElement;
@@ -35,6 +36,9 @@ export function mountContaGoogle(deps: ContaGoogleDeps): { open: () => void; ref
   let backup: BackupDadosView | null = null;
   // O cartão guarda o próprio erro: "Carregando…" para sempre escondia o motivo (25 out).
   let backupErro: string | null = null;
+  // Cópia no Drive em curso (clique em "Guardar agora" ou a diária): as etapas que o main manda, conjunto a conjunto.
+  // null = nenhuma; [] = começou e a primeira etapa ainda não chegou.
+  let andamento: BackupDadosProgresso[] | null = null;
   const erroTexto = (e: unknown): string => ipcErrorText(e).replace(/^GOOGLE_CONTA_DESCONECTADA$/, "a conta Google desconectou; entre de novo").replace(/^PRO_REQUIRED$/, "esta máquina não tem o plano Pro");
   let busy = false; let msg: { text: string; bad: boolean } | null = null;
   /** "Pedir o Pro ao admin" já foi clicado nesta janela. */
@@ -42,6 +46,12 @@ export function mountContaGoogle(deps: ContaGoogleDeps): { open: () => void; ref
   // Gmail, Agenda e Planilha saíram da página (31 out): eram ferramentas de teste sem serventia aqui; o agente continua
   // usando as três pelo backend.
   deps.api.on("google-conta:changed", (st) => { status = st; if (!panel.hidden) { render(); if (st.conectado) void carregarDados(); } });
+  deps.api.on("backup-dados:progress", (p) => {
+    andamento = aplicarProgresso(andamento ?? [], p);
+    // A diária (sem clique) termina aqui; a de "Guardar agora" termina quando o invoke devolve, em `agir`.
+    if (!busy && terminou(andamento)) { andamento = null; if (!panel.hidden) void carregarDados(); return; }
+    if (!panel.hidden) render();
+  });
 
   async function refresh(): Promise<void> {
     try { status = await deps.api.googleContaStatus(); } catch (e) { msg = { text: ipcErrorText(e), bad: true }; }
@@ -130,16 +140,20 @@ export function mountContaGoogle(deps: ContaGoogleDeps): { open: () => void; ref
     if (backup === null) pendente(bc, backupErro, "o estado do backup");
     else {
       bc.append(el("p", "hint", "Uma vez por dia o CRM e o financeiro desta máquina são guardados no Drive desta conta, em pastas separadas, e uma cópia fica aqui no Mac. Fica só a mais recente de cada um."));
-      if (backup.ultimaEm !== null) {
+      if (andamento !== null) {
+        bc.append(carregando("Guardando no Drive…", "backup-drive", "Cada conjunto é empacotado na máquina e sobe para o Drive; costuma levar perto de um minuto. Não precisa clicar de novo."));
+        const linha = textoAndamento(andamento);
+        if (linha !== "") bc.append(el("p", "hint", linha));
+      } else if (backup.ultimaEm !== null) {
         bc.append(el("p", "hint audio-ok", `Última cópia em ${fmtData(backup.ultimaEm)}.`));
         for (const e of backup.enviados) {
           const r = el("div", "conta-evento");
-          const kb = e.bytes / 1024;
-          r.append(el("strong", "", e.conjunto), el("span", "hint", `${e.caminho} · ${kb >= 1024 ? `${(kb / 1024).toFixed(1)} MB` : `${kb.toFixed(0)} KB`}`));
+          r.append(el("strong", "", e.conjunto), el("span", "hint", `${e.caminho} · ${fmtBytes(e.bytes)}`));
           bc.append(r);
         }
       } else if (backup.erro === null) bc.append(el("p", "hint", "Ainda não foi feita nenhuma cópia desta máquina."));
-      if (backup.erro !== null) bc.append(el("p", "hint bad-hint", `${backup.tentativaEm !== null ? `Última tentativa em ${fmtData(backup.tentativaEm)}: ` : ""}${backup.erro}`));
+      // O erro da tentativa anterior sai da tela enquanto a nova roda: a pessoa acabou de pedir outra.
+      if (backup.erro !== null && andamento === null) bc.append(el("p", "hint bad-hint", `${backup.tentativaEm !== null ? `Última tentativa em ${fmtData(backup.tentativaEm)}: ` : ""}${backup.erro}`));
       // Senha do pacote de credenciais. Sem ela esse conjunto é pulado; os outros sobem normalmente.
       const sc = el("div", "admin-actions");
       if (backup.temSenha) {
@@ -157,7 +171,10 @@ export function mountContaGoogle(deps: ContaGoogleDeps): { open: () => void; ref
       bc.append(sc);
 
       const acoes = el("div", "admin-actions");
-      acoes.append(btn("Guardar agora", "btn-ghost", () => { void agir(async () => { backup = await deps.api.backupDadosAgora(); }, "cópia guardada no Drive"); }));
+      acoes.append(btn(andamento !== null ? "Guardando…" : "Guardar agora", "btn-ghost", () => {
+        andamento = [];
+        void agir(async () => { try { backup = await deps.api.backupDadosAgora(); } finally { andamento = null; } }, "cópia guardada no Drive");
+      }));
       acoes.append(btn("Abrir a pasta no Mac", "btn-ghost", () => { void agir(() => deps.api.backupDadosAbrirPasta(), "pasta aberta no Finder"); }));
       acoes.append(btn(backup.ligado ? "Desligar a cópia diária" : "Ligar a cópia diária", "btn-ghost", () => { void agir(async () => { backup = await deps.api.backupDadosLigar(!(backup?.ligado ?? true)); }, backup?.ligado === true ? "cópia diária desligada" : "cópia diária ligada"); }));
       bc.append(acoes);
