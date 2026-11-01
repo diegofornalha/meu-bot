@@ -68,7 +68,7 @@ const sharedApi: MeuBotSharedApi = {
   depuracaoEstado: () => ipcRenderer.invoke("depuracao:estado", {}),
   depuracaoLigar: (on: boolean | null) => ipcRenderer.invoke("depuracao:ligar", { on }),
   openPicker: () => ipcRenderer.invoke("ui:open-picker", {}),
-  whatsappStatus: () => ipcRenderer.invoke("whatsapp:status", {}),
+  whatsappStatus: (force?: boolean) => ipcRenderer.invoke("whatsapp:status", force === true ? { force: true } : {}),
   xaiKeyStatus: () => ipcRenderer.invoke("xai-key:status", {}),
   termOpen: (cols: number, rows: number) => ipcRenderer.invoke("term:open", { cols, rows }),
   termInput: (id: string, data: string | Uint8Array): void => ipcRenderer.send("term:input", { id, data }),

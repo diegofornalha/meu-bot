@@ -32,6 +32,7 @@ import { log } from "../maquina/backend";
 import { hermesAudioStatus } from "./hermes-audio";
 import { LOCAL_HOST } from "../maquina/localBackend";
 import { isValidHost } from "../app/settings";
+import { TtlCache } from "./whatsapp-cache-core";
 
 const SSH_OPTS = [
   "-o", "BatchMode=yes", "-o", "ConnectTimeout=30", "-o", "ServerAliveInterval=10", "-o", "ServerAliveCountMax=3",
@@ -57,8 +58,12 @@ try: d=json.loads(t[i:]) if i>=0 else {}
 except Exception: d={}
 print(int(any(p.get("id")=="whatsapp" and p.get("enabled",True) is not False for p in d.get("plugins",[]) if isinstance(p,dict))))' 2>/dev/null || echo 0; }`;
 const GATEWAY_FIX_SH = `
+# GW_PROPRIO=1: o gateway do OpenClaw é desta conta (hoje sempre). Com gateway compartilhado (0), o app nunca instala,
+# religa nem muda a porta de gateway nenhum: foi o gw_ensure que religou o gateway do root da VM agente (1 nov).
+GW_PROPRIO=\${GW_PROPRIO:-1}
 gw_mismatch() { timeout 25 openclaw channels status --json 2>&1 | grep -q 'token mismatch'; }
 gw_fix() {
+  [ "$GW_PROPRIO" = 1 ] || return 1
   [ "$(openclaw config get gateway.mode 2>/dev/null | tr -d '"')" = "local" ] || return 1
   [ -d /run/systemd/system ] || return 1
   supervisorctl status 2>/dev/null | grep -q openclaw-gateway && return 1
@@ -103,6 +108,7 @@ except Exception: print("")' 2>/dev/null)
 # a partir da configurada (18789; outra conta pode ter a dela) e as pastas do systemd sem escrita de grupo (contas com
 # umask 002 nascem assim e o OpenClaw recusa instalar). Imprime a porta; sem systemd ou sob supervisord, não faz nada.
 gw_ensure() {
+  [ "$GW_PROPRIO" = 1 ] || return 0
   [ -d /run/systemd/system ] || return 0
   supervisorctl status 2>/dev/null | grep -q openclaw-gateway && return 0
   systemctl --user cat openclaw-gateway.service >/dev/null 2>&1 && return 0
@@ -115,9 +121,48 @@ gw_ensure() {
   openclaw config set gateway.port "$N" >/dev/null 2>&1 || return 1
   timeout 150 openclaw gateway install --force --port "$N" >/dev/null 2>&1 || return 1
   echo "$N"
+}
+# Versão do OpenClaw sem subir a CLI (~300 MB, 1-2 s): o package.json ao lado do binário resolvido (/opt/node/lib/node_modules/
+# openclaw ou ~/.local/lib/...); sem ele, a resposta de \`openclaw --version\` guardada em cache enquanto o binário não muda.
+oc_versao() {
+  B=$(readlink -f "$(command -v openclaw)" 2>/dev/null); P=$(dirname "$B")/package.json; C=$HOME/.cache/meu-bot/openclaw-version
+  if [ -n "$B" ] && [ -f "$P" ]; then V=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("version",""))' "$P" 2>/dev/null); [ -n "$V" ] && { echo "$V"; return; }; fi
+  if [ -s "$C" ] && [ -n "$B" ] && [ ! "$B" -nt "$C" ]; then cat "$C"; return; fi
+  V=$(timeout 10 openclaw --version 2>/dev/null | head -1); mkdir -p "$(dirname "$C")" 2>/dev/null; printf '%s\n' "$V" > "$C" 2>/dev/null; printf '%s\n' "$V"
 }`;
 
-const STATUS_SCRIPT = `
+/**
+ * Lê do openclaw.json, numa passada de Python, o que antes eram cinco chamadas da CLI por consulta (dmPolicy, o bloco do
+ * canal, modelo e reserva do agente, plugin do WhatsApp, áudio e voz). Imprime \`chave=valor\` como a CLI imprimia e mais:
+ * plugin (ligado na config e com a pasta instalada), ocmodel=1 quando falta modelo, ocfallback=1 quando falta reserva e há
+ * provedor grok. A CLI só é chamada quando o arquivo não basta (plugin não achado, modelo/reserva a gravar).
+ */
+const OC_CONFIG_PY = `python3 - <<'PY' 2>/dev/null
+import glob, json, os
+try:
+    c = json.load(open(os.path.expanduser("~/.openclaw/openclaw.json")))
+except Exception:
+    raise SystemExit
+w = (c.get("channels") or {}).get("whatsapp") or {}
+print("dmpolicy=%s" % (w.get("dmPolicy") or ""))
+print("channel=%s" % json.dumps(w, separators=(",", ":")))
+pe = ((c.get("plugins") or {}).get("entries") or {}).get("whatsapp") or {}
+allow = (c.get("plugins") or {}).get("allow")
+ligado = pe.get("enabled", True) is not False and (not isinstance(allow, list) or "whatsapp" in allow)
+inst = os.path.isfile(os.path.expanduser("~/.openclaw/extensions/whatsapp/package.json")) or bool(glob.glob(os.path.expanduser("~/.openclaw/npm/projects/openclaw-whatsapp-*/package.json")))
+print("plugin=%d" % (ligado and inst))
+d = (c.get("agents") or {}).get("defaults") or {}
+print("ocmodel=%d" % (not d.get("model")))
+fb = (d.get("model") or {}).get("fallbacks") if isinstance(d.get("model"), dict) else None
+grok = ((c.get("models") or {}).get("providers") or {}).get("grok") or {}
+print("ocfallback=%d" % (not fb and any(isinstance(m, dict) and m.get("id") for m in (grok.get("models") or []))))
+m = (c.get("tools") or {}).get("media") or {}
+print("audioin=%d" % any("audio" in (x.get("capabilities") or []) for x in (m.get("models") or []) if isinstance(x, dict)))
+t = c.get("tts") or {}
+print("voz=%s" % (t.get("auto") or "off" if t.get("provider") else ""))
+PY`;
+
+export const STATUS_SCRIPT = `
 export PATH=$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/bin:$PATH
 ${GATEWAY_FIX_SH}
 ${WA_MOTOR_SH}
@@ -144,35 +189,25 @@ if [ "$MOTOR" = openclaw ] && command -v openclaw >/dev/null 2>&1; then
   echo gateway=openclaw; echo present=1
   echo "bin=$(command -v openclaw)"
   echo "real=$(readlink -f "$(command -v openclaw)" 2>/dev/null)"
-  echo "ver=$(timeout 10 openclaw --version 2>/dev/null | head -1)"
+  echo "ver=$(oc_versao)"
   [ -f "$HOME/.openclaw/openclaw.json" ] && echo cfg=1 || echo cfg=0
-  # Plugin do WhatsApp instalado? (não vem de fábrica; é do ClawHub)
-  ${WA_PLUGIN_SH}
-  echo "plugin=$(wa_plugin)"
   echo "me=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("me",{}).get("id",""))' "$HOME/.openclaw/credentials/whatsapp/default/creds.json" 2>/dev/null)"
   # Sem config não há gateway; pular o channels status poupa 25 s.
   [ -f "$HOME/.openclaw/openclaw.json" ] || exit 0
-  echo "dmpolicy=$(timeout 15 openclaw config get channels.whatsapp.dmPolicy 2>/dev/null | tr -d '"' | head -1)"
-  echo "channel=$(timeout 15 openclaw config get channels.whatsapp --json 2>/dev/null | tr -d '\n' | tr -s ' ')"
-  # Áudio: transcritor em tools.media.models e quando a voz responde (tts.auto; sem provedor = sem voz).
-  python3 -c 'import json,os
-try:
-  c=json.load(open(os.path.expanduser("~/.openclaw/openclaw.json")))
-except Exception:
-  raise SystemExit
-m=(c.get("tools") or {}).get("media") or {}
-print("audioin=%d" % any("audio" in (x.get("capabilities") or []) for x in (m.get("models") or []) if isinstance(x, dict)))
-t=c.get("tts") or {}
-print("voz=%s" % (t.get("auto") or "off" if t.get("provider") else ""))' 2>/dev/null
+  # Uma passada no openclaw.json no lugar de cinco chamadas da CLI (cada uma sobe um node de ~300 MB na VM).
+  OJ=$(${OC_CONFIG_PY}); printf '%s\n' "$OJ"
+  # Plugin do WhatsApp não achado pelos arquivos (VM nova, ou instalado de outro jeito): a CLI confirma, só nesse caso.
+  ${WA_PLUGIN_SH}
+  case "$OJ" in *plugin=1*) ;; *) echo "plugin=$(wa_plugin)" ;; esac
   echo "vozid=$(cat "$HOME/.local/share/meu-bot/voz/voz-atual" 2>/dev/null || { [ -s "$HOME/.local/share/meu-bot/voz/faber.onnx" ] && echo faber; })"
-  # Uma consulta só; "token mismatch" = esta conta aponta para o gateway de outra: conserta e consulta de novo.
+  # A única chamada da CLI no caminho normal. "token mismatch" = esta conta aponta para o gateway de outra: conserta e consulta de novo.
   CS=$(timeout 25 openclaw channels status --channel whatsapp --json 2>&1)
   if printf '%s' "$CS" | grep -q 'token mismatch'; then
     if N=$(gw_fix); then echo "gwfix=$N"; CS=$(timeout 25 openclaw channels status --channel whatsapp --json 2>&1); else echo "gwfix=fail"; fi
   fi
-  # Agente sem modelo e Claude logado: configura o Claude (uma vez; depois o modelo existe e isto não faz nada).
-  echo "ocmodel=$(oc_model_ensure 2>/dev/null)"
-  echo "ocfallback=$(oc_fallback_ensure 2>/dev/null)"
+  # Agente sem modelo e Claude logado: configura o Claude (uma vez; só quando o arquivo disse que falta). Reserva idem.
+  case "$OJ" in *ocmodel=1*) echo "ocmodel=$(oc_model_ensure 2>/dev/null)" ;; esac
+  case "$OJ" in *ocfallback=1*) echo "ocfallback=$(oc_fallback_ensure 2>/dev/null)" ;; esac
   echo "oc=$(printf '%s' "$CS" | python3 -c 'import json,sys
 d=json.load(sys.stdin); c=d.get("channels",{}).get("whatsapp") or {}
 print(json.dumps({"linked":c.get("linked"),"connected":c.get("connected"),"state":c.get("statusState"),"lifecycle":c.get("lifecycle"),"loggedOut":(c.get("lastDisconnect") or {}).get("loggedOut"),"e164":(c.get("self") or {}).get("e164"),"starting":d.get("status")=="starting"}))' 2>/dev/null)"
@@ -261,7 +296,24 @@ export const whatsappPausaModoOf = (host: string): HermesPausaModo => pausaModoB
  * capacidades sejam derivadas num ponto só: cada ramo de framework devolve o que sabe do seu
  * mundo, e quem decide o que a tela pode oferecer é a tabela de capacidades, não o ramo.
  */
-export async function whatsappStatus(host: string): Promise<WhatsappStatus> {
+/**
+ * Validade das leituras guardadas por máquina (whatsapp-cache-core.ts). O status custa uma chamada da CLI na máquina
+ * (~300 MB, 1-3 s) e as janelas perguntam a cada 1-2 min: dentro da validade, a resposta é a de antes; quem muda algo
+ * (parear, política, dono, pausa, marcas, grupos) chama `esquecerWhatsapp` e a próxima leitura vai à máquina.
+ */
+const STATUS_VALIDADE_MS = 45_000;
+const CHATS_VALIDADE_MS = 15_000;
+const GROUPS_VALIDADE_MS = 30_000;
+const statusCache = new TtlCache<WhatsappStatus>();
+const chatsCache = new TtlCache<WhatsappChat[]>();
+const groupsCache = new TtlCache<WhatsappGroups>();
+/** Esquece o que está guardado da máquina (depois de qualquer mudança feita por aqui). */
+export function esquecerWhatsapp(host: string): void { statusCache.esquecer(host); chatsCache.esquecer(host); groupsCache.esquecer(host); }
+
+export function whatsappStatus(host: string, opts: { force?: boolean } = {}): Promise<WhatsappStatus> {
+  return statusCache.get(host, STATUS_VALIDADE_MS, () => lerStatusCompleto(host), opts.force === true);
+}
+async function lerStatusCompleto(host: string): Promise<WhatsappStatus> {
   const st = await lerWhatsappStatus(host);
   // Hermes: ouvir e responder em áudio moram no config.yaml dele (hermes-audio.ts); uma leitura a mais, só com o WhatsApp pronto.
   const audio = st.gateway === "hermes" && st.ready ? await hermesAudioStatus(host) : null;
@@ -278,7 +330,7 @@ export async function whatsappEscolherAgente(host: string, agente: WhatsappAgent
   if (antes.present && antes.gateway !== agente && (antes.gateway === "hermes" || antes.gateway === "openclaw") && antes.number !== null) await whatsappLogout(host, antes.gateway);
   const r = await runSsh(host, `mkdir -p "$(dirname "${WA_AGENTE_FILE}")" && printf '%s\n' ${agente} > "${WA_AGENTE_FILE}" && echo OK=1\n`, 20_000);
   if (!r.stdout.includes("OK=1")) throw new Error(`não consegui gravar a escolha na máquina: ${(r.stderr.trim() || "ssh falhou").split("\n").pop() ?? ""}`);
-  gatewayByHost.delete(host);
+  gatewayByHost.delete(host); esquecerWhatsapp(host);
   log(`[whatsapp] ${host}: agente escolhido ${agente}${antes.gateway !== null && antes.gateway !== agente ? ` (antes ${antes.gateway})` : ""}`);
   return whatsappStatus(host);
 }
@@ -386,6 +438,7 @@ async function setDmPolicyHermes(host: string, policy: WhatsappReplyChoice, numb
   const erro = politicaNaoBate(policy, ficou);
   if (erro !== null) throw new Error(`a política não ficou gravada como escolhida: ${erro}. Tente de novo.`);
   log(`[whatsapp] ${host} (hermes): dmPolicy=${policy} restart=${restart || "?"}`);
+  esquecerWhatsapp(host);
   return whatsappStatus(host);
 }
 
@@ -518,6 +571,7 @@ export async function setDmPolicy(host: string, policy: WhatsappReplyChoice, num
   const erro = ficou === null ? null : politicaNaoBate(policy, ficou);
   if (erro !== null) throw new Error(`a política não ficou gravada como escolhida: ${erro}. Tente de novo.`);
   log(`[whatsapp] ${host}: dmPolicy=${policy}`);
+  esquecerWhatsapp(host);
   return whatsappStatus(host);
 }
 
@@ -778,6 +832,7 @@ export function startPairing(host: string, reset: boolean, send: (ev: WhatsappEv
         if (!connected && code !== 0 && code !== null) send({ kind: "error", text: `o pareamento terminou sem conectar (código ${code})${stderr.trim() ? `: ${stderr.trim().split("\n").pop()}` : ""}` });
         send({ kind: "done", ok: connected });
         log(`[whatsapp] pareamento em ${host}: ${connected ? "conectado" : `não conectou (código ${code})`}`);
+        esquecerWhatsapp(host);
         current = null;
         resolve();
       });
@@ -797,7 +852,10 @@ const chatNames = new Map<string, Map<string, string>>();
 const namesOf = (host: string): Map<string, string> => { let m = chatNames.get(host); if (m === undefined) { m = new Map(); chatNames.set(host, m); } return m; };
 export const CREDS_ME = `python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("me",{}).get("id",""))' "$HOME/.openclaw/credentials/whatsapp/default/creds.json" 2>/dev/null`;
 
-export async function whatsappChats(host: string): Promise<WhatsappChat[]> {
+export function whatsappChats(host: string, opts: { force?: boolean } = {}): Promise<WhatsappChat[]> {
+  return chatsCache.get(host, CHATS_VALIDADE_MS, () => lerChats(host), opts.force === true);
+}
+async function lerChats(host: string): Promise<WhatsappChat[]> {
   if (host === LOCAL_HOST || !isValidHost(host)) return [];
   // Hermes (escolhido ou já configurado): a lista vem do state.db dele, só-leitura; senão, o gateway do OpenClaw.
   const script = `export PATH=$HOME/.openclaw/bin:$HOME/.local/bin:$PATH
@@ -911,6 +969,7 @@ export async function whatsappLearnNames(host: string, numbers: readonly string[
 
 /** Grava na máquina os ajustes de arquivado/excluído, de conversas e de grupos (merge lá, para o admin e a pessoa não se sobrescreverem). */
 export async function whatsappSetMarks(host: string, patches: readonly (WaMarkPatch | WaGroupMarkPatch | WaDonoPatch)[]): Promise<void> {
+  esquecerWhatsapp(host);
   if (host === LOCAL_HOST || !isValidHost(host)) throw new Error("máquina inválida");
   const r = await runSsh(host, waMarkSh(patches), 20_000);
   if (r.code !== 0 || !r.stdout.includes("MARKS=1")) throw new Error(`não deu para gravar na máquina: ${r.stderr.trim().split("\n").pop() || "ssh falhou"}`);
@@ -1018,6 +1077,7 @@ export async function whatsappGroupClearPlan(host: string, jid: string): Promise
 
 /** Zera a sessão do agente no grupo. Reusa whatsappClearSessions: mesma chamada `sessions.reset` do contato (ou o encerrar do Hermes). */
 export async function whatsappGroupClear(host: string, jid: string): Promise<void> {
+  esquecerWhatsapp(host);
   if (await hostIsHermes(host)) {
     const vivas = (await hermesGroupSessionsOf(host, jid)).filter((s) => !s.ended).map((s) => s.id);
     if (vivas.length === 0) throw new Error("o agente ainda não tem histórico neste grupo");
@@ -1046,6 +1106,7 @@ export async function whatsappClearPlan(host: string, number: string): Promise<{
  * transcript antigo vai para o arquivo dele) e esquece as memórias tiradas delas.
  */
 export async function whatsappClearSessions(host: string, keys: readonly string[]): Promise<void> {
+  esquecerWhatsapp(host);
   if (host === LOCAL_HOST || !isValidHost(host)) throw new Error("máquina inválida");
   const safe = keys.filter((k) => SAFE_KEY.test(k));
   if (safe.length === 0) throw new Error("não há histórico desta conversa na máquina");
@@ -1079,6 +1140,7 @@ export async function whatsappClearSessions(host: string, keys: readonly string[
  * para ele (reinicia o gateway). Devolve o estado novo.
  */
 export async function whatsappSetDono(host: string, numero: string | null): Promise<WhatsappStatus> {
+  esquecerWhatsapp(host);
   if (host === LOCAL_HOST || !isValidHost(host)) throw new Error("este Mac não tem agente com WhatsApp");
   if (numero !== null && !/^\d{8,15}$/.test(numero)) throw new Error("número inválido (só dígitos, com DDI, 8 a 15)");
   const gateway = gatewayByHost.get(host) ?? (await whatsappStatus(host)).gateway;
@@ -1104,6 +1166,7 @@ function recusarPausarDono(quem: WaQuem, number: string): void {
 }
 
 export async function whatsappPause(host: string, number: string, paused: boolean, by: PauseBy, horas?: 2 | 24): Promise<void> {
+  esquecerWhatsapp(host);
   const want = number.replace(/\D/g, "");
   if (await hostIsHermes(host)) return pauseHermes(host, want, paused, by, horas);
   if (horas !== undefined) throw new Error("no OpenClaw a pausa não tem prazo: use \"Pausar\" e retome quando quiser");
@@ -1188,6 +1251,7 @@ async function readSendPolicy(host: string): Promise<unknown> {
  * antigas só tinham a marca na sessão, que o reset leva). Já na lista: não grava nada.
  */
 export async function whatsappKeepPaused(host: string, number: string, own: readonly string[]): Promise<void> {
+  esquecerWhatsapp(host);
   const want = number.replace(/\D/g, "");
   const cur = await readSendPolicy(host);
   if (pausedNumbersOfPolicy(cur).has(want)) return;
@@ -1201,6 +1265,7 @@ export async function whatsappKeepPaused(host: string, number: string, own: read
  * o gateway para o canal). Hermes: guarda a sessão como session.loggedout-… com o gateway parado.
  */
 export async function whatsappLogout(host: string, qual?: WhatsappAgente): Promise<void> {
+  esquecerWhatsapp(host);
   if (host === LOCAL_HOST || !isValidHost(host)) throw new Error("este Mac não tem agente com WhatsApp");
   if (current !== null) throw new Error("há um pareamento em andamento; feche o QR antes de desconectar");
   // `qual`: desconecta esse agente mesmo que a escolha gravada já seja outra (trocar de agente).
@@ -1278,7 +1343,10 @@ MEUBOT_PY
 )"`;
 
 /** Grupos da máquina: sessões de grupo, a config de grupos e o cache da skill, numa leitura só. */
-export async function whatsappGroups(host: string): Promise<WhatsappGroups> {
+export function whatsappGroups(host: string, opts: { force?: boolean } = {}): Promise<WhatsappGroups> {
+  return groupsCache.get(host, GROUPS_VALIDADE_MS, () => lerGroups(host), opts.force === true);
+}
+async function lerGroups(host: string): Promise<WhatsappGroups> {
   if (host === LOCAL_HOST || !isValidHost(host)) throw new Error("este Mac não tem agente com WhatsApp");
   // A máquina escolhe o caminho: Hermes (config.yaml + state.db + .env, whatsapp-hermes-core.ts) ou OpenClaw.
   const script = `export PATH=$HOME/.openclaw/bin:$HOME/.local/bin:$PATH
@@ -1426,6 +1494,7 @@ export async function whatsappGroupThread(host: string, jid: string, limit = 200
  * recarga do canal, como o habilitar.py da skill), relê e confere. Devolve os grupos já com a mudança.
  */
 export async function whatsappSetGroup(host: string, jid: string, pedido: WhatsappGroupPatch): Promise<WhatsappGroups> {
+  esquecerWhatsapp(host);
   if (host === LOCAL_HOST || !isValidHost(host)) throw new Error("este Mac não tem agente com WhatsApp");
   if (!JID_RE.test(jid)) throw new Error("grupo inválido");
   if (await hostIsHermes(host)) return setGroupHermes(host, jid, pedido);
@@ -1440,7 +1509,7 @@ export async function whatsappSetGroup(host: string, jid: string, pedido: Whatsa
     const w = await runSsh(host, `export PATH=$HOME/.openclaw/bin:$HOME/.local/bin:$PATH\nprintf '%s' '${b64}' | base64 -d | timeout 60 openclaw config patch --stdin 2>&1 | tail -n 3\necho "rc=\${PIPESTATUS[2]}"\n`, 90_000);
     if (!/rc=0/.test(w.stdout)) throw new Error(`o OpenClaw recusou a mudança: ${w.stdout.replace(/rc=\d+/, "").trim().split("\n").pop() || w.stderr.trim().split("\n").pop() || "sem resposta"}`);
   }
-  const depois = await whatsappGroups(host);
+  const depois = await whatsappGroups(host, { force: true });
   // Confere pelo openclaw.json relido: o que ficou gravado tem de ser o que o patch pedia.
   const reread = await runSsh(host, `${WA_CONFIG_SH}\n`, 30_000);
   const gravado = jsonOr(kvOf(reread.stdout).get("wa"));
@@ -1455,6 +1524,7 @@ export async function whatsappSetGroup(host: string, jid: string, pedido: Whatsa
  * ~30 s (o WhatsApp do agente fica parado; as mensagens chegam quando ele volta): a tela pede confirmação antes.
  */
 export async function whatsappRefreshGroups(host: string): Promise<WhatsappGroups> {
+  esquecerWhatsapp(host);
   if (host === LOCAL_HOST || !isValidHost(host)) throw new Error("este Mac não tem agente com WhatsApp");
   // Hermes: pelo próprio bridge (hermes-grupos-listar.ts), também parando o gateway uns 30 s. A escolha gravada manda.
   const esc = await runSsh(host, `${WA_MOTOR_SH}\nusa_hermes && echo hermes || echo outro\n`, 20_000);
@@ -1463,6 +1533,7 @@ export async function whatsappRefreshGroups(host: string): Promise<WhatsappGroup
     const l = lerListagemHermes(h.stdout);
     if (!l.ok) throw new Error(`não consegui listar os grupos: ${l.erro}`);
     log(`whatsapp: lista de grupos atualizada em ${host} (hermes: ${l.grupos})`);
+    esquecerWhatsapp(host);
     return whatsappGroups(host);
   }
   const r = await runSsh(host, `export PATH=$HOME/.openclaw/bin:$HOME/.local/bin:$PATH
@@ -1473,5 +1544,6 @@ tail -n 2 "$L" 2>/dev/null | sed 's/^/LOG=/'; rm -f "$L"
   if (/SKILL=0/.test(r.stdout)) throw new Error("a skill whatsapp-grupos não está nesta máquina: atualize a guarda do WhatsApp pelo seletor");
   if (!/RC=0/.test(r.stdout)) throw new Error(`não consegui listar os grupos: ${r.stdout.split("\n").filter((l) => l.startsWith("LOG=")).map((l) => l.slice(4)).join(" ").trim() || r.stderr.trim().split("\n").pop() || "sem resposta"}`);
   log(`whatsapp: lista de grupos atualizada em ${host}`);
+  esquecerWhatsapp(host);
   return whatsappGroups(host);
 }

@@ -129,7 +129,8 @@ export interface MeuBotSharedApi {
   /** Abre o seletor de máquinas (nova janela em outra máquina). */
   openPicker(): Promise<void>;
   /** WhatsApp do Hermes na máquina desta janela. */
-  whatsappStatus(): Promise<WhatsappStatus>;
+  /** `force` pula a validade do cache do main (botão Atualizar); sem ele, dentro de 45 s a resposta é a da última consulta. */
+  whatsappStatus(force?: boolean): Promise<WhatsappStatus>;
   xaiKeyStatus(): Promise<XaiKeyStatus>;
   /** Terminal na máquina desta janela (pty-broker por ssh; neste Mac, local). Os dois apps; no admin fica no registro da pessoa. */
   termOpen(cols: number, rows: number): Promise<{ id: string }>;

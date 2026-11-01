@@ -460,3 +460,25 @@ Os avisos (Mac novo, vigia, cota) vão só pelo WhatsApp da pessoa: o e-mail pel
 - Mudança de comportamento: na sondagem do seletor, uma máquina com Hermes configurado e OpenClaw instalado passa a
   aparecer como Hermes (como a janela já dizia); uma máquina com o binário do Hermes mas sem o WhatsApp dele e sem OpenClaw
   aparece como "Hermes sem bridge" em vez de "sem agente".
+
+## Status do OpenClaw com uma chamada só, cache no main e consulta mais espaçada (1 nov)
+
+- Motivo: cada chamada da CLI `openclaw` sobe um Node de ~300 MB na máquina. A consulta de estado fazia 7 ou 8 por vez
+  (`--version`, `plugins list`, dois `config get`, `channels status`, mais modelo e reserva), por janela aberta, a cada
+  60 s. Na VM agente (8 GB, quatro gateways de ~1,4 GB) isso somava ao OOM.
+- `STATUS_SCRIPT` (`whatsapp.ts`): uma passada de Python no `openclaw.json` (`OC_CONFIG_PY`) responde dmPolicy, o bloco do
+  canal, se o plugin do WhatsApp está ligado e instalado (`plugins.entries`, `plugins.allow`, pasta em
+  `~/.openclaw/extensions/whatsapp` ou `~/.openclaw/npm/projects/openclaw-whatsapp-*`), se faltam modelo e reserva,
+  áudio e voz. A versão vem do `package.json` ao lado do binário resolvido (`oc_versao`), senão de `openclaw --version`
+  guardado em `~/.cache/meu-bot/openclaw-version` enquanto o binário não muda. A CLI só é chamada para `channels status`
+  (sempre), `plugins list` (só quando os arquivos não acham o plugin) e `config set` (só quando falta modelo ou reserva).
+  `GW_PROPRIO` (hoje sempre 1) condiciona `gw_fix`/`gw_ensure`: com gateway compartilhado o app não vai instalar nem
+  religar gateway nenhum.
+- Main: `TtlCache` (`whatsapp-cache-core.ts`) guarda status (45 s), lista de conversas (15 s) e grupos (30 s) por máquina,
+  com coalescência (várias janelas = uma consulta). Toda mudança feita pelo app (parear, política, dono, pausa, marcas,
+  limpar, grupos, logout, escolha do agente) chama `esquecerWhatsapp(host)`. O botão Atualizar manda `force`
+  (`whatsapp:status` aceita `{ force }`).
+- Tela: conectado, consulta a cada 2 min (antes 1); desconectado, 10 s; pareando, 8 s. Lista de conversas a cada 30 s
+  (antes 20). Com a janela escondida, só reagenda; o `focus` consulta na volta.
+- Testes: `whatsapp-status-sh.test.mjs` roda o `STATUS_SCRIPT` num HOME de mentira com um `openclaw` falso que anota as
+  chamadas (máquina pronta = 1 chamada; VM nova = modelo e reserva gravados; versão por cache); `whatsapp-cache-core.test.mjs`.
