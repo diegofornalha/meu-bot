@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 const { capacidadesDe } = createRequire(import.meta.url)("../../dist/main/whatsapp/whatsapp-capacidades.js");
 
-const CHAVES = ["parear", "listarConversas", "lerConversa", "limparHistorico", "pausar", "pausaPrazo", "pausaNativa", "grupos", "guarda", "politicaDm", "audio", "politicaReinicia"];
+const CHAVES = ["parear", "listarConversas", "lerConversa", "limparHistorico", "pausar", "pausaPrazo", "pausaNativa", "grupos", "guarda", "politicaDm", "audio", "politicaReinicia", "gatewayProprio", "gruposAtualizar"];
 
 test("Hermes: pausa com prazo vem do plugin meu-bot-pausa ou do nativo; sem os dois, pausar é pela lista (sem prazo); no OpenClaw não há prazo", () => {
   const sem = capacidadesDe("hermes", true, true);

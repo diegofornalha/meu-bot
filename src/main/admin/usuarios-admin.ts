@@ -9,7 +9,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { UsuariosVisao } from "../../shared/ipc";
-import { RECURSOS_PADRAO, PREFIXO_USUARIO, boxesDesatualizadas, capacidadeDe, governancaDe, isolamentoTodosSh, reservaDe, reservaHostSh, nomeParaCriar, usuarioComChavesSh, lingerSh, aliasDoUsuario, blocoSshUsuario, candidatosAoSeletor, configTemHost, removerBlocoUsuario, semChaveDesteMac, apelidoSh, apelidoValido, swapLigarSh, recursosSh, apagarItemSh, caminhoDentro, lerMaiores, maioresSh, apagarSh, hermesGlobalSh, transcritorSh, COTA_LIGAR_SH, limiteKbDe, limiteSh, LISTAR_SH, lerUsuarios, NOME_USUARIO_RE, PROTEGIDOS, RESERVADOS } from "./usuarios-core";
+import { RECURSOS_PADRAO, PREFIXO_USUARIO, boxesDesatualizadas, capacidadeDe, governancaDe, isolamentoTodosSh, reservaDe, reservaHostSh, nomeParaCriar, usuarioComChavesSh, lingerSh, aliasDoUsuario, blocoSshUsuario, candidatosAoSeletor, configTemHost, removerBlocoUsuario, semChaveDesteMac, apelidoSh, apelidoValido, swapLigarSh, recursosSh, apagarItemSh, caminhoDentro, lerMaiores, maioresSh, apagarSh, hermesGlobalSh, transcritorSh, COTA_LIGAR_SH, limiteKbDe, limiteSh, LISTAR_SH, lerUsuarios, NOME_USUARIO_RE, PROTEGIDOS, RESERVADOS, whatsappAlvoSh } from "./usuarios-core";
 import { runSsh } from "../whatsapp/whatsapp";
 import { registrar } from "../auditoria/auditoria";
 import { log } from "../maquina/backend";
@@ -20,7 +20,8 @@ import { precisaAtualizarBackend } from "../atualizacao/updater-core";
 import { hermesPausaPluginSh } from "../whatsapp/whatsapp-hermes-pausa-core";
 import { getBackendPort, setBackendPortForHost } from "../app/settings";
 import { HERMES_STT_COMPARTILHADO_SH, TRANSCRITOR_BIN, hermesAudioPatch, hermesConfigSetSh } from "../whatsapp/whatsapp-hermes-core";
-import { WA_AGENTE_FILE } from "../whatsapp/whatsapp-capacidades";
+import { alvoValido, parseAlvo, WA_AGENTE_FILE } from "../whatsapp/whatsapp-capacidades";
+import type { WhatsappAlvo } from "../../shared/ipc";
 import { ligarClaudeGlobalPara } from "./claude-global-admin";
 import { CG_ETC } from "./claude-global-core";
 import { ligarLinkPublicoPara, linkPublicoInstalado } from "./link-publico-admin";
@@ -445,4 +446,18 @@ export async function sincronizarSeletores(host: string): Promise<{ entraram: st
     catch (e) { falhas.push({ nome: u.nome, motivo: e instanceof Error ? e.message : String(e) }); }
   }
   return { entraram, semChave: semChaveDesteMac(v.usuarios), falhas };
+}
+
+/**
+ * Onde vive o WhatsApp de um usuário desta máquina: conta e agente num gateway de outro usuário (null = padrão, gateway
+ * próprio). Só grava o arquivo no home dele; registrar a conta no gateway é outro passo. Devolve o que ficou gravado.
+ */
+export async function definirAlvoDoUsuario(host: string, nome: unknown, alvo: unknown): Promise<{ nome: string; alvo: WhatsappAlvo | null }> {
+  const n = nomeValido(nome);
+  const a = alvo === null || alvo === undefined ? null : parseAlvo(alvo);
+  if (a !== null) { const erro = alvoValido(a); if (erro !== null) throw new Error(erro); }
+  const r = await runSsh(host, `${whatsappAlvoSh(n, a === null ? null : JSON.stringify(a))}\n`, 30_000);
+  saida(r.stdout, /^ALVO=ok$/m, "não consegui gravar onde vive o WhatsApp");
+  void registrar(host, "usuarios.whatsapp-alvo", n, a === null ? "padrão" : `conta ${a.accountId}, agente ${a.agentId}, gateway de ${a.gatewayUser ?? "(próprio)"}`);
+  return { nome: n, alvo: a };
 }
