@@ -32,6 +32,7 @@ import { log } from "../maquina/backend";
 import { hermesAudioStatus } from "./hermes-audio";
 import { LOCAL_HOST } from "../maquina/localBackend";
 import { isValidHost } from "../app/settings";
+import { OPENCLAW_WA_PLUGIN_VERSAO } from "../maquina/motor-versoes";
 
 const SSH_OPTS = [
   "-o", "BatchMode=yes", "-o", "ConnectTimeout=30", "-o", "ServerAliveInterval=10", "-o", "ServerAliveCountMax=3",
@@ -617,9 +618,11 @@ if command -v openclaw >/dev/null 2>&1; then
   ${WA_PLUGIN_SH}
   if [ "$(wa_plugin)" != "1" ]; then
     echo '{"event":"meu-bot","step":"plugin-installing"}'
-    # Na versão do OpenClaw da máquina: a última do ClawHub costuma exigir um runtime mais novo ("requires plugin API").
-    OCV=$(timeout 20 openclaw --version 2>/dev/null | grep -Eo '[0-9]+\\.[0-9]+\\.[0-9]+' | head -n1)
-    { [ -n "$OCV" ] && timeout 300 openclaw plugins install "clawhub:@openclaw/whatsapp@$OCV" >/dev/null 2>&1; } || timeout 300 openclaw plugins install clawhub:@openclaw/whatsapp >/dev/null 2>&1 || true
+    # Na versão do OpenClaw da máquina (a última do ClawHub exige runtime mais novo: "requires plugin API"); sem ler a versão,
+    # a fixada em maquina/motor-versoes.ts. Nunca sem versão: na agente (1 nov) resolvia 2026.10.9 num 2026.9.9 e falhava.
+    # --accept-capabilities responde a pergunta do instalador (sem terminal ela trava); runtime sem a opção cai no comando sem ela.
+    OCV=$(timeout 20 openclaw --version 2>/dev/null | grep -Eo '[0-9]+\\.[0-9]+\\.[0-9]+' | head -n1); [ -n "$OCV" ] || OCV=${OPENCLAW_WA_PLUGIN_VERSAO}
+    timeout 300 openclaw plugins install "clawhub:@openclaw/whatsapp@$OCV" --accept-capabilities >/dev/null 2>&1 || timeout 300 openclaw plugins install "clawhub:@openclaw/whatsapp@$OCV" >/dev/null 2>&1 || true
     timeout 60 openclaw plugins enable whatsapp >/dev/null 2>&1 || true
     if [ "$(wa_plugin)" != "1" ]; then echo "{\\"event\\":\\"error\\",\\"error\\":\\"OpenClaw sem o plugin do WhatsApp e a instalação automática falhou; na máquina: openclaw plugins install clawhub:@openclaw/whatsapp@$OCV\\"}"; exit 2; fi
     echo '{"event":"meu-bot","step":"plugin-installed"}'
