@@ -205,7 +205,18 @@ export async function acessoValido(host: string): Promise<string> {
     return acesso;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    if (refreshRecusadoDeVez(msg)) { try { decifrados.delete(ARQ(host)); fs.rmSync(ARQ(host), { force: true }); } catch { /* ok */ } cache.delete(host); throw new Error("GOOGLE_CONTA_DESCONECTADA"); }
+    if (refreshRecusadoDeVez(msg)) {
+      try { decifrados.delete(ARQ(host)); fs.rmSync(ARQ(host), { force: true }); } catch { /* ok */ }
+      cache.delete(host);
+      // Antes isto era silencioso: a janela seguia "conectada" e o log não dizia por quê. Agora o motivo do Google fica
+      // registrado e quem ouve (ipc/shared.ts) manda google-conta:changed e para o agente do Gmail.
+      log(`[google conta] ${host}: o Google recusou renovar a autorização de ${t.perfil?.email ?? "conta sem e-mail"} (${msg}); token apagado, é preciso entrar de novo`);
+      for (const cb of desconectadaListeners) { try { cb(host, msg); } catch { /* ouvinte não derruba o pedido */ } }
+      throw new Error("GOOGLE_CONTA_DESCONECTADA");
+    }
     throw e;
   }
 }
+/** Quem quer saber que o token de uma máquina foi apagado por refresh recusado (registrado em ipc/shared.ts: evita o ciclo com gmail-api). */
+const desconectadaListeners = new Set<(host: string, motivo: string) => void>();
+export function onContaDesconectada(cb: (host: string, motivo: string) => void): void { desconectadaListeners.add(cb); }

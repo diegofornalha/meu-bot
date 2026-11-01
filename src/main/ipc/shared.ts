@@ -30,7 +30,7 @@ import { applyQuickEntryShortcut } from "../app/quickEntry";
 import { getMemory, NOTAS_MAX, PERFIL_MAX, setMemory } from "../conversa/memory";
 import { knownModels, showPicker } from "../maquina/picker";
 import { broadcast, sendToHost } from "../app/windows";
-import { adotarContaDoMac, contaConectar, contaDesconectar, contaStatus, garantirFotoPerfil } from "../google/conta-google";
+import { adotarContaDoMac, contaConectar, contaDesconectar, contaStatus, garantirFotoPerfil, onContaDesconectada } from "../google/conta-google";
 import { garantirClientesGoogle } from "../google/cliente-release";
 import { dispararDadosAoDrive, enviarDadosAoDrive, estadoDadosDrive, pastaBackupDados } from "../google/dados-drive";
 import { definirSenhaBackup, limparSenhaBackup, temSenhaBackup } from "../google/senha-backup";
@@ -109,6 +109,9 @@ export function registerSharedIpc(deps: SharedIpcDeps): void {
     return r;
   });
   handleShared("google-conta:desconectar", async (event) => { const host = hostConta(event); const r = await contaDesconectar(host); gmailAgenteParar(host); sendToHost(host, "google-conta:changed", r); return r; });
+  // O Google recusou renovar e o main apagou o token: as janelas da máquina viram "desconectada" na hora (a página E-mail
+  // volta ao cartão com "Entrar com Google") e o agente do Gmail para, como no desconectar pela pessoa.
+  onContaDesconectada((host) => { gmailAgenteParar(host); sendToHost(host, "google-conta:changed", contaStatus(host)); });
   // Cópia do CRM e do financeiro desta máquina no Drive da Conta Google: estado, "guardar agora" e o interruptor.
   handleShared("backup-dados:status", (event) => {
     const h = hostFromEvent(event); if (h === null) throw new Error("origem inválida");
