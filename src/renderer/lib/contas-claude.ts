@@ -34,10 +34,12 @@ export function eventoTexto(ev: ContaClaudeEvento): string {
   const para = ev.para ?? "nenhuma conta livre";
   return `${quando} · ${origem} · ${ev.de ?? "?"} → ${para}${ev.motivo ? ` (${ev.motivo})` : ""}`;
 }
-export function avisoSemConta(view: ContasClaudeView): string | null {
+/** `grok`: a xAI está logada nesta máquina (true), não está (false) ou não se sabe (null): só com true se promete o grok-4. */
+export function avisoSemConta(view: ContasClaudeView, grok: boolean | null = null): string | null {
   if (view.atual !== null) return null;
   if (view.contas.every((c) => !c.logada || !c.ativa)) return "Nenhuma conta logada e ligada: entre em uma conta para o agente responder pelo Claude.";
-  return view.proximaEm !== null ? `Todas as contas estão no limite de uso. A próxima volta às ${horaLocal(view.proximaEm)}; até lá o grok-4 responde, se estiver configurado.` : "Todas as contas estão no limite ou bloqueadas.";
+  const ateLa = grok === true ? "até lá o grok-4 responde" : "até lá o agente não responde";
+  return view.proximaEm !== null ? `Todas as contas estão no limite de uso. A próxima volta às ${horaLocal(view.proximaEm)}; ${ateLa}.` : "Todas as contas estão no limite ou bloqueadas.";
 }
 
 /** Nome exibido: o rótulo e, quando há, o e-mail. */

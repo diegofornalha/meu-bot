@@ -27,7 +27,11 @@ test("usoTexto e nomeConta", () => {
 test("avisoSemConta: só quando nenhuma serve; diz a hora da volta", () => {
   assert.equal(avisoSemConta({ contas: [conta()], limiares: { sessao: 90, semanal: 95, estrategia: "ordem" }, atual: "c-00000001", proximaEm: null }), null);
   assert.match(avisoSemConta({ contas: [conta({ logada: false })], limiares: { sessao: 90, semanal: 95, estrategia: "ordem" }, atual: null, proximaEm: null }), /Nenhuma conta logada/);
-  assert.match(avisoSemConta({ contas: [conta()], limiares: { sessao: 90, semanal: 95, estrategia: "ordem" }, atual: null, proximaEm: NOW / 1000 + 600 }), /no limite de uso\. A próxima volta às \d\d:\d\d/);
+  const noLimite = { contas: [conta()], limiares: { sessao: 90, semanal: 95, estrategia: "ordem" }, atual: null, proximaEm: NOW / 1000 + 600 };
+  assert.match(avisoSemConta(noLimite), /no limite de uso\. A próxima volta às \d\d:\d\d; até lá o agente não responde\./);
+  // só promete o grok-4 com a xAI logada nesta máquina
+  assert.match(avisoSemConta(noLimite, true), /até lá o grok-4 responde\./);
+  assert.match(avisoSemConta(noLimite, false), /até lá o agente não responde\./);
 });
 
 test("eventoTexto: quando · origem · de → para (motivo); sem conta livre e origens traduzidas", async () => {

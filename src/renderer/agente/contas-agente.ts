@@ -212,7 +212,7 @@ export function renderContasClaude(box: HTMLElement): void {
   box.append(el("p", "hint strong-hint", "Contas do Claude nesta máquina"));
   if (v === null) { box.append(el("p", "hint", "Lista indisponível: a máquina está fora do ar ou o backend é antigo (atualize no seletor).")); return; }
   box.append(el("p", "hint", "Com mais de uma conta, a troca é automática quando uma bate o limite: vale para as conversas do app, para o agente do WhatsApp e para o Terminal desta máquina. A conversa continua na próxima conta, do ponto em que parou. A ordem da lista é a preferência; o login da máquina é a base e fica por último."));
-  const aviso = avisoSemConta(v);
+  const aviso = avisoSemConta(v, xaiAuth === null ? null : xaiAuth.loggedIn);
   if (aviso !== null) box.append(el("p", "hint guide-pair-note", aviso));
   // Trocas feitas fora do app (porteiro do claude): a pessoa vê que o WhatsApp/Terminal mudaram de conta e por quê.
   const trocas = (v.eventos ?? []).slice(-5).reverse();
@@ -530,7 +530,7 @@ export function ligarContasAgente(): void {
   clLineBtn.addEventListener("click", (ev) => {
     ev.stopPropagation(); // o botão sair/entrar não abre o guia
     if (clAuth !== null && clAuth.loggedIn) {
-      if (!window.confirm(`Sair da conta ${clAuth.email ?? "do Claude Code"} nesta máquina? O agente para de responder pelo Claude até entrar de novo (o grok-4 continua).`)) return;
+      if (!window.confirm(`Sair da conta ${clAuth.email ?? "do Claude Code"} nesta máquina? O agente para de responder pelo Claude até entrar de novo${xaiAuth?.loggedIn === true ? " (o grok-4 continua)" : ""}.`)) return;
       void logoutClaude(true);
       return;
     }

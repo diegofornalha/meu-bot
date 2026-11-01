@@ -54,7 +54,7 @@ export function describeProbe(p: HostProbe): ProbeText {
     return { kind: "warn", text: `⚠ ${who} · o backend desta máquina está na porta ${p.backendPort}, mas o app usa a ${p.appPort}. "Usar porta ${p.backendPort}" ajusta só esta máquina; as outras continuam como estão.`, install: "porta", port: p.backendPort, canOpen: false };
   }
   if (p.backendInstalled && p.backendListening) {
-    // Backend no ar mas Claude deslogado: dá para abrir (grok-4 ainda responde), mas avisa e oferece o login.
+    // Backend no ar mas Claude deslogado: dá para abrir (o grok-4 responde se a xAI estiver logada), mas avisa e oferece o login.
     if (p.claudePath !== null && !p.claudeLoggedIn) return { kind: "warn", text: `⚠ ${who} · backend no ar, mas o Claude Code está deslogado nesta máquina. "Entrar no Claude Code" abre a janela já no login.`, install: null, canOpen: true, login: true };
     return { kind: "ok", text: `✓ ${who} · backend instalado e ouvindo${p.models.length > 0 ? ` · modelos: ${p.models.join(", ")}` : ""}${slNote(p)}`, install: slInstall(p), canOpen: true };
   }

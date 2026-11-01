@@ -42,7 +42,8 @@ export async function xaiAuthInfo(host: string): Promise<ClaudeAuthInfo | null> 
   if (r.code !== 0 || !r.out.includes("present=1")) return null;
   const status = /status=(.*)/.exec(r.out)?.[1] ?? "";
   const label = /#\d+\s+(\S+)/.exec(r.out.split("\n").find((l) => l.includes("←")) ?? "")?.[1] ?? null;
-  return { loggedIn: /logged in/i.test(status), email: label };
+  // "not logged in" também casa com /logged in/: a negação vem primeiro.
+  return { loggedIn: /logged in/i.test(status) && !/not logged in/i.test(status), email: label };
 }
 
 export function startXaiLogin(host: string, send: (ev: ClaudeLoginEvent) => void): Promise<void> {
