@@ -522,3 +522,29 @@ Os avisos (Mac novo, vigia, cota) vão só pelo WhatsApp da pessoa: o e-mail pel
 - Quem grava: `whatsappDefinirAlvo(host, alvo | null)` (main) e, no admin, `admin:whatsapp-alvo` (`{ nome, alvo }` na
   máquina do root; `whatsappAlvoSh` grava no home do usuário com dono e modo certos). Registrar a conta e o agente no
   gateway é outro passo (migração). Os comandos ainda rodam no alias da própria conta: o PR seguinte os leva ao gateway.
+
+## OpenClaw com várias contas num gateway só (1 nov)
+
+- Motivo: a VM agente vai ter um gateway único no root com uma conta de WhatsApp e um agente por usuário
+  (`channels.whatsapp.accounts.<u>`, `agents.entries.<u>`, `bindings`). O app precisava rodar os comandos no alias do
+  gateway, com `--account`, e ler só o que é daquela conta.
+- Com um alvo gravado (`whatsapp-alvo.json`), o ramo do OpenClaw que roda no alias da conta para cedo (`poralvo=1`) e a
+  fachada roda o fragmento do alvo (`porAlvo` do contrato, só o OpenClaw tem) no alias do gateway (`execHostDe`): status,
+  lista, grupos, logout e pareamento. Marcas, escolha e alvo continuam na própria conta; o que vem do gateway vence.
+- Por conta: `cfgDe` (`channels.whatsapp` ou `channels.whatsapp.accounts.<id>`), `credsDe`, `credsMeSh`, a vista efetiva
+  (`CONTA_EFETIVA_PY`: a conta herda de `accounts.default` e da raiz tudo menos authDir, enabled, name e selfChatMode),
+  o estado pela entrada em `channelAccounts.whatsapp[]` (`ocStatusPy`), `--account` em login/logout, política silenciosa
+  e allowFrom na conta, patch de grupo embrulhado em `accounts.<id>` (`envolverPatch`) e conferido pela vista efetiva.
+- Por agente: `sqliteDe` (`agents/<id>/agent/openclaw-agent.sqlite`), `workspaceSh` (regra de pausa no AGENTS.md do
+  agente), `sessoesDoAgente` (o `sessions.list` do gateway traz as sessões de todos os usuários: sem o filtro um veria
+  as conversas do outro), pausa com `rawKeyPrefix` e o agente dentro (`pauseRulePrefixes`/`withPauseRule` com `agentId`;
+  `pausedNumbersOfPolicy` só conta as regras do agente) e modelo/reserva do agente (`ocmodel` olha `agents.entries`).
+- Gateway de outro usuário (`proprio` false): `GW_PROPRIO=0` (nada de instalar, religar ou mudar porta), sem reinício do
+  gateway ao fim do pareamento (o canal da conta sobe sozinho), `pkill` só do login desta conta, trava do dono por
+  união (`ownerLockSh` acrescenta o `e164:` do dono e nunca remove o de outro), e "Atualizar lista" de grupos recusado
+  (pararia o gateway de todos). Conta ainda não registrada no gateway: o status explica, sem inventar.
+- Limitação conhecida: a lista de pausados (`session.sendPolicy`) é lida e gravada em duas idas; dois usuários pausando
+  no mesmo segundo podem se sobrescrever (o `config set` do OpenClaw é atômico, o arquivo não corrompe).
+- Testes: `openclaw-multi-conta.test.mjs` (puros e com `openclaw` falso: status por conta com uma chamada, config
+  efetiva, conta inexistente, lista com filtro, pareamento/logout por conta); `whatsapp-status-sh.test.mjs` continua
+  cobrindo o layout de sempre.

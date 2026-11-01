@@ -8,8 +8,9 @@ import { toDataURL } from "qrcode";
 import type { WhatsappEvent } from "../../shared/ipc";
 import { BlockQrCollector, blocksToSvgDataUrl, stripAnsi } from "./qr-blocks";
 import { WA_MOTOR_SH } from "./whatsapp-capacidades";
+import type { WhatsappAlvoResolvido } from "../../shared/ipc";
 import { SSH_OPTS } from "./whatsapp-ssh";
-import { esquecerWhatsapp } from "./whatsapp-estado";
+import { esquecerWhatsapp, execHostDe, whatsappAlvoDe } from "./whatsapp-estado";
 import { MOTORES } from "./whatsapp-motor";
 import { phoneOf } from "./whatsapp-kv";
 import { log } from "../maquina/backend";
@@ -33,6 +34,13 @@ ${MOTORES.picoclaw.pairSh}
 esac
 echo '{"event":"error","error":"esta máquina não tem Hermes nem OpenClaw com WhatsApp"}'; exit 2
 `;
+/** O script para um alvo do OpenClaw (conta nomeada ou gateway de outro usuário): roda no alias do gateway, sem redetectar o motor. */
+export const pairScriptDe = (a: WhatsappAlvoResolvido): string => `
+set -u
+export PATH=$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/bin:$PATH
+MOTOR=openclaw
+${MOTORES.openclaw.porAlvo!.pairSh(a)}
+`;
 
 const OC_FAIL_RE = /failed|error|timeout/i;
 
@@ -44,8 +52,13 @@ export const pairingInProgress = (): string | null => current?.host ?? null;
 export function startPairing(host: string, reset: boolean, send: (ev: WhatsappEvent) => void): Promise<void> {
   if (host === LOCAL_HOST || !isValidHost(host)) { send({ kind: "error", text: "este Mac não tem agente com WhatsApp" }); return Promise.resolve(); }
   if (current !== null) { send({ kind: "error", text: `já há um pareamento em andamento em ${current.host}` }); return Promise.resolve(); }
+  // Alvo do OpenClaw fora do padrão (conta nomeada ou gateway de outro usuário): o QR sai no alias do gateway.
+  const alvo = whatsappAlvoDe(host);
+  const porAlvo = !alvo.proprio || alvo.accountId !== "default";
+  let alias = host;
+  if (porAlvo) { try { alias = execHostDe(host); } catch (e) { send({ kind: "error", text: e instanceof Error ? e.message : String(e) }); return Promise.resolve(); } }
   return new Promise((resolve) => {
-    const child = spawn("ssh", [...SSH_OPTS, "--", host, "bash -s"], { stdio: ["pipe", "pipe", "pipe"] });
+    const child = spawn("ssh", [...SSH_OPTS, "--", alias, "bash -s"], { stdio: ["pipe", "pipe", "pipe"] });
     current = { host, child };
     let buf = ""; let connected = false; let stderr = ""; let openclaw = false; let qrRounds = 0;
     const qr = new BlockQrCollector();
@@ -115,7 +128,7 @@ export function startPairing(host: string, reset: boolean, send: (ev: WhatsappEv
     });
     child.stderr.on("data", (d: Buffer) => { stderr += d.toString("utf8"); });
     child.stdin.on("error", () => { /* ssh caiu */ });
-    child.stdin.end(`RESET=${reset ? "1" : "0"}\n${PAIR_SCRIPT}`);
+    child.stdin.end(`RESET=${reset ? "1" : "0"}\n${porAlvo ? pairScriptDe(alvo) : PAIR_SCRIPT}`);
     child.on("error", (e) => { send({ kind: "error", text: `não consegui iniciar o ssh: ${e.message}` }); });
     child.on("close", (code) => {
       void chain.then(() => {

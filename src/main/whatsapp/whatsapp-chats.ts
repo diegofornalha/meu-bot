@@ -22,6 +22,17 @@ export function peerOfSessionKey(key: string): string | null {
   return m === null ? null : m[1]!;
 }
 
+/**
+ * Só as sessões de um agente (`agent:<id>:…`), para um gateway compartilhado: o `sessions.list` do gateway traz as
+ * sessões de todos os usuários da máquina, e sem este filtro um veria as conversas do outro. Formato desconhecido
+ * volta como veio (o parse seguinte o descarta).
+ */
+export function sessoesDoAgente(list: unknown, agentId: string): unknown {
+  if (!isObj(list) || !Array.isArray(list.sessions)) return list;
+  const prefixo = `agent:${agentId}:`;
+  return { ...list, sessions: list.sessions.filter((s) => isObj(s) && typeof s.key === "string" && s.key.startsWith(prefixo)) };
+}
+
 /** Números de WhatsApp que participam de uma sessão (lista de `participants[].identity`). */
 function participantNumbers(session: Record<string, unknown>): string[] {
   const out: string[] = [];
