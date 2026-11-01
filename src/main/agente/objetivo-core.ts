@@ -6,7 +6,7 @@
  */
 import type { FreedomLevel, MachineSkill, ObjectiveChoice, ObjectiveInfo } from "../../shared/ipc";
 import { DESCONHECIDO_DENY, NAV_DENY } from "../navegador/navegador-whatsapp-core";
-import { WA_ESCOLHA_SH } from "../whatsapp/whatsapp-capacidades";
+import { WA_MOTOR_SH } from "../whatsapp/whatsapp-capacidades";
 import { HERMES_RESTART_SH, HERMES_WA_ENSURE_SH } from "../whatsapp/whatsapp-hermes-core";
 
 /** Nome fixo da skill: salvar de novo substitui a anterior (uma por máquina). */
@@ -126,7 +126,7 @@ const b64 = (s: string): string => Buffer.from(s, "utf8").toString("base64");
  * pasta dele (`~/.hermes`), que é onde ele lê as skills; antes ia sempre para o workspace do OpenClaw, que o Hermes
  * nem olha (27 out). OpenClaw: o agents.defaults.workspace do openclaw.json, senão ~/.openclaw/workspace.
  */
-export const WORKSPACE_SH = `${WA_ESCOLHA_SH}
+export const WORKSPACE_SH = `${WA_MOTOR_SH}
 if usa_hermes; then W="$HOME/.hermes"; else W=$(python3 -c 'import json,os,sys
 try:
     d=json.load(open(os.path.expanduser("~/.openclaw/openclaw.json")))

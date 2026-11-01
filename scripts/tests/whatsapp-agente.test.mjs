@@ -6,13 +6,14 @@ import os from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
 const req = createRequire(import.meta.url);
-const { agenteEscolhido, WA_ESCOLHA_SH } = req("../../dist/main/whatsapp/whatsapp-capacidades.js");
+const { agenteEscolhido, WA_MOTOR_SH } = req("../../dist/main/whatsapp/whatsapp-capacidades.js");
 const { hermesAudioPatch, hermesConfigSetSh, HERMES_WA_ENSURE_SH, HERMES_VOZ_LOCAL_SH } = req("../../dist/main/whatsapp/whatsapp-hermes-core.js");
 
-test("escolha do agente: só openclaw ou hermes; o resto é \"não escolheu\"", () => {
+test("escolha do motor: openclaw, hermes ou picoclaw; o resto é \"não escolheu\"", () => {
   assert.equal(agenteEscolhido("hermes\n"), "hermes");
   assert.equal(agenteEscolhido(" OpenClaw "), "openclaw");
-  for (const v of [undefined, "", "picoclaw", "hermes2"]) assert.equal(agenteEscolhido(v), null);
+  assert.equal(agenteEscolhido("picoclaw"), "picoclaw");
+  for (const v of [undefined, "", "hermes2", "claw"]) assert.equal(agenteEscolhido(v), null);
 });
 
 /** Roda `usa_hermes` num HOME de mentira: o mesmo critério do status, do pareamento, da lista e do logout. */
@@ -20,7 +21,8 @@ function usaHermes({ escolha, hermesWa }) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "wa-agente-"));
   if (escolha !== undefined) { fs.mkdirSync(path.join(home, ".local/share/meu-bot"), { recursive: true }); fs.writeFileSync(path.join(home, ".local/share/meu-bot/whatsapp-agente"), `${escolha}\n`); }
   if (hermesWa) fs.mkdirSync(path.join(home, ".hermes/whatsapp"), { recursive: true });
-  const out = execFileSync("bash", ["-c", `${WA_ESCOLHA_SH}; usa_hermes && echo sim || echo nao; echo "esc=$ESC"`], { env: { HOME: home, PATH: process.env.PATH }, encoding: "utf8" });
+  // PATH vazio: a regra olha binários no PATH, e o deste Mac (hermes? openclaw?) não pode decidir o teste.
+  const out = execFileSync("bash", ["-c", `${WA_MOTOR_SH}; usa_hermes && echo sim || echo nao; echo "esc=$ESC"`], { env: { HOME: home, PATH: "/usr/bin:/bin" }, encoding: "utf8" });
   fs.rmSync(home, { recursive: true, force: true });
   return out;
 }

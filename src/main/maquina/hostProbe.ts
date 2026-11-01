@@ -9,7 +9,7 @@ import { BUNDLE_FILES, CLAUDE_GLOBAL_FILES, CRM_FILES, CRM_PLUGIN_FILES, FINANCE
 import { NAV_MCP_VERSAO } from "../navegador/navegador-whatsapp-core";
 import { GMAIL_MCP_VERSAO } from "../google/gmail-core";
 import { isVozId } from "../whatsapp/vozes-core";
-import { WA_ESCOLHA_SH } from "../whatsapp/whatsapp-capacidades";
+import { WA_MOTOR_SH } from "../whatsapp/whatsapp-capacidades";
 import { hermesPausaPluginSh, lerPausaPlugin, versaoDoPluginYaml, type PausaPluginFonte } from "../whatsapp/whatsapp-hermes-pausa-core";
 import { HERMES_PIPER_VOICE, HERMES_RESTART_SH, HERMES_VENV_PY_SH, HERMES_VOZ_LOCAL_SH, hermesAudioPatch, hermesConfigSetSh, hermesPmExtraSh, hermesSttLigarSh } from "../whatsapp/whatsapp-hermes-core";
 import { spawn, spawnSync } from "node:child_process";
@@ -127,9 +127,10 @@ function probeScript(port: number): string {
     // Financeiro (produto meu-bot-finance: CLI finance.mjs + plugin meu-bot-finance): instalado? e a versão.
     `[ -f "$HOME/.local/share/meu-bot/finance/finance.mjs" ] && echo finance=1 || echo finance=0`,
     `echo "financever=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("version",""))' "$HOME/.local/share/meu-bot/finance/package.json" 2>/dev/null)"`,
-    // Agente de chat: openclaw (CLI em ~/.openclaw/bin) tem preferência; senão hermes (~/.local/bin); senão
-    // picoclaw (binário no PATH com ~/.picoclaw/config.json — o config é o que distingue de uma cópia solta).
-    `G=; { command -v openclaw >/dev/null 2>&1 || [ -x "$HOME/.openclaw/bin/openclaw" ]; } && G=openclaw; [ -z "$G" ] && { command -v hermes >/dev/null 2>&1 || [ -x "$HOME/.local/bin/hermes" ] || [ -d "$HOME/.hermes/whatsapp" ]; } && G=hermes; [ -z "$G" ] && { command -v picoclaw >/dev/null 2>&1 || [ -x "$HOME/.local/bin/picoclaw" ]; } && [ -f "$HOME/.picoclaw/config.json" ] && G=picoclaw; echo "gateway=$G"`,
+    // Motor de chat (WhatsApp): a regra única do app (whatsapp-capacidades.ts › WA_MOTOR_SH): a escolha gravada manda; sem
+    // ela, Hermes já configurado, senão o binário openclaw, hermes ou picoclaw (este só com ~/.picoclaw/config.json).
+    // Antes a sondagem punha o OpenClaw na frente e ignorava a escolha, e o seletor discordava do status da janela.
+    `${WA_MOTOR_SH}; G=$MOTOR; echo "gateway=$G"`,
     // OpenClaw: o agente do WhatsApp entende áudio? (transcritor em tools.media.models; o openclaw.json é JSON puro)
     `[ "$G" = openclaw ] && echo "audioin=$(python3 -c 'import json,os;c=json.load(open(os.path.expanduser("~/.openclaw/openclaw.json")));m=(c.get("tools") or {}).get("media") or {};print(int(any("audio" in (x.get("capabilities") or []) for x in (m.get("models") or []) if isinstance(x,dict))))' 2>/dev/null)"`,
     `echo "node=$(command -v node >/dev/null 2>&1 && node -v 2>/dev/null)"`,
@@ -366,7 +367,7 @@ export async function installAudio(host: string, setup: AudioSetup, onLine?: (li
   const lines: string[] = [];
   const say = (l: string): void => { lines.push(l); onLine?.(l); };
   if (host === LOCAL_HOST) return { ok: false, log: ["este Mac não tem agente com WhatsApp"] };
-  const gw = await run("ssh", [...sshBase(host), "--", host, `${WA_ESCOLHA_SH}; usa_hermes && echo hermes || echo outro`], 30_000);
+  const gw = await run("ssh", [...sshBase(host), "--", host, `${WA_MOTOR_SH}; usa_hermes && echo hermes || echo outro`], 30_000);
   if (/^hermes$/m.test(gw.stdout)) {
     const ligarStt = setup.kind === "in" && setup.off !== true;
     const ligarVoz = setup.kind === "out" && setup.mode !== "off";

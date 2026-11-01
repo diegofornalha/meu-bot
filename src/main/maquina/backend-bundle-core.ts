@@ -17,6 +17,8 @@ export const BACKEND_RUNTIME_FILES = [
   "server.js", "session-map.js", "nivel-ferramentas.js", "modulos.js", "providers.js", "providers.json", "account-status.js", "contas-claude.js", "tool-events.js", "navegador.js", "gmail.js", "pontes.js", "licenca.js", "crm-modelo.js", "crm-store.js", "crm-api.js", "finance-modelo.js", "finance-store.js", "finance-api.js", "finance-crm-sync.js", "crm-finance-vendas.js", "autenticador.js", "saude-maquina.js", "cota.js", "faxina.js", "auditoria.py",
   // Porteiro do claude (rodízio de contas para o OpenClaw/WhatsApp e o Terminal): mora na pasta do backend e puxa contas-claude.js.
   "claude-porteiro.js",
+  // Regra única do motor do WhatsApp (espelho em JS de WA_MOTOR_SH): o server.js decide por ela por onde mandar mensagem.
+  "motor-whatsapp.js",
 ];
 /** O resto do pacote: instalador, unidade, versão e os scripts que o install.sh encadeia no fim (VERSION ele grava por último). */
 export const BUNDLE_EXTRAS = [

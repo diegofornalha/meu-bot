@@ -60,8 +60,8 @@ export interface WhatsappStatus {
   dono?: { numero: string; nome: string | null; souEu: boolean };
 }
 
-/** Os agentes que a pessoa pode escolher para atender o WhatsApp (o app trabalha igual com os dois). */
-export type WhatsappAgente = "openclaw" | "hermes";
+/** O motor gravado como escolha para o WhatsApp (whatsapp-agente): os mesmos nomes de `Gateway`; a tela só oferece OpenClaw e Hermes. */
+export type WhatsappAgente = Gateway;
 
 export type WhatsappDmPolicy = "pairing" | "allowlist" | "open" | "disabled";
 
