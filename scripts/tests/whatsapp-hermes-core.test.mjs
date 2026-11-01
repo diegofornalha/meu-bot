@@ -303,8 +303,8 @@ test("Hermes: uma porta de bridge por usuário (root na 3000, os outros 3100 + u
   assert.match(c.HERMES_WA_ENSURE_SH, /bridge_port/);
   assert.match(c.HERMES_BRIDGE_PORT_SH, /platforms\/whatsapp\/bridge_port/);
   const { readFileSync } = await import("node:fs");
-  const src = readFileSync(new URL("../../dist/main/whatsapp/whatsapp.js", import.meta.url), "utf8");
-  assert.doesNotMatch(src, /127\.0\.0\.1:3000\/health/, "nada de porta 3000 fixa na consulta do bridge");
+  // O status do Hermes mora no adaptador (whatsapp-hermes.js); a fachada (whatsapp.js) só monta o case por motor.
+  for (const f of ["whatsapp.js", "whatsapp-hermes.js"]) assert.doesNotMatch(readFileSync(new URL(`../../dist/main/whatsapp/${f}`, import.meta.url), "utf8"), /127\.0\.0\.1:3000\/health/, `nada de porta 3000 fixa na consulta do bridge (${f})`);
 });
 
 test("hermesPmExtraSh: sem as ferramentas do pm, instala só as que ele listou e tenta o extra de novo", async () => {

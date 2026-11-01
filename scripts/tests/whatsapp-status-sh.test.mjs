@@ -95,7 +95,8 @@ test("VM nova: sem modelo e sem reserva o script grava os dois (só então chama
   assert.equal(kv.get("plugin"), "1", "a CLI disse que o plugin está lá");
   assert.ok(chamadas.includes("plugins list --json"));
   assert.ok(chamadas.some((c) => c.startsWith("config set agents.defaults.models ")), "modelo gravado");
-  assert.ok(chamadas.some((c) => c.startsWith("config set agents.defaults.model.fallbacks ")), "reserva gravada");
+  // A reserva vai como JSON válido: antes o shell recebia "["grok/…"]" (aspas internas perdidas) e o OpenClaw recusava em silêncio.
+  assert.ok(chamadas.includes('config set agents.defaults.model.fallbacks ["grok/grok-4.7"] --strict-json'), `reserva gravada como JSON: ${chamadas.join(" | ")}`);
   assert.equal(kv.get("ocmodel"), "set"); assert.equal(kv.get("ocfallback"), "set");
   assert.equal(kv.get("dmpolicy"), "", "sem política autorada");
 });

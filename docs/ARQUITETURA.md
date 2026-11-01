@@ -14,7 +14,7 @@ O app é organizado por **domínio**: cada pasta é dona de um assunto, com as r
 | `conversa/` | Conversas com o meu-bot: histórico, contexto, memória, exportação, ordem das abas, conversas vistas pelo admin |
 | `terminal/` | Abas de terminal (PTY remoto via `pty-broker.py`) e controle externo do terminal |
 | `navegador/` | Aba Navegador: webviews, permissões, abas por conversa, API do agente, Navegador do agente do WhatsApp |
-| `whatsapp/` | WhatsApp do agente: status/pareamento, conversas, grupos, marcas, pausa, Hermes e OpenClaw, capacidades, áudio |
+| `whatsapp/` | WhatsApp do agente: a fachada `whatsapp.ts` monta os scripts por motor e despacha pelo contrato `MotorWhatsapp` (`whatsapp-motor.ts`); adaptadores `whatsapp-openclaw(-core)`, `whatsapp-hermes`, `whatsapp-picoclaw`; pareamento (`whatsapp-pair`), conversas, grupos, marcas, pausa, capacidades, áudio |
 | `crm/` | CRM pelo WhatsApp e CRM próprio (pelo túnel), guardar conversa no CRM |
 | `financeiro/` | Financeiro da máquina pelo túnel (inclui Curva ABC e importação de planilha) |
 | `google/` | Conta Google por máquina (OAuth), Gmail/Agenda/Planilhas, Contatos do CRM, backup no Drive |

@@ -482,3 +482,27 @@ Os avisos (Mac novo, vigia, cota) vão só pelo WhatsApp da pessoa: o e-mail pel
   (antes 20). Com a janela escondida, só reagenda; o `focus` consulta na volta.
 - Testes: `whatsapp-status-sh.test.mjs` roda o `STATUS_SCRIPT` num HOME de mentira com um `openclaw` falso que anota as
   chamadas (máquina pronta = 1 chamada; VM nova = modelo e reserva gravados; versão por cache); `whatsapp-cache-core.test.mjs`.
+
+## Adaptadores por motor: o contrato MotorWhatsapp (1 nov)
+
+- Motivo: `whatsapp.ts` tinha 1 500 linhas misturando os três motores de dois jeitos: scripts bash monolíticos com
+  `if usa_hermes … elif openclaw … picoclaw` (status, pareamento, lista, logout) e ramos em TS (`hostIsHermes`,
+  `gateway === "hermes"`), função por função. O lado consumidor (tela) já era agnóstico pelas capacidades; o lado
+  implementador não tinha costura, e o OpenClaw multi-conta (gateway único no root) não tinha onde entrar.
+- `whatsapp-motor.ts`: a interface `MotorWhatsapp` (fragmentos de shell `statusSh`, `chatsSh`, `groupsSh`, `pairSh`,
+  `logoutSh`, `restartSh`; parsers `parseStatus/parseChats/parseGroups`; e o IO `readQuem`, `thread`, `learnNames`,
+  `clearSessions`, `pause`, `keepPaused`, `setDmPolicy`, `groupClearPlan/groupClear/groupThread/setGroup/refreshGroups`),
+  o registro `MOTORES` e `motorDe(host)` (o motor visto na última consulta, senão a regra única numa sonda curta, em
+  cache). Cada adaptador é uma fábrica `criarMotorX(run = runSsh)`: o executor é injetável para o teste.
+- `whatsapp-openclaw-core.ts` (puro: shell e parse) + `whatsapp-openclaw.ts` (IO); `whatsapp-hermes.ts` (IO; o puro já
+  estava em `whatsapp-hermes-core.ts`); `whatsapp-picoclaw.ts` (status e reinício; o resto responde "ainda não");
+  `whatsapp-pair.ts` (o stream do QR, agnóstico); `whatsapp-ssh.ts` (`runSsh`/`scpPara`), `whatsapp-kv.ts`
+  (`kvOf`/`jsonOr`/`phoneOf`/`describeInstall`), `whatsapp-estado.ts` (motor visto, modo de pausa, nomes, caches).
+- `whatsapp.ts` virou a fachada (~400 linhas): monta os scripts com `case "$MOTOR"` e o fragmento de cada motor (UMA
+  viagem de SSH, como antes), despacha o parse pelo `gateway=` impresso e mantém todas as exportações que o IPC, o admin
+  e o resto do app importam. O que é decidido pelos dados fica nela: chaves de sessão do Hermes vs. do OpenClaw em
+  `whatsappThread`, `whatsappClearPlan` e `whatsappClearSessions`.
+- Sem mudança de comportamento, fora três detalhes: (1) máquina sem motor nenhum recebe "não tem agente com WhatsApp"
+  nas ações em vez de cair no caminho do OpenClaw; (2) o PicoClaw tem ramo próprio na lista e nos grupos (vazios) em vez
+  de cair no do OpenClaw; (3) `oc_fallback_ensure` gravava a reserva do Grok como `[grok/…]` sem as aspas internas
+  (escape perdido no template) e o OpenClaw recusava em silêncio; agora vai como JSON válido (teste cobre).
