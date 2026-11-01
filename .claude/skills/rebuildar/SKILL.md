@@ -5,11 +5,14 @@ description: Rebuilda e reinstala o meu-bot-admin (e as outras variantes afetada
 
 # Rebuildar o meu-bot depois de mudar o código
 
-> **Automático desde 30 out 2026:** o hook `Stop` em `.claude/settings.json` roda `scripts/hooks/rebuild-auto.sh` ao fim
-> de cada resposta. Se algo em `src/`, `scripts/tests`, `config/`, `assets/` ou `extensao-crm/` mudou desde o último
-> empacotamento (carimbo `.claude/.rebuild-stamp`), ele faz em segundo plano: testes → fecha os apps abertos →
-> empacota (abertos primeiro, depois admin, depois os demais instalados) → reabre, e o Mac avisa. Só rode os passos
-> abaixo à mão se o hook estiver desligado ou se quiser uma variante específica agora. `--check` mostra o plano.
+> **Automático (desde 1 nov 2026, issue #57):** o hook `Stop` em `.claude/settings.json` roda
+> `scripts/hooks/rebuild-auto.sh` ao fim de cada resposta e mantém `~/Applications` igual ao **`origin/main`**: quando
+> o `main` do GitHub muda, ele empacota num worktree fixo (`../meu-bot-build-main`, ao lado do checkout principal) em
+> segundo plano: testes → fecha os apps abertos → empacota (abertos primeiro, depois admin, depois os demais
+> instalados) → reabre, e o Mac avisa. Num branch, mudança no código só roda `npm test`; **nada de branch é instalado
+> pelo hook**. Os passos abaixo são para ver um branch na tela antes do merge (rode-os de dentro do worktree) ou para
+> uma variante específica agora; o próximo merge no `main` reinstala por cima. `--check` mostra branch, `origin/main` ×
+> instalado e o plano; a trava e o commit instalado ficam em `~/Library/Application Support/meu-bot-rebuild/`.
 
 O app instalado é empacotado: mudança no código só vale depois de rebuildar. Ao terminar uma modificação, faça isto sem perguntar.
 
