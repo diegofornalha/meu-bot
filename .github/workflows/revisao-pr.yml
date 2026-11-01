@@ -1,0 +1,52 @@
+# Revisão automática de PR (issue #19): toda PR aberta, reaberta ou tirada de rascunho por quem é do repo ganha uma
+# revisão do Claude com o checklist do CLAUDE.md, em comentários inline. Push novo na PR NÃO revisa de novo (gasta a
+# assinatura de quem gerou o token): peça com "@claude revise" no comentário (claude.yml).
+# Só branches deste repo: PR de fork não recebe o segredo, então nem tenta. Nunca trocar para pull_request_target
+# (repo público: exporia o token a código de fork). Rótulo "sem-claude" pula a revisão.
+name: Revisão Claude
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review]
+permissions:
+  contents: read
+  pull-requests: write
+  issues: read
+  id-token: write
+concurrency:
+  group: revisao-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  revisar:
+    if: |
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      contains(fromJSON('["diegofornalha","box-grok"]'), github.event.pull_request.user.login) &&
+      !contains(github.event.pull_request.labels.*.name, 'sem-claude')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          prompt: |
+            Repositório ${{ github.repository }}, PR #${{ github.event.pull_request.number }}. Responda em português do Brasil.
+            Leia a PR com `gh pr view ${{ github.event.pull_request.number }} --comments` e o diff com
+            `gh pr diff ${{ github.event.pull_request.number }}`. Revise seguindo o CLAUDE.md. Checklist:
+            - os testes cobrem a mudança (há teste novo ou ajustado em scripts/tests/), ou a PR justifica a falta;
+            - nenhum segredo, token ou credencial no diff (config/*.json, .env, chaves);
+            - erros de SSH e de comandos externos são tratados e viram texto para a pessoa, não só log;
+            - nada fora do escopo descrito na PR;
+            - contorno novo tem cabeçalho CONTORNO #N e linha em docs/guia/contornos.md;
+            - mudança em backend-colima/ que o app manda para as máquinas sobe o VERSION do componente.
+            Publique cada problema como comentário inline na linha certa, curto e com a correção sugerida.
+            Se não achar problema, deixe UM comentário na PR dizendo o que conferiu. Não aprove nem peça mudanças
+            formalmente (review): só comentários. Não altere arquivos.
+          claude_args: |
+            --max-turns 15
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*),Read,Grep,Glob"
