@@ -21,6 +21,10 @@ test("rótulos: build com branch e commit, só versão sem build.json, 'dev' em 
   assert.equal(rotuloBuild("0.4.0", { commit: "dev", branch: "dev" }), "v0.4.0 · dev");
   assert.equal(rotuloBuild("", null), "v?");
   assert.equal(rotuloTunel("ready"), "túnel ativo"); assert.equal(rotuloTunel("connecting"), "túnel conectando…"); assert.equal(rotuloTunel(null), "túnel: ?");
+  // fora do "ativo" o motivo vai junto, cortado em 70 caracteres (o que a pill também mostra)
+  assert.equal(rotuloTunel("degraded", "o backend desta máquina não está respondendo na porta 8083 (ECONNRESET: o túnel entrou, mas ninguém escuta nessa porta)"), "túnel instável: o backend desta máquina não está respondendo na porta 8083 (ECONNRESET");
+  assert.equal(rotuloTunel("degraded", ""), "túnel instável"); assert.equal(rotuloTunel("ready", "qualquer"), "túnel ativo");
+  assert.equal(rotuloTunel("connecting", "VM sem resposta; tentando de novo em 3 s (1ª vez)…"), "túnel conectando: VM sem resposta; tentando de novo em 3 s (1ª vez)…");
   assert.equal(rotuloReversos(38547, 50029), "nav :38547 · gmail :50029"); assert.equal(rotuloReversos(null, 50029), "gmail :50029"); assert.equal(rotuloReversos(null, null), "");
 });
 
