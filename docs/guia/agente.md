@@ -132,10 +132,14 @@
 - `backend-colima/install-grok-oauth.sh` (idempotente) reproduz o arranjo em qualquer máquina com o backend
   do meu-bot: instala `hermes-agent@0.22.2` (npm, `--prefix ~/.local`, com o node do backend), grava
   `providers.json` com o grok-4 em `http://127.0.0.1:8645/v1` (endpoint local dispensa chave; um
-  providers.json alheio vai para `.antes-do-grok-oauth`), cria `hermes-xai-proxy.service` (systemd --user,
+  providers.json alheio vai para `.antes-do-grok-oauth`), cria `meu-bot-xai-proxy.service` (systemd --user,
   `RestartSec=15`: antes do login o proxy sai com "Not logged in" e volta sozinho depois), liga linger e
-  reinicia o backend. Exige `providers.js` no backend: um backend antigo (caso da colima, 16 out) não tem
-  fallback nem grok-4, e "Reinstalar backend" no seletor resolve.
+  reinicia o backend. Até 1/11 a unidade se chamava `hermes-xai-proxy.service`; o nome novo segue o padrão
+  `meu-bot-*` das outras unidades do app (a máquina pode ter Hermes, OpenClaw ou os dois; o Hermes é só o
+  programa por baixo do proxy). Quem migra a unidade antiga é o `install.sh` do backend (1.9.2), na mesma porta,
+  na atualização automática do seletor; o `install-grok-oauth.sh` recusa rodar enquanto a antiga existir. Exige
+  `providers.js` no backend: um backend antigo (caso da colima, 16 out) não tem fallback nem grok-4, e "Reinstalar
+  backend" no seletor resolve.
 - App: a linha "xAI (Grok)" aparece também sem Hermes quando há backend (`xaiKeyStatus`); "entrar" roda o
   instalador pela janela (`xai-login:prepare`, progresso no diálogo) e emenda no login OAuth de sempre
   (`xaiLogin.ts`). A opção de chave de API foi retirada a pedido do usuário (só OAuth); `src/main/xaiKey.ts`

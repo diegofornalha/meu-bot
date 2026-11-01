@@ -103,7 +103,27 @@ render_unit() { # $1 = USERLINE, $2 = TARGET
 # o gerenciador funciona). Testar só o código de saída de is-system-running mandava o backend para o sistema
 # numa conta com um serviço falho, e todo script que fala "systemctl --user restart meu-bot-backend" quebrava.
 user_manager() { case "$(systemctl --user is-system-running 2>/dev/null)" in running|degraded|starting|maintenance) return 0;; *) return 1;; esac; }
+# --- migrar xai-proxy: início (o teste install-xai-proxy-unidade.test.mjs roda este trecho sozinho)
+# O proxy da xAI (install-grok-oauth.sh) até 1/11 se chamava hermes-xai-proxy.service; o nome novo segue o padrão
+# meu-bot-* das outras unidades do app (a máquina é agnóstica: Hermes, OpenClaw ou os dois; o Hermes é só o programa
+# por baixo). Mesma unidade, mesma porta (o providers.json aponta para ela); a antiga sai do systemd e do disco.
+# Nada a fazer sem a antiga. Um tropeço aqui não derruba a instalação do backend: só avisa.
+migrar_unidade_xai_proxy() { # $1 = pasta das unidades de usuário
+  local u=$1 antiga="$1/hermes-xai-proxy.service" nova="$1/meu-bot-xai-proxy.service" porta
+  [ -f "$antiga" ] || return 0
+  porta=$(grep -h '^ExecStart=' "$antiga" 2>/dev/null | grep -o -- '--port [0-9]*' | awk '{print $2}' || true)
+  if [ ! -f "$nova" ]; then
+    sed 's/^Description=.*/Description=meu-bot: proxy da xAI (Grok por OAuth, pelo Hermes)/' "$antiga" > "$nova" || { echo "aviso: não consegui gravar $nova; a unidade antiga fica"; rm -f "$nova"; return 0; }
+  fi
+  systemctl --user disable --now hermes-xai-proxy.service >/dev/null 2>&1 || true
+  rm -f "$antiga" "$u/default.target.wants/hermes-xai-proxy.service"
+  systemctl --user daemon-reload >/dev/null 2>&1 || true
+  systemctl --user enable --now meu-bot-xai-proxy.service >/dev/null 2>&1 || echo "aviso: meu-bot-xai-proxy.service não subiu; veja: systemctl --user status meu-bot-xai-proxy"
+  echo "unidade antiga hermes-xai-proxy.service removida; o proxy passa a ser meu-bot-xai-proxy.service${porta:+ (porta $porta)}"
+}
+# --- migrar xai-proxy: fim
 SYS_UNIT=/etc/systemd/system/meu-bot-backend.service
+user_manager && migrar_unidade_xai_proxy "$HOME/.config/systemd/user"
 if [ "$(id -u)" -ne 0 ] && user_manager; then
   mkdir -p "$HOME/.config/systemd/user"
   # Esta conta já tem o backend como serviço de sistema (instalação antiga com o gerenciador degradado): migra.
