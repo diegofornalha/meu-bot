@@ -4,6 +4,7 @@
  */
 import { deveAtualizar } from "../atualizacao/updater-core";
 import type { Capacidade, HermesNaMaquina, Pressao, PressaoBox, UsuarioMaquina } from "../../shared/ipc";
+import { HERMES_VERSAO, MOTOR_NODE } from "../maquina/motor-versoes";
 
 /** Nome de usuário Linux aceito: minúsculas, dígitos, hífen e sublinhado, começando por letra; até 32. */
 export const NOME_USUARIO_RE = /^[a-z][a-z0-9_-]{1,31}$/;
@@ -360,10 +361,10 @@ systemctl daemon-reload >/dev/null 2>&1 || true
 echo SWAP=ok`;
 }
 
-/** A mesma versão que o install-grok-oauth.sh pede: com ela no PATH de todos, o instalador não baixa cópia por usuário. */
-export const HERMES_VERSAO = "0.22.2";
+/** A mesma versão que o install-grok-oauth.sh pede (fonte única: maquina/motor-versoes.ts): com ela no PATH de todos, o instalador não baixa cópia por usuário. */
+export { HERMES_VERSAO };
 /** Node do Hermes compartilhado: o mesmo do backend (install.sh). */
-const HERMES_NODE = "v20.20.2";
+const HERMES_NODE = MOTOR_NODE;
 
 /**
  * Hermes para todos os usuários da máquina: o programa em /opt/hermes (Node próprio + pacote npm, dono root, só

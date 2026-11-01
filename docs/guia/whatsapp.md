@@ -440,3 +440,18 @@ andamento; avisa no WhatsApp ao cruzar 80, 95 e 100% uma vez por cruzamento (rea
 `saude-avisos.json › cota`. O resultado vai em `/health.cota`, `/v1/meu-bot/status.cota` e `GET /v1/meu-bot/cota?fresco=1`.
 A cota macia é o limite que a pessoa vê; a dura (folga de 10%/300 MB, 7 dias) é o que deixa o aviso de 100% ainda sair.
 Os avisos (Mac novo, vigia, cota) vão só pelo WhatsApp da pessoa: o e-mail pela Resend saiu em 30 out.
+
+## Versões fixadas dos motores (1 nov)
+
+- Motivo: na VM agente, `openclaw plugins install clawhub:@openclaw/whatsapp` (sem versão) resolvia a 2026.10.9 do ClawHub
+  e recusava instalar num OpenClaw 2026.9.9 ("requires plugin API >=2026.10.9"); o pedido "Preparar" ao agente da máquina
+  mandava `npm install -g openclaw@latest`, e a versão do Hermes (0.22.2) estava repetida em três lugares.
+- Fonte única: `backend-colima/motor-versoes.sh` (só `CHAVE=valor`, para os scripts da máquina) com o espelho
+  `src/main/maquina/motor-versoes.ts` (o app). `OPENCLAW_VERSAO`, `OPENCLAW_WA_PLUGIN_VERSAO`, `HERMES_VERSAO` e
+  `MOTOR_NODE`. `usuarios-core.ts` reexporta `HERMES_VERSAO` de lá; `scripts/tests/motor-versoes.test.mjs` recusa
+  divergência com o `install-grok-oauth.sh` e com o pedido ao agente, e recusa `@latest` ou plugin sem versão em `src/`
+  e `backend-colima/`.
+- Pareamento (`whatsapp.ts`): o plugin vai na versão do OpenClaw da máquina (`openclaw --version`), e sem conseguir
+  lê-la, na fixada; não há mais a tentativa sem versão. `--accept-capabilities` primeiro (sem terminal, a pergunta do
+  instalador travava), e sem a opção se o runtime não a conhece.
+- Regra: um motor nunca sobe de versão em segundo plano; mudar a versão é um PR que altera os dois arquivos.
