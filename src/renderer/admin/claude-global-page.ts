@@ -76,7 +76,7 @@ export function mountClaudeGlobalPage(deps: ClaudeGlobalPageDeps): { open: () =>
     const panel = page.panel; panel.replaceChildren();
     const head = el("div", "guide-head"); const hb = el("div", "tut-body");
     hb.append(el("span", "tut-badge", "claude code global"), el("h2", "", `Claude Code Global · ${deps.who}`),
-      el("p", "", "A assinatura do root responde por todos os usuários desta máquina. A gestão é só daqui: cada usuário vê no meu-bot dele que está no global, sem poder mexer. Se o global chegar ao limite, quem tiver uma conta própria segue por ela; sem conta própria, o Grok assume."));
+      el("p", "", "A assinatura do root responde por todos os usuários desta máquina. A gestão é só daqui: cada usuário vê no meu-bot dele que está no global, sem poder mexer. Se o global chegar ao limite, quem tiver uma conta própria segue por ela; sem conta própria, o Grok assume, se a xAI estiver logada na máquina."));
     head.append(hb); panel.append(head);
     if (estado === null) { panel.append(erro !== null ? el("p", "hint bad-hint", `✗ ${erro}`) : espera("Lendo o Claude Code Global…")); return; }
     const e = estado;
@@ -182,7 +182,7 @@ export function mountClaudeGlobalPage(deps: ClaudeGlobalPageDeps): { open: () =>
           tr.append(el("td", "", u.nome), el("td", u.ligado ? "audio-ok" : "hint", u.ligado ? "ligado" : "desligado"), el("td", "", String(u.chamadas)), el("td", "", quando(u.ultima)), el("td", "", String(u.limites)));
           const td = el("td", "");
           const b = botao(u.ligado ? "Desligar" : "Ligar", `usuario:${u.nome}`, !u.ligado);
-          b.title = u.ligado ? "Ele passa a responder só pela conta própria (ou pelo Grok); a chave dele deixa de valer" : "Ele passa a responder pela assinatura do root, sem ver o token";
+          b.title = u.ligado ? "Ele passa a responder só pela conta própria (ou pelo Grok, se a xAI estiver logada); a chave dele deixa de valer" : "Ele passa a responder pela assinatura do root, sem ver o token";
           b.addEventListener("click", () => { void rodar(`usuario:${u.nome}`, () => deps.api.adminClaudeGlobalUsuario(u.nome, !u.ligado), u.ligado ? `✓ Global desligado para ${u.nome}.` : `✓ Global ligado para ${u.nome}: o agente dele já responde pela conta do root.`); });
           td.append(b); tr.append(td); tu.append(tr);
         }

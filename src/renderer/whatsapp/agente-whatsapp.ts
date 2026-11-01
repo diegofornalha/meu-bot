@@ -443,7 +443,7 @@ function waAgentPrompt(st: WhatsappStatus): string {
 /** Os dois agentes que atendem o WhatsApp, como a pessoa os vê (o app trabalha igual com os dois). */
 const AGENTE_OPTIONS: readonly { id: WhatsappAgente; title: string; text: string; recomendado: boolean }[] = [
   { id: "openclaw", title: "OpenClaw", text: "Responde pelo Claude Code desta máquina. É o mais usado com o meu-bot.", recomendado: true },
-  { id: "hermes", title: "Hermes", text: "Responde pelo Claude do meu-bot desta máquina, com troca automática de contas e o Grok de reserva.", recomendado: false },
+  { id: "hermes", title: "Hermes", text: "Responde pelo Claude do meu-bot desta máquina, com troca automática de contas e, com a xAI logada, o Grok de reserva.", recomendado: false },
 ];
 /** Agente que vale agora: o escolhido, senão o que a máquina já tem. */
 export const agenteAtual = (st: WhatsappStatus | null): WhatsappAgente | null =>
