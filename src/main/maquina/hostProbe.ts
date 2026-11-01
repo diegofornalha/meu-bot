@@ -101,6 +101,11 @@ function probeScript(port: number): string {
     `echo "backenddir=$BD"; echo "foreign=$FOREIGN"`,
     `[ -f "$BD/.env" ] && echo env=1 || echo env=0`,
     `[ -f "$BD/server.js" ] && echo server=1 || echo server=0`,
+    // O serviço meu-bot-backend desta conta no ar sem os arquivos (pasta apagada; o node antigo roda de memória): o PID
+    // principal da unidade (de usuário, ou de sistema quando o User dela sou eu) e a porta em que ele escuta. Sem isso a
+    // sondagem lia "porta ocupada por outro programa" e o seletor instalava um segundo backend ao lado do zumbi.
+    `UP=$(systemctl --user show -p MainPID --value meu-bot-backend.service 2>/dev/null | tr -dc 0-9); [ "\${UP:-0}" -gt 0 ] || { [ "$(systemctl show -p User --value meu-bot-backend.service 2>/dev/null)" = "$(id -un)" ] && UP=$(systemctl show -p MainPID --value meu-bot-backend.service 2>/dev/null | tr -dc 0-9); }; echo "unitpid=\${UP:-0}"`,
+    `echo "unitport=$([ "\${UP:-0}" -gt 0 ] && (ss -ltnp 2>/dev/null || netstat -ltnp 2>/dev/null) | grep -E "pid=$UP,|[[:space:]]$UP/" | grep -oE ':[0-9]+ ' | head -1 | tr -dc 0-9)"`,
     // Versão do backend instalado (o install.sh grava VERSION só quando ele respondeu); sem arquivo = anterior ao versionamento.
     `echo "backendver=$(cat "$BD/VERSION" 2>/dev/null)"`,
     // A porta do backend é a do .env dele (o app pode estar com outra); sem backend, é a que o app usa.
@@ -173,7 +178,7 @@ function parseKv(stdout: string): Map<string, string> {
 export async function probeHost(host: string, port: number): Promise<HostProbe> {
   if (host === LOCAL_HOST) return probeLocal(port);
   const base: HostProbe = {
-    host, reachable: false, user: null, apelido: null, os: null, arch: null, backendInstalled: false, backendForeign: false, backendListening: false, backendVersion: null, backendBusy: null,
+    host, reachable: false, user: null, apelido: null, os: null, arch: null, backendInstalled: false, backendForeign: false, backendListening: false, backendSumiu: false, backendUnitPort: null, backendVersion: null, backendBusy: null,
     appPort: port, backendPort: null, portBusy: false, freePort: null,
     claudePath: null, claudeLoggedIn: false, node: null, diskTotalMb: null, diskFreeMb: null, memTotalMb: null, memFreeMb: null, swapTotalMb: null, swapFreeMb: null, backendAlerta: null, systemd: false, grokPod: false, tailscaleCheck: false, statusLine: false, guarda: null, guardaVersion: null, crm: null, crmVersion: null, finance: null, financeVersion: null, audioIn: null, gateway: null, models: [], error: null,
   };
@@ -202,6 +207,8 @@ export async function probeHost(host: string, port: number): Promise<HostProbe> 
     backendInstalled: kv.get("env") === "1" && kv.get("server") === "1",
     backendForeign: kv.get("foreign") === "1",
     backendListening: kv.get("port") === "1",
+    backendSumiu: kv.get("server") !== "1" && Number(kv.get("unitpid") ?? 0) > 0,
+    backendUnitPort: parsePort(kv.get("unitport")),
     backendVersion: kv.get("backendver") || null,
     backendBusy: /^\d+$/.test(kv.get("backendbusy") ?? "") ? Number(kv.get("backendbusy")) : null,
     backendPort: parsePort(kv.get("envport")),
@@ -254,7 +261,7 @@ function probeLocal(port: number): HostProbe {
   if (node !== null) { try { nodeVersion = spawnSync(node, ["-v"], { encoding: "utf8", timeout: 5000 }).stdout.trim() || null; } catch { /* sem versão */ } }
   return {
     host: LOCAL_HOST, reachable: true, user: os.userInfo().username, apelido: null, os: `macOS ${os.release()}`, arch: os.arch(),
-    backendInstalled: true, backendForeign: false, backendListening: localBackendAlive(), backendVersion: null, backendBusy: null, appPort: port, backendPort: null, portBusy: false, freePort: null, claudePath: claude, claudeLoggedIn: claude !== null && claudeLoggedIn(),
+    backendInstalled: true, backendForeign: false, backendListening: localBackendAlive(), backendSumiu: false, backendUnitPort: null, backendVersion: null, backendBusy: null, appPort: port, backendPort: null, portBusy: false, freePort: null, claudePath: claude, claudeLoggedIn: claude !== null && claudeLoggedIn(),
     node: nodeVersion, diskTotalMb: null, diskFreeMb: null, memTotalMb: null, memFreeMb: null, swapTotalMb: null, swapFreeMb: null, backendAlerta: null, systemd: false, grokPod: false, tailscaleCheck: false, statusLine: localStatusLine(), guarda: null, guardaVersion: null, crm: null, crmVersion: null, finance: null, financeVersion: null, audioIn: null, gateway: null, models: ["claudecode", "agente"], error: node === null ? "Node.js não encontrado neste Mac" : null,
   };
 }
@@ -286,16 +293,6 @@ export function backendBundleDir(): string {
 
 
 /** Copia o bundle para o host e roda o instalador; `onLine` recebe o progresso linha a linha. */
-/**
- * Porta para instalar o backend nesta máquina (regra única do seletor e do admin): a do backend já instalado
- * (reinstalar não muda o .env), a primeira livre quando a do app está tomada (outra conta da mesma máquina), senão a do app.
- */
-export function portaParaInstalar(probe: Pick<HostProbe, "backendInstalled" | "backendPort" | "portBusy" | "freePort">, configurada: number): number {
-  if (probe.backendInstalled && probe.backendPort !== null) return probe.backendPort;
-  if (!probe.backendInstalled && probe.portBusy && probe.freePort !== null) return probe.freePort;
-  return configurada;
-}
-
 export async function installBackend(host: string, port: number, onLine?: (line: string) => void): Promise<InstallBackendResult> {
   if (host === LOCAL_HOST) return { ok: true, log: ["o backend deste Mac vai dentro do app; nada a instalar"] };
   const lines: string[] = [];

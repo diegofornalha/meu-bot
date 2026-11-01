@@ -48,6 +48,12 @@ export function describeProbe(p: HostProbe): ProbeText {
   }
   if (!p.reachable && p.tailscaleCheck) return { kind: "warn", text: `⚠ ${p.host}: o Tailscale SSH pede uma verificação extra no navegador. Clique em "Aprovar verificação do Tailscale": o link abre e a máquina entra quando você aprovar.`, install: null, canOpen: false };
   if (!p.reachable) return { kind: "bad", text: `✗ ${p.host} inacessível por SSH: ${p.error ?? "sem detalhes"}`, install: null, canOpen: false };
+  // O serviço meu-bot-backend está no ar, mas os arquivos sumiram do disco (pasta apagada; o node antigo roda de memória).
+  // Sem este ramo a sondagem lia "porta ocupada por outro programa" e o seletor instalava um segundo backend ao lado.
+  if (p.backendSumiu) {
+    const porta = p.backendUnitPort ?? p.appPort;
+    return { kind: "warn", text: `⚠ ${who} · o serviço meu-bot-backend está rodando, mas os arquivos do backend sumiram do disco (a pasta foi apagada; o processo antigo ainda responde na porta ${porta}). "Reinstalar backend" grava os arquivos de novo e sobe o serviço na mesma porta.`, install: "reinstall", port: porta, canOpen: false };
+  }
   // O backend desta conta está em outra porta (duas contas na mesma máquina, por exemplo): o app apontaria para
   // a porta errada. Um clique grava a porta certa só para esta máquina.
   if (p.backendInstalled && p.backendPort !== null && p.backendPort !== p.appPort) {
