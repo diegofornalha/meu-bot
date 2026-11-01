@@ -79,6 +79,8 @@ planejar() {
 preparar_build() {
   if [ -e "$BUILD/.git" ]; then git -C "$BUILD" checkout -q --detach origin/main || return 1
   else git worktree add -q --detach "$BUILD" origin/main || return 1; fi
+  # Submódulos (produtos/meu-bot-diego): o worktree nasce com a pasta vazia e o dist:diego-staging recusa sem o manifesto.
+  git -C "$BUILD" submodule update --init --recursive -q 2>/dev/null || log "aviso: submódulos não atualizaram em $BUILD"
   [ -e "$BUILD/node_modules" ] || ln -s "$PRINCIPAL/node_modules" "$BUILD/node_modules"
   [ -e "$BUILD/extensao-crm/node_modules" ] || { [ -d "$PRINCIPAL/extensao-crm/node_modules" ] && ln -s "$PRINCIPAL/extensao-crm/node_modules" "$BUILD/extensao-crm/node_modules"; }
   mkdir -p "$BUILD/build" "$BUILD/config"
