@@ -14,6 +14,7 @@ import { el } from "../lib/dom.js";
 import { carregando } from "../lib/carregando.js";
 import type { PageTab } from "../lib/pages-types.js";
 import { ipcErrorText } from "../lib/ipc-error.js";
+import { ehContaDesconectada, erroGoogleTexto, statusAposErro } from "../lib/erro-google.js";
 import { blocosDoCorpo } from "../lib/email-texto-core.js";
 
 /** O que a página conta ao guia (tutorial 16): a pessoa leu uma mensagem, buscou, mandou para a lixeira, desfez. */
@@ -35,11 +36,6 @@ export interface GmailDeps {
   api: Pick<MeuBotApi, "browserRequestPro" | "googleContaStatus" | "googleContaConectar" | "gmailListar" | "gmailLer" | "gmailApagar" | "gmailRestaurar" | "gmailAgente" | "gmailInstalado" | "instalarGmail" | "openExternal" | "on">;
 }
 
-/** Erros do main em frase: a conta caiu, falta o Pro, ou falta a permissão de escrita (token de antes de 31 out). */
-export const erroGmailTexto = (e: unknown): string => ipcErrorText(e)
-  .replace(/^GOOGLE_CONTA_DESCONECTADA$/, "a conta Google desconectou; entre de novo")
-  .replace(/^PRO_REQUIRED$/, "esta máquina não tem o plano Pro")
-  .replace(/^GMAIL_SEM_PERMISSAO$/, "a autorização desta conta é de antes da lixeira: reconecte a Conta Google uma vez");
 /** "Ana Silva <ana@x.com>" → "Ana Silva"; sem nome, o e-mail. */
 export const remetenteCurto = (de: string): string => de.replace(/<.*>/, "").replace(/^"|"$/g, "").trim() || de;
 /** Data do cabeçalho do e-mail em dd/mm hh:mm (pt-BR); o que não for data fica como veio. */
@@ -75,10 +71,21 @@ export function mountGmail(deps: GmailDeps): { open: () => void; refresh: () => 
   async function ligarAgente(on: boolean): Promise<void> {
     await agir(async () => { agente = await deps.api.gmailAgente(on); }, on ? "o agente do chat pode ler seus e-mails nesta máquina" : "o agente do chat não lê mais seus e-mails");
   }
+  /**
+   * A conta caiu no meio da sessão (o Google recusou renovar e o main apagou o token): em vez de uma frase sem saída
+   * dentro da lista, a página volta ao cartão "Conecte a Conta Google", com os botões que levam ao login. O main também
+   * avisa por google-conta:changed; aqui é para a resposta do próprio pedido já desenhar certo.
+   */
+  function contaCaiu(e: unknown): boolean {
+    if (!ehContaDesconectada(e)) return false;
+    status = statusAposErro(status, e); lista = null; listaErro = null; detalhe = null; detalheErro = null; abrindo = null;
+    msg = { text: erroGoogleTexto(e), bad: true };
+    return true;
+  }
   async function instalarNaMaquina(): Promise<void> {
     instalando = true; render();
     try { const r = await deps.api.instalarGmail(); instalado = r.ok; msg = { text: r.ok ? "lado do agente instalado na máquina" : `não instalou: ${r.log.at(-1) ?? "sem detalhes"}`, bad: !r.ok }; }
-    catch (e) { msg = { text: erroGmailTexto(e), bad: true }; }
+    catch (e) { if (!contaCaiu(e)) msg = { text: erroGoogleTexto(e), bad: true }; }
     instalando = false; render();
   }
   async function carregarLista(pagina?: string): Promise<void> {
@@ -87,18 +94,18 @@ export function mountGmail(deps: GmailDeps): { open: () => void; refresh: () => 
       const r = await deps.api.gmailListar({ busca, max: 20, pagina });
       lista = pagina !== undefined && lista !== null ? { ...r, mensagens: [...lista.mensagens, ...r.mensagens] } : r;
       if (busca !== "") deps.aoUsar?.("buscou");
-    } catch (e) { if (pagina === undefined) listaErro = erroGmailTexto(e); else msg = { text: erroGmailTexto(e), bad: true }; }
+    } catch (e) { if (!contaCaiu(e)) { if (pagina === undefined) listaErro = erroGoogleTexto(e); else msg = { text: erroGoogleTexto(e), bad: true }; } }
     render();
   }
   async function abrir(id: string): Promise<void> {
     abrindo = id; detalhe = null; detalheErro = null; render();
-    try { detalhe = await deps.api.gmailLer(id); deps.aoUsar?.("lido"); } catch (e) { detalheErro = erroGmailTexto(e); }
+    try { detalhe = await deps.api.gmailLer(id); deps.aoUsar?.("lido"); } catch (e) { if (!contaCaiu(e)) detalheErro = erroGoogleTexto(e); }
     render();
   }
   function fechar(): void { detalhe = null; detalheErro = null; abrindo = null; render(); }
   async function agir(run: () => Promise<unknown>, ok: string): Promise<void> {
     if (busy) return; busy = true; msg = null; render();
-    try { await run(); msg = { text: ok, bad: false }; } catch (e) { msg = { text: erroGmailTexto(e), bad: true }; }
+    try { await run(); msg = { text: ok, bad: false }; } catch (e) { if (!contaCaiu(e)) msg = { text: erroGoogleTexto(e), bad: true }; }
     busy = false; render();
   }
   /** Lixeira: tira a mensagem da lista na hora e guarda o "Desfazer"; a lista inteira só recarrega na próxima busca. */

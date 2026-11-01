@@ -11,6 +11,7 @@ import { el } from "../lib/dom.js";
 import { carregando } from "../lib/carregando.js";
 import type { PageTab } from "../lib/pages-types.js";
 import { ipcErrorText } from "../lib/ipc-error.js";
+import { erroGoogleTexto } from "../lib/erro-google.js";
 import { aplicarProgresso, fmtBytes, terminou, textoAndamento } from "./backup-andamento.js";
 
 export interface ContaGoogleDeps {
@@ -39,7 +40,7 @@ export function mountContaGoogle(deps: ContaGoogleDeps): { open: () => void; ref
   // Cópia no Drive em curso (clique em "Guardar agora" ou a diária): as etapas que o main manda, conjunto a conjunto.
   // null = nenhuma; [] = começou e a primeira etapa ainda não chegou.
   let andamento: BackupDadosProgresso[] | null = null;
-  const erroTexto = (e: unknown): string => ipcErrorText(e).replace(/^GOOGLE_CONTA_DESCONECTADA$/, "a conta Google desconectou; entre de novo").replace(/^PRO_REQUIRED$/, "esta máquina não tem o plano Pro");
+  const erroTexto = erroGoogleTexto;
   let busy = false; let msg: { text: string; bad: boolean } | null = null;
   /** "Pedir o Pro ao admin" já foi clicado nesta janela. */
   let proPedido = false;
@@ -69,7 +70,7 @@ export function mountContaGoogle(deps: ContaGoogleDeps): { open: () => void; ref
   };
   async function agir(run: () => Promise<unknown>, ok: string): Promise<void> {
     if (busy) return; busy = true; msg = null; render();
-    try { await run(); msg = { text: ok, bad: false }; } catch (e) { msg = { text: ipcErrorText(e).replace(/^GOOGLE_CONTA_DESCONECTADA$/, "a conta Google desconectou; entre de novo"), bad: true }; }
+    try { await run(); msg = { text: ok, bad: false }; } catch (e) { msg = { text: erroGoogleTexto(e), bad: true }; }
     busy = false; await refresh();
   }
   const btn = (label: string, cls: string, run: () => void): HTMLButtonElement => { const b = el("button", `btn ${cls} btn-small`, label); b.type = "button"; b.disabled = busy; b.addEventListener("click", run); return b; };
