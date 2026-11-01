@@ -3,6 +3,8 @@
 # faz o login por código de dispositivo (`hermes auth add xai-oauth`, que o app dispara em seguida) e serve um
 # proxy OpenAI-compatível local (`hermes proxy start --provider xai`, porta 8645, aceita qualquer bearer e usa
 # o OAuth); o backend do meu-bot aponta o modelo grok-4 para esse proxy (providers.json). Sem chave de API.
+# O proxy roda como `meu-bot-xai-proxy.service` (systemd --user): é uma peça do meu-bot, como as outras unidades
+# meu-bot-*; o Hermes é só o programa por baixo (a máquina pode ter Hermes, OpenClaw ou os dois).
 # Rodar no host. Idempotente. Não mexe no login do Claude nem no resto do backend.
 set -euo pipefail
 HERMES_VERSION=0.22.2
@@ -40,9 +42,14 @@ command -v systemctl >/dev/null 2>&1 || { echo "esta máquina não tem systemd; 
 # proxy (e na conta xAI) do vizinho. `ss -ltnp` só mostra o processo dos sockets desta conta: "ouvindo sem
 # processo" = de outra conta.
 U=$HOME/.config/systemd/user
+UNIT=meu-bot-xai-proxy.service
+# Até 1/11 a unidade se chamava hermes-xai-proxy.service; o install.sh do backend (1.9.2) a migra para o nome novo na
+# mesma porta. Se a antiga ainda está aqui, o backend desta máquina é anterior a isso: reinstalar pelo seletor resolve.
+[ -f "$U/hermes-xai-proxy.service" ] && { echo "o backend desta máquina é anterior à 1.9.2 (ainda tem hermes-xai-proxy.service): use \"Reinstalar backend\" no seletor e tente de novo"; exit 3; }
+porta_da_unidade() { grep -h '^ExecStart=' "$1" 2>/dev/null | grep -o -- '--port [0-9]*' | awk '{print $2}' || true; }
 listening() { (ss -ltn 2>/dev/null || netstat -ltn 2>/dev/null) | grep -q ":$1 "; }
 mine() { (ss -ltnp 2>/dev/null || netstat -ltnp 2>/dev/null) | grep ":$1 " | grep -q 'users:\|/'; }
-PROXY_PORT=$(grep -h '^ExecStart=' "$U/hermes-xai-proxy.service" 2>/dev/null | grep -o -- '--port [0-9]*' | awk '{print $2}' || true)
+PROXY_PORT=$(porta_da_unidade "$U/$UNIT")
 if [ -n "$PROXY_PORT" ] && listening "$PROXY_PORT" && ! mine "$PROXY_PORT"; then echo "porta $PROXY_PORT do proxy já é de outra conta desta máquina; escolhendo outra"; PROXY_PORT=; fi
 if [ -z "$PROXY_PORT" ]; then
   PROXY_PORT=$DEFAULT_PROXY_PORT
@@ -72,9 +79,9 @@ echo "grok-4 apontado para o proxy local (porta $PROXY_PORT)"
 # O proxy como serviço do usuário: sobe no boot e volta se cair.
 mkdir -p "$U"
 HB=$(command -v hermes)
-cat > "$U/hermes-xai-proxy.service" <<EOF
+cat > "$U/$UNIT" <<EOF
 [Unit]
-Description=Hermes: proxy da xAI (Grok por OAuth) para o meu-bot
+Description=meu-bot: proxy da xAI (Grok por OAuth, pelo Hermes)
 After=network.target
 
 [Service]
@@ -88,11 +95,11 @@ Environment=PATH=$(dirname "$HB"):$(dirname "${NODE:-/usr/bin/node}"):/usr/local
 WantedBy=default.target
 EOF
 systemctl --user daemon-reload
-systemctl --user enable --now hermes-xai-proxy.service >/dev/null 2>&1 || systemctl --user restart hermes-xai-proxy.service
+systemctl --user enable --now "$UNIT" >/dev/null 2>&1 || systemctl --user restart "$UNIT"
 loginctl enable-linger "$USER" >/dev/null 2>&1 || true
 backend_restart
 sleep 2
-echo "proxy: $(systemctl --user is-active hermes-xai-proxy.service) na porta $PROXY_PORT"
+echo "proxy ($UNIT): $(systemctl --user is-active "$UNIT") na porta $PROXY_PORT"
 if hermes auth status xai-oauth 2>/dev/null | grep -qi "logged in"; then
   echo "pronto: xAI já logada; o grok-4 responde pelo proxy"
 else
