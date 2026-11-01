@@ -89,6 +89,30 @@ export const CLAUDE_GLOBAL_SH = (origem: string): string => `if [ -x '${origem}'
   if [ -x ${CLAUDE_GLOBAL} ] && cmp -s '${origem}' ${CLAUDE_GLOBAL}; then echo "CLAUDE=ok"; else install -d -m 755 /usr/local/bin && install -m 755 -o root -g wheel '${origem}' ${CLAUDE_GLOBAL} && echo "CLAUDE=atualizado"; fi
 else echo "CLAUDE=sem-origem"; fi`;
 
+/**
+ * Clients OAuth do Google que a conta nova precisa (fora do git de propósito: credencial): google-oauth.json (projeto
+ * meu-bot-crm, Contatos e a reserva da Conta Google) e google-conta-oauth.json (o client próprio da Conta Google,
+ * quando existe). Sem eles o meu-bot que ela empacota e abre mostra "Google não configurado" (issue #36).
+ */
+export const OAUTH_GOOGLE = ["google-oauth.json", "google-conta-oauth.json"] as const;
+export type OauthGoogle = (typeof OAUTH_GOOGLE)[number];
+/**
+ * Leva os clients para a conta nova, como ela (0600): em ~/Desktop/meu-bot/config (os builds dela saem com Google) e em
+ * ~/Library/Application Support/meu-bot (o app instalado acha mesmo sem o client no pacote). Roda como root, junto da
+ * criação. Imprime `OAUTH=ok|sem-origem`.
+ */
+export function oauthContaNovaSh(nome: string, arquivos: readonly { nome: OauthGoogle; base64: string }[]): string {
+  if (!NOME_USUARIO_RE.test(nome) || RESERVADOS_MAC.has(nome)) throw new Error("nome inválido");
+  if (arquivos.length === 0) return 'echo "OAUTH=sem-origem"';
+  // Como a conta nova: o arquivo decodificado (temporário legível só por ela) vai para cada destino que existir.
+  const copia = `umask 077; for d in "$HOME/Desktop/meu-bot/config" "$HOME/Library/Application Support/meu-bot"; do case "$d" in */config) [ -d "$HOME/Desktop/meu-bot" ] || continue ;; esac; mkdir -p "$d" && cp "$1" "$d/$2.tmp" && mv "$d/$2.tmp" "$d/$2"; done`;
+  const passos = arquivos.map((a) => {
+    if (!(OAUTH_GOOGLE as readonly string[]).includes(a.nome) || !/^[A-Za-z0-9+/]+={0,2}$/.test(a.base64)) throw new Error("client OAuth inválido");
+    return `T=$(mktemp /tmp/meu-bot-oauth.XXXXXX) && printf '%s' '${a.base64}' | base64 -D > "$T" && chown "${nome}" "$T" && chmod 600 "$T" && sudo -u "${nome}" -H sh -c '${copia}' sh "$T" '${a.nome}'; rm -f "$T"`;
+  });
+  return `${passos.join("\n")}\necho "OAUTH=ok"`;
+}
+
 /** De onde a conta nova clona o meu-bot para a mesa (o repositório público; o submódulo privado do Diego não vem). */
 export const REPO_MEU_BOT = `https://github.com/${UPDATE_REPO}.git`;
 
@@ -96,9 +120,10 @@ export const REPO_MEU_BOT = `https://github.com/${UPDATE_REPO}.git`;
  * Cria a conta administrador com a senha e o home, e já com o meu-bot clonado em ~/Desktop/meu-bot (dono: a conta
  * nova). Roda como root (uma vez). A senha só existe neste script (arquivo
  * 0700 apagado em seguida) e por um instante no argumento do sysadminctl, que não lê senha de entrada sem terminal.
- * Imprime `CRIADO=<nome>` (ou `ERRO=<motivo>`) e `REPO=ok|falhou|sem-git`: o clone que não deu certo não desfaz a conta.
+ * Imprime `CRIADO=<nome>` (ou `ERRO=<motivo>`), `REPO=ok|falhou|sem-git` (o clone que não deu certo não desfaz a conta)
+ * e `OAUTH=ok|sem-origem` (os clients do Google, depois do clone para caírem também no config/ dele).
  */
-export function criarMacSh(o: { nome: string; senha: string; repo?: string; claude?: string | null }): string {
+export function criarMacSh(o: { nome: string; senha: string; repo?: string; claude?: string | null; oauth?: readonly { nome: OauthGoogle; base64: string }[] }): string {
   const repo = o.repo ?? REPO_MEU_BOT;
   if (!/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\.git$/.test(repo)) throw new Error("repositório inválido");
   if (!NOME_USUARIO_RE.test(o.nome) || RESERVADOS_MAC.has(o.nome)) throw new Error("nome inválido");
@@ -116,7 +141,8 @@ install -d -m 700 -o "${o.nome}" -g staff "/Users/${o.nome}/Desktop"
 cd /  # o git como a conta nova precisa de uma pasta que ela consiga ler
 if xcode-select -p >/dev/null 2>&1 && [ ! -e "/Users/${o.nome}/Desktop/meu-bot" ]; then
   if sudo -u "${o.nome}" -H git clone -q '${repo}' "/Users/${o.nome}/Desktop/meu-bot" >/dev/null 2>&1; then echo "REPO=ok"; else echo "REPO=falhou"; fi
-else echo "REPO=sem-git"; fi${o.claude != null ? `
+else echo "REPO=sem-git"; fi
+${oauthContaNovaSh(o.nome, o.oauth ?? [])}${o.claude != null ? `
 ${CLAUDE_GLOBAL_SH(o.claude)}` : ""}`;
 }
 
