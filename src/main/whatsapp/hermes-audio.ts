@@ -6,7 +6,7 @@
  * máquina (`local_command` → /opt/transcriber): sem um dos dois, "ouvir" fica desligado na tela mesmo com o config gravado. Lê com o Python do runtime do Hermes (ruamel; PyYAML nem sempre existe).
  */
 import type { VoiceReplyMode } from "../../shared/ipc";
-import { runSsh } from "./whatsapp";
+import { runSsh } from "./whatsapp-ssh";
 import { HERMES_PATH_SH, HERMES_VENV_PY_SH, hermesSttCmdSh, lerHermesAudio } from "./whatsapp-hermes-core";
 
 const LER_SH = `${HERMES_PATH_SH}; R=$(hermes_version | sed -n "s/^Install directory: //p"); [ -n "$R" ] || R=$HOME/.local/lib/node_modules/hermes-agent/runtime/hermes-agent; PY="$R/venv/bin/python3"; [ -x "$PY" ] || PY=python3

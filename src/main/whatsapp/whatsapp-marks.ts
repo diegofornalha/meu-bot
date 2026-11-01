@@ -252,3 +252,10 @@ print("MARKS=1")
 `;
 }
 
+
+/** O dono para a tela: quem é, o nome em cache e se é o próprio aparelho. Sem número pareado nem dono gravado, nada. */
+export function donoStatus(quem: WaQuem, marks: WaMarks): { dono?: { numero: string; nome: string | null; souEu: boolean } } {
+  if (quem.dono === null) return {};
+  const nm = marks.names[quem.dono];
+  return { dono: { numero: quem.dono, nome: nm?.alias ?? nm?.name ?? null, souEu: souEu(quem) } };
+}
