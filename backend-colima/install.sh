@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Instala/atualiza o backend do meu-bot nesta máquina. Rodar no host, com server.js, session-map.js,
-# meu-bot-backend.service e este script no mesmo diretório. Idempotente: pode rodar de novo.
+# Instala/atualiza o backend do meu-bot nesta máquina. Rodar no host, com o pacote inteiro (a lista
+# BACKEND_RUNTIME_FILES de src/main/maquina/backend-bundle-core.ts, meu-bot-backend.service e este script) no mesmo
+# diretório; o app manda tudo por scp para ~/.meu-bot-install/backend. Idempotente: pode rodar de novo.
 # - Node: usa o existente se for >= 18; senão baixa o 20 LTS (.tar.gz) em ~/.local/node.
 # - Serviço: unidade systemd de usuário; como root (ou sem gerenciador de usuário) vira unidade do sistema.
 #   Onde o systemd não roda (Computador do Grok Bot: PID 1 é o pod-daemon, mas /usr/bin/systemctl existe),
@@ -61,7 +62,24 @@ elif listening "$PORT"; then
   exit 4
 fi
 mkdir -p "$DEST/data" "$HOME/chat-workspace" "$HOME/agent-workspace"
-cp "$HERE/server.js" "$HERE/session-map.js" "$HERE/nivel-ferramentas.js" "$HERE/modulos.js" "$HERE/providers.js" "$HERE/account-status.js" "$HERE/contas-claude.js" "$HERE/tool-events.js" "$HERE/navegador.js" "$HERE/gmail.js" "$HERE/pontes.js" "$HERE/licenca.js" "$HERE/crm-modelo.js" "$HERE/crm-store.js" "$HERE/crm-api.js" "$HERE/finance-modelo.js" "$HERE/finance-store.js" "$HERE/finance-api.js" "$HERE/finance-crm-sync.js" "$HERE/crm-finance-vendas.js" "$HERE/autenticador.js" "$HERE/claude-porteiro.js" "$HERE/saude-maquina.js" "$HERE/cota.js" "$HERE/faxina.js" "$HERE/auditoria.py" "$DEST/"
+# --- copiar: início (o teste install-backend-copia.test.mjs roda este trecho sozinho)
+# Sem lista aqui: a lista é a BACKEND_RUNTIME_FILES de backend-bundle-core.ts, que é o que o app manda para o stage.
+# Antes de tocar em $DEST confere que todo require('./x') do server.js chegou; depois copia tudo para uma pasta
+# temporária dentro de $DEST e só então move. Assim o server.js novo nunca fica sozinho com módulos velhos (em 1/11 um
+# cp de lista copiou o server.js, parou no gmail.js que faltava e as quatro VMs caíram em MODULE_NOT_FOUND).
+copiar_backend() { # $1 origem  $2 destino
+  local origem=$1 destino=$2 m faltam="" tmp f
+  for m in $(grep -oE "require\(['\"]\./[A-Za-z0-9_-]+['\"]\)" "$origem/server.js" | sed -E "s/require\(['\"]\.\/([A-Za-z0-9_-]+)['\"]\)/\1/" | sort -u); do
+    [ -f "$origem/$m.js" ] || faltam="$faltam $m.js"
+  done
+  if [ -n "$faltam" ]; then echo "ERRO: pacote incompleto, o server.js exige:$faltam. Nada foi alterado em $destino." >&2; return 5; fi
+  tmp=$(mktemp -d "$destino/.novo.XXXXXX") || return 5
+  if ! cp "$origem"/*.js "$origem"/*.py "$tmp/"; then rm -rf "$tmp"; echo "ERRO: não consegui copiar o backend para $tmp" >&2; return 5; fi
+  for f in "$tmp"/*; do mv -f "$f" "$destino/"; done
+  rmdir "$tmp"
+}
+# --- copiar: fim
+copiar_backend "$HERE" "$DEST"
 [ -f "$DEST/providers.json" ] || { cp "$HERE/providers.json" "$DEST/providers.json"; echo "providers.json criado (agente → grok-4; grok-4 precisa de XAI_API_KEY no .env ou base_url local)"; }
 if [ ! -f "$DEST/.env" ]; then
   # umask só para o .env (num subshell): vazando para o resto, a unidade de sistema nascia 600 e ilegível.

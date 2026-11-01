@@ -21,6 +21,8 @@ import { clearTailscaleCredential, saveTailscaleCredential, tailscaleCredentialS
 import { disableSshCheck } from "./tailscale";
 import { handleClient, handleShared, onShared } from "../ipc/registry";
 import { log } from "./backend";
+import { resumoDoInstalador } from "./backend-bundle-core";
+import { evento } from "../app/depuracao";
 import { atualizarModulos } from "../modulos/modulos";
 import { settingsView, getBackendPort, getHostNames, getLastHost, getOpenDirect, isOnboardingDone, isPodHost, isValidHost, setBackendPortForHost, setHostName, setLastHost, setOnboardingDone, setOpenDirect, setPodHost, setApelidoMaquina } from "../app/settings";
 import { isPort } from "../app/settings-normalize";
@@ -133,7 +135,7 @@ function ensureHermesPausa(host: string, probe: HostProbe): void {
   pausaTried.add(host);
   log(`[pausa] ${host}: ${missing ? "Hermes sem o plugin de pausa" : `plugin ${probe.hermesPausaVersion ?? "sem versão"} → ${want}`}; instalando em segundo plano`);
   void installHermesPausa(host).then((r) => {
-    log(`[pausa] ${host}: ${r.ok ? "plugin instalado sozinho" : `instalação automática falhou: ${r.log.at(-1) ?? "?"}`}`);
+    log(`[pausa] ${host}: ${r.ok ? "plugin instalado sozinho" : `instalação automática falhou: ${resumoDoInstalador(r.log)}`}`);
     const hit = probes.get(host); if (r.ok && hit !== undefined) probes.set(host, { probe: { ...hit.probe, hermesPausa: true, hermesPausaVersion: want }, at: hit.at });
   }).catch((e: unknown) => { log(`[pausa] ${host}: instalação automática falhou: ${e instanceof Error ? e.message : String(e)}`); });
 }
@@ -150,7 +152,7 @@ function ensureGuarda(host: string, probe: HostProbe): void {
   guardaTried.add(host);
   log(`[guarda] ${host}: ${missing ? "máquina com OpenClaw sem a guarda" : `guarda ${probe.guardaVersion ?? "sem versão"} → ${want}`}; instalando em segundo plano`);
   void installGuarda(host).then((r) => {
-    log(`[guarda] ${host}: ${r.ok ? "instalada sozinha" : `instalação automática falhou: ${r.log.at(-1) ?? "?"}`}`);
+    log(`[guarda] ${host}: ${r.ok ? "instalada sozinha" : `instalação automática falhou: ${resumoDoInstalador(r.log)}`}`);
     const hit = probes.get(host); if (r.ok && hit !== undefined) probes.set(host, { probe: { ...hit.probe, guarda: true, guardaVersion: bundledGuardaVersion() }, at: hit.at });
   }).catch((e: unknown) => { log(`[guarda] ${host}: instalação automática falhou: ${e instanceof Error ? e.message : String(e)}`); });
 }
@@ -166,7 +168,7 @@ function ensureCrmAtual(host: string, probe: HostProbe): void {
   if (!deveAtualizar(probe.crmVersion ?? null, want)) return;
   crmTried.add(host);
   log(`[crm] ${host}: plugin do CRM ${probe.crmVersion ?? "sem versão"} → ${want}; atualizando em segundo plano`);
-  void installCrm(host).then((r) => { log(`[crm] ${host}: ${r.ok ? "atualizado sozinho" : `atualização automática falhou: ${r.log.at(-1) ?? "?"}`}`); })
+  void installCrm(host).then((r) => { log(`[crm] ${host}: ${r.ok ? "atualizado sozinho" : `atualização automática falhou: ${resumoDoInstalador(r.log)}`}`); })
     .catch((e: unknown) => { log(`[crm] ${host}: atualização automática falhou: ${e instanceof Error ? e.message : String(e)}`); });
 }
 
@@ -186,7 +188,9 @@ async function ensureBackendAtual(host: string, probe: HostProbe): Promise<void>
   log(`[backend] ${host}: backend ${probe.backendVersion ?? "sem versão"} → ${want ?? "?"}; atualizando em segundo plano`);
   try {
     const r = await installBackend(host, portaParaInstalar(probe, getBackendPort(host)));
-    log(`[backend] ${host}: ${r.ok ? "atualizado sozinho" : `atualização automática falhou: ${r.log.at(-1) ?? "?"}`}`);
+    log(`[backend] ${host}: ${r.ok ? "atualizado sozinho" : `atualização automática falhou: ${resumoDoInstalador(r.log)}`}`);
+    // A faixa de depuração mostra o erro de verdade (um "cp: cannot stat" do instalador, por exemplo), não só "código 1".
+    if (!r.ok) evento({ origem: "main", dono: null, rota: `backend/atualizar ${host}`, ok: false, ms: null, resumo: resumoDoInstalador(r.log).slice(0, 200), detalhe: { host, versao: want, log: r.log.slice(-15) } });
     const hit = probes.get(host); if (r.ok && hit !== undefined) probes.set(host, { probe: { ...hit.probe, backendVersion: want }, at: hit.at });
   } catch (e) { log(`[backend] ${host}: atualização automática falhou: ${e instanceof Error ? e.message : String(e)}`); }
 }
@@ -199,7 +203,7 @@ function ensureFinanceAtual(host: string, probe: HostProbe): void {
   if (!deveAtualizar(probe.financeVersion ?? null, want)) return;
   financeTried.add(host);
   log(`[finance] ${host}: financeiro ${probe.financeVersion ?? "sem versão"} → ${want}; atualizando em segundo plano`);
-  void installFinance(host).then((r) => { log(`[finance] ${host}: ${r.ok ? "atualizado sozinho" : `atualização automática falhou: ${r.log.at(-1) ?? "?"}`}`); })
+  void installFinance(host).then((r) => { log(`[finance] ${host}: ${r.ok ? "atualizado sozinho" : `atualização automática falhou: ${resumoDoInstalador(r.log)}`}`); })
     .catch((e: unknown) => { log(`[finance] ${host}: atualização automática falhou: ${e instanceof Error ? e.message : String(e)}`); });
 }
 
