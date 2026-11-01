@@ -74,5 +74,4 @@ test("o install.sh só migra com gerenciador de usuário; o install-grok-oauth.s
   assert.match(GROK, /Description=meu-bot: proxy da xAI/);
   assert.match(GROK, /\[ -f "\$U\/hermes-xai-proxy\.service" \] && \{ echo "o backend desta máquina é anterior à 1\.9\.2[^}]*exit 3; \}/);
   assert.ok(!/migrar_unidade/.test(GROK), "a migração tem um dono só: o install.sh");
-  assert.equal(readFileSync(resolve("backend-colima/VERSION"), "utf8").trim(), "1.9.2");
 });

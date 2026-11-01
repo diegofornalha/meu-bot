@@ -102,6 +102,7 @@ render_unit() { # $1 = USERLINE, $2 = TARGET
 # Serviço de usuário sempre que há um gerenciador de usuário, mesmo "degraded" (uma unidade qualquer falhou;
 # o gerenciador funciona). Testar só o código de saída de is-system-running mandava o backend para o sistema
 # numa conta com um serviço falho, e todo script que fala "systemctl --user restart meu-bot-backend" quebrava.
+user_manager() { case "$(systemctl --user is-system-running 2>/dev/null)" in running|degraded|starting|maintenance) return 0;; *) return 1;; esac; }
 # --- migrar xai-proxy: início (o teste install-xai-proxy-unidade.test.mjs roda este trecho sozinho)
 # O proxy da xAI (install-grok-oauth.sh) até 1/11 se chamava hermes-xai-proxy.service; o nome novo segue o padrão
 # meu-bot-* das outras unidades do app (a máquina é agnóstica: Hermes, OpenClaw ou os dois; o Hermes é só o programa
@@ -121,7 +122,6 @@ migrar_unidade_xai_proxy() { # $1 = pasta das unidades de usuário
   echo "unidade antiga hermes-xai-proxy.service removida; o proxy passa a ser meu-bot-xai-proxy.service${porta:+ (porta $porta)}"
 }
 # --- migrar xai-proxy: fim
-user_manager() { case "$(systemctl --user is-system-running 2>/dev/null)" in running|degraded|starting|maintenance) return 0;; *) return 1;; esac; }
 SYS_UNIT=/etc/systemd/system/meu-bot-backend.service
 user_manager && migrar_unidade_xai_proxy "$HOME/.config/systemd/user"
 if [ "$(id -u)" -ne 0 ] && user_manager; then
