@@ -79,6 +79,8 @@ const TOOLS = [
   { name: 'nav_voltar', description: 'Volta uma página.', inputSchema: S({ ...APP, ...MAQ, ...ABA }) },
   { name: 'nav_js', description: 'Roda JavaScript na página e devolve o resultado (até 8000 caracteres).', inputSchema: S({ ...APP, ...MAQ, ...ABA, codigo: { type: 'string' } }, ['codigo']) },
   { name: 'nav_fechar', description: 'Fecha uma aba desta conversa.', inputSchema: S({ ...APP, ...MAQ, ...ABA }) },
+  { name: 'nota', description: 'Escreve uma linha na faixa de depuração do app ("vou pedir ao agente para…"): a pessoa acompanha de fora o que você vai fazer. Só aparece com o modo de depuração ligado.', inputSchema: S({ ...APP, texto: { type: 'string' } }, ['texto']) },
+  { name: 'depuracao', description: 'Liga (on=true), desliga (on=false) ou volta ao padrão da variante (on=null) o modo de depuração do app; sem on, só consulta.', inputSchema: S({ ...APP, on: { type: ['boolean', 'null'] } }) },
 ];
 const NAV_ROTAS = { nav_abas: 'abas', nav_abrir: 'abrir', nav_ler: 'ler', nav_clicar: 'clicar', nav_digitar: 'digitar', nav_tecla: 'tecla', nav_print: 'print', nav_recarregar: 'recarregar', nav_voltar: 'voltar', nav_js: 'js', nav_fechar: 'fechar' };
 
@@ -102,6 +104,8 @@ async function call(name, args) {
   if (name === 'terminal_digitar') return pedir(path.join(a.dir, 'term.sock'), 'digitar', resto);
   if (name === 'tela_dividir') return pedir(path.join(a.dir, 'term.sock'), 'dividir', { ...resto, maquina });
   if (name === 'tela_juntar') return pedir(path.join(a.dir, 'term.sock'), 'juntar', { ...resto, maquina });
+  if (name === 'nota') return pedir(path.join(a.dir, 'term.sock'), 'nota', { texto: resto.texto });
+  if (name === 'depuracao') return pedir(path.join(a.dir, 'term.sock'), 'depuracao', 'on' in resto ? { on: resto.on } : {});
   const rota = NAV_ROTAS[name]; if (!rota) throw new Error(`ferramenta desconhecida: ${name}`);
   return pedir(navSock(a, maquina), rota, rota === 'abas' ? undefined : resto);
 }

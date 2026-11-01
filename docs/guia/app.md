@@ -2,6 +2,15 @@
 
 > Parte do diário técnico do meu-bot, dividido por assunto em 27 out 2026. Índice: [../GUIA.md](../GUIA.md). Mapa do código: [../ARQUITETURA.md](../ARQUITETURA.md).
 
+## Modo de depuração: selo ao lado do PRO, ferramenta `nota` e a skill (1 nov 2026, fase 3)
+
+- **Selo "DEPURAÇÃO"** ao lado do PRO nas duas barras (`#dep-badge`, `#mini-dep`): apagado em cinza com o modo
+  desligado, aceso com ele ligado; o clique alterna para todas as janelas (o mesmo `depuracaoLigar` da paleta) e um
+  toast curto diz o que a faixa mostra. No staging nasce aceso. Some em janela estreita junto com o PRO.
+- **app-mcp**: ferramentas `nota {texto}` (→ `POST /nota`) e `depuracao {on}` (→ `POST /depuracao`): o Claude Code
+  anuncia na faixa o que vai fazer e liga o modo de fora.
+- **Skill `testar-no-app`**: passo 0, ligar o modo e anunciar cada passo com `nota`; faixa vermelha = main preso.
+
 ## Modo de depuração: o fluxo de ações e a `nota` (1 nov 2026, fase 2)
 
 - **O que entra no fluxo:** cada pedido que chega pelos sockets de controle, com sucesso ou erro, no `handle()` de

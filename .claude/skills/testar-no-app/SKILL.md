@@ -51,6 +51,10 @@ O app caiu ou há erro novo no log: pare e mostre o trecho do log.
 
 ## 5. Testar na tela
 
+0. **Ligue o modo de depuração** (no staging já vem ligado): selo DEPURAÇÃO ao lado do PRO, item na paleta, ou a
+   ferramenta `depuracao` do app-mcp. A faixa no topo mostra o build que está rodando (confira se é o seu), o batimento
+   do processo principal (vermelha = main preso: leia a última marca), o túnel e cada ação que chega pelos sockets.
+   Antes de cada passo seu, anuncie com `nota` (app-mcp) ou `POST /nota` no `term.sock`: a pessoa acompanha de fora.
 1. **Ver**: `osascript -e 'tell application "<app>" to activate'`, `screencapture -x <scratchpad>/tela.png`,
    `sips -Z 1600` para reduzir e Read na imagem. A captura funciona sem permissão extra.
 2. **Navegar até a mudança sem Acessibilidade (o normal neste Mac): DevTools remoto.** Antes, confirme que o app

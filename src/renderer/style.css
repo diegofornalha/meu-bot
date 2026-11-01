@@ -78,7 +78,7 @@ body.dragging webview, body.dragging .term-box, body.dragging iframe { pointer-e
   border-bottom: 1px solid var(--line); background: var(--card); position: relative;
 }
 /* Barra estreita (em CSS px, então o zoom já entra na conta): primeiro somem os avisos, depois o ⌘K. */
-@media (max-width: 700px) { .topbar #update-check-dot, .topbar #plan-badge, .topbar #app-version { display: none !important; } }
+@media (max-width: 700px) { .topbar #update-check-dot, .topbar #plan-badge, .topbar #dep-badge, .topbar #app-version { display: none !important; } }
 @media (max-width: 560px) { .topbar #btn-palette { display: none !important; } }
 .drag-region { position: absolute; inset: 0; -webkit-app-region: drag; }
 .topbar > *:not(.drag-region) { position: relative; -webkit-app-region: no-drag; }
@@ -978,6 +978,11 @@ body.topbar-hidden .topbar { display: none; }
 /* Selo "PRO" no canto superior direito quando a conta é Pro. */
 .app-version { font-size: 11px; color: var(--muted); align-self: center; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .badge.pro { font-size: 10px; font-weight: 700; letter-spacing: .05em; padding: 2px 7px; border-radius: 999px; background: var(--accent, hsl(248 70% 60%)); color: #fff; align-self: center; }
+/* Selo do modo de depuração (1 nov): discreto apagado, aceso quando o modo está ligado; o clique alterna. */
+.badge.dep { font: inherit; font-size: 10px; font-weight: 700; letter-spacing: .05em; padding: 2px 7px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--muted); opacity: .6; cursor: pointer; align-self: center; }
+.badge.dep:hover { opacity: 1; }
+.badge.dep.on { opacity: 1; color: var(--accent, hsl(248 70% 60%)); border-color: var(--accent, hsl(248 70% 60%)); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.badge.dep[hidden] { display: none; }
 /* Recortes do Navegador (partes do site ocultas): botão aceso = visível, apagado = oculto. */
 .nav-cut { font-size: 14px; }
 .nav-cut.off { opacity: .4; text-decoration: line-through; }

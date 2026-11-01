@@ -13,6 +13,9 @@ const buildEl = $<HTMLElement>("dep-build");
 const feedEl = $<HTMLElement>("dep-feed");
 const saudeEl = $<HTMLElement>("dep-saude");
 const listaEl = $<HTMLElement>("dep-lista");
+/** Selos "DEPURAÇÃO" ao lado do PRO nas duas barras: acesos com o modo ligado; o clique alterna. */
+const selos = [$<HTMLButtonElement>("dep-badge"), $<HTMLButtonElement>("mini-dep")];
+let estadoConhecido = false;
 /** A lista das últimas ações, aberta pelo clique no fluxo. */
 let aberta = false;
 let ligada = false;
@@ -27,6 +30,7 @@ const hora = (em: number): string => new Date(em).toLocaleTimeString("pt-BR");
 
 export const faixaLigada = (): boolean => ligada;
 function pintar(): void {
+  for (const b of selos) { b.hidden = !estadoConhecido; b.classList.toggle("on", ligada); b.setAttribute("aria-pressed", String(ligada)); }
   bar.hidden = !ligada;
   if (!ligada) return;
   const b = estadoBatimento(ultimoTique, Date.now());
@@ -52,6 +56,7 @@ function pintarLista(): void {
   if (eventos.length === 0) listaEl.textContent = "nada chegou de fora ainda";
 }
 function aplicarEstado(e: EstadoDepuracao): void {
+  estadoConhecido = true;
   ligada = e.ligado; eventos = e.eventos; ultimoTique = Date.now(); marca = e.batimento.marca;
   if (ligada && relogio === null) relogio = setInterval(pintar, 1000);
   if (!ligada && relogio !== null) { clearInterval(relogio); relogio = null; }
@@ -60,6 +65,7 @@ function aplicarEstado(e: EstadoDepuracao): void {
 /** Liga eventos e o estado inicial; o renderer.ts chama uma vez (depois de ligarEnvio, que mantém ctx.hostStatus). */
 export function ligarFaixaDepuracao(): void {
   feedEl.addEventListener("click", () => { aberta = !aberta; pintar(); });
+  for (const b of selos) b.addEventListener("click", () => { void alternarDepuracao(); });
   void window.meuBot.getWindowInfo().then((i) => { if (i !== null) buildEl.textContent = rotuloBuild(i.version, i.compilacao); }).catch(() => undefined);
   void window.meuBot.depuracaoEstado().then(aplicarEstado).catch(() => undefined);
   window.meuBot.on("depuracao:estado", aplicarEstado);
@@ -71,5 +77,7 @@ export function ligarFaixaDepuracao(): void {
 }
 /** Paleta: liga ou desliga para todas as janelas (fica gravado). */
 export async function alternarDepuracao(): Promise<void> {
-  aplicarEstado(await window.meuBot.depuracaoLigar(!ligada));
+  const ligar = !ligada;
+  aplicarEstado(await window.meuBot.depuracaoLigar(ligar));
+  ctx.showTextToast(ligar ? "Modo de depuração ligado" : "Modo de depuração desligado", ligar ? "A faixa no topo mostra o build, o batimento do processo principal, o túnel e o que chega de fora." : "A faixa some; o selo ao lado do PRO liga de novo.");
 }
