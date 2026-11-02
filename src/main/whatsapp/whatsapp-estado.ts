@@ -3,7 +3,7 @@
  * o cache de nomes dos contatos e as leituras guardadas (status, lista, grupos). Os adaptadores de motor gravam aqui
  * o que descobrem; a fachada (whatsapp.ts) lê. Nada aqui fala com a máquina.
  */
-import type { Gateway, WhatsappChat, WhatsappGroups, WhatsappStatus } from "../../shared/ipc";
+import type { Gateway, WhatsappAlvoResolvido, WhatsappChat, WhatsappGroups, WhatsappStatus } from "../../shared/ipc";
 import type { HermesPausaModo } from "./whatsapp-hermes-core";
 import { TtlCache } from "./whatsapp-cache-core";
 
@@ -13,6 +13,8 @@ export const whatsappGatewayOf = (host: string): Gateway | null => gatewayByHost
 /** Como a pausa por contato é feita em cada máquina Hermes, visto na última consulta (status ou lista); desconhecido = allowlist. */
 export const pausaModoByHost = new Map<string, HermesPausaModo>();
 export const whatsappPausaModoOf = (host: string): HermesPausaModo => pausaModoByHost.get(host) ?? "allowlist";
+/** Onde vive o WhatsApp de cada máquina (conta, agente, gateway), visto na última consulta; ausente = o padrão (próprio). */
+export const alvoByHost = new Map<string, WhatsappAlvoResolvido>();
 /** Nomes (pushname) dos contatos vistos nesta sessão, por máquina. */
 const chatNames = new Map<string, Map<string, string>>();
 export const namesOf = (host: string): Map<string, string> => { let m = chatNames.get(host); if (m === undefined) { m = new Map(); chatNames.set(host, m); } return m; };

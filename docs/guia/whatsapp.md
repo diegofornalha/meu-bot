@@ -506,3 +506,19 @@ Os avisos (Mac novo, vigia, cota) vão só pelo WhatsApp da pessoa: o e-mail pel
   nas ações em vez de cair no caminho do OpenClaw; (2) o PicoClaw tem ramo próprio na lista e nos grupos (vazios) em vez
   de cair no do OpenClaw; (3) `oc_fallback_ensure` gravava a reserva do Grok como `[grok/…]` sem as aspas internas
   (escape perdido no template) e o OpenClaw recusava em silêncio; agora vai como JSON válido (teste cobre).
+
+## Onde vive o WhatsApp: o alvo (conta, agente e gateway) por máquina (1 nov)
+
+- Motivo: até aqui alias SSH = usuário Linux = gateway do OpenClaw. Para várias contas num gateway único (o root da VM
+  agente), o app precisa saber que o WhatsApp do `agente-box` vive no gateway do `root`, como conta `box` e agente `box`.
+- `~/.local/share/meu-bot/whatsapp-alvo.json` na máquina (dono: `whatsapp-capacidades.ts`): `{ accountId, agentId,
+  gatewayUser, numero? }`. Sem o arquivo vale `default`/`main`/próprio, o layout de sempre: nada muda nas máquinas de hoje.
+  `gatewayUser` é o usuário Linux, não um alias (alias é conceito do Mac): o Mac resolve o alias do gateway pelo
+  `~/.ssh/config` (mesmo HostName, User = gatewayUser; `sshConfig.ts` agora dá HostName e User por bloco). Sem alias,
+  `missing` diz o que falta e o app não inventa conexão.
+- O status lê o alvo (`WA_ALVO_SH`), devolve `WhatsappStatus.alvo` e, com gateway de outro usuário, `agent` diz "gateway
+  de root (agente-root), conta box, agente box". Capacidades novas: `gatewayProprio` e `gruposAtualizar` (a guarda e o
+  "Atualizar lista" de grupos são do gateway inteiro, então ficam fora com gateway compartilhado).
+- Quem grava: `whatsappDefinirAlvo(host, alvo | null)` (main) e, no admin, `admin:whatsapp-alvo` (`{ nome, alvo }` na
+  máquina do root; `whatsappAlvoSh` grava no home do usuário com dono e modo certos). Registrar a conta e o agente no
+  gateway é outro passo (migração). Os comandos ainda rodam no alias da própria conta: o PR seguinte os leva ao gateway.

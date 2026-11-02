@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webFrame } from "electron";
-import type { FinanceAbcLado, FinanceAbcPor, AdminAction, AlertPrefs, AudioSetup, BackendModel, SupportProgress, SupportShare, ConversationRef, ExportFormat, FreedomLevel, LicensePatch, MainEventChannel, MainEvents, MemoryView, ObjectiveChoice, MeuBotApi, MeuBotAdminApi, MeuBotClientApi, MeuBotSharedApi, SettingsUpdate, SettingsView, StoredConversationView, TabMenuAction, WaMarkPatch, WhatsappGroupAgent, WhatsappGroupPatch, WindowInfo, StatusLineSegments, ContaId, ZoomAction, ZoomState, FinanceConta, FinanceMoeda, FinanceLancarInput, FinanceTipoLinha } from "../shared/ipc";
+import type { FinanceAbcLado, FinanceAbcPor, AdminAction, AlertPrefs, AudioSetup, BackendModel, SupportProgress, SupportShare, ConversationRef, ExportFormat, FreedomLevel, LicensePatch, MainEventChannel, MainEvents, MemoryView, ObjectiveChoice, MeuBotApi, MeuBotAdminApi, MeuBotClientApi, MeuBotSharedApi, SettingsUpdate, SettingsView, StoredConversationView, TabMenuAction, WaMarkPatch, WhatsappGroupAgent, WhatsappGroupPatch, WindowInfo, StatusLineSegments, ContaId, ZoomAction, ZoomState, FinanceConta, FinanceMoeda, FinanceLancarInput, FinanceTipoLinha, WhatsappAlvo } from "../shared/ipc";
 
 // Preload roda em sandbox: não pode importar módulos do app, por isso a lista fica aqui.
 const MAIN_EVENT_CHANNELS: readonly MainEventChannel[] = [
@@ -312,6 +312,7 @@ const adminApi: MeuBotAdminApi = {
   adminPrepararEstado: () => ipcRenderer.invoke("admin:preparar-estado", {}),
   adminPrepararAplicar: (ids?: string[]) => ipcRenderer.invoke("admin:preparar-aplicar", { ids }),
   adminHermesGlobal: () => ipcRenderer.invoke("admin:hermes-global", {}),
+  adminWhatsappAlvo: (nome: string, alvo: WhatsappAlvo | null) => ipcRenderer.invoke("admin:whatsapp-alvo", { nome, alvo }),
   adminUsuarioApelido: (nome: string, apelido: string) => ipcRenderer.invoke("admin:usuario-apelido", { nome, apelido }),
   adminUsuarioManterLigado: (nome: string) => ipcRenderer.invoke("admin:usuario-ligado", { nome }),
   adminUsuarioPreparar: (nome: string) => ipcRenderer.invoke("admin:usuario-preparar", { nome }),

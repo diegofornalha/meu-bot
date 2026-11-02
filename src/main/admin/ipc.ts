@@ -15,7 +15,7 @@ import { listProdutos } from "./produtos";
 import { auditoriaDaJanela, auditoriaExportarDaJanela, auditoriaVisivel } from "./auditoria-admin";
 import { contaEditarClaudeGlobal, contaNovaClaudeGlobal, contaRemoverClaudeGlobal, contaUsarAgoraClaudeGlobal, entrarClaudeGlobal, estadoClaudeGlobal, instalarClaudeGlobal, limiaresClaudeGlobal, usuarioClaudeGlobal } from "./claude-global-admin";
 import { entrarLinkPublico, estadoLinkPublico, instalarLinkPublico, publicarLinkPublico, removerLinkPublico, tunelLinkPublico, usuarioLinkPublico } from "./link-publico-admin";
-import { aplicarGovernanca, prepararUsuarioDeNovo, manterLigado, nosSeletores, sincronizarSeletores, definirApelido, ligarSwap, instalarHermesGlobal, definirRecursos, apagarItemDoUsuario, apagarUsuario, criarUsuario, definirLimite, maioresDoUsuario, usuariosDaMaquina, usuariosVisivel, atualizarBackends } from "./usuarios-admin";
+import { aplicarGovernanca, prepararUsuarioDeNovo, manterLigado, nosSeletores, sincronizarSeletores, definirApelido, ligarSwap, instalarHermesGlobal, definirRecursos, apagarItemDoUsuario, apagarUsuario, criarUsuario, definirLimite, maioresDoUsuario, usuariosDaMaquina, usuariosVisivel, atualizarBackends, definirAlvoDoUsuario } from "./usuarios-admin";
 import { conferirRestauracao, criarBackup, listarBackups, restaurarBackup, trocarWhatsapp } from "./backup-admin";
 
 /** A máquina da pessoa do suporte que pediu; recusa qualquer outra janela. */
@@ -72,6 +72,7 @@ export function registerAdminIpc(): void {
   handleAdmin("admin:preparar-estado", (event) => estadoPreparar(adminHost(event)));
   handleAdmin("admin:preparar-aplicar", (event, payload: unknown) => aplicarPreparar(adminHost(event), (payload as { ids?: unknown } | null)?.ids, progresso(event)));
   handleAdmin("admin:hermes-global", (event) => instalarHermesGlobal(adminHost(event)));
+  handleAdmin("admin:whatsapp-alvo", (event, payload: unknown) => { const p = (payload ?? {}) as { nome?: unknown; alvo?: unknown }; return definirAlvoDoUsuario(adminHost(event), p.nome, p.alvo); });
   handleAdmin("admin:usuario-recursos", (event, payload: unknown) => { const p = (payload ?? {}) as { nome?: unknown; ramMb?: unknown; cpuPct?: unknown }; return definirRecursos(adminHost(event), p.nome, p.ramMb, p.cpuPct); });
   handleAdmin("admin:usuario-maiores", (event, payload: unknown) => maioresDoUsuario(adminHost(event), (payload as { nome?: unknown } | null)?.nome));
   handleAdmin("admin:usuario-apagar-item", (event, payload: unknown) => { const p = (payload ?? {}) as { nome?: unknown; caminho?: unknown }; return apagarItemDoUsuario(adminHost(event), p.nome, p.caminho); });

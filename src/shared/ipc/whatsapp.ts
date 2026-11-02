@@ -12,6 +12,10 @@ import type { Gateway } from "./maquina";
  */
 export interface WhatsappCapacidades {
   parear: boolean; listarConversas: boolean; lerConversa: boolean; limparHistorico: boolean;
+  /** O gateway do WhatsApp é desta própria conta da máquina (o app pode instalá-lo, religá-lo, pôr a guarda). Com gateway compartilhado, não. */
+  gatewayProprio: boolean;
+  /** "Atualizar lista" de grupos pelo WhatsApp é possível (para o gateway uns 30 s; só com gateway próprio). */
+  gruposAtualizar: boolean;
   pausar: boolean;
   /** Pausar aceita prazo (2 h / 24 h / até retomar), vale em qualquer política e guarda o que chegou na pausa (Hermes com o plugin meu-bot-pausa, ou nativo). */
   pausaPrazo: boolean;
@@ -58,7 +62,20 @@ export interface WhatsappStatus {
   escolha?: WhatsappAgente | null;
   /** Quem manda no agente: o dono gravado na máquina (whatsapp-lista.json › dono) ou o próprio número pareado (`souEu`). Ausente sem número. */
   dono?: { numero: string; nome: string | null; souEu: boolean };
+  /** Onde vive o WhatsApp desta máquina (OpenClaw): conta e agente no gateway, e de quem é o gateway. Ausente = o padrão (próprio). */
+  alvo?: WhatsappAlvoResolvido;
 }
+
+/**
+ * Onde vive o WhatsApp de uma máquina com OpenClaw: a conta (`channels.whatsapp.accounts.<id>`) e o agente
+ * (`agents.entries.<id>`) no gateway, e de quem é o gateway (`gatewayUser`: o usuário Linux da mesma máquina que o
+ * roda; null = o próprio). Gravado na máquina em ~/.local/share/meu-bot/whatsapp-alvo.json; sem o arquivo vale
+ * `default`/`main`/próprio, o layout de sempre. `numero` é o pareado, copiado pelo app (o backend do usuário não lê as
+ * credenciais que ficam no home de outro).
+ */
+export interface WhatsappAlvo { accountId: string; agentId: string; gatewayUser: string | null; numero?: string | null }
+/** O alvo com o alias SSH do gateway resolvido neste Mac (mesmo HostName, User = gatewayUser); `proprio` = o gateway é desta conta. */
+export interface WhatsappAlvoResolvido extends WhatsappAlvo { gatewayHost: string | null; proprio: boolean }
 
 /** O motor gravado como escolha para o WhatsApp (whatsapp-agente): os mesmos nomes de `Gateway`; a tela só oferece OpenClaw e Hermes. */
 export type WhatsappAgente = Gateway;

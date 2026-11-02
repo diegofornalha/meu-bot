@@ -593,3 +593,14 @@ export function removerBlocoUsuario(texto: string, alias: string): { texto: stri
   const ini = i - 1 > 0 && linhas[i - 2]!.trim() === "" ? i - 2 : i - 1;
   return { texto: [...linhas.slice(0, ini), ...linhas.slice(fim)].join("\n"), removido: true };
 }
+
+/**
+ * Grava (ou apaga, com `alvoJson` null) o whatsapp-alvo.json de um usuário da máquina, como root: onde vive o WhatsApp
+ * dele (conta e agente num gateway de outro usuário). Dono do formato: src/main/whatsapp/whatsapp-capacidades.ts.
+ */
+export const whatsappAlvoSh = (nome: string, alvoJson: string | null): string => `H=$(getent passwd '${nome}' | cut -d: -f6); [ -n "$H" ] && [ -d "$H" ] || { echo "ERRO=não achei a pasta de ${nome}"; exit 0; }
+D=$H/.local/share/meu-bot; F=$D/whatsapp-alvo.json
+install -d -m 700 -o '${nome}' -g '${nome}' "$D" 2>/dev/null || mkdir -p "$D"
+${alvoJson === null
+    ? `rm -f "$F" && echo ALVO=ok || echo "ERRO=não consegui apagar o alvo"`
+    : `printf '%s' '${Buffer.from(alvoJson, "utf8").toString("base64")}' | base64 -d > "$F.tmp" && chown '${nome}':'${nome}' "$F.tmp" && chmod 600 "$F.tmp" && mv "$F.tmp" "$F" && echo ALVO=ok || echo "ERRO=não consegui gravar o alvo"`}`;

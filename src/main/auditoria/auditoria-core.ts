@@ -92,6 +92,7 @@ export const ACOES = {
   "usuarios.apagar": (a: string) => `apagou o usuário ${a} desta máquina`,
   "usuarios.seletor": (a: string) => `pôs o usuário ${a} nos seletores do meu-bot e do admin`,
   "usuarios.apelido": (a: string) => `mudou o apelido do usuário ${a}`,
+  "usuarios.whatsapp-alvo": (a: string) => `mudou onde vive o WhatsApp do usuário ${a}`,
   "usuarios.ligado": (a: string) => `deixou o usuário ${a} sempre ligado (o agente dele roda sem ele conectado)`,
   "maquina.preparar": (a: string) => `preparou esta máquina${a ? ` (${a})` : ""}`,
   "maquina.cota": (a: string) => `ligou a cota de disco por usuário nesta máquina${a ? ` (${a})` : ""}`,
