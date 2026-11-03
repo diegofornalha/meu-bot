@@ -174,6 +174,27 @@ export function removeSshHost(text: string, host: string): { text: string; remov
   }
   let end = start + 1;
   while (end < lines.length && isHeader(lines[end]!) === null) end++;
-  const out = [...lines.slice(0, start), ...lines.slice(end)].join("\n").replace(/\n{3,}/g, "\n\n");
+  // As marcas ficam no fim do arquivo, textualmente dentro do último bloco: ao tirar esse bloco elas ficam.
+  const marcas = lines.slice(start, end).filter((l) => SKIP_RE.test(l));
+  const out = [...lines.slice(0, start), ...marcas, ...lines.slice(end)].join("\n").replace(/\n{3,}/g, "\n\n");
   return { text: marcado(out), removed: "block" };
+}
+
+/**
+ * Texto dos arquivos que um ~/.ssh/config inclui, até 3 níveis, sem repetir arquivo (ciclo) e pulando o que não
+ * dá para ler. `expand` resolve o padrão do Include em caminhos; `read` devolve null quando não lê.
+ */
+export function includedTexts(text: string, expand: (pattern: string) => string[], read: (file: string) => string | null, depth = 0, seen = new Set<string>()): string[] {
+  if (depth > 3) return [];
+  const out: string[] = [];
+  for (const pat of parseSshConfig(text).includes) {
+    for (const f of expand(pat)) {
+      if (seen.has(f)) continue;
+      seen.add(f);
+      const t = read(f);
+      if (t === null) continue;
+      out.push(t, ...includedTexts(t, expand, read, depth + 1, seen));
+    }
+  }
+  return out;
 }

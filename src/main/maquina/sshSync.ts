@@ -10,7 +10,7 @@ import os from "node:os";
 import path from "node:path";
 import { app } from "electron";
 import type { SshSyncResult } from "../../shared/ipc";
-import { identityFiles, parseSshConfig, planSshSync, removeSshHost, renderSshAppend } from "./ssh-sync";
+import { identityFiles, includedTexts, planSshSync, removeSshHost, renderSshAppend } from "./ssh-sync";
 import { expandInclude } from "./sshConfig";
 
 /** config/ssh-hosts.conf: Resources/config no .app; raiz do projeto no dev. */
@@ -20,21 +20,7 @@ export function sshHostsTemplatePath(): string {
 
 const stamp = (): string => new Date().toISOString().slice(0, 19).replace("T", " ");
 
-/** Texto dos arquivos que o ~/.ssh/config inclui (até 3 níveis): o que está neles também conta como existente. */
-function includedTexts(text: string, depth = 0, seen = new Set<string>()): string[] {
-  if (depth > 3) return [];
-  const out: string[] = [];
-  for (const pat of parseSshConfig(text).includes) {
-    for (const f of expandInclude(pat)) {
-      if (seen.has(f)) continue;
-      seen.add(f);
-      let t: string;
-      try { t = fs.readFileSync(f, "utf8"); } catch { continue; }
-      out.push(t, ...includedTexts(t, depth + 1, seen));
-    }
-  }
-  return out;
-}
+const lerOuNull = (f: string): string | null => { try { return fs.readFileSync(f, "utf8"); } catch { return null; } };
 
 export function syncSshConfig(): SshSyncResult {
   const home = os.homedir();
@@ -44,7 +30,7 @@ export function syncSshConfig(): SshSyncResult {
   let current = "";
   let exists = false;
   try { current = fs.readFileSync(configPath, "utf8"); exists = true; } catch { /* ainda não há ~/.ssh/config */ }
-  const plan = planSshSync(template, current, home, includedTexts(current));
+  const plan = planSshSync(template, current, home, includedTexts(current, expandInclude, lerOuNull));
   const append = renderSshAppend(plan, stamp());
   let backup: string | null = null;
   if (append !== "") {

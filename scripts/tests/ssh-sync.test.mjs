@@ -104,3 +104,26 @@ test("sync: alias removido pelo seletor (marca) não volta", () => {
   const varios = planSshSync(template, "# meu-bot: não sincronizar grokbot-1 agente-box\n", HOME);
   assert.deepEqual(varios.skipped, ["grokbot-1", "agente-box"]);
 });
+
+test("remover o último bloco não leva a marca de quem foi removido antes", () => {
+  const { removeSshHost, skippedAliases } = createRequire(import.meta.url)("../../dist/main/maquina/ssh-sync.js");
+  const a = removeSshHost(template, "grokbot-1").text; // marca fica no fim, dentro do bloco agente-box
+  const b = removeSshHost(a, "agente-box");
+  assert.equal(b.removed, "block");
+  assert.deepEqual(skippedAliases(b.text).sort(), ["agente-box", "grokbot-1"]);
+  assert.ok(!b.text.includes("Host agente-box") && !b.text.includes("Host grokbot-1"));
+  assert.deepEqual(planSshSync(template, b.text, HOME).hostsToAdd, []);
+});
+
+test("includedTexts: Include aninhado, arquivo ilegível e ciclo", () => {
+  const { includedTexts } = createRequire(import.meta.url)("../../dist/main/maquina/ssh-sync.js");
+  const arquivos = {
+    "/h/.ssh/a.conf": "Include b.conf\nHost a\n    HostName 1.1.1.1\n",
+    "/h/.ssh/b.conf": "Include a.conf\nInclude sumiu.conf\nHost b\n    HostName 2.2.2.2\n",
+  };
+  const expand = (p) => [p.startsWith("/") ? p : `/h/.ssh/${p}`];
+  const read = (f) => arquivos[f] ?? null;
+  const textos = includedTexts("Include a.conf\n", expand, read);
+  assert.deepEqual(textos, [arquivos["/h/.ssh/a.conf"], arquivos["/h/.ssh/b.conf"]], "cada arquivo uma vez, mesmo com ciclo; o ilegível é pulado");
+  assert.deepEqual(includedTexts("Host x\n", expand, read), []);
+});
