@@ -88,8 +88,10 @@ test("link público da pessoa: lê LINK=1 + json; desligado, json torto ou nome 
   const ok = cli.lerLinkPublico('LINK=1 2 box-2\n{"url": "https://daniel.agentesgrok.com/", "nome": "daniel", "dominio": "agentesgrok.com"}\n');
   assert.deepEqual(ok, { url: "https://daniel.agentesgrok.com/", nome: "daniel", dominio: "agentesgrok.com", arquivos: 2, usuario: "box-2" });
   assert.equal(cli.lerLinkPublico("LINK=0\n"), null);
-  assert.deepEqual(cli.lerLinkPublicoStatus("LINK=root\n"), { info: null, possivel: false }, "janela do root: sem link por desenho");
-  assert.deepEqual(cli.lerLinkPublicoStatus("LINK=0\n"), { info: null, possivel: true });
+  assert.deepEqual(cli.lerLinkPublicoStatus("LINK=root\n"), { info: null, possivel: false, global: false }, "janela do root: sem link por desenho");
+  assert.deepEqual(cli.lerLinkPublicoStatus("GLOBAL=0\nLINK=0\n"), { info: null, possivel: true, global: false }, "máquina sem o Link Público Global: é o admin quem instala");
+  assert.deepEqual(cli.lerLinkPublicoStatus("GLOBAL=1\nLINK=0\n"), { info: null, possivel: true, global: true }, "global na máquina, link da pessoa desligado");
+  assert.equal(cli.lerLinkPublicoStatus('GLOBAL=1\nLINK=1 2 box-2\n{"url": "https://daniel.agentesgrok.com/", "nome": "daniel", "dominio": "agentesgrok.com"}\n').global, true);
   assert.equal(cli.lerLinkPublicoStatus('LINK=1 2 box-2\n{"url": "https://daniel.agentesgrok.com/", "nome": "daniel", "dominio": "agentesgrok.com"}\n').info.nome, "daniel");
   assert.equal(cli.lerLinkPublico('LINK=1 0 box-2\n{"url": "javascript:x", "nome": "daniel", "dominio": "agentesgrok.com"}\n'), null);
   assert.equal(cli.lerLinkPublico('LINK=1 0 box-2\n{"url": "https://a.b/", "nome": "Ruim Nome", "dominio": "b"}\n'), null);

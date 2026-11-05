@@ -12,6 +12,14 @@ no [diário técnico](GUIA.md).
 
 ## Ainda não lançado
 
+### Tutorial 13: o passo diz o que falta
+
+#### Melhorado
+
+- **"Ver o seu link" diz se a máquina tem o Link Público Global.** Numa máquina em que o admin ainda não instalou o
+  global (nginx e o túnel da Cloudflare), o passo dizia só "seu link ainda não está ligado" e "Conferir de novo" não
+  achava nada, sem explicar. Agora ele diz que é o admin quem instala (Preparar máquina › Link Público Global) e,
+  quando o global existe mas o seu link está desligado, que é só ligar na linha da sua conta.
 ### Tutorial 11: o código do GitHub se cola sozinho
 
 #### Melhorado

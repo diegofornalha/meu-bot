@@ -17,6 +17,7 @@ import { registrar } from "../auditoria/auditoria";
 import { ITEM_LINK_RE, LP_MAX_BYTES, NOME_LINK_RE, nomeNoLinkDe } from "../admin/link-publico-core";
 
 const STATUS_SH = `[ "$(id -u)" = 0 ] && { echo "LINK=root"; exit 0; }
+[ -x /usr/local/bin/publicar ] && echo "GLOBAL=1" || echo "GLOBAL=0"
 F="$HOME/.local/share/meu-bot/link-publico.json"
 [ -f "$F" ] && [ -L "$HOME/publico" ] && [ -d "$HOME/publico/" ] || { echo "LINK=0"; exit 0; }
 N=$(ls -1A "$HOME/publico/" 2>/dev/null | grep -vc '^\\.')
@@ -83,13 +84,18 @@ export function lerLinkPublico(out: string): LinkPublicoInfo | null {
   } catch { return null; }
 }
 
-/** `LINK=root` = a janela é da conta root: o link público é das contas de usuário (o admin não liga para o root), então o tutorial 13 some. */
+/**
+ * `LINK=root` = a janela é da conta root: o link público é das contas de usuário (o admin não liga para o root), então
+ * o tutorial 13 some. `GLOBAL=1` = a máquina tem o Link Público Global (o `publicar` em /usr/local/bin): sem ele, o
+ * passo diz que é o admin quem instala, não que "ainda não ligou" (5 nov: o "Conferir de novo" parecia quebrado).
+ */
 export function lerLinkPublicoStatus(out: string): LinkPublicoStatus {
-  return { info: lerLinkPublico(out), possivel: !/^LINK=root$/m.test(out) };
+  const info = lerLinkPublico(out);
+  return { info, possivel: !/^LINK=root$/m.test(out), global: info !== null || /^GLOBAL=1$/m.test(out) };
 }
 
 export async function linkPublicoStatus(host: string): Promise<LinkPublicoStatus> {
-  if (!remota(host)) return { info: null, possivel: true };
+  if (!remota(host)) return { info: null, possivel: true, global: false };
   const r = await runSsh(host, `${STATUS_SH}\n`, 30_000);
   return lerLinkPublicoStatus(r.stdout);
 }

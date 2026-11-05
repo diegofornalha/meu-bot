@@ -13,6 +13,8 @@ export let linkPublicoState: LinkPublicoInfo | null = null;
 export let linkPublicoLido = false;
 /** false = a janela é do root: sem link por desenho (o tutorial 13 some da lista). */
 export let linkPublicoPossivel = true;
+/** A máquina tem o Link Público Global? Sem ele o passo diz que é o admin quem instala (não "ainda não ligou"). */
+export let linkPublicoGlobal = true;
 let linkNomeMsg: { text: string; bad: boolean } | null = null;
 let linkNomeOcupado = false;
 /** Passo 2: o que está no ar (null = ainda não lido), o publicar em andamento, o nome pedido, e o item armado para tirar do ar (dois cliques, 5 s). */
@@ -40,7 +42,7 @@ function botaoCopiar(url: string): HTMLButtonElement {
 function desarmarRemover(): void { linkRemoverArmado = null; if (linkRemoverTimer !== null) { window.clearTimeout(linkRemoverTimer); linkRemoverTimer = null; } }
 export async function refreshLinkPublico(): Promise<void> {
   if (!ctx.caps.install || ctx.windowHost === "" || ctx.windowHost === "local") return;
-  try { const r = await window.meuBot.linkPublico(); linkPublicoState = r.info; linkPublicoPossivel = r.possivel; linkPublicoLido = true; } catch { /* máquina fora: fica o que havia */ }
+  try { const r = await window.meuBot.linkPublico(); linkPublicoState = r.info; linkPublicoPossivel = r.possivel; linkPublicoGlobal = r.global; linkPublicoLido = true; } catch { /* máquina fora: fica o que havia */ }
   ctx.paintGuide();
 }
 /** Tutorial 13: o link (passo 1), o que está no ar (passo 2) ou o campo para trocar o nome (passo 3). */
@@ -49,7 +51,7 @@ export function renderLinkPublico(container: HTMLElement, parte: "ver" | "testar
   const lp = linkPublicoState;
   if (!linkPublicoLido) { box.append(carregando("Consultando a máquina…", "guia-link")); container.append(box); return; }
   if (lp === null) {
-    box.append(el("p", "hint", linkPublicoPossivel ? "Seu link ainda não está ligado. É o admin quem liga, no meu-bot-admin › Link Público Global." : "Esta janela é da conta root da máquina: o link público é das contas de usuário (box-1, box-2…), que o admin liga no meu-bot-admin › Link Público Global."));
+    box.append(el("p", "hint", !linkPublicoPossivel ? "Esta janela é da conta root da máquina: o link público é das contas de usuário (box-1, box-2…), não do root." : !linkPublicoGlobal ? "Esta máquina ainda não tem o Link Público Global (o nginx e o túnel da Cloudflare, do root). É o admin quem instala, no meu-bot-admin › Preparar máquina › Link Público Global; até lá, \"Conferir de novo\" não vai achar nada. Depois ele liga o seu link na aba Link Público Global." : "O Link Público Global está nesta máquina, mas o seu link ainda não está ligado. É o admin quem liga, no meu-bot-admin › Link Público Global, na linha da sua conta."));
     const b = el("button", "btn btn-ghost btn-small", "Conferir de novo"); b.type = "button"; b.addEventListener("click", () => { void refreshLinkPublico(); });
     box.append(b); container.append(box); return;
   }
