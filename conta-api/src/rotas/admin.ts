@@ -6,7 +6,7 @@
  */
 import type { Env } from "../tipos.js";
 import { atenderPedido, auditar, contaPorId, contarSupers, gravarLicenca, gravarPerfil, gravarProvedor, removerPerfil, revogarSessoesDaConta, visaoAdmin } from "../db.js";
-import { definirSenhaFirebase } from "../firebase-admin.js";
+import { consultarFirebase, definirSenhaFirebase } from "../firebase-admin.js";
 import { UUID_RE, validaBusca, validaEmail, validaPapel, validaPatchLicenca, validaSenhaNova } from "../sessao-core.js";
 import { json, lerJson, type Autenticado } from "../http.js";
 import { enviarEmailSenha } from "./conta.js";
@@ -55,11 +55,22 @@ export async function putAdminSenha(auth: Autenticado, env: Env, id: string, req
   const conta = await contaPorId(env.DB, id);
   if (conta === null) return json({ erro: "conta não existe" }, 404);
   const r = await definirSenhaFirebase(env.FIREBASE_ADMIN_SA, env.FIREBASE_PROJECT_ID, conta.firebase_uid, senha);
-  if (!r.ok) { console.log(`[senha] accounts:update recusado: ${r.erro}`); return json({ erro: r.erro.startsWith("USER_NOT_FOUND") ? "o Firebase não conhece esta conta" : `o Firebase recusou: ${r.erro.slice(0, 120)}` }, 502); }
+  if (!r.ok) { console.log(`[senha] accounts:update recusado para ${conta.email}: ${r.erro}`); return json({ erro: r.erro.startsWith("USER_NOT_FOUND") ? `o Firebase não conhece a conta ${conta.email} (uid ${conta.firebase_uid.slice(0, 8)}…): ela nunca entrou pelo login, só existe no banco` : `o Firebase recusou: ${r.erro.slice(0, 120)}` }, 502); }
   await gravarProvedor(env.DB, conta, "password");
   await revogarSessoesDaConta(env.DB, conta.id);
   await auditar(env.DB, auth.conta.email, "senha.definida", conta.id, "pelo super admin; sessões revogadas");
   return json({ ok: true });
+}
+/** `GET /admin/contas/:id/firebase`: o que o Firebase sabe desta conta (uid e e-mail), para o super admin diagnosticar. */
+export async function getAdminFirebase(auth: Autenticado, env: Env, id: string): Promise<Response> {
+  if (auth.claims.adm !== "super") return json({ erro: "só o super admin" }, 403);
+  if (!UUID_RE.test(id)) return json({ erro: "id da conta fora do formato" }, 400);
+  if (typeof env.FIREBASE_ADMIN_SA !== "string" || env.FIREBASE_ADMIN_SA === "") return json({ erro: "sem FIREBASE_ADMIN_SA" }, 501);
+  const conta = await contaPorId(env.DB, id);
+  if (conta === null) return json({ erro: "conta não existe" }, 404);
+  const r = await consultarFirebase(env.FIREBASE_ADMIN_SA, env.FIREBASE_PROJECT_ID, conta.firebase_uid, conta.email);
+  if (!r.ok) return json({ erro: r.erro }, 502);
+  return json({ uid: conta.firebase_uid, email: conta.email, projeto: env.FIREBASE_PROJECT_ID, porUid: r.porUid, porEmail: r.porEmail });
 }
 /** Perfis de acesso: só o super admin. `PUT /admin/perfis/:email {papel}` cria ou muda; `DELETE /admin/perfis/:email` remove. */
 export async function putPerfil(auth: Autenticado, env: Env, emailRaw: string, req: Request): Promise<Response> {

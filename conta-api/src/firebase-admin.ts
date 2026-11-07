@@ -49,6 +49,20 @@ export async function tokenDeServico(saJson: string): Promise<string> {
   return cache.token;
 }
 
+/** O que o Firebase sabe de um uid (accounts:lookup): diagnóstico do super admin; `users` vazio = não conhece. */
+export async function consultarFirebase(saJson: string, projectId: string, uid: string, email: string): Promise<{ ok: true; porUid: unknown[]; porEmail: unknown[] } | { ok: false; erro: string }> {
+  let token: string;
+  try { token = await tokenDeServico(saJson); } catch (e) { return { ok: false, erro: e instanceof Error ? e.message : String(e) }; }
+  const busca = async (corpo: Record<string, string[]>): Promise<unknown[] | string> => {
+    const r = await fetch(`https://identitytoolkit.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/accounts:lookup`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify(corpo) });
+    const j = (await r.json().catch(() => null)) as { users?: unknown[]; error?: { message?: string } } | null;
+    if (!r.ok) return `HTTP ${r.status} ${j?.error?.message ?? ""}`;
+    return (j?.users ?? []).map((u) => { const x = u as Record<string, unknown>; return { localId: x.localId, email: x.email, providers: Array.isArray(x.providerUserInfo) ? (x.providerUserInfo as { providerId?: string }[]).map((p) => p.providerId) : [] }; });
+  };
+  const porUid = await busca({ localId: [uid] }), porEmail = await busca({ email: [email] });
+  if (typeof porUid === "string") return { ok: false, erro: porUid };
+  return { ok: true, porUid, porEmail: typeof porEmail === "string" ? [porEmail] : porEmail };
+}
 /** Define a senha de um usuário do Firebase (também cria o provedor "password" para quem só tinha Google). */
 export async function definirSenhaFirebase(saJson: string, projectId: string, uid: string, senha: string): Promise<{ ok: true } | { ok: false; erro: string }> {
   let token: string;
