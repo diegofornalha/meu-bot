@@ -104,6 +104,8 @@ code { padding: 2px 6px; border-radius: 6px; background: var(--codigo); border: 
 .perfil-form .acoes { flex-basis: 100%; align-items: center; margin-top: 4px; }
 .perfil-form .acoes .sub { color: var(--ok); }
 .painel h2 { margin: 0 0 6px; font-size: 16px; }
+/* Texto de apoio entre o título e um formulário: respira antes dos campos. */
+.painel > .sub + .perfil-form { margin-top: 26px; gap: 18px 14px; }
 .seguranca { grid-template-columns: max-content 1fr; align-items: center; }
 .seguranca dd { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .seguranca .btn { padding: 5px 10px; font-size: 13px; }
