@@ -320,6 +320,18 @@ async function adoptSshHost(host: string): Promise<SupportCode> {
 const ESTE_MAC = { name: "este Mac", hostname: "127.0.0.1", port: 22, machine: "este-mac" } as const;
 const ehEsteMac = (c: SupportCode): boolean => c.hostname === ESTE_MAC.hostname && c.user === os.userInfo().username && c.port === ESTE_MAC.port;
 /** Alias de suporte deste Mac, se ele já é pessoa (e com o suporte ligado); null se ainda não. */
+/** Alias deste Mac como pessoa, com o suporte ligado ou desligado; null se ele nunca foi adotado. */
+const aliasDoEsteMacQualquer = (): string | null => { const s = [...load().values()].find((v) => ehEsteMac(v.code)); return s === undefined ? null : supportAlias(s.code); };
+/**
+ * "Religar o suporte" (só no este Mac): o admin desligou o próprio Mac e quer de volta; é a mesma adoção do Abrir no
+ * seletor (chave do admin no authorized_keys, pessoa ligada). Nas outras pessoas, quem religa é ela, no app dela.
+ */
+async function religarEsteMac(host: string): Promise<{ ok: boolean; detail: string }> {
+  if (host !== aliasDoEsteMacQualquer()) return { ok: false, detail: "só o este Mac religa por aqui: a pessoa liga o suporte de novo no meu-bot dela" };
+  const alias = await esteMacComoPessoa();
+  void registrar(alias, "suporte.ligar");
+  return { ok: true, detail: "o suporte deste Mac voltou" };
+}
 export function aliasDoEsteMac(): string | null {
   const s = [...load().values()].find((v) => ehEsteMac(v.code) && v.code.state === "on");
   return s === undefined ? null : supportAlias(s.code);
@@ -341,7 +353,10 @@ export async function esteMacComoPessoa(): Promise<string> {
   if (hostKey === null) throw new Error("este Mac não tem a chave ed25519 do servidor SSH");
   const code: SupportCode = { v: 1, name: ESTE_MAC.name, hostname: ESTE_MAC.hostname, user: os.userInfo().username, port: ESTE_MAC.port, hostKey, state: "on", at: new Date().toISOString(), machine: ESTE_MAC.machine };
   const m = load();
-  m.set(machineId(code), { code, seenAt: new Date().toISOString(), source: "colado", archived: false, nickname: "" });
+  // Religar (o admin desligou o suporte e abriu "este Mac" de novo): a mesma entrada volta com o plano guardado (selo
+  // PRO do seletor) e o apelido; recriar do zero apagava os dois.
+  const antes = m.get(machineId(code));
+  m.set(machineId(code), { ...antes, code, seenAt: new Date().toISOString(), source: antes?.source ?? "colado", archived: false, nickname: antes?.nickname ?? "" });
   save(m);
   writeSshFiles(m);
   const alias = supportAlias(code);
@@ -577,6 +592,7 @@ esac` },
   transcription: { acao: "audio.ativar", sh: "" },
   "transcription-off": { acao: "audio.desativar", sh: "" },
   "support-off": { acao: "suporte.desligar-pelo-admin", sh: "" },
+  "support-on": { acao: "suporte.ligar", sh: "" },
 };
 
 /**
@@ -723,6 +739,7 @@ async function instalarBackend(host: string): Promise<{ ok: boolean; detail: str
 export async function adminAction(host: string, action: AdminAction): Promise<{ ok: boolean; detail: string }> {
   const a = ACTIONS[action];
   if (action === "support-off") return turnSupportOff(host);
+  if (action === "support-on") return religarEsteMac(host);
   // Este Mac: o backend é o dos apps; o instalador das VMs aqui subia em primeiro plano e não voltava.
   if ((action === "install-backend" || action === "restart-backend") && host === aliasDoEsteMac()) return { ok: false, detail: "neste Mac o backend é o dos apps meu-bot: feche e abra o app" };
   if (action === "install-backend") return instalarBackend(host);

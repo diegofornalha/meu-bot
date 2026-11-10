@@ -87,8 +87,8 @@ export interface SupportProgress {
   tour: "done" | "skipped" | "pending";
   tutorials: { id: string; title: string; done: number; total: number; current: string | null; finished: boolean; comingSoon: boolean }[];
 }
-/** Ações do admin na máquina da pessoa. "support-off" tira o próprio acesso (ex.: deixou de pagar); só o admin desliga. */
-export type AdminAction = "install-backend" | "restart-gateway" | "restart-backend" | "transcription" | "transcription-off" | "support-off";
+/** Ações do admin na máquina da pessoa. "support-off" tira o próprio acesso (ex.: deixou de pagar); só o admin desliga. "support-on" só existe no "este Mac" (o Mac do admin): religa o que ele desligou. */
+export type AdminAction = "install-backend" | "restart-gateway" | "restart-backend" | "transcription" | "transcription-off" | "support-off" | "support-on";
 
 /** O que o renderer vê em `window.picker`: os três grupos juntos (o main recusa o que não é da variante). */
 /** Uma ação no registro central de uma máquina, já com o texto da tela. */

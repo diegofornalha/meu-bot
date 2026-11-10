@@ -107,7 +107,7 @@ export function registerAdminIpc(): void {
     const host = adminHost(event);
     const a = (payload as { action?: unknown } | null)?.action;
     // Toda ação de ADMIN_ACTIONS (renderer/lib/admin-view.ts) tem de estar aqui: o teste admin-view.test.mjs confere.
-    if (a !== "install-backend" && a !== "restart-gateway" && a !== "restart-backend" && a !== "transcription" && a !== "transcription-off" && a !== "support-off") throw new Error("ação inválida");
+    if (a !== "install-backend" && a !== "restart-gateway" && a !== "restart-backend" && a !== "transcription" && a !== "transcription-off" && a !== "support-off" && a !== "support-on") throw new Error("ação inválida");
     return adminAction(host, a);
   });
   // Licença da conta: o admin é o dono e grava por SSH (plano/status/validade/limite e liberar device pendente).

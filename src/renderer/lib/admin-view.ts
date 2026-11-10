@@ -26,6 +26,7 @@ export const ADMIN_ACTIONS: readonly { id: AdminAction; label: string; confirm: 
   { id: "transcription", label: "Ativar a transcrição de áudio", confirm: "Confirmar? baixa ~500 MB na máquina dela" },
   { id: "transcription-off", label: "Desativar a transcrição de áudio", confirm: "Confirmar? o agente dela deixa de entender áudios" },
   { id: "support-off", label: "Desligar o suporte desta pessoa", confirm: "Confirmar? o seu acesso a esta máquina acaba agora" },
+  { id: "support-on", label: "Religar o suporte deste Mac", confirm: "Confirmar? o admin volta a entrar neste Mac" },
 ];
 
 /** Uma linha da lista de saúde/progresso: ✓ (ok), ✗ (bad) ou • (null). */
@@ -173,8 +174,14 @@ export const ESTE_MAC_MAQUINA = "este-mac";
  * acabava (10 nov 2026).
  */
 export const ESTE_MAC_BACKEND_TEXTO = "Neste Mac o backend é o dos apps meu-bot: cada app (meu-bot, staging…) sobe o seu ao abrir. Para reiniciar, feche e abra o app.";
-export const visibleActions = (h: AdminHealth | null, esteMac = false): readonly (typeof ADMIN_ACTIONS)[number][] =>
+/**
+ * `desligado`: o admin acabou de desligar o suporte nesta janela. No este Mac sobra só "Religar" (o admin pode, a
+ * máquina é dele); nas outras pessoas não sobra nada: quem religa é ela, no app dela.
+ */
+export const visibleActions = (h: AdminHealth | null, esteMac = false, desligado = false): readonly (typeof ADMIN_ACTIONS)[number][] =>
   ADMIN_ACTIONS.filter((o) => {
+    if (o.id === "support-on") return esteMac && desligado;
+    if (desligado) return false;
     if (esteMac && (o.id === "install-backend" || o.id === "restart-backend")) return false;
     // Instalar só aparece quando a máquina está sem backend (com ele, "Reiniciar"); sem saúde ainda, não aparece.
     if (o.id === "install-backend") return h !== null && h.probe.reachable && !h.probe.backendInstalled;

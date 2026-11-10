@@ -40,10 +40,10 @@ export interface SuportePage {
   refreshHealth(): Promise<void>;
 }
 
-interface State { /** Nomes dos MVPs registrados em Produtos (botões "＋ produto" do card de licença); lidos ao abrir. */ mvps: string[]; health: AdminHealth | null; /** Quando a saúde na tela foi lida de verdade (null = veio do cache ou ainda não leu). */ healthAt: number | null; healthErr: string | null; logs: string | null; busy: AdminAction | "health" | "logs" | null; msg: { text: string; bad: boolean } | null; /** Mudança de licença em andamento. */ licBusy: boolean; licMsg: { text: string; bad: boolean } | null }
+interface State { /** Nomes dos MVPs registrados em Produtos (botões "＋ produto" do card de licença); lidos ao abrir. */ mvps: string[]; health: AdminHealth | null; /** Quando a saúde na tela foi lida de verdade (null = veio do cache ou ainda não leu). */ healthAt: number | null; healthErr: string | null; logs: string | null; busy: AdminAction | "health" | "logs" | null; msg: { text: string; bad: boolean } | null; /** Mudança de licença em andamento. */ licBusy: boolean; licMsg: { text: string; bad: boolean } | null; /** O admin desligou o suporte nesta janela (só "Religar" no este Mac, nada nas outras). */ desligado: boolean }
 
 export function mountSuportePage(deps: SuportePageDeps): SuportePage {
-  const state: State = { mvps: [], health: null, healthAt: null, healthErr: null, logs: null, busy: null, msg: null, licBusy: false, licMsg: null };
+  const state: State = { mvps: [], health: null, healthAt: null, healthErr: null, logs: null, busy: null, msg: null, licBusy: false, licMsg: null, desligado: false };
   // A saúde da última vez aparece na hora (com a idade); a consulta real troca por baixo.
   const cachedHealth = deps.cache.read<AdminHealth>("health");
   if (cachedHealth !== null) { state.health = cachedHealth.value; state.healthAt = cachedHealth.at; deps.onWhatsapp(cachedHealth.value.whatsapp); deps.onPlan(cachedHealth.value.license?.license.plan ?? null); }
@@ -244,12 +244,12 @@ export function mountSuportePage(deps: SuportePageDeps): SuportePage {
     a.append(el("strong", "", "Ações de suporte"));
     const acts = el("div", "admin-actions");
     const esteMac = deps.who.machine === ESTE_MAC_MAQUINA;
-    for (const o of visibleActions(hp, esteMac)) {
+    for (const o of visibleActions(hp, esteMac, state.desligado)) {
       const b = el("button", "btn btn-ghost btn-small", state.busy === o.id ? "Rodando…" : o.label); b.type = "button"; b.disabled = state.busy !== null;
       b.addEventListener("click", () => deps.armConfirm(b, o.confirm, () => {
         state.busy = o.id; state.msg = null; render();
         void deps.api.adminAction(o.id)
-          .then((r) => { state.msg = { text: actionResultText(o.label, r), bad: !r.ok }; })
+          .then((r) => { state.msg = { text: actionResultText(o.label, r), bad: !r.ok }; if (r.ok && o.id === "support-off") state.desligado = true; if (r.ok && o.id === "support-on") state.desligado = false; })
           .catch((err: unknown) => { state.msg = { text: ipcErrorText(err), bad: true }; })
           .finally(() => { state.busy = null; void refreshHealth(); if (logsOpen) void refreshLogs(); });
       }));

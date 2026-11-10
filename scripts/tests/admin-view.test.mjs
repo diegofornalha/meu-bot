@@ -203,3 +203,11 @@ test("visibleActions: este Mac não tem Instalar nem Reiniciar o backend (o back
   assert.ok(!ids.includes("install-backend") && !ids.includes("restart-backend"));
   assert.ok(ids.includes("restart-gateway") && ids.includes("support-off"));
 });
+
+test("visibleActions: Religar o suporte só no este Mac desligado; desligado nas outras pessoas não sobra ação", () => {
+  const h = { probe: { reachable: true, backendInstalled: true }, whatsapp: null };
+  assert.ok(!visibleActions(h, true).some((o) => o.id === "support-on"), "ligado: sem Religar");
+  assert.deepEqual(visibleActions(h, true, true).map((o) => o.id), ["support-on"], "este Mac desligado: só Religar");
+  assert.deepEqual(visibleActions(h, false, true).map((o) => o.id), [], "outra pessoa desligada: quem religa é ela");
+  assert.ok(!visibleActions(h).some((o) => o.id === "support-on"));
+});
