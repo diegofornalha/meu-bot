@@ -41,7 +41,10 @@ function botaoCopiar(url: string): HTMLButtonElement {
 }
 function desarmarRemover(): void { linkRemoverArmado = null; if (linkRemoverTimer !== null) { window.clearTimeout(linkRemoverTimer); linkRemoverTimer = null; } }
 export async function refreshLinkPublico(): Promise<void> {
-  if (!ctx.caps.install || ctx.windowHost === "" || ctx.windowHost === "local") return;
+  if (!ctx.caps.install || ctx.windowHost === "") return;
+  // Este Mac: o link público é de uma conta numa máquina por SSH (nginx e túnel do Link Público Global, do admin);
+  // aqui não se aplica, e o tutorial 13 some (needsLinkPublico) em vez de ficar em "Consultando a máquina…".
+  if (ctx.windowHost === "local") { linkPublicoState = null; linkPublicoPossivel = false; linkPublicoLido = true; ctx.paintGuide(); return; }
   try { const r = await window.meuBot.linkPublico(); linkPublicoState = r.info; linkPublicoPossivel = r.possivel; linkPublicoGlobal = r.global; linkPublicoLido = true; } catch { /* máquina fora: fica o que havia */ }
   ctx.paintGuide();
 }
