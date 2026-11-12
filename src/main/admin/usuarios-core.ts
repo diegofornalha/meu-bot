@@ -67,7 +67,7 @@ awk -F: '$3>=1000 && $3<60000 && $7 !~ /(nologin|false)$/ {split($5, g, ","); ap
   [ -d "$h/.local/share/meu-bot" ] && mb=1 || mb=0
   [ -s "$h/.ssh/authorized_keys" ] && ch=1 || ch=0
   [ -e "/var/lib/systemd/linger/$n" ] && lg=1 || lg=0
-  [ -s "$h/.local/share/meu-bot/backend/.env" ] && [ "$(tr -d ' \\n' < "$h/.local/share/meu-bot/whatsapp-agente" 2>/dev/null)" = hermes ] && pr=1 || pr=0
+  [ -s "$h/.local/share/meu-bot/backend/.env" ] && case "$(tr -d ' \\n' < "$h/.local/share/meu-bot/whatsapp-agente" 2>/dev/null)" in hermes|openclaw) true ;; *) false ;; esac && pr=1 || pr=0
   us=""; li=""; hd=""
   if [ "$cota" = 1 ]; then q=$(quota -wu "$n" 2>/dev/null | awk 'NR>2 && $1 ~ /^\\// {gsub(/\\*/,"",$2); print $2" "$3" "$4; exit}'); if [ -n "$q" ]; then set -- $q; us=$1; li=$2; hd=$3; else us=0; li=0; hd=0; fi; fi
   ram=$(ps -u "$n" -o rss= 2>/dev/null | awk '{s+=$1} END {print s+0}')

@@ -363,7 +363,7 @@ export function mountUsuariosPage(deps: UsuariosPageDeps): { open: () => void } 
           // Conta sem o onboarding completo (criada antes dele, ou um passo falhou): retoma de onde parou.
           if (!u.pronto && !u.sudo && !PROTEGIDOS.has(u.nome)) {
             const pp = el("button", "btn btn-ghost btn-small", ocupado === `preparar:${u.nome}` ? "Preparando… (alguns minutos)" : "Preparar"); pp.type = "button"; pp.disabled = ocupado !== null;
-            pp.title = "Instala o Claude Code e o backend do meu-bot na conta dele e deixa o Hermes com a transcrição da máquina; o que já está feito passa direto";
+            pp.title = "Instala o Claude Code e o backend do meu-bot na conta dele e deixa o agente do WhatsApp dela (Hermes ou OpenClaw) com a transcrição da máquina; o que já está feito passa direto";
             pp.addEventListener("click", () => { void rodar(`preparar:${u.nome}`, () => deps.api.adminUsuarioPreparar(u.nome), `✓ ${u.nome} está pronto: falta só entrar no Claude e ler o QR do WhatsApp.`); });
             tdAp.append(pp, " ");
           }
