@@ -201,7 +201,44 @@ export async function responderJsonRpc(raw: unknown, chamar: Chamar, info: Servi
 
 /* ---------- Configuração pronta para os clientes ---------- */
 export const urlMcp = (porta: number): string => `http://127.0.0.1:${porta}${CAMINHO}`;
-/** O comando do Claude Code (transporte HTTP, cabeçalho fixo); o nome do servidor é o do app (meu-bot, meu-bot-staging…). */
-export const configClaudeCode = (nome: string, porta: number, token: string): string => `claude mcp add --transport http ${nome} ${urlMcp(porta)} --header "Authorization: Bearer ${token}"`;
+/** Clientes que o botão Instalar sabe registrar; o rótulo vai no `X-Meu-Bot-Cliente` (o selo "Claude Code (MCP)"). */
+export type ClienteMcp = "claude-code" | "cursor";
+export const CLIENTES_MCP: readonly ClienteMcp[] = ["claude-code", "cursor"];
+export const isClienteMcp = (v: unknown): v is ClienteMcp => typeof v === "string" && (CLIENTES_MCP as readonly string[]).includes(v);
+export const ROTULO_CLIENTE: Record<ClienteMcp, string> = { "claude-code": "Claude Code", cursor: "Cursor" };
+const cabecalhos = (token: string, cliente: ClienteMcp): Record<string, string> => ({ Authorization: `Bearer ${token}`, "X-Meu-Bot-Cliente": ROTULO_CLIENTE[cliente] });
+/** A entrada do servidor na config do cliente: Claude Code pede `type: "http"`; o Cursor só url + headers. */
+export function entradaMcp(porta: number, token: string, cliente: ClienteMcp): Record<string, unknown> {
+  const base = { url: urlMcp(porta), headers: cabecalhos(token, cliente) };
+  return cliente === "claude-code" ? { type: "http", ...base } : base;
+}
+/** O comando do Claude Code, no escopo do usuário (vale em qualquer pasta), o mesmo que o botão Instalar roda; o nome do servidor é o do app. */
+export const configClaudeCode = (nome: string, porta: number, token: string): string =>
+  `claude mcp add --scope user --transport http ${nome} ${urlMcp(porta)} --header "Authorization: Bearer ${token}" --header "X-Meu-Bot-Cliente: ${ROTULO_CLIENTE["claude-code"]}"`;
 /** O trecho do mcp.json do Cursor (ou de qualquer cliente que aceite url + headers). */
-export const configCursor = (nome: string, porta: number, token: string): string => JSON.stringify({ mcpServers: { [nome]: { url: urlMcp(porta), headers: { Authorization: `Bearer ${token}` } } } }, null, 2);
+export const configCursor = (nome: string, porta: number, token: string): string => JSON.stringify({ mcpServers: { [nome]: entradaMcp(porta, token, "cursor") } }, null, 2);
+/** Link que abre o Cursor no pedido de instalação do servidor (a pessoa confirma lá; o app não escreve o mcp.json dele). */
+export const deeplinkCursor = (nome: string, porta: number, token: string): string =>
+  `cursor://anysphere.cursor-deeplink/mcp/install?${new URLSearchParams({ name: nome, config: Buffer.from(JSON.stringify(entradaMcp(porta, token, "cursor")), "utf8").toString("base64") }).toString()}`;
+
+/**
+ * Este app já está no cliente? Lê o JSON de config dele (`~/.claude.json`, cujo `mcpServers` de topo é o escopo
+ * user; `~/.cursor/mcp.json`) e compara url e chave com as atuais: trocar a chave ou a porta deixa o cliente
+ * "desatualizado", não um falso "instalado". `null` = o arquivo não existe; JSON quebrado = "ilegivel" (não mexemos).
+ */
+export type EstadoClienteMcp = "ausente" | "instalado" | "desatualizado" | "ilegivel";
+export function estadoCliente(conteudo: string | null, nome: string, porta: number, token: string): EstadoClienteMcp {
+  if (conteudo === null) return "ausente";
+  let j: unknown;
+  try { j = JSON.parse(conteudo); } catch { return "ilegivel"; }
+  if (j === null || typeof j !== "object" || Array.isArray(j)) return "ilegivel";
+  const servidores = (j as { mcpServers?: unknown }).mcpServers;
+  if (servidores === undefined) return "ausente";
+  if (servidores === null || typeof servidores !== "object" || Array.isArray(servidores)) return "ilegivel";
+  const e = (servidores as Record<string, unknown>)[nome];
+  if (e === undefined) return "ausente";
+  if (e === null || typeof e !== "object") return "desatualizado";
+  const { url, headers } = e as { url?: unknown; headers?: unknown };
+  const auth = headers !== null && typeof headers === "object" ? (headers as Record<string, unknown>)["Authorization"] : undefined;
+  return token !== "" && url === urlMcp(porta) && auth === `Bearer ${token}` ? "instalado" : "desatualizado";
+}

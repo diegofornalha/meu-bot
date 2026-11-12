@@ -16,9 +16,9 @@ export class ProcError extends Error {
 }
 
 /** Roda `cmd args` e resolve com a saída; rejeita com ProcError se sair ≠ 0 ou passar de `timeoutMs`. */
-export function run(cmd: string, args: readonly string[], opts: { timeoutMs?: number; maxBuffer?: number } = {}): Promise<ProcResult> {
+export function run(cmd: string, args: readonly string[], opts: { timeoutMs?: number; maxBuffer?: number; env?: NodeJS.ProcessEnv } = {}): Promise<ProcResult> {
   return new Promise((resolve, reject) => {
-    execFile(cmd, [...args], { timeout: opts.timeoutMs ?? 60_000, maxBuffer: opts.maxBuffer ?? 8 * 1024 * 1024, killSignal: "SIGKILL" }, (err, stdout, stderr) => {
+    execFile(cmd, [...args], { timeout: opts.timeoutMs ?? 60_000, maxBuffer: opts.maxBuffer ?? 8 * 1024 * 1024, killSignal: "SIGKILL", ...(opts.env === undefined ? {} : { env: opts.env }) }, (err, stdout, stderr) => {
       const out = String(stdout), errOut = String(stderr);
       if (err === null) { resolve({ code: 0, stdout: out, stderr: errOut }); return; }
       const e = err as NodeJS.ErrnoException & { code?: number | string; killed?: boolean };

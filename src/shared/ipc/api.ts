@@ -1,7 +1,7 @@
 /** Contrato IPC · A superfície exposta às telas (window.meuBot) e os eventos do main. Só tipos (nada é emitido); reexportado por src/shared/ipc.ts. */
 import type { BatimentoDepuracao, EstadoDepuracao, EventoDepuracao } from "./depuracao";
 import type { AccountStatus, AudioSetup, ClaudeAuthInfo, ClaudeLoginEvent, ContaEstado, ContaEvento, ContaId, ContasClaudeView, LinkPublicoInfo, LinkPublicoStatus, CotaInfo, LinkPublicoLista, LinkPublicoPublicado, FreedomLevel, LimiaresClaude, ObjectiveChoice, ObjectiveInfo, StatusLineSegments, XaiKeyStatus } from "./agente";
-import type { AlertPrefs, BackendModel, ControleRemotoView, DonoInfo, NetState, SettingsUpdate, SettingsView, WindowInfo, ZoomAction, ZoomState } from "./app";
+import type { AlertPrefs, BackendModel, ClienteMcp, ControleRemotoView, DonoInfo, NetState, SettingsUpdate, SettingsView, WindowInfo, ZoomAction, ZoomState } from "./app";
 import type { ReleasePublicada, UpdateState } from "./atualizacao";
 import type { ContaView } from "./conta";
 import type { TelaEndereco, TelaInstalacao, TelaStatus } from "./computador";
@@ -238,6 +238,10 @@ export interface MeuBotSharedApi {
   controleRemotoExecucao(ligado: boolean): Promise<ControleRemotoView>;
   controleRemotoPorta(porta: number): Promise<ControleRemotoView>;
   controleRemotoRegenerar(): Promise<ControleRemotoView>;
+  /** Registra (ou atualiza) este app no cliente: Claude Code pelo `claude mcp add-json --scope user`; Cursor abre o pedido de instalação nele. */
+  controleRemotoInstalar(cliente: ClienteMcp): Promise<ControleRemotoView>;
+  /** Tira este app do Claude Code (`claude mcp remove --scope user`). */
+  controleRemotoRemover(cliente: ClienteMcp): Promise<ControleRemotoView>;
   /** Conta Google geral deste Mac (login + Gmail + Agenda + Sheets): estado, conectar/desconectar e as APIs. */
   /** `forcar`: repete a busca do client na release agora, mesmo tendo tentado há pouco. */
   googleContaStatus(forcar?: boolean): Promise<GoogleContaStatus>;
