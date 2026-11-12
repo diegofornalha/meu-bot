@@ -205,10 +205,11 @@ async function sitePagina(req: Request, env: Env, url: URL): Promise<Response> {
   // A home é um HTML só para os dois canais, mas cada host entrega só a sua parte: em produção os blocos do ensaio
   // (data-canal="staging" e a faixa) saem do HTML, porque o Google lê o que está escondido; em staging saem os de produção.
   if (caminho === "/site/index.html") res = porCanal(res, env.CANAL === "staging" ? "staging" : "producao");
-  // Sem cache (como no console): o site muda junto com o Worker, e um CSS velho de 5 min já mostrou a página quebrada.
+  // Sempre revalida (no-cache + ETag dos assets): o site muda junto com o Worker, e um CSS velho de 5 min já mostrou a
+  // página quebrada; no-store desligava também o voltar/avançar instantâneo do navegador.
   // Staging é a mesma home em revisão: fora do Google, para não competir com agentesgrok.com.
   const robos = env.CANAL === "staging" ? { "x-robots-tag": "noindex, nofollow" } : {};
-  return comCabecalhos(res, { "content-security-policy": cspDoSite(env), "cache-control": "no-store", ...robos });
+  return comCabecalhos(res, { "content-security-policy": cspDoSite(env), "cache-control": "no-cache", ...robos });
 }
 /** Tira do HTML os blocos do outro canal e, em staging, mostra os do ensaio e a faixa (o site.js faz o mesmo, mas o Google não roda JS). */
 function porCanal(res: Response, canal: "staging" | "producao"): Response {
