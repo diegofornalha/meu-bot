@@ -80,10 +80,11 @@ nesta versão: o rodapé do site diz que medimos visitas sem anúncios e sem dad
 | Página | Evento | Parâmetros (listas fechadas) |
 |---|---|---|
 | site | `page_view` | `page_location` limpo |
-| site | `baixar_mac` | `origem`: na home, qual CTA: `hero`, `teste`, `final`, `fixo` (staging: `beta`); na obrigado: `obrigado`, `obrigado-ver`, `obrigado-link` |
+| site | `baixar_mac` | `origem`: qual botão levou à /obrigado (`hero`, `teste`, `final`, `fixo`, `baixar`, `perguntas`, `grok-whatsapp-topo`…; staging: `beta`). Não é evento principal: o download é o `download_iniciado` |
 | site | `plano_interesse` | `plano`: `chip-coflow` (R$ 97/mês), `proprio-chip` (cotação); os botões levam ao console da conta |
 | site | `link_celular` | `via`: `whatsapp`, `email` (no celular e no Windows, o download vira "mandar o link para o meu Mac") |
 | site | `download_iniciado` | `versao` (da release) |
+| site | `download_repetido` | `versao`: clique em "use este link" na /obrigado (não conta como conversão) |
 | login | `page_view` | `tipo`: `app`, `console`, `sem-app`, `org-pergunta`, `org-nao-achada`, `org-redirect` |
 | login | `login_iniciado`, `login_concluido` | `metodo`: `google`, `lembrado`, `senha`, `link`; `destino`: `app`, `console`; `org: true` na página da organização |
 | login | `login_falhou` | `motivo`: `popup-fechado`, `google`, `senha`, `muitas-tentativas`, `sem-conta`, `link-invalido`, `api`, `sessao-vencida`, `outro`; `metodo`; `destino` |
@@ -98,8 +99,11 @@ nesta versão: o rodapé do site diz que medimos visitas sem anúncios e sem dad
 | console | `plano_alterado`, `perfil_salvo`, `dados_uso_alterado`, `senha_pedida`, `conta_apagada` | `plan`, `status`, `ligado` |
 | todas | `click`, `scroll`, `file_download`, `form_start`, `form_submit` | medição otimizada do GA4 (automática) |
 
-O que o Analytics não faz sozinho, na propriedade (Administrador): eventos principais (`baixar_mac`,
-`download_iniciado`, `login_concluido`, `cadastro_concluido`, `org_criada`, depois de aparecerem na lista de eventos);
+Campanha: o `page_location` leva só as chaves de `CHAVES_CAMPANHA` (`src/analytics-core.ts`: `utm_*`, `gclid`, `gbraid`,
+`wbraid`); o resto da query e o fragmento nunca vão. Assim o clique de um anúncio chega ao GA4 com a campanha.
+
+O que o Analytics não faz sozinho, na propriedade (Administrador): eventos principais (`download_iniciado`,
+`login_concluido`, `cadastro_concluido`, `org_criada`, depois de aparecerem na lista de eventos; `baixar_mac` não);
 dimensões personalizadas de evento para cada parâmetro acima (senão não aparecem nos relatórios); retenção de dados em
 14 meses; sinais do Google desligados; encobrir dados com as chaves `code, state, verifier, challenge, retorno, oobCode,
 apiKey`; referências indesejadas `accounts.google.com`, `*.firebaseapp.com`; URL do fluxo (`https://agentesgrok.com` na de
@@ -112,7 +116,7 @@ mandaria um page_view duplicado a cada pushState), sinais do Google desligados, 
 com as 7 chaves, e as 20 dimensões personalizadas de evento. Ficaram à mão, no Analytics: **referências indesejadas**
 (Fluxo › Tag do Google › Definir as configurações da tag › Listar referências indesejadas: `accounts.google.com`,
 `*.firebaseapp.com`; a tela abre fora do Navegador) e **eventos principais** (Administrador › Eventos › estrela em
-`baixar_mac`, `download_iniciado`, `login_concluido`, `cadastro_concluido`, `org_criada`, que só aparecem na lista até
+`download_iniciado`, `login_concluido`, `cadastro_concluido`, `org_criada`, sem `baixar_mac` desde 12 nov, que só aparecem na lista até
 24 h depois do primeiro disparo).
 
 **page_view duplicado em produção.** A tag da propriedade meu-bot-conta manda um `page_view` automático com a URL real

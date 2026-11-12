@@ -1,5 +1,6 @@
 // Site do meu-bot: a home (landing page) e a página de obrigado. Analytics pelo public/analytics.js (no-op sem GA_ID):
-// page_view limpo, "baixar_mac" com a origem do clique e, na obrigado, "download_iniciado" antes de navegar.
+// page_view limpo, "baixar_mac" com a origem do clique e, na obrigado, "download_iniciado" (o único evento principal de
+// download) antes de navegar; o link "use este link" é "download_repetido", que não conta como conversão.
 (() => {
   const cfg = window.MEU_BOT_CONTA || {};
   const $ = (id) => document.getElementById(id);
@@ -31,8 +32,7 @@
   let versao = "";
   if ($("btn-denovo")) {
     const ver = /[?&]ver=1/.test(location.search);
-    ga.evento("baixar_mac", { origem: ver ? "obrigado-ver" : "obrigado" });
-    $("btn-denovo").addEventListener("click", () => ga.evento("baixar_mac", { origem: "obrigado-link" }));
+    $("btn-denovo").addEventListener("click", () => ga.evento("download_repetido", { versao: versao || "desconhecida" }));
     // O download começa sozinho (?ver=1 só mostra a página): o evento sai antes de navegar.
     if (!ver) setTimeout(() => { ga.evento("download_iniciado", { versao: versao || "desconhecida" }); location.href = "/download/mac"; }, 900);
   }
