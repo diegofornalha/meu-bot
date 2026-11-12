@@ -227,18 +227,48 @@ export const deeplinkCursor = (nome: string, porta: number, token: string): stri
  * "desatualizado", não um falso "instalado". `null` = o arquivo não existe; JSON quebrado = "ilegivel" (não mexemos).
  */
 export type EstadoClienteMcp = "ausente" | "instalado" | "desatualizado" | "ilegivel";
-export function estadoCliente(conteudo: string | null, nome: string, porta: number, token: string): EstadoClienteMcp {
-  if (conteudo === null) return "ausente";
-  let j: unknown;
-  try { j = JSON.parse(conteudo); } catch { return "ilegivel"; }
-  if (j === null || typeof j !== "object" || Array.isArray(j)) return "ilegivel";
-  const servidores = (j as { mcpServers?: unknown }).mcpServers;
+const objeto = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
+function lerConfig(conteudo: string | null): Record<string, unknown> | "ilegivel" | null {
+  if (conteudo === null) return null;
+  try { const j: unknown = JSON.parse(conteudo); return objeto(j) ? j : "ilegivel"; } catch { return "ilegivel"; }
+}
+/** A entrada aponta para este app agora (url e chave de hoje)? */
+function entradaAtual(e: unknown, porta: number, token: string): boolean {
+  if (!objeto(e)) return false;
+  const auth = objeto(e["headers"]) ? e["headers"]["Authorization"] : undefined;
+  return token !== "" && e["url"] === urlMcp(porta) && auth === `Bearer ${token}`;
+}
+function estadoDe(servidores: unknown, nome: string, porta: number, token: string): EstadoClienteMcp {
   if (servidores === undefined) return "ausente";
-  if (servidores === null || typeof servidores !== "object" || Array.isArray(servidores)) return "ilegivel";
-  const e = (servidores as Record<string, unknown>)[nome];
-  if (e === undefined) return "ausente";
-  if (e === null || typeof e !== "object") return "desatualizado";
-  const { url, headers } = e as { url?: unknown; headers?: unknown };
-  const auth = headers !== null && typeof headers === "object" ? (headers as Record<string, unknown>)["Authorization"] : undefined;
-  return token !== "" && url === urlMcp(porta) && auth === `Bearer ${token}` ? "instalado" : "desatualizado";
+  if (!objeto(servidores)) return "ilegivel";
+  if (servidores[nome] === undefined) return "ausente";
+  return entradaAtual(servidores[nome], porta, token) ? "instalado" : "desatualizado";
+}
+export function estadoCliente(conteudo: string | null, nome: string, porta: number, token: string): EstadoClienteMcp {
+  const j = lerConfig(conteudo);
+  return j === null ? "ausente" : j === "ilegivel" ? j : estadoDe(j["mcpServers"], nome, porta, token);
+}
+
+/**
+ * Claude Code: além do escopo user, cada pasta pode ter uma entrada local com o mesmo nome (`projects[pasta].mcpServers`),
+ * que o comando antigo, sem `--scope`, criava. A local vale mais que a user naquela pasta: com chave ou porta velhas,
+ * o Claude dali leva 401 mesmo com a user em dia. `user` é o estado do escopo user; `locais` são as pastas com
+ * entrada deste app (`atual` = url e chave de hoje). Só contam pastas que existem (`pastaExiste`): o `claude` só tira
+ * uma entrada local rodando dentro da pasta dela, e numa pasta apagada ninguém mais abre o Claude.
+ */
+export interface EstadoClaudeCode { estado: EstadoClienteMcp; user: EstadoClienteMcp; locais: { pasta: string; atual: boolean }[] }
+export function estadoClaudeCode(conteudo: string | null, nome: string, porta: number, token: string, pastaExiste: (pasta: string) => boolean = () => true): EstadoClaudeCode {
+  const j = lerConfig(conteudo);
+  if (j === null) return { estado: "ausente", user: "ausente", locais: [] };
+  if (j === "ilegivel") return { estado: "ilegivel", user: "ilegivel", locais: [] };
+  const user = estadoDe(j["mcpServers"], nome, porta, token);
+  const locais: EstadoClaudeCode["locais"] = [];
+  if (objeto(j["projects"])) {
+    for (const [pasta, p] of Object.entries(j["projects"])) {
+      if (!objeto(p) || !objeto(p["mcpServers"]) || p["mcpServers"][nome] === undefined || !pastaExiste(pasta)) continue;
+      locais.push({ pasta, atual: entradaAtual(p["mcpServers"][nome], porta, token) });
+    }
+  }
+  const estado = user === "instalado" && locais.some((l) => !l.atual) ? "desatualizado" : user;
+  return { estado, user, locais };
 }

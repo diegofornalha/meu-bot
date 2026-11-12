@@ -43,6 +43,10 @@ cliente (um `claude mcp add` ou um trecho de `mcp.json`); o app só gera o texto
   (o `add-json` recusa nome existente). A entrada leva `X-Meu-Bot-Cliente`, então o selo diz "Claude Code (MCP)". O
   `claude` vem do `findClaude` (achado fica em cache; "não achei" vale 1 min) e roda com a pasta dele no PATH (o
   instalado pelo npm é `#!/usr/bin/env node`). Sem `claude`, o "Copiar comando" (agora com `--scope user`) é o plano B.
+  **Entradas locais** (`estadoClaudeCode`): o comando antigo, sem `--scope`, criava `projects[pasta].mcpServers[nome]`,
+  e a local vence a user naquela pasta. Uma local com chave ou porta velhas deixa o cliente "desatualizado"; Atualizar
+  roda `claude mcp remove --scope local` com o `cwd` na pasta dela (o `claude` só a tira de lá dentro), e Remover tira
+  todas. Pasta que não existe mais não conta.
 - **Fumaça com cliente real** (`scripts/mcp-fumaca.sh [app]`): com o app aberto e o controle ligado, lê porta e chave
   do `settings.json`, confere por `curl` (initialize anuncia 2025-06-18, `tools/list` com ≥ 20 ferramentas, GET → 405,
   sem chave → 401), registra `<app>-fumaca` no Claude Code em escopo local e exige `✔ Connected`; remove o registro ao

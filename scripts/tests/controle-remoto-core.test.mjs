@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 const req = createRequire(import.meta.url);
-const { FERRAMENTAS, FERRAMENTAS_EXECUCAO, PAGINAS_APP, VERSAO_PROTOCOLO, ferramenta, ferramentasVisiveis, negociarVersao, roteador, donoDe, pedidoOk, responderJsonRpc, gerarToken, isToken, isPortaMcp, configClaudeCode, configCursor, urlMcp, erroRpc, entradaMcp, deeplinkCursor, estadoCliente, isClienteMcp } = req("../../dist/main/controle-remoto/controle-remoto-core.js");
+const { FERRAMENTAS, FERRAMENTAS_EXECUCAO, PAGINAS_APP, VERSAO_PROTOCOLO, ferramenta, ferramentasVisiveis, negociarVersao, roteador, donoDe, pedidoOk, responderJsonRpc, gerarToken, isToken, isPortaMcp, configClaudeCode, configCursor, urlMcp, erroRpc, entradaMcp, deeplinkCursor, estadoCliente, estadoClaudeCode, isClienteMcp } = req("../../dist/main/controle-remoto/controle-remoto-core.js");
 const { PRODUTOS } = req("../../dist/main/app/variant-core.js");
 const { normalizeSettings, defaultSettings } = req("../../dist/main/app/settings-normalize.js");
 
@@ -213,4 +213,26 @@ test("decidirNavegador: socket quando a aba está aberta; abrir quando só a jan
   assert.match(decidirNavegador(undefined, ["a", "b"], ["a", "b"]).erro, /várias máquinas.*maquina/);
   assert.match(decidirNavegador(undefined, [], ["a", "b"]).erro, /várias máquinas abertas/);
   assert.match(decidirNavegador("outra", ["a"], ["a"]).erro, /"outra" não está aberta.*abertas: a/);
+});
+
+test("Claude Code: entrada local velha (do comando antigo, sem --scope) vence a user e deixa desatualizado", () => {
+  const atual = { type: "http", url: "http://127.0.0.1:7830/mcp", headers: { Authorization: `Bearer ${TOKEN}` } };
+  const velha = { ...atual, headers: { Authorization: `Bearer ${"b".repeat(64)}` } };
+  const cfg = (user, projetos) => JSON.stringify({ mcpServers: user, projects: projetos });
+  // O caso deste Mac: user e local com a chave de hoje → instalado, e a local é listada como atual.
+  assert.deepEqual(estadoClaudeCode(cfg({ "meu-bot": atual }, { "/p/meu-bot": { mcpServers: { "meu-bot": atual } } }), "meu-bot", 7830, TOKEN),
+    { estado: "instalado", user: "instalado", locais: [{ pasta: "/p/meu-bot", atual: true }] });
+  // Depois de "Gerar outra": a user foi atualizada, a local não → desatualizado (o Claude daquela pasta levaria 401).
+  assert.deepEqual(estadoClaudeCode(cfg({ "meu-bot": atual }, { "/p/meu-bot": { mcpServers: { "meu-bot": velha } }, "/p/outra": { mcpServers: {} } }), "meu-bot", 7830, TOKEN),
+    { estado: "desatualizado", user: "instalado", locais: [{ pasta: "/p/meu-bot", atual: false }] });
+  // Só a local (quem colou o comando antigo): a user está ausente, então o botão instala.
+  assert.equal(estadoClaudeCode(cfg(undefined, { "/p": { mcpServers: { "meu-bot": atual } } }), "meu-bot", 7830, TOKEN).estado, "ausente");
+  // Pasta apagada não conta: o claude não a tira de lá, e ninguém mais abre o Claude nela.
+  assert.deepEqual(estadoClaudeCode(cfg({ "meu-bot": atual }, { "/sumiu": { mcpServers: { "meu-bot": velha } } }), "meu-bot", 7830, TOKEN, (p) => p !== "/sumiu"),
+    { estado: "instalado", user: "instalado", locais: [] });
+  // Outros servidores e projetos sem mcpServers não atrapalham; JSON quebrado não é lido.
+  assert.deepEqual(estadoClaudeCode(cfg({ outro: atual }, { "/p": { allowedTools: [] }, "/q": { mcpServers: { "meu-bot-staging": velha } } }), "meu-bot", 7830, TOKEN),
+    { estado: "ausente", user: "ausente", locais: [] });
+  assert.equal(estadoClaudeCode("{ quebrado", "meu-bot", 7830, TOKEN).estado, "ilegivel");
+  assert.equal(estadoClaudeCode(null, "meu-bot", 7830, TOKEN).estado, "ausente");
 });
