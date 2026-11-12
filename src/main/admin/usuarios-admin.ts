@@ -68,17 +68,17 @@ export async function usuariosDaMaquina(host: string): Promise<UsuariosVisao> {
   if (r.code !== 0) throw new Error(`não consegui ler os usuários da máquina: ${motivoSsh(r, LISTAR_PRAZO_MS)}`);
   const l = lerUsuarios(r.stdout);
   if (!l.root) throw new Error("o admin não entra como root nesta máquina: só root cria usuários");
+  const capacidade = l.ram === null ? null : capacidadeDe({ totalKb: l.ram.totalKb, userSliceMaxKb: l.userSlice?.maxKb ?? null, cpus: l.cpus, padraoMb: RECURSOS_PADRAO.ramMb, usuarios: l.usuarios });
   // Pressão: só o que subiu desde a leitura anterior desta máquina pinta a box; o acumulado do cgroup é histórico.
   const agora = Date.now();
   for (const u of l.usuarios) {
     if (u.box === null) continue;
     const chave = `${host}\0${u.uid}`;
     const { marca, recentes } = recentesDe(marcasDasBoxes.get(chave), u.box, agora);
-    marcasDasBoxes.set(chave, marca); u.pressao = pressaoDe(u.box, u.ramMaxMb, recentes);
+    marcasDasBoxes.set(chave, marca); u.pressao = pressaoDe(u.box, u.ramMaxMb, recentes, { cpuMaxPct: u.cpuMaxPct, capMb: capacidade?.capMb ?? null, nucleos: l.cpus });
   }
   // O apelido da máquina é a fonte: o seletor do admin acompanha (inclusive os dados antes desta versão).
   for (const u of l.usuarios) if (u.apelido !== "") apelidoDoUsuarioNoSeletor(host, u.nome, u.apelido);
-  const capacidade = l.ram === null ? null : capacidadeDe({ totalKb: l.ram.totalKb, userSliceMaxKb: l.userSlice?.maxKb ?? null, cpus: l.cpus, padraoMb: RECURSOS_PADRAO.ramMb, usuarios: l.usuarios });
   return { usuarios: l.usuarios, hostname: a?.hostname ?? null, port: a?.port ?? null, chave: a?.arquivo ?? null, discoKb: l.discoKb, cota: l.cota, hermes: l.hermes, openclaw: l.openclaw, ram: l.ram, userSlice: l.userSlice, cpus: l.cpus, capacidade, governanca: governancaDe(l), backendDoApp: bundledBackendVersion(), pctMinimo: l.discoKb === null ? null : pctMinimo(l.discoKb) };
 }
 

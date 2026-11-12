@@ -108,7 +108,11 @@ export interface AuditoriaLinhaView {
  */
 export interface PressaoBox { usoKb: number; anonKb: number; picoKb: number | null; swapKb: number; evHigh: number; evMax: number; oomKill: number; psiMem10: number; psiMem60: number; psiCpu60: number; cpuPeriodos: number; cpuEstrangulados: number; cpuEstranguladoUsec: number }
 /** A leitura da pressão para quem não pensa: folgada, apertada ou estrangulada, por quê e o que fazer. */
-export interface Pressao { estado: "folgada" | "apertada" | "estrangulada"; motivo: string; dica: string }
+export interface Pressao {
+  estado: "folgada" | "apertada" | "estrangulada"; motivo: string; dica: string;
+  /** Tetos sugeridos para aliviar (MB e % de um núcleo), já dentro do que a máquina comporta; null = nada a sugerir. */
+  sugestao: { ramMaxMb: number | null; cpuPct: number | null };
+}
 /** Quantas boxes cabem na RAM com o teto padrão por box, e quanta CPU já está prometida. */
 export interface Capacidade { boxes: number; cabem: number; capMb: number; padraoMb: number; reservaAplicada: boolean; cpuNucleos: number | null; cpuPrometidoPct: number }
 /** Aba "Usuários" do admin (máquina em que se entra como root): um usuário Linux de login. */

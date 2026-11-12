@@ -13,6 +13,16 @@ e entra aqui na seção da versão quando ela vira estável.
 
 ## Ainda não lançado
 
+### Admin: a pressão da box diz quanto subir
+
+#### Melhorado
+
+- **Box apertada ou estrangulada mostra o que fazer, com número.** Na aba Usuários, a coluna Pressão agora escreve a
+  sugestão embaixo do estado, sem precisar passar o mouse: "suba a RAM máx dele de 1280 para 1792 MB" ou "suba o CPU %
+  dele de 200 para 300". O número cabe no que a máquina comporta (o teto de todos os usuários juntos e os núcleos);
+  sem espaço, ela diz isso e sugere a memória de reserva ou baixar o teto de outra box. O botão "Usar sugestão" preenche
+  os campos de RAM máx e CPU %; nada muda até você clicar em Salvar.
+
 ---
 
 ## 11 de novembro de 2026 · v0.82.0

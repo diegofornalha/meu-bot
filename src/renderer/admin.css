@@ -111,3 +111,4 @@ body.produtos-janela .head .add-actions { margin-top: 8px; }
 .usuarios-nome input { border-top-left-radius: 0; border-bottom-left-radius: 0; }
 
 .usuarios-pressao { font-weight: 600; }
+.usuarios-pressao-dica { font-weight: 400; max-width: 22em; margin: 2px 0 4px; white-space: normal; }
