@@ -18,6 +18,7 @@ Site do meu-bot (produto independente da Coflow): https://agentesgrok.com. Códi
 - [Grok no WhatsApp](https://agentesgrok.com/grok-no-whatsapp): não existe número oficial do Grok no WhatsApp; como ter o Grok respondendo no seu número com o meu-bot.
 - [Parceria com a xAI](https://agentesgrok.com/parceria-xai): o que a parceria Coflow e xAI inclui e o que não é.
 - [Grok Bot e meu-bot](https://agentesgrok.com/grok-bot-e-meu-bot): a diferença entre o Grok Bot da xAI (agentes na nuvem) e o meu-bot (agente no seu Mac e no seu WhatsApp).
+- [O WhatsApp bloqueia o número que usa IA?](https://agentesgrok.com/guias/whatsapp-bloqueia-numero-com-ia): o que a Meta escreve, a regra de 15/1/2026 (só a API) e o que aumenta ou diminui o risco.
 - [Guias](https://agentesgrok.com/guias): guias curtos sobre IA no WhatsApp, no e-mail e na rotina de uma pequena empresa.
 - [Novidades](https://agentesgrok.com/novidades): o que muda a cada versão (releases).
 - [Política de privacidade](https://agentesgrok.com/privacidade) e [Termos de uso](https://agentesgrok.com/termos).
