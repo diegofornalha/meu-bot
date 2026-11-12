@@ -92,7 +92,7 @@ nesta versão: o rodapé do site diz que medimos visitas sem anúncios e sem dad
 | login | `app_aberto` | `repeticao`: `false` (automático), `true` (botão "Abrir o meu-bot") |
 | login | `sem_app_visto` | `acao`: `visto`, `baixar`, `console`, `signup` |
 | login | `login_org_visto`, `login_org_perguntado` | `com_slug`, `achada` |
-| cadastro | `cadastro_iniciado`, `cadastro_concluido`, `cadastro_falhou` | `metodo`: `senha`, `google`; `motivo`: `senha-curta`, `email-em-uso`, `senha-fraca`, `email-invalido`, `popup-fechado`, `google`, `outro` |
+| cadastro | `cadastro_iniciado`, `cadastro_concluido`, `cadastro_falhou` | `cadastro_concluido` sai no /signup e também no login, quando a conta Firebase nasce ali (`via: login`, `metodo`: `google`, `link`); `metodo`: `senha`, `google`; `motivo`: `senha-curta`, `email-em-uso`, `senha-fraca`, `email-invalido`, `popup-fechado`, `google`, `outro` |
 | console | `page_view` | `secao` (`overview`, `plan`, `org`, `entrada`…), caminho anonimizado |
 | console | `console_entrada`, `console_saida` | `via`: `app`, `login`; `admin` |
 | console | `org_criada`, `org_apagada`, `convite_enviado`, `membro_removido` | `papel`, `status`, `eu` |
