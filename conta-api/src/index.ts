@@ -20,7 +20,7 @@ import { deletePerfil, getAdminFirebase, getAdminVisao, patchLicenca, postAdminS
 import { downloadMac, REPO } from "./release-github.js";
 import { GUIAS, lerReleases, novidadesHtml, sitemapXml } from "./novidades-core.js";
 import { CSP_GA, gaIds } from "./analytics-core.js";
-import { paraHttps, semBarraFinal } from "./site-core.js";
+import { ehAliasDoSite, paraHttps, semBarraFinal } from "./site-core.js";
 import { deleteMembro, deleteOrg, getOrg, getOrgPublico, getOrgs, patchAdminOrg, patchMembro, patchOrg, postMembro, postOrg } from "./rotas/orgs.js";
 
 const SEGURANCA: Record<string, string> = {
@@ -229,7 +229,8 @@ export default {
       const seguro = paraHttps(req.url);
       if (seguro !== null) return comCabecalhos(Response.redirect(seguro, 301), {});
       if (origem === env.SITE_ORIGIN) return await sitePagina(req, env, url);
-      if (origem === env.SITE_ORIGIN.replace("https://", "https://www.")) return comCabecalhos(Response.redirect(`${env.SITE_ORIGIN}${url.pathname}${url.search}`, 301), {});
+      // www. e o .com.br (com e sem www) só redirecionam para o site principal, com o caminho e a query (utm, gclid).
+      if (ehAliasDoSite(url.host, env.SITE_ORIGIN)) return comCabecalhos(Response.redirect(`${env.SITE_ORIGIN}${url.pathname}${url.search}`, 301), {});
       return origem === env.AUTH_ORIGIN ? await pagina(req, env, url) : origem === env.CONSOLE_ORIGIN ? await consolePagina(req, env, url) : await api(req, env, url);
     } catch (e) {
       console.log(`[conta-api] ${req.method} ${url.pathname}: ${e instanceof Error ? e.stack ?? e.message : String(e)}`);
