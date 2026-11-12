@@ -16,3 +16,15 @@ export function semBarraFinal(caminho: string): string | null {
   const limpo = caminho.replace(/\/+$/, "");
   return limpo === "" ? null : limpo;
 }
+
+/**
+ * Os outros endereços do site, que só redirecionam (301) para o principal: www.<site> e o .com.br (com e sem www).
+ * true quando `host` é um deles. Ex.: site "https://agentesgrok.com" → www.agentesgrok.com, agentesgrok.com.br e
+ * www.agentesgrok.com.br.
+ */
+export function ehAliasDoSite(host: string, siteOrigin: string): boolean {
+  let base: string;
+  try { base = new URL(siteOrigin).host; } catch { return false; }
+  const h = host.toLowerCase();
+  return h === `www.${base}` || h === `${base}.br` || h === `www.${base}.br`;
+}

@@ -33,6 +33,12 @@ custom_domain = true
 [[routes]]
 pattern = "www.agentesgrok.com"
 custom_domain = true
+[[routes]]
+pattern = "agentesgrok.com.br"
+custom_domain = true
+[[routes]]
+pattern = "www.agentesgrok.com.br"
+custom_domain = true
 
 [[d1_databases]]
 binding = "DB"
