@@ -322,6 +322,21 @@ export function mountUsuariosPage(deps: UsuariosPageDeps): { open: () => void } 
           const pr = u.pressao;
           const tdPr = el("td", pr === null ? "" : pr.estado === "estrangulada" ? "notice-error usuarios-pressao" : pr.estado === "apertada" ? "notice-warn usuarios-pressao" : "usuarios-pressao", pr === null ? "—" : pr.estado);
           if (pr !== null && u.box !== null) tdPr.title = `${pr.motivo}${pr.dica !== "" ? `. ${pr.dica}` : ""} · PSI mem 60 s: ${u.box.psiMem60}% · PSI CPU 60 s: ${u.box.psiCpu60}% · teto batido desde que a box subiu: ${u.box.evMax}× · mortes por memória desde que a box subiu: ${u.box.oomKill} · CPU segurada pela cota: ${cpuSegurada(u.box)}% do tempo`;
+          // A dica visível (não só no título) e, havendo teto sugerido, um botão que preenche RAM máx/CPU %: o admin confere e salva.
+          if (pr !== null && pr.estado !== "folgada" && pr.dica !== "") {
+            tdPr.append(el("div", "hint usuarios-pressao-dica", pr.dica));
+            const sg = pr.sugestao;
+            if (!u.sudo && (sg.ramMaxMb !== null || sg.cpuPct !== null)) {
+              const us = el("button", "btn btn-ghost btn-small", "Usar sugestão"); us.type = "button"; us.disabled = ocupado !== null;
+              us.title = `Preenche ${sg.ramMaxMb !== null ? `RAM máx com ${sg.ramMaxMb} MB` : ""}${sg.ramMaxMb !== null && sg.cpuPct !== null ? " e " : ""}${sg.cpuPct !== null ? `CPU % com ${sg.cpuPct}` : ""}; nada muda até você clicar em Salvar`;
+              us.addEventListener("click", () => {
+                const atual = rascunhoRec.get(u.nome) ?? { ram: u.ramMaxMb === null ? "" : String(u.ramMaxMb), cpu: u.cpuMaxPct === null ? "" : String(u.cpuMaxPct) };
+                rascunhoRec.set(u.nome, { ram: sg.ramMaxMb !== null ? String(sg.ramMaxMb) : atual.ram, cpu: sg.cpuPct !== null ? String(sg.cpuPct) : atual.cpu });
+                render();
+              });
+              tdPr.append(us);
+            }
+          }
           const tdPct = el("td");
           const ip = el("input") as HTMLInputElement; ip.type = "number"; ip.min = "0"; ip.max = "100"; ip.step = "1"; ip.style.width = "64px";
           ip.value = rascunho.get(u.nome) ?? (pct === null ? "" : String(pct)); ip.placeholder = "—"; ip.disabled = ocupado !== null || u.sudo;

@@ -181,25 +181,60 @@ export function recentesDe(antes: MarcaBox | undefined, b: PressaoBox, agora: nu
  * contadores `max`/`oom_kill` acumulados, que só zeram ao recriar a fatia ou reiniciar: uma morte de 13 dias atrás não
  * pode manter a box "estrangulada" com a pressão em zero. O acumulado entra no motivo só como histórico.
  */
-export function pressaoDe(b: PressaoBox | null, ramMaxMb: number | null, recentes: Recentes = { oom: 0, max: 0 }): Pressao | null {
+/** O que a máquina comporta, para a sugestão não passar dela: teto de todos os usuários (MB) e núcleos. */
+export interface LimitesSugestao { cpuMaxPct?: number | null; capMb?: number | null; nucleos?: number | null }
+/** Degrau da sugestão de RAM (MB): o mesmo passo do campo RAM máx. */
+const PASSO_RAM_MB = 128;
+/**
+ * RAM máx sugerida: +512 MB ou 1,25× o pico da box, o que for maior, em degraus de 128 MB e sem passar do teto dos
+ * usuários juntos. null = sem teto hoje (nada a subir) ou a máquina não comporta mais que o atual.
+ */
+export function ramSugeridaDe(b: PressaoBox, ramMaxMb: number | null, capMb: number | null): number | null {
+  if (ramMaxMb === null) return null;
+  const picoMb = b.picoKb === null ? 0 : b.picoKb / 1024;
+  const alvo = Math.ceil(Math.max(ramMaxMb + 512, picoMb * 1.25) / PASSO_RAM_MB) * PASSO_RAM_MB;
+  const teto = capMb === null ? alvo : Math.floor(capMb / PASSO_RAM_MB) * PASSO_RAM_MB;
+  const sugerida = Math.min(alvo, teto);
+  return sugerida > ramMaxMb ? sugerida : null;
+}
+/** CPU % sugerida: +100 (um núcleo a mais), sem passar dos núcleos da máquina. null = sem teto hoje ou já no máximo. */
+export function cpuSugeridaDe(cpuMaxPct: number | null, nucleos: number | null): number | null {
+  if (cpuMaxPct === null) return null;
+  const sugerida = nucleos === null ? cpuMaxPct + 100 : Math.min(cpuMaxPct + 100, nucleos * 100);
+  return sugerida > cpuMaxPct ? sugerida : null;
+}
+
+export function pressaoDe(b: PressaoBox | null, ramMaxMb: number | null, recentes: Recentes = { oom: 0, max: 0 }, limites: LimitesSugestao = {}): Pressao | null {
   if (b === null) return null;
   const highMb = ramMaxMb === null ? null : Math.floor(ramMaxMb * 0.9);
   const anonMb = Math.round(b.anonKb / 1024);
-  const dicaMem = `aumente a RAM máx dele (hoje ${ramMaxMb === null ? "sem teto" : `${ramMaxMb} MB`}) ou veja o que pesa na box`;
-  const dicaCpu = "a box está pesada de CPU: aumente o CPU % dele ou veja o que roda";
+  const cpuMaxPct = limites.cpuMaxPct ?? null;
+  const ramSug = ramSugeridaDe(b, ramMaxMb, limites.capMb ?? null);
+  const cpuSug = cpuSugeridaDe(cpuMaxPct, limites.nucleos ?? null);
+  const dicaMem = ramSug !== null
+    ? `suba a RAM máx dele de ${ramMaxMb} para ${ramSug} MB ou veja o que pesa na box`
+    : ramMaxMb === null
+      ? "ele já está sem teto de RAM: veja o que pesa na box"
+      : `a máquina não comporta subir a RAM máx dele (hoje ${ramMaxMb} MB): ligue a memória de reserva, baixe o teto de outra box ou veja o que pesa nesta`;
+  const dicaCpu = cpuSug !== null
+    ? `a box está pesada de CPU: suba o CPU % dele de ${cpuMaxPct} para ${cpuSug} ou veja o que roda`
+    : "a box está pesada de CPU e não há núcleo a mais para dar: veja o que roda";
   const vezes = (n: number): string => `${n} vez${n === 1 ? "" : "es"}`;
   const mortes = (n: number): string => `${n} morte${n === 1 ? "" : "s"} por memória`;
   const historico = b.oomKill > 0 || b.evMax > 0 ? ` · desde que a box subiu: ${mortes(b.oomKill)}, ${vezes(b.evMax)} no teto` : "";
-  const r = (estado: Pressao["estado"], motivo: string, dica: string): Pressao => ({ estado, motivo: motivo + historico, dica });
-  if (recentes.oom > 0) return r("estrangulada", `o Linux matou ${recentes.oom} processo${recentes.oom === 1 ? "" : "s"} dele por falta de memória agora há pouco`, dicaMem);
-  if (b.psiMem60 >= 25) return r("estrangulada", `${b.psiMem60}% do último minuto parada esperando memória`, dicaMem);
-  if (b.psiCpu60 >= 50) return r("estrangulada", `${b.psiCpu60}% do último minuto parada esperando CPU`, dicaCpu);
-  if (recentes.max > 0 && b.psiMem60 >= 10) return r("estrangulada", `encostou no teto de memória ${vezes(recentes.max)} agora há pouco e segue apertada (${b.psiMem60}%)`, dicaMem);
-  if (b.psiMem60 >= 10) return r("apertada", `${b.psiMem60}% do último minuto esperando memória`, dicaMem);
-  if (b.psiCpu60 >= 25) return r("apertada", `${b.psiCpu60}% do último minuto esperando CPU`, dicaCpu);
-  if (recentes.max > 0) return r("apertada", `encostou no teto de memória ${vezes(recentes.max)} agora há pouco`, dicaMem);
-  if (highMb !== null && anonMb >= highMb * 0.85) return r("apertada", `${anonMb} MB de memória própria, perto do aperto em ${highMb} MB`, dicaMem);
-  return r("folgada", `${anonMb} MB de memória própria${highMb !== null ? ` de ${highMb} MB` : ""}, sem espera`, "");
+  const r = (estado: Pressao["estado"], motivo: string, falta: "mem" | "cpu" | null): Pressao => ({
+    estado, motivo: motivo + historico, dica: falta === "mem" ? dicaMem : falta === "cpu" ? dicaCpu : "",
+    sugestao: { ramMaxMb: falta === "mem" ? ramSug : null, cpuPct: falta === "cpu" ? cpuSug : null },
+  });
+  if (recentes.oom > 0) return r("estrangulada", `o Linux matou ${recentes.oom} processo${recentes.oom === 1 ? "" : "s"} dele por falta de memória agora há pouco`, "mem");
+  if (b.psiMem60 >= 25) return r("estrangulada", `${b.psiMem60}% do último minuto parada esperando memória`, "mem");
+  if (b.psiCpu60 >= 50) return r("estrangulada", `${b.psiCpu60}% do último minuto parada esperando CPU`, "cpu");
+  if (recentes.max > 0 && b.psiMem60 >= 10) return r("estrangulada", `encostou no teto de memória ${vezes(recentes.max)} agora há pouco e segue apertada (${b.psiMem60}%)`, "mem");
+  if (b.psiMem60 >= 10) return r("apertada", `${b.psiMem60}% do último minuto esperando memória`, "mem");
+  if (b.psiCpu60 >= 25) return r("apertada", `${b.psiCpu60}% do último minuto esperando CPU`, "cpu");
+  if (recentes.max > 0) return r("apertada", `encostou no teto de memória ${vezes(recentes.max)} agora há pouco`, "mem");
+  if (highMb !== null && anonMb >= highMb * 0.85) return r("apertada", `${anonMb} MB de memória própria, perto do aperto em ${highMb} MB`, "mem");
+  return r("folgada", `${anonMb} MB de memória própria${highMb !== null ? ` de ${highMb} MB` : ""}, sem espera`, null);
 }
 
 /** Quanto do total fica para o sistema (sshd, nginx, túnel, journald): o maior entre 3 GB e 10%. */

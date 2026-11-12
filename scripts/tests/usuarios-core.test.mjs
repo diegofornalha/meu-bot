@@ -286,6 +286,27 @@ test("pressão: folgada, apertada e estrangulada pelos sinais certos (anon, PSI,
   assert.equal(c.pressaoDe(null, 2048), null);
 });
 
+test("pressão: a sugestão traz o teto com número, dentro do que a máquina comporta, e só para o que falta", () => {
+  const c = createRequire(import.meta.url)("../../dist/main/admin/usuarios-core.js");
+  const b = (o = {}) => ({ usoKb: 0, anonKb: 400 * 1024, picoKb: null, swapKb: 0, evHigh: 0, evMax: 0, oomKill: 1, psiMem10: 0, psiMem60: 0, psiCpu60: 0, cpuPeriodos: 0, cpuEstrangulados: 0, cpuEstranguladoUsec: 0, ...o });
+  // Memória: +512 MB em degraus de 128; o pico manda quando 1,25× dele é maior.
+  const mem = c.pressaoDe(b(), 1280, { oom: 1, max: 0 }, { cpuMaxPct: 200, capMb: 7000, nucleos: 8 });
+  assert.equal(mem.estado, "estrangulada"); assert.deepEqual(mem.sugestao, { ramMaxMb: 1792, cpuPct: null });
+  assert.match(mem.dica, /de 1280 para 1792 MB/);
+  assert.equal(c.ramSugeridaDe(b({ picoKb: 2000 * 1024 }), 1280, 7000), 2560, "1,25 × 2000 = 2500 → 2560");
+  // O teto dos usuários juntos limita; sem espaço, nada a sugerir e a dica diz o que fazer.
+  assert.equal(c.ramSugeridaDe(b(), 1280, 1500), 1408);
+  const cheia = c.pressaoDe(b(), 1280, { oom: 1, max: 0 }, { capMb: 1280 });
+  assert.equal(cheia.sugestao.ramMaxMb, null); assert.match(cheia.dica, /não comporta.*memória de reserva/);
+  assert.equal(c.ramSugeridaDe(b(), null, 7000), null, "sem teto não há o que subir");
+  // CPU: um núcleo a mais, até os núcleos da máquina.
+  const cpu = c.pressaoDe(b({ oomKill: 0, psiCpu60: 60 }), 1280, undefined, { cpuMaxPct: 200, capMb: 7000, nucleos: 8 });
+  assert.deepEqual(cpu.sugestao, { ramMaxMb: null, cpuPct: 300 }); assert.match(cpu.dica, /de 200 para 300/);
+  assert.equal(c.cpuSugeridaDe(800, 8), null); assert.equal(c.cpuSugeridaDe(750, 8), 800);
+  // Folgada não sugere nada.
+  assert.deepEqual(c.pressaoDe(b({ oomKill: 0 }), 1280, undefined, { cpuMaxPct: 200, capMb: 7000, nucleos: 8 }).sugestao, { ramMaxMb: null, cpuPct: null });
+});
+
 test("pressão: recentesDe só conta o que subiu desde a leitura anterior, por 10 min; primeira leitura e fatia recriada não contam", () => {
   const c = createRequire(import.meta.url)("../../dist/main/admin/usuarios-core.js");
   const b = (o = {}) => ({ usoKb: 0, anonKb: 0, picoKb: null, swapKb: 0, evHigh: 0, evMax: 438, oomKill: 1, psiMem10: 0, psiMem60: 0, psiCpu60: 0, cpuPeriodos: 0, cpuEstrangulados: 0, cpuEstranguladoUsec: 0, ...o });
