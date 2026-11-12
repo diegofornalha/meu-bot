@@ -230,6 +230,8 @@ function instalar() {
   if (!existsSync(join(WT, "scripts", "release-auto.mjs"))) { console.error("✗ o origin/main ainda não tem scripts/release-auto.mjs: instale depois do merge"); process.exit(1); }
   // ~/.local/bin: o uv, que acha o Python 3.10+ do instalador .dmg (scripts/dmg.mjs); o do macOS é 3.9.
   const path = ["/opt/homebrew/bin", "/usr/local/bin", join(homedir(), ".local", "bin"), dirname(process.execPath), "/usr/bin", "/bin", "/usr/sbin", "/sbin"].join(":");
+  // Conta nova no macOS não tem ~/Library/LaunchAgents até alguém criar um agente.
+  mkdirSync(dirname(PLIST), { recursive: true });
   writeFileSync(PLIST, `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
