@@ -162,7 +162,7 @@ const cspDoSite = (env: Env): string => {
     "style-src 'self'", "base-uri 'none'", "form-action 'none'", "frame-ancestors 'none'",
   ].join("; ");
 };
-/** Data da última revisão das páginas de texto (privacidade, termos, Grok no WhatsApp, parceria; vai no sitemap). */
+/** Data da última revisão das páginas de texto (privacidade, termos, Grok no WhatsApp, parceria, perguntas; vai no sitemap). */
 const REVISAO_PAGINAS = "2026-11-12";
 /** As releases estáveis do GitHub para /novidades (mesmo cache de 10 min do download). [] = GitHub fora ou sem release. */
 async function listarReleases(): Promise<ReturnType<typeof lerReleases>> {
@@ -191,7 +191,7 @@ async function sitePagina(req: Request, env: Env, url: URL): Promise<Response> {
     return comCabecalhos(new Response(modelo.replace("<!--RELEASES-->", novidadesHtml(releases)), { headers: { "content-type": "text/html; charset=utf-8" } }), { "content-security-policy": cspDoSite(env), "cache-control": "no-store" });
   }
   // robots.txt e llms.txt vivem em public/site/ e saem na raiz do host; privacidade e termos também.
-  const raiz: Record<string, string> = { "/robots.txt": "/site/robots.txt", "/llms.txt": "/site/llms.txt", "/privacidade": "/site/privacidade.html", "/termos": "/site/termos.html", "/grok-no-whatsapp": "/site/grok-no-whatsapp.html", "/parceria-xai": "/site/parceria-xai.html" };
+  const raiz: Record<string, string> = { "/robots.txt": "/site/robots.txt", "/llms.txt": "/site/llms.txt", "/privacidade": "/site/privacidade.html", "/termos": "/site/termos.html", "/grok-no-whatsapp": "/site/grok-no-whatsapp.html", "/parceria-xai": "/site/parceria-xai.html", "/baixar": "/site/baixar.html", "/perguntas": "/site/perguntas.html" };
   const caminho = url.pathname === "/" || url.pathname === "/index.html" ? "/site/index.html" : url.pathname === "/obrigado" ? "/site/obrigado.html" : raiz[url.pathname] ?? url.pathname;
   let res = await env.ASSETS.fetch(new Request(new URL(caminho, url.origin).toString(), { method: "GET", headers: req.headers }));
   // Caminho que não existe: a página 404 do site (com status 404), em vez do corpo vazio dos assets.

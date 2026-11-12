@@ -76,9 +76,11 @@ export function sitemapXml(origem: string, ultimaRelease: string | null, revisao
   return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
 ${url("/", ultimaRelease, "weekly", "1.0", true)}
+${url("/baixar", ultimaRelease, "weekly", "0.9")}
 ${url("/novidades", ultimaRelease, "weekly", "0.7")}
 ${url("/grok-no-whatsapp", revisaoLegal, "monthly", "0.8")}
 ${url("/parceria-xai", revisaoLegal, "monthly", "0.8")}
+${url("/perguntas", revisaoLegal, "monthly", "0.7")}
 ${url("/privacidade", revisaoLegal, "yearly", "0.3")}
 ${url("/termos", revisaoLegal, "yearly", "0.3")}
 </urlset>
