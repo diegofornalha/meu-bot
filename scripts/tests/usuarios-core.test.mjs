@@ -213,9 +213,27 @@ test("usuários: o nome sugerido é o próximo box da sequência", async () => {
   assert.equal(proximoBox(["box-1", "box-4", "maria", "box-maria", "meu-box"]), "5", "só box-<número> conta; segue o maior");
 });
 
-test("usuários: \"pronto\" = backend do meu-bot na conta e o Hermes como agente (o que o onboarding da criação deixa)", () => {
-  assert.match(LISTAR_SH, /\.local\/share\/meu-bot\/backend\/\.env/);
-  assert.match(LISTAR_SH, /whatsapp-agente[^\n]*= hermes \] && pr=1 \|\| pr=0/);
+test("usuários: \"pronto\" = backend do meu-bot na conta e o agente gravado no fim do preparo (Hermes ou OpenClaw)", async () => {
+  const { execFileSync } = await import("node:child_process");
+  const { mkdtempSync, mkdirSync, writeFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  // A linha do LISTAR_SH que decide o pronto, rodada de verdade num sh com uma conta falsa.
+  const linhaPr = LISTAR_SH.split("\n").find((l) => l.includes("pr=1 || pr=0"));
+  assert.ok(linhaPr, "LISTAR_SH tem a linha do pronto");
+  const pronto = (backend, motor) => {
+    const h = mkdtempSync(join(tmpdir(), "conta-"));
+    mkdirSync(join(h, ".local/share/meu-bot/backend"), { recursive: true });
+    if (backend) writeFileSync(join(h, ".local/share/meu-bot/backend/.env"), "PORT=1\n");
+    if (motor !== undefined) writeFileSync(join(h, ".local/share/meu-bot/whatsapp-agente"), motor);
+    return execFileSync("/bin/sh", ["-c", `h="$1"; ${linhaPr}; echo "$pr"`, "sh", h], { encoding: "utf8" }).trim();
+  };
+  assert.equal(pronto(true, "hermes\n"), "1");
+  assert.equal(pronto(true, "openclaw\n"), "1", "conta com OpenClaw (o box-kevo): o botão Preparar não ficava para sempre");
+  assert.equal(pronto(true, " openclaw \n"), "1", "espaços e quebra de linha não contam");
+  assert.equal(pronto(true, undefined), "0", "preparo parou antes de gravar o agente");
+  assert.equal(pronto(true, "picoclaw\n"), "0", "o preparo só termina com Hermes ou OpenClaw");
+  assert.equal(pronto(false, "openclaw\n"), "0", "sem o backend não está pronto");
   const linha = (pr) => `ROOT\nU\tbox-9\t1009\t/home/box-9\t/bin/bash\t0\t1\t1\t\t\t0\tinfinity\tinfinity\t\t1${pr === undefined ? "" : `\t${pr}`}\n`;
   assert.equal(lerUsuarios(linha("1")).usuarios[0].pronto, true);
   assert.equal(lerUsuarios(linha("0")).usuarios[0].pronto, false);
