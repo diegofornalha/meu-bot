@@ -20,7 +20,7 @@ import { deletePerfil, getAdminFirebase, getAdminVisao, patchLicenca, postAdminS
 import { downloadMac, REPO } from "./release-github.js";
 import { GUIAS, lerReleases, novidadesHtml, sitemapXml } from "./novidades-core.js";
 import { CSP_GA, gaIds } from "./analytics-core.js";
-import { paraHttps } from "./site-core.js";
+import { paraHttps, semBarraFinal } from "./site-core.js";
 import { deleteMembro, deleteOrg, getOrg, getOrgPublico, getOrgs, patchAdminOrg, patchMembro, patchOrg, postMembro, postOrg } from "./rotas/orgs.js";
 
 const SEGURANCA: Record<string, string> = {
@@ -172,6 +172,9 @@ async function listarReleases(): Promise<ReturnType<typeof lerReleases>> {
   } catch { return []; }
 }
 async function sitePagina(req: Request, env: Env, url: URL): Promise<Response> {
+  // "/baixar/" e afins: 301 para o caminho sem a barra (a versão que está no sitemap e nos canonicals), com a query.
+  const sem = semBarraFinal(url.pathname);
+  if (sem !== null) return comCabecalhos(Response.redirect(`${env.SITE_ORIGIN}${sem}${url.search}`, 301), {});
   if (url.pathname === "/config.js") return comCabecalhos(configJs({ console: env.CONSOLE_ORIGIN, canal: env.CANAL, ga: gaDoEnv(env) }), {});
   // "Console da conta" e "Não tem uma conta?" na home: sem depender de JS, o site manda ao console do ambiente certo.
   if (url.pathname === "/console" || url.pathname.startsWith("/account")) return comCabecalhos(Response.redirect(`${env.CONSOLE_ORIGIN}${url.pathname.startsWith("/account") ? url.pathname : "/account/overview"}`, 302), { "cache-control": "no-store" });
