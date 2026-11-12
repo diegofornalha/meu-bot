@@ -15,8 +15,10 @@ export function gaIds(raw: string | null | undefined): string[] {
 /** Domínios que a CSP precisa liberar para a tag do Google (gtag.js e os destinos dos dados). */
 export const CSP_GA = {
   script: "https://www.googletagmanager.com",
-  connect: "https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com",
-  img: "https://*.google-analytics.com https://*.googletagmanager.com",
+  // analytics.google.com (sem subdomínio) e stats.g.doubleclick.net também recebem o /g/collect: o *. não cobre o domínio
+  // raiz, e o Lighthouse mostrou envios bloqueados pela CSP (12/11/2026).
+  connect: "https://*.google-analytics.com https://analytics.google.com https://*.analytics.google.com https://*.googletagmanager.com https://stats.g.doubleclick.net",
+  img: "https://*.google-analytics.com https://*.googletagmanager.com https://stats.g.doubleclick.net",
 } as const;
 
 /** Origem + caminho de uma URL, sem query nem fragmento ("https://console…/account/plan"); null se a URL não é legível. */
