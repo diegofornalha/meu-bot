@@ -65,30 +65,47 @@ export function novidadesHtml(releases: readonly ReleaseResumo[]): string {
 </article>`).join("\n");
 }
 
-/** Sitemap com lastmod: a home e /novidades mudam a cada release; privacidade e termos têm a data da última revisão. */
 /** Os guias publicados em /guias/<slug> (arquivo em public/site/guias/<slug>.html): a rota e o sitemap leem esta lista. */
 export const GUIAS = ["ia-para-pequena-empresa", "responder-clientes-whatsapp-fora-do-horario", "ia-que-le-seu-gmail"] as const;
 
-export function sitemapXml(origem: string, ultimaRelease: string | null, revisaoLegal: string): string {
-  const data = (iso: string | null): string => { const t = iso === null ? NaN : Date.parse(iso); return Number.isNaN(t) ? "" : `\n    <lastmod>${new Date(t).toISOString().slice(0, 10)}</lastmod>`; };
-  const url = (caminho: string, lastmod: string | null, changefreq: string, priority: string, alternates = false): string => `  <url>
-    <loc>${origem}${caminho}</loc>${alternates ? `\n    <xhtml:link rel="alternate" hreflang="pt-BR" href="${origem}${caminho}"/>\n    <xhtml:link rel="alternate" hreflang="x-default" href="${origem}${caminho}"/>` : ""}${data(lastmod)}
-    <changefreq>${changefreq}</changefreq>
-    <priority>${priority}</priority>
+/**
+ * Data da última mudança de cada página de texto, para o lastmod do sitemap: o Google ignora lastmod que muda junto em
+ * todas as URLs. Vem de `git log -1 --format=%cs -- conta-api/public/site/<arquivo>.html`; quem mexer no conteúdo de uma
+ * página atualiza a data dela aqui. A home, /baixar e /novidades não estão no mapa: levam a data da release mais nova.
+ */
+export const REVISAO_PAGINAS: Readonly<Record<string, string>> = {
+  "/grok-no-whatsapp": "2026-11-12",
+  "/parceria-xai": "2026-11-12",
+  "/perguntas": "2026-11-12",
+  "/grok-bot-e-meu-bot": "2026-11-12",
+  "/guias": "2026-11-12",
+  "/guias/ia-para-pequena-empresa": "2026-11-12",
+  "/guias/responder-clientes-whatsapp-fora-do-horario": "2026-11-12",
+  "/guias/ia-que-le-seu-gmail": "2026-11-12",
+  "/privacidade": "2026-11-12",
+  "/termos": "2026-11-12",
+};
+
+/** Sitemap com lastmod por URL: a home, /baixar e /novidades mudam a cada release; as outras têm a data de `revisoes`. */
+export function sitemapXml(origem: string, ultimaRelease: string | null, revisoes: Readonly<Record<string, string>> = REVISAO_PAGINAS): string {
+  const data = (iso: string | null | undefined): string => { const t = iso == null ? NaN : Date.parse(iso); return Number.isNaN(t) ? "" : `\n    <lastmod>${new Date(t).toISOString().slice(0, 10)}</lastmod>`; };
+  const url = (caminho: string, lastmod: string | null | undefined): string => `  <url>
+    <loc>${origem}${caminho}</loc>${data(lastmod)}
   </url>`;
+  const pagina = (caminho: string): string => url(caminho, revisoes[caminho]);
   return `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
-${url("/", ultimaRelease, "weekly", "1.0", true)}
-${url("/baixar", ultimaRelease, "weekly", "0.9")}
-${url("/novidades", ultimaRelease, "weekly", "0.7")}
-${url("/grok-no-whatsapp", revisaoLegal, "monthly", "0.8")}
-${url("/parceria-xai", revisaoLegal, "monthly", "0.8")}
-${url("/perguntas", revisaoLegal, "monthly", "0.7")}
-${url("/grok-bot-e-meu-bot", revisaoLegal, "monthly", "0.7")}
-${url("/guias", revisaoLegal, "weekly", "0.6")}
-${GUIAS.map((g) => url(`/guias/${g}`, revisaoLegal, "monthly", "0.6")).join("\n")}
-${url("/privacidade", revisaoLegal, "yearly", "0.3")}
-${url("/termos", revisaoLegal, "yearly", "0.3")}
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${url("/", ultimaRelease)}
+${url("/baixar", ultimaRelease)}
+${url("/novidades", ultimaRelease)}
+${pagina("/grok-no-whatsapp")}
+${pagina("/parceria-xai")}
+${pagina("/perguntas")}
+${pagina("/grok-bot-e-meu-bot")}
+${pagina("/guias")}
+${GUIAS.map((g) => pagina(`/guias/${g}`)).join("\n")}
+${pagina("/privacidade")}
+${pagina("/termos")}
 </urlset>
 `;
 }

@@ -20,7 +20,7 @@ import { deletePerfil, getAdminFirebase, getAdminVisao, patchLicenca, postAdminS
 import { downloadMac, REPO } from "./release-github.js";
 import { GUIAS, lerReleases, novidadesHtml, sitemapXml } from "./novidades-core.js";
 import { CSP_GA, gaIds } from "./analytics-core.js";
-import { ehAliasDoSite, paraHttps, semBarraFinal } from "./site-core.js";
+import { caminhoCanonico, redirecionamentoInicial } from "./site-core.js";
 import { deleteMembro, deleteOrg, getOrg, getOrgPublico, getOrgs, patchAdminOrg, patchMembro, patchOrg, postMembro, postOrg } from "./rotas/orgs.js";
 
 const SEGURANCA: Record<string, string> = {
@@ -162,8 +162,6 @@ const cspDoSite = (env: Env): string => {
     "style-src 'self'", "base-uri 'none'", "form-action 'none'", "frame-ancestors 'none'",
   ].join("; ");
 };
-/** Data da última revisão das páginas de texto (privacidade, termos, Grok no WhatsApp, parceria, perguntas; vai no sitemap). */
-const REVISAO_PAGINAS = "2026-11-12";
 /** As releases estáveis do GitHub para /novidades (mesmo cache de 10 min do download). [] = GitHub fora ou sem release. */
 async function listarReleases(): Promise<ReturnType<typeof lerReleases>> {
   try {
@@ -172,8 +170,8 @@ async function listarReleases(): Promise<ReturnType<typeof lerReleases>> {
   } catch { return []; }
 }
 async function sitePagina(req: Request, env: Env, url: URL): Promise<Response> {
-  // "/baixar/" e afins: 301 para o caminho sem a barra (a versão que está no sitemap e nos canonicals), com a query.
-  const sem = semBarraFinal(url.pathname);
+  // "/baixar/" e afins, e "/index.html": 301 para o caminho canônico (o do sitemap e dos canonicals), com a query.
+  const sem = caminhoCanonico(url.pathname);
   if (sem !== null) return comCabecalhos(Response.redirect(`${env.SITE_ORIGIN}${sem}${url.search}`, 301), {});
   if (url.pathname === "/config.js") return comCabecalhos(configJs({ console: env.CONSOLE_ORIGIN, canal: env.CANAL, ga: gaDoEnv(env) }), {});
   // "Console da conta" e "Não tem uma conta?" na home: sem depender de JS, o site manda ao console do ambiente certo.
@@ -183,10 +181,10 @@ async function sitePagina(req: Request, env: Env, url: URL): Promise<Response> {
     if (url.pathname.endsWith(".json")) return comCabecalhos(json(d ?? { erro: "release não encontrada" }, d === null ? 503 : 200, { "cache-control": "public, max-age=300" }), {});
     return comCabecalhos(Response.redirect(d?.url ?? `https://github.com/${REPO}/releases/latest`, 302), { "cache-control": "no-store" });
   }
-  // /sitemap.xml é montado aqui: a home e /novidades levam a data da release mais nova; privacidade e termos, a da revisão.
+  // /sitemap.xml é montado aqui: a home, /baixar e /novidades levam a data da release mais nova; as outras, a de REVISAO_PAGINAS.
   if (url.pathname === "/sitemap.xml") {
     const d = await downloadMac();
-    return comCabecalhos(new Response(sitemapXml(env.SITE_ORIGIN, d?.publicadoEm ?? null, REVISAO_PAGINAS), { headers: { "content-type": "application/xml; charset=utf-8", "cache-control": "public, max-age=3600" } }), {});
+    return comCabecalhos(new Response(sitemapXml(env.SITE_ORIGIN, d?.publicadoEm ?? null), { headers: { "content-type": "application/xml; charset=utf-8", "cache-control": "public, max-age=3600" } }), {});
   }
   // /novidades: as releases estáveis do GitHub (cache de 10 min no edge) dentro de public/site/novidades.html.
   if (url.pathname === "/novidades") {
@@ -198,7 +196,7 @@ async function sitePagina(req: Request, env: Env, url: URL): Promise<Response> {
   // Guias: só os da lista GUIAS (o resto cai na 404 do site).
   const guia = /^\/guias\/([a-z0-9-]+)$/.exec(url.pathname)?.[1];
   if (guia && (GUIAS as readonly string[]).includes(guia)) raiz[url.pathname] = `/site/guias/${guia}.html`;
-  const caminho = url.pathname === "/" || url.pathname === "/index.html" ? "/site/index.html" : url.pathname === "/obrigado" ? "/site/obrigado.html" : raiz[url.pathname] ?? url.pathname;
+  const caminho = url.pathname === "/" ? "/site/index.html" : url.pathname === "/obrigado" ? "/site/obrigado.html" : raiz[url.pathname] ?? url.pathname;
   let res = await env.ASSETS.fetch(new Request(new URL(caminho, url.origin).toString(), { method: "GET", headers: req.headers }));
   // Caminho que não existe: a página 404 do site (com status 404), em vez do corpo vazio dos assets.
   if (res.status === 404 && !url.pathname.startsWith("/site/")) res = new Response((await env.ASSETS.fetch(new Request(new URL("/site/404.html", url.origin).toString()))).body, { status: 404, headers: { "content-type": "text/html; charset=utf-8" } });
@@ -225,12 +223,11 @@ export default {
     const url = new URL(req.url);
     const origem = `https://${url.host}`;
     try {
-      // http:// chega aqui com o conteúdo inteiro (o Worker atende os dois): vira 301 para o https antes de qualquer rota.
-      const seguro = paraHttps(req.url);
-      if (seguro !== null) return comCabecalhos(Response.redirect(seguro, 301), {});
+      // Antes de qualquer rota, num salto só: www. e o .com.br (com e sem www, http ou https) vão direto para o site
+      // principal, com o caminho e a query (utm, gclid); o resto que chega por http:// (o Worker atende os dois) vira https.
+      const destino = redirecionamentoInicial(req.url, env.SITE_ORIGIN);
+      if (destino !== null) return comCabecalhos(Response.redirect(destino, 301), {});
       if (origem === env.SITE_ORIGIN) return await sitePagina(req, env, url);
-      // www. e o .com.br (com e sem www) só redirecionam para o site principal, com o caminho e a query (utm, gclid).
-      if (ehAliasDoSite(url.host, env.SITE_ORIGIN)) return comCabecalhos(Response.redirect(`${env.SITE_ORIGIN}${url.pathname}${url.search}`, 301), {});
       return origem === env.AUTH_ORIGIN ? await pagina(req, env, url) : origem === env.CONSOLE_ORIGIN ? await consolePagina(req, env, url) : await api(req, env, url);
     } catch (e) {
       console.log(`[conta-api] ${req.method} ${url.pathname}: ${e instanceof Error ? e.stack ?? e.message : String(e)}`);
