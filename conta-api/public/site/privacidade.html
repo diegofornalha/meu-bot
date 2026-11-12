@@ -45,6 +45,7 @@
     <ul>
       <li><strong>Cadastro</strong>: o e-mail e o nome que vêm do seu login (Google, link por e-mail ou senha, pelo Firebase Authentication), e a foto de perfil, se o Google a fornecer.</li>
       <li><strong>Plano</strong>: plano, situação (teste, ativo, vencido), data de início do teste e os Macs em que você entrou (nome do computador e quando entrou), para aplicar o limite de Macs da conta.</li>
+      <li><strong>Assinatura</strong>: se você assina o Pro pelo console, o pagamento é feito na página da <a href="https://abacatepay.com" rel="noopener">AbacatePay</a>, que recebe e guarda os dados de pagamento (cartão, CPF ou CNPJ) sob a política dela. Na conta meu-bot ficam só o código da assinatura, a situação dela, o valor e a data de cada cobrança. Nunca recebemos o número do cartão.</li>
       <li><strong>Organizações</strong>: nome e endereço da organização que você cria e os e-mails que você convida.</li>
       <li><strong>Dados de uso</strong>: só se você ligar "enviar dados de uso" no console. Desligado, nada é enviado.</li>
     </ul>
@@ -57,10 +58,12 @@
     <h2>O site e as medições</h2>
     <p>O site agentesgrok.com e as páginas de login e do console usam o Google Analytics 4 para medir visitas e cliques (por exemplo, quantas pessoas baixaram o app). Fazemos isso sem enviar e-mail, nome ou qualquer identificador seu: dos endereços de página só vão os parâmetros de campanha (como <code>utm_source</code> e o <code>gclid</code> do Google Ads), e os parâmetros de login são encobertos. Os cookies do Google Analytics servem só para distinguir visitas; os cookies de sessão do console servem para manter você logado.</p>
     <p>Quando você chega por um anúncio do Google Ads, medimos de qual anúncio veio quem baixou o app ou criou a conta, para saber quais anúncios funcionam. Não fazemos remarketing (anúncios que seguem você depois da visita), não personalizamos anúncios e os sinais do Google ficam desligados.</p>
+    <p>Quando uma assinatura é paga, o servidor avisa o Google Analytics da compra (valor e código do pagamento) usando o número aleatório que o próprio Analytics criou no seu navegador. Assim a compra conta para a visita de onde você veio, sem enviar seu e-mail, nome ou dados de pagamento.</p>
 
     <h2>Por quanto tempo</h2>
     <ul>
       <li>Conta: enquanto ela existir. Você apaga a conta no console (Perfil › Apagar conta); os dados são removidos na hora, e as cópias de segurança são descartadas em até 30 dias.</li>
+      <li>Cobranças da assinatura: pelo prazo que a lei fiscal exige (em regra, 5 anos), mesmo depois de a conta ser apagada.</li>
       <li>Medições do site: 14 meses, o prazo configurado no Google Analytics.</li>
       <li>Registros técnicos (erros e acessos ao servidor): até 30 dias.</li>
     </ul>

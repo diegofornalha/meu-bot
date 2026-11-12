@@ -8,6 +8,8 @@
  * - conta.agentesgrok.com: a API (POST /sessao, POST /token, POST /sessao/sair, GET|PATCH|DELETE /conta, POST /conta/senha,
  *   GET /health; organizações GET|POST /orgs, GET /orgs/:slug/publico (sem login), GET|PATCH|DELETE /orgs/:slug, POST /orgs/:slug/membros, PATCH|DELETE /orgs/:slug/membros/:email;
  *   para admins GET /admin/visao, POST /admin/suporte (o admin-gestao envia o resumo de uma janela de suporte), GET /admin/suporte (só super: console /support-window), PATCH /admin/contas/:id/licenca, POST|PUT /admin/contas/:id/senha, POST /admin/pedidos/:id/atender, PUT|DELETE /admin/perfis/:email, PATCH /admin/orgs/:slug).
+ * Assinatura do Pro pela AbacatePay: POST /conta/assinatura (logado, devolve a url do pagamento) e o webhook
+ * POST /pagamentos/abacatepay (src/rotas/pagamentos.ts); desligados sem os secrets ABACATEPAY_*.
  * Em staging, *-staging. com D1 próprio. Tudo que chega é dado: as rotas validam campo a campo.
  */
 import type { Env } from "./tipos.js";
@@ -21,6 +23,7 @@ import { downloadMac, REPO } from "./release-github.js";
 import { GUIAS, lerReleases, novidadesHtml, sitemapXml } from "./novidades-core.js";
 import { CSP_GA, gaIds } from "./analytics-core.js";
 import { caminhoCanonico, redirecionamentoInicial } from "./site-core.js";
+import { pagamentosLigados, postAssinatura, postWebhookAbacate } from "./rotas/pagamentos.js";
 import { deleteMembro, deleteOrg, getOrg, getOrgPublico, getOrgs, patchAdminOrg, patchMembro, patchOrg, postMembro, postOrg } from "./rotas/orgs.js";
 
 const SEGURANCA: Record<string, string> = {
@@ -97,14 +100,14 @@ const cspDoConsole = (env: Env): string => ["default-src 'self'", `script-src 's
  */
 async function consolePagina(req: Request, env: Env, url: URL): Promise<Response> {
   if (url.pathname === "/robots.txt") return comCabecalhos(robotsFechado(), {});
-  if (url.pathname === "/config.js") return comCabecalhos(configJs({ api: env.API_ORIGIN, auth: env.AUTH_ORIGIN, console: env.CONSOLE_ORIGIN, site: env.SITE_ORIGIN, canal: env.CANAL, ga: gaDoEnv(env) }), {});
+  if (url.pathname === "/config.js") return comCabecalhos(configJs({ api: env.API_ORIGIN, auth: env.AUTH_ORIGIN, console: env.CONSOLE_ORIGIN, site: env.SITE_ORIGIN, canal: env.CANAL, ga: gaDoEnv(env), pagamentos: pagamentosLigados(env) ? "1" : "" }), {});
   const caminho = /\.[a-z0-9]{1,8}$/i.test(url.pathname) && !url.pathname.endsWith(".html") ? url.pathname : "/console/index.html";
   const res = await env.ASSETS.fetch(new Request(new URL(caminho, url.origin).toString(), { method: "GET", headers: req.headers }));
   // Tudo sem cache: o console muda junto com a API, e um JS velho de 5 min já mostrou tela errada depois de um deploy.
   return comCabecalhos(res, { "content-security-policy": cspDoConsole(env), "cache-control": "no-store" });
 }
 
-async function api(req: Request, env: Env, url: URL): Promise<Response> {
+async function api(req: Request, env: Env, url: URL, espera: (p: Promise<unknown>) => void): Promise<Response> {
   if (req.method === "OPTIONS") return cors(req, env, new Response(null, { status: 204 }));
   const rota = `${req.method} ${url.pathname.replace(/\/+$/, "") || "/"}`;
   let res: Response;
@@ -112,7 +115,9 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
   else if (rota === "POST /sessao") res = await postSessao(req, env);
   else if (/^GET \/orgs\/[a-z0-9-]{1,40}\/publico$/.test(rota)) res = await getOrgPublico(env, rota.split("/")[2]!);
   else if (rota === "POST /token") res = await postToken(req, env);
-  else if (rota === "POST /sessao/sair" || rota === "POST /sessao/console" || rota === "GET /conta" || rota === "PATCH /conta" || rota === "DELETE /conta" || rota === "POST /conta/senha" || /^(GET|POST|PATCH|DELETE) \/orgs(\/|$)/.test(rota) || rota.startsWith("GET /admin/") || rota.startsWith("POST /admin/") || rota.startsWith("PATCH /admin/") || rota.startsWith("PUT /admin/") || rota.startsWith("DELETE /admin/")) {
+  // Webhook da AbacatePay: sem login (prova a origem pelo secret e o corpo pela assinatura) e sem CORS.
+  else if (rota === "POST /pagamentos/abacatepay") return comCabecalhos(await postWebhookAbacate(req, env, url, espera), {});
+  else if (rota === "POST /sessao/sair" || rota === "POST /sessao/console" || rota === "GET /conta" || rota === "PATCH /conta" || rota === "DELETE /conta" || rota === "POST /conta/senha" || rota === "POST /conta/assinatura" || /^(GET|POST|PATCH|DELETE) \/orgs(\/|$)/.test(rota) || rota.startsWith("GET /admin/") || rota.startsWith("POST /admin/") || rota.startsWith("PATCH /admin/") || rota.startsWith("PUT /admin/") || rota.startsWith("DELETE /admin/")) {
     const auth = await autenticar(req, env);
     const atender = /^POST \/admin\/pedidos\/([A-Za-z0-9-]{1,40})\/atender$/.exec(rota);
     const licenca = /^PATCH \/admin\/contas\/([A-Za-z0-9-]{1,40})\/licenca$/.exec(rota);
@@ -134,6 +139,7 @@ async function api(req: Request, env: Env, url: URL): Promise<Response> {
     else if (rota === "PATCH /conta") res = await patchConta(auth, env, req);
     else if (rota === "DELETE /conta") res = await deleteConta(auth, env);
     else if (rota === "POST /conta/senha") res = await postSenha(auth, env);
+    else if (rota === "POST /conta/assinatura") res = await postAssinatura(auth, env, req);
     else if (rota === "POST /sessao/sair") res = await postSair(auth, env);
     else if (rota === "POST /sessao/console") res = await postSessaoConsole(auth, env, req);
     else if (rota === "GET /admin/visao") res = await getAdminVisao(auth, env, url);
@@ -220,7 +226,7 @@ function porCanal(res: Response, canal: "staging" | "producao"): Response {
 }
 
 export default {
-  async fetch(req: Request, env: Env): Promise<Response> {
+  async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
     const origem = `https://${url.host}`;
     try {
@@ -229,7 +235,7 @@ export default {
       const destino = redirecionamentoInicial(req.url, env.SITE_ORIGIN);
       if (destino !== null) return comCabecalhos(Response.redirect(destino, 301), {});
       if (origem === env.SITE_ORIGIN) return await sitePagina(req, env, url);
-      return origem === env.AUTH_ORIGIN ? await pagina(req, env, url) : origem === env.CONSOLE_ORIGIN ? await consolePagina(req, env, url) : await api(req, env, url);
+      return origem === env.AUTH_ORIGIN ? await pagina(req, env, url) : origem === env.CONSOLE_ORIGIN ? await consolePagina(req, env, url) : await api(req, env, url, (p) => ctx.waitUntil(p));
     } catch (e) {
       console.log(`[conta-api] ${req.method} ${url.pathname}: ${e instanceof Error ? e.stack ?? e.message : String(e)}`);
       return comCabecalhos(json({ erro: "falha interna; tente de novo" }, 500), {});

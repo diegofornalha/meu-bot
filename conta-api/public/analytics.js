@@ -9,7 +9,7 @@
   const cfg = window.MEU_BOT_CONTA || {};
   const ids = typeof cfg.ga === "string" ? [...new Set(cfg.ga.split(",").map((x) => x.trim()).filter((x) => /^G-[A-Z0-9]{6,12}$/.test(x)))] : [];
   const ambiente = cfg.canal === "staging" ? "staging" : "producao";
-  const nada = { pagina() { /* sem Analytics */ }, evento() { /* sem Analytics */ }, ligado: false, ambiente };
+  const nada = { pagina() { /* sem Analytics */ }, evento() { /* sem Analytics */ }, visita: () => Promise.resolve({ clientId: null, sessionId: null }), ligado: false, ambiente };
   if (ids.length === 0) { window.meuBotGa = nada; return; }
   window.dataLayer = window.dataLayer || [];
   window.gtag = function () { window.dataLayer.push(arguments); };
@@ -43,5 +43,17 @@
   const evento = (nome, params) => { window.gtag("event", nome, { ambiente, ...(params || {}) }); };
   /** Uma visualização de página com a URL limpa (SPA do console chama a cada troca de seção). */
   const pagina = (caminho, params) => { const cam = fixar(caminho); window.gtag("event", "page_view", { ambiente, manual: true, page_location: `${location.origin}${cam}${campanha()}`, page_path: cam, page_title: document.title, ...(params || {}) }); };
-  window.meuBotGa = { pagina, evento, ligado: true, ambiente };
+  /**
+   * O client_id e o session_id do GA4 desta pessoa (os dos cookies _ga), para o servidor mandar a compra paga à mesma
+   * visita pelo Measurement Protocol. Não são dados pessoais: são os números aleatórios que o próprio GA4 cria. Até 1,5 s;
+   * sem resposta (bloqueador), null.
+   */
+  const visita = () => new Promise((ok) => {
+    const r = { clientId: null, sessionId: null }; let n = 0;
+    const fim = setTimeout(() => ok(r), 1500);
+    const um = () => { if (++n === 2) { clearTimeout(fim); ok(r); } };
+    window.gtag("get", ids[0], "client_id", (v) => { r.clientId = typeof v === "string" ? v : null; um(); });
+    window.gtag("get", ids[0], "session_id", (v) => { r.sessionId = v === undefined || v === null ? null : String(v); um(); });
+  });
+  window.meuBotGa = { pagina, evento, visita, ligado: true, ambiente };
 })();

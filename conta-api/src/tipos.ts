@@ -25,6 +25,18 @@ export interface Env {
   LICENCA_PRIVATE_KEY?: string;
   /** Secret: JSON da conta de serviço do Firebase (só para o super admin definir senhas); sem ele, só o e-mail. */
   FIREBASE_ADMIN_SA?: string;
+  /** Secret: chave de API da AbacatePay (Modo Teste no staging, produção em produção). Sem ela, a assinatura fica desligada. */
+  ABACATEPAY_KEY?: string;
+  /** Secret: o secret do webhook v2 da AbacatePay (32+ caracteres), o mesmo cadastrado no dashboard. */
+  ABACATEPAY_WEBHOOK_SECRET?: string;
+  /** O produto de assinatura (prod_..., ciclo MONTHLY) criado na AbacatePay. */
+  ABACATEPAY_PRODUTO?: string;
+  /** Preço do Pro em centavos ("9700"): pagamento abaixo disso vai para revisão em vez de liberar. */
+  ABACATEPAY_PRECO_CENTAVOS?: string;
+  /** Formas de pagamento da assinatura: "CARD" ou "CARD,PIX" (Pix Automático precisa estar liberado na conta). */
+  ABACATEPAY_METODOS?: string;
+  /** Secret: api_secret do Measurement Protocol do fluxo Web do GA4 (a compra vai ao Analytics pelo servidor). */
+  GA_MP_SECRET?: string;
 }
 
 export interface ContaLinha {

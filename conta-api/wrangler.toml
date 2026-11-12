@@ -6,6 +6,9 @@
 #
 # Secrets (wrangler secret put, por ambiente): SESSAO_HMAC_KEY (32 bytes base64, assina os tokens de acesso),
 # LICENCA_PRIVATE_KEY (privada Ed25519 da licença, PKCS#8 DER base64: scripts/chave-licenca.mjs --copiar).
+# Assinatura do Pro (src/rotas/pagamentos.ts), opcionais: ABACATEPAY_KEY (chave de API; no staging, a do Modo Teste),
+# ABACATEPAY_WEBHOOK_SECRET (o secret do webhook v2, 32+ caracteres) e GA_MP_SECRET (api_secret do Measurement Protocol
+# do fluxo Web do GA4). Sem ABACATEPAY_KEY, o webhook ou ABACATEPAY_PRODUTO, o console não mostra "Assinar".
 # Vars (abaixo): projeto Firebase, origem da página e o e-mail do primeiro super admin.
 name = "conta-api"
 main = "src/index.ts"
@@ -91,6 +94,11 @@ database_id = "609f1493-e49e-446e-a36b-fe98cbf91df1"
 migrations_dir = "migrations"
 [env.staging.vars]
 CANAL = "staging"
+# Produto "meu-bot Pro mensal" (R$ 97, mensal) da loja meu-bot no Modo Teste da AbacatePay. Em produção, o produto
+# real entra junto com a chave de produção, depois do teste completo aqui.
+ABACATEPAY_PRODUTO = "prod_12Das4f2bcXQtaR0bs4hrXms"
+ABACATEPAY_PRECO_CENTAVOS = "9700"
+ABACATEPAY_METODOS = "CARD"
 AUTH_ORIGIN = "https://auth-staging.agentesgrok.com"
 API_ORIGIN = "https://conta-staging.agentesgrok.com"
 CONSOLE_ORIGIN = "https://console-staging.agentesgrok.com"

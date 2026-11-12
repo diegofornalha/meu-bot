@@ -677,6 +677,17 @@ function pintarDevices(c) {
   }
   $("dv-maquinas").textContent = c.maquinas.length === 0 ? "Nenhuma máquina (VM) vinculada à conta ainda." : `Máquinas vinculadas: ${c.maquinas.map((m) => m.apelido ?? m.id.slice(0, 8)).join(", ")}.`;
 }
+let esperasPagamento = 0;
+/** "Assinar": pede o checkout à API (com o client_id/session_id do GA4, para a compra ir à mesma visita) e vai para a página da AbacatePay. */
+async function assinar() {
+  const s = sessaoGuardada();
+  if (s === null) { void entrar(); return; }
+  const btn = $("pl-assinar-btn"); btn.disabled = true; $("pl-assinar-aviso").textContent = "Abrindo a página de pagamento…";
+  const v = typeof ga.visita === "function" ? await ga.visita() : { clientId: null, sessionId: null };
+  const r = await api("POST", "/conta/assinatura", { gaClientId: v.clientId, gaSessionId: v.sessionId }, s.acesso);
+  if (r.status === 200 && r.corpo && typeof r.corpo.url === "string") { ga.evento("checkout_iniciado", { plano: "chip-coflow" }); location.assign(r.corpo.url); return; }
+  btn.disabled = false; $("pl-assinar-aviso").textContent = erroDe(r);
+}
 function pintarPlano(c) {
   const l = c.licenca;
   $("pl-cartoes").replaceChildren(
@@ -687,6 +698,12 @@ function pintarPlano(c) {
     cartao("▭", "Limite de devices", document.createTextNode(String(l.deviceLimit))),
     cartao("+", "Add-ons", ...(l.produtos.length > 0 ? l.produtos.map((p) => selo(p)) : [document.createTextNode("nenhum")])),
   );
+  // Assinar pela AbacatePay: só com os pagamentos ligados no Worker (config.js) e enquanto não há Pro pago ativo.
+  const pagoAtivo = l.plan === "pro" && l.status === "active";
+  $("pl-assinar").hidden = cfg.pagamentos !== "1" || pagoAtivo;
+  const voltou = new URLSearchParams(location.search).get("assinatura") === "paga";
+  if (voltou) $("pl-assinar-aviso").textContent = pagoAtivo ? "Pagamento confirmado: o Pro está ativo." : "Recebemos você de volta. Assim que a AbacatePay confirmar o pagamento, o Pro aparece aqui (costuma levar alguns segundos).";
+  if (voltou && !pagoAtivo && esperasPagamento < 10) { esperasPagamento++; setTimeout(() => { void lerConta().then((c2) => { if (c2) pintarPlano(c2); }).catch(() => undefined); }, 3000); }
   const pg = l.pagamento;
   $("pl-pagamento").hidden = !pg;
   if (pg) { $("pl-instrucoes").textContent = pg.instrucoes; const link = typeof pg.link === "string" && /^https?:\/\//.test(pg.link); $("pl-link").hidden = !link; if (link) $("pl-link").href = pg.link; }
@@ -697,6 +714,7 @@ function pintarSuporte(c) {
 }
 
 // ---- arranque
+$("pl-assinar-btn").addEventListener("click", () => { void assinar(); });
 $("btn-entrar").addEventListener("click", () => { $("btn-entrar").disabled = true; void entrar(); });
 $("btn-sair").addEventListener("click", () => { void sair(); });
 $("pf-form").addEventListener("submit", (ev) => { ev.preventDefault(); void perfilSalvar(); });
