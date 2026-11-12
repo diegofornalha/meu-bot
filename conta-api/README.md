@@ -93,6 +93,8 @@ nesta versão: o rodapé do site diz que medimos visitas sem anúncios e sem dad
 | login | `sem_app_visto` | `acao`: `visto`, `baixar`, `console`, `signup` |
 | login | `login_org_visto`, `login_org_perguntado` | `com_slug`, `achada` |
 | cadastro | `cadastro_iniciado`, `cadastro_concluido`, `cadastro_falhou` | `cadastro_concluido` sai no /signup e também no login, quando a conta Firebase nasce ali (`via: login`, `metodo`: `google`, `link`); `metodo`: `senha`, `google`; `motivo`: `senha-curta`, `email-em-uso`, `senha-fraca`, `email-invalido`, `popup-fechado`, `google`, `outro` |
+| console | `checkout_iniciado` | `plano`: `chip-coflow` (clique em "Assinar", antes de ir à AbacatePay) |
+| servidor | `purchase`, `assinatura_renovada` | Measurement Protocol, no client_id/session_id do console guardado no checkout: `transaction_id` (id do pagamento), `value`, `currency: BRL`, `items`. `purchase` só na primeira cobrança (é o que o Google Ads importa); renovações vão como `assinatura_renovada` |
 | console | `page_view` | `secao` (`overview`, `plan`, `org`, `entrada`…), caminho anonimizado |
 | console | `console_entrada`, `console_saida` | `via`: `app`, `login`; `admin` |
 | console | `org_criada`, `org_apagada`, `convite_enviado`, `membro_removido` | `papel`, `status`, `eu` |
@@ -126,3 +128,36 @@ e na propriedade existe a regra Administrador › Fluxo › Modificar eventos "p
 page_view_tag" (`event_name` igual a `page_view` e `manual` não é igual a `true` → `event_name = page_view_tag`), que
 tira o automático da métrica de visualizações. O fragmento (`#code&verifier`) nunca vai no pedido; as chaves da query
 são encobertas. Se um dia a tag passar a respeitar o `send_page_view`, a regra simplesmente deixa de casar.
+
+## Assinatura do Pro (AbacatePay)
+
+O console › Plano mostra "Assinar por R$ 97/mês" quando o Worker tem `ABACATEPAY_KEY`, `ABACATEPAY_WEBHOOK_SECRET` e
+`ABACATEPAY_PRODUTO`. O fluxo (código em `src/rotas/pagamentos.ts`, regras testadas em `src/pagamento-core.ts`):
+
+1. `POST /conta/assinatura` cria um checkout de assinatura na AbacatePay com `externalId = mb_<uuid>` e guarda, em
+   `pagamento_checkouts`, a conta e o client_id/session_id do GA4. Devolve a `url`; o console vai para lá.
+2. A AbacatePay chama `POST /pagamentos/abacatepay` (webhook v2). O Worker confere o secret (`X-Webhook-Secret`) e a
+   assinatura HMAC-SHA256 do corpo bruto (`X-Webhook-Signature`), grava o `id` do evento em `webhook_eventos` (repetido
+   = 200 sem processar) e decide:
+   - `subscription.completed` / `subscription.renewed` pagos e com valor ≥ `ABACATEPAY_PRECO_CENTAVOS`: Pro ativo, mensal,
+     até um mês de calendário + 3 dias (nunca encurta). Cada pagamento entra uma vez em `pagamentos`. A compra vai ao
+     GA4 se houver `GA_MP_SECRET` e client_id.
+   - `checkout.completed` é ignorado (é o mesmo pagamento da assinatura).
+   - `subscription.cancelled`: a assinatura vira `CANCELLED`; o Pro segue até o fim do mês pago.
+   - Reembolso, disputa, valor abaixo do preço ou externalId estranho: pedido `pagamento.revisar` para o admin
+     (console › Suporte). Ninguém perde o Pro automaticamente.
+   - Produção ignora eventos do Modo Teste (`devMode: true`), e o staging ignora eventos reais.
+
+Ligar num ambiente (o staging usa a loja no Modo Teste):
+
+```bash
+npx wrangler d1 migrations apply conta-staging --env staging --remote   # 0006_pagamentos.sql
+npx wrangler secret put ABACATEPAY_KEY --env staging                     # chave com SUBSCRIPTION:CREATE
+npx wrangler secret put ABACATEPAY_WEBHOOK_SECRET --env staging          # o mesmo secret do webhook no dashboard
+npx wrangler secret put GA_MP_SECRET --env staging                       # GA4 › fluxo Web › Measurement Protocol
+```
+
+No dashboard da AbacatePay: produto de assinatura mensal (o `prod_...` vai em `ABACATEPAY_PRODUTO`, `wrangler.toml`) e
+um webhook v2 para `https://conta[-staging].agentesgrok.com/pagamentos/abacatepay` com os eventos
+`subscription.completed`, `subscription.renewed`, `subscription.cancelled`, `subscription.payment_failed`,
+`checkout.refunded`, `checkout.disputed` e `checkout.lost`.
