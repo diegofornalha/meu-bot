@@ -28,3 +28,22 @@ export function ehAliasDoSite(host: string, siteOrigin: string): boolean {
   const h = host.toLowerCase();
   return h === `www.${base}` || h === `${base}.br` || h === `www.${base}.br`;
 }
+
+/**
+ * O 301 que o Worker dá antes de qualquer rota, num salto só: alias do site (www., .com.br), em http ou https, vai
+ * direto para o site principal com o caminho e a query (utm, gclid); o resto em http vira https. null quando não há
+ * o que redirecionar. Ex.: http://www.agentesgrok.com/baixar?x=1 → https://agentesgrok.com/baixar?x=1, sem passar
+ * por https://www.agentesgrok.com.
+ */
+export function redirecionamentoInicial(url: string, siteOrigin: string): string | null {
+  let u: URL;
+  try { u = new URL(url); } catch { return null; }
+  if (ehAliasDoSite(u.host, siteOrigin)) return `${siteOrigin}${u.pathname}${u.search}`;
+  return paraHttps(url);
+}
+
+/** O caminho canônico do site, para o 301: "/index.html" vira "/" e "/baixar/" vira "/baixar"; null quando já é o canônico. */
+export function caminhoCanonico(caminho: string): string | null {
+  if (caminho === "/index.html") return "/";
+  return semBarraFinal(caminho);
+}

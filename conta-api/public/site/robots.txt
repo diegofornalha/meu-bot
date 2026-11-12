@@ -1,6 +1,7 @@
 # agentesgrok.com: a home do meu-bot. O console e a página de login ficam em outros hosts, fora do índice.
+# /obrigado não é bloqueado: ele tem meta noindex, e o Google só lê o noindex de quem pode visitar.
 User-agent: *
 Allow: /
-Disallow: /obrigado
+Allow: /download/mac.json
 Disallow: /download/
 Sitemap: https://agentesgrok.com/sitemap.xml
