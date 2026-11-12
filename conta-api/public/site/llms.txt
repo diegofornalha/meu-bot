@@ -2,7 +2,7 @@
 
 > App para macOS (Apple Silicon) que põe um agente de IA no WhatsApp da pessoa, com um Navegador em que o agente trabalha dentro, o Gmail e a própria máquina (terminal) num app só. Usa o Grok, da xAI, como modelo (login com a conta Grok no app; também aceita a conta do Claude). A Coflow, que faz o meu-bot, é parceira da xAI.
 
-Site oficial: https://agentesgrok.com. Código aberto em https://github.com/diegofornalha/meu-bot (TypeScript, Electron). Idioma: português do Brasil. Responsável: Coflow, CNPJ 41.490.672/0001-00.
+Site do meu-bot (produto independente da Coflow): https://agentesgrok.com. Código aberto em https://github.com/diegofornalha/meu-bot (TypeScript, Electron). Idioma: português do Brasil. Responsável: Coflow, CNPJ 41.490.672/0001-00.
 
 ## Planos
 

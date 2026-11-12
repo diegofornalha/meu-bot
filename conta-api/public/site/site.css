@@ -71,3 +71,9 @@ h2 { font-size: 20px; margin: 0 0 12px; }
 @keyframes alerta-brilho { 0%, 100% { box-shadow: 0 0 0 0 rgb(245 165 36 / .40); } 50% { box-shadow: 0 0 0 7px rgb(245 165 36 / 0); } }
 @keyframes alerta-ico { 0%, 60%, 100% { transform: rotate(0) scale(1); } 66% { transform: rotate(-12deg) scale(1.15); } 74% { transform: rotate(10deg) scale(1.15); } 82% { transform: rotate(-6deg) scale(1.08); } 90% { transform: rotate(0) scale(1); } }
 @media (prefers-reduced-motion: reduce) { .colunas p.alerta, .alerta-ico { animation: none; } }
+/* Tabelas de comparação nas páginas de texto (Grok Bot e meu-bot): rolam de lado no celular. */
+.tabela { overflow-x: auto; margin: 12px 0; }
+.legal table { border-collapse: collapse; width: 100%; min-width: 560px; font-size: 15px; }
+.legal th, .legal td { text-align: left; vertical-align: top; padding: 10px 12px; border-bottom: 1px solid var(--borda); }
+.legal th { color: var(--sub); font-weight: 600; }
+.legal td:first-child { font-weight: 600; }
