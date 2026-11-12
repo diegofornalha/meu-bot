@@ -4,7 +4,7 @@
 // a página oferece baixar o app (SITE_ORIGIN) ou ir ao console (não há "entrar no site": a conta vive no app). Com esquema=web (o console da conta),
 // a volta é para `retorno` (só a origem do console) com #code&state, em vez de um deep link.
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, signInWithEmailAndPassword, sendPasswordResetEmail, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, getAdditionalUserInfo, signOut, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, signInWithEmailAndPassword, sendPasswordResetEmail, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 
 const cfg = window.MEU_BOT_CONTA;
 const $ = (id) => document.getElementById(id);
@@ -85,7 +85,8 @@ if (!orgOk) {
   // O Firebase chama senha e link por e-mail de "password": a página diz qual foi, e a conta registra o provedor certo.
   const metodoDe = (user) => ((user.providerData ?? []).some((p) => p.providerId === "google.com") ? "google" : "emailLink");
   // `metodo` é o que a API registra (google, password, emailLink); `metodoGa` é o passo da pessoa (google, lembrado, senha, link).
-  async function concluir(user, metodo = metodoDe(user), metodoGa = metodo === "password" ? "senha" : metodo === "emailLink" ? "link" : metodo) {
+  // `novo`: a conta Firebase nasceu neste login (Google ou link); é o cadastro de quem veio direto do app, sem passar pelo /signup.
+  async function concluir(user, metodo = metodoDe(user), metodoGa = metodo === "password" ? "senha" : metodo === "emailLink" ? "link" : metodo, novo = false) {
     mostrar("aguardando");
     let idToken;
     try { idToken = await user.getIdToken(true); } catch (e) { pintarLembrado(null); falhou("A sessão lembrada venceu; entre de novo.", "sessao-vencida", metodoGa); return; }
@@ -93,6 +94,7 @@ if (!orgOk) {
     const j = await r.json().catch(() => ({}));
     if (!r.ok || typeof j.code !== "string") { falhou(j.erro ?? `a API respondeu ${r.status}`, "api", metodoGa); return; }
     // O evento sai antes de navegar (o gtag usa sendBeacon; mesmo assim, nunca depois da linha que sai da página).
+    if (novo) ga.evento("cadastro_concluido", { metodo: metodoGa === "link" ? "link" : metodoGa, via: "login" });
     ga.evento("login_concluido", { metodo: metodoGa, destino, ...comOrg });
     if (paraConsole) { location.replace(`${pedido.retorno}#code=${encodeURIComponent(j.code)}&state=${encodeURIComponent(pedido.state)}`); return; }
     const volta = `${pedido.esquema}://auth?code=${encodeURIComponent(j.code)}&state=${encodeURIComponent(pedido.state)}`;
@@ -125,7 +127,7 @@ if (!orgOk) {
   $("btn-google").addEventListener("click", async () => {
     mostrar("aguardando");
     ga.evento("login_iniciado", { metodo: "google", destino, ...comOrg });
-    try { const prov = new GoogleAuthProvider(); prov.setCustomParameters({ prompt: "select_account" }); const cred = await signInWithPopup(auth, prov); await concluir(cred.user, "google"); }
+    try { const prov = new GoogleAuthProvider(); prov.setCustomParameters({ prompt: "select_account" }); const cred = await signInWithPopup(auth, prov); await concluir(cred.user, "google", undefined, getAdditionalUserInfo(cred)?.isNewUser === true); }
     catch (e) { const fechado = e?.code === "auth/popup-closed-by-user"; falhou(fechado ? "A janela do Google foi fechada antes de terminar." : `Google: ${e?.message ?? e}`, fechado ? "popup-fechado" : "google", "google"); }
   });
 
@@ -179,7 +181,7 @@ if (!orgOk) {
     if (!email) { mostrar("escolha"); }
     else {
       mostrar("aguardando");
-      try { const cred = await signInWithEmailLink(auth, email.trim().toLowerCase(), location.href); try { localStorage.removeItem(CHAVE_EMAIL); } catch { /* ok */ } await concluir(cred.user, "emailLink"); }
+      try { const cred = await signInWithEmailLink(auth, email.trim().toLowerCase(), location.href); try { localStorage.removeItem(CHAVE_EMAIL); } catch { /* ok */ } await concluir(cred.user, "emailLink", undefined, getAdditionalUserInfo(cred)?.isNewUser === true); }
       catch (e) { falhou(`O link não serviu (${e?.code ?? e}). Peça um novo.`, "link-invalido", "link"); }
     }
   } else {
