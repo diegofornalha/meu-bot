@@ -170,18 +170,18 @@ test("instalar: o deeplink do Cursor traz o nome e a config em base64", () => {
 
 test("instalar: o estado do cliente compara url e chave, não só o nome", () => {
   const cfg = (servidores) => JSON.stringify({ outra: 1, mcpServers: servidores });
-  const certo = { type: "http", url: "http://127.0.0.1:7830/mcp", headers: { Authorization: `Bearer ${TOKEN}` } };
-  assert.equal(estadoCliente(null, "meu-bot", 7830, TOKEN), "ausente");
-  assert.equal(estadoCliente("{}", "meu-bot", 7830, TOKEN), "ausente");
-  assert.equal(estadoCliente(cfg({ outro: certo }), "meu-bot", 7830, TOKEN), "ausente");
-  assert.equal(estadoCliente(cfg({ "meu-bot": certo }), "meu-bot", 7830, TOKEN), "instalado");
-  assert.equal(estadoCliente(cfg({ "meu-bot": certo }), "meu-bot", 7830, "b".repeat(64)), "desatualizado", "chave nova");
-  assert.equal(estadoCliente(cfg({ "meu-bot": certo }), "meu-bot", 7840, TOKEN), "desatualizado", "porta nova");
-  assert.equal(estadoCliente(cfg({ "meu-bot": certo }), "meu-bot", 7830, ""), "desatualizado", "sem chave nunca é instalado");
-  assert.equal(estadoCliente(cfg({ "meu-bot": { command: "node", args: ["app-mcp.mjs"] } }), "meu-bot", 7830, TOKEN), "desatualizado", "outra forma de servidor com o mesmo nome");
-  assert.equal(estadoCliente("{ quebrado", "meu-bot", 7830, TOKEN), "ilegivel");
-  assert.equal(estadoCliente("[]", "meu-bot", 7830, TOKEN), "ilegivel");
-  assert.equal(estadoCliente(JSON.stringify({ mcpServers: [] }), "meu-bot", 7830, TOKEN), "ilegivel");
+  const certo = { type: "http", url: "http://127.0.0.1:7830/mcp", headers: { Authorization: `Bearer ${TOKEN}`, "X-Meu-Bot-Cliente": "Cursor" } };
+  assert.equal(estadoCliente(null, "meu-bot", 7830, TOKEN, "cursor"), "ausente");
+  assert.equal(estadoCliente("{}", "meu-bot", 7830, TOKEN, "cursor"), "ausente");
+  assert.equal(estadoCliente(cfg({ outro: certo }), "meu-bot", 7830, TOKEN, "cursor"), "ausente");
+  assert.equal(estadoCliente(cfg({ "meu-bot": certo }), "meu-bot", 7830, TOKEN, "cursor"), "instalado");
+  assert.equal(estadoCliente(cfg({ "meu-bot": certo }), "meu-bot", 7830, "b".repeat(64, "cursor")), "desatualizado", "chave nova");
+  assert.equal(estadoCliente(cfg({ "meu-bot": certo }), "meu-bot", 7840, TOKEN, "cursor"), "desatualizado", "porta nova");
+  assert.equal(estadoCliente(cfg({ "meu-bot": certo }), "meu-bot", 7830, "", "cursor"), "desatualizado", "sem chave nunca é instalado");
+  assert.equal(estadoCliente(cfg({ "meu-bot": { command: "node", args: ["app-mcp.mjs"] } }), "meu-bot", 7830, TOKEN, "cursor"), "desatualizado", "outra forma de servidor com o mesmo nome");
+  assert.equal(estadoCliente("{ quebrado", "meu-bot", 7830, TOKEN, "cursor"), "ilegivel");
+  assert.equal(estadoCliente("[]", "meu-bot", 7830, TOKEN, "cursor"), "ilegivel");
+  assert.equal(estadoCliente(JSON.stringify({ mcpServers: [] }), "meu-bot", 7830, TOKEN, "cursor"), "ilegivel");
 });
 
 test("produtos: cada app tem a própria porta do MCP, nenhuma é a 7822 do Rambox nem colide com a porta local", () => {
@@ -216,7 +216,7 @@ test("decidirNavegador: socket quando a aba está aberta; abrir quando só a jan
 });
 
 test("Claude Code: entrada local velha (do comando antigo, sem --scope) vence a user e deixa desatualizado", () => {
-  const atual = { type: "http", url: "http://127.0.0.1:7830/mcp", headers: { Authorization: `Bearer ${TOKEN}` } };
+  const atual = { type: "http", url: "http://127.0.0.1:7830/mcp", headers: { Authorization: `Bearer ${TOKEN}`, "X-Meu-Bot-Cliente": "Claude Code" } };
   const velha = { ...atual, headers: { Authorization: `Bearer ${"b".repeat(64)}` } };
   const cfg = (user, projetos) => JSON.stringify({ mcpServers: user, projects: projetos });
   // O caso deste Mac: user e local com a chave de hoje → instalado, e a local é listada como atual.
@@ -235,4 +235,14 @@ test("Claude Code: entrada local velha (do comando antigo, sem --scope) vence a 
     { estado: "ausente", user: "ausente", locais: [] });
   assert.equal(estadoClaudeCode("{ quebrado", "meu-bot", 7830, TOKEN).estado, "ilegivel");
   assert.equal(estadoClaudeCode(null, "meu-bot", 7830, TOKEN).estado, "ausente");
+});
+
+test("instalar: entrada do comando antigo, sem X-Meu-Bot-Cliente, conta como desatualizada (o selo saía \"Cliente MCP (Mac)\")", () => {
+  const antiga = { type: "http", url: "http://127.0.0.1:7830/mcp", headers: { Authorization: `Bearer ${TOKEN}` } };
+  const cfg = JSON.stringify({ mcpServers: { "meu-bot": antiga }, projects: { "/p/meu-bot": { mcpServers: { "meu-bot": antiga } } } });
+  assert.deepEqual(estadoClaudeCode(cfg, "meu-bot", 7830, TOKEN), { estado: "desatualizado", user: "desatualizado", locais: [{ pasta: "/p/meu-bot", atual: false }] });
+  assert.equal(estadoCliente(JSON.stringify({ mcpServers: { "meu-bot": antiga } }), "meu-bot", 7830, TOKEN, "cursor"), "desatualizado");
+  // A que o botão grava fica instalada; o rótulo do outro cliente não serve.
+  assert.equal(estadoClaudeCode(JSON.stringify({ mcpServers: { "meu-bot": entradaMcp(7830, TOKEN, "claude-code") } }), "meu-bot", 7830, TOKEN).estado, "instalado");
+  assert.equal(estadoCliente(JSON.stringify({ mcpServers: { "meu-bot": entradaMcp(7830, TOKEN, "claude-code") } }), "meu-bot", 7830, TOKEN, "cursor"), "desatualizado");
 });

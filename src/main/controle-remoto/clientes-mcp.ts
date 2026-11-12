@@ -36,7 +36,7 @@ function claude(): string | null {
 export function estadoClientes(nome: string, porta: number, token: string): ControleRemotoView["clientes"] {
   return {
     claudeCode: { estado: estadoClaudeCode(nome, porta, token).estado, cli: claude() !== null },
-    cursor: { estado: estadoCliente(lerSeExiste(CONFIG_CURSOR), nome, porta, token) },
+    cursor: { estado: estadoCliente(lerSeExiste(CONFIG_CURSOR), nome, porta, token, "cursor") },
   };
 }
 
