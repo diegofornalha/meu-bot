@@ -5,7 +5,7 @@
  * de quem já ocupa mais não corta às cegas: a aba mostra o que ocupa espaço e o admin escolhe o que apagar.
  * O main acha a máquina pela janela e confere tudo; a tela só pede. Fábrica como auditoria-page.ts.
  */
-import { backendAtras } from "../lib/admin-view.js";
+import { backendAtras, pctDe, textoDoLimite } from "../lib/admin-view.js";
 import type { MeuBotApi, UsuarioMaquina, UsuariosVisao } from "../../shared/ipc";
 import { el } from "../lib/dom.js";
 import { carregando as espera } from "../lib/carregando.js";
@@ -27,7 +27,6 @@ const comPrefixo = (n: string): string => (n.startsWith(PREFIXO) ? n : `${PREFIX
 const PROTEGIDOS = new Set(["openclaw", "hermes", "auditoria"]);
 const tam = (kb: number): string => (kb >= 1024 * 1024 ? `${(kb / 1024 / 1024).toFixed(1).replace(".", ",")} GB` : kb >= 1024 ? `${Math.round(kb / 1024)} MB` : `${kb} KB`);
 /** % do disco que o limite representa (arredondado). */
-const pctDe = (limiteKb: number | null, discoKb: number | null): number | null => (limiteKb === null || discoKb === null || discoKb === 0 ? null : Math.round((limiteKb * 100) / discoKb));
 /** Quanto do limite macio já foi usado: perto a partir de 80% (o 1º aviso da pessoa), cheio em 100% (espelha nivelUso de usuarios-core.ts). */
 const nivelUso = (usadoKb: number | null, limiteKb: number | null): "ok" | "perto" | "cheio" =>
   usadoKb === null || limiteKb === null || limiteKb <= 0 ? "ok" : usadoKb >= limiteKb ? "cheio" : usadoKb >= limiteKb * 0.8 ? "perto" : "ok";
@@ -122,7 +121,8 @@ export function mountUsuariosPage(deps: UsuariosPageDeps): { open: () => void } 
     if (await rodar(`recursos:${u.nome}`, () => deps.api.adminUsuarioRecursos(u.nome, ram, cpu), `✓ Tetos de ${u.nome}: RAM ${ram === 0 ? "sem teto" : `${ram} MB`}, CPU ${cpu === 0 ? "sem teto" : `${cpu}%`}.`)) rascunhoRec.delete(u.nome);
   }
   async function salvarLimite(u: UsuarioMaquina): Promise<void> {
-    const txt = (rascunho.get(u.nome) ?? "").trim();
+    // O mesmo texto que o campo mostra: sem rascunho, o % atual (Salvar sem editar não pode virar "sem limite").
+    const txt = textoDoLimite(rascunho.get(u.nome), u.limiteKb, visao?.discoKb ?? null).trim();
     const p = txt === "" ? 0 : Number(txt);
     if (!Number.isInteger(p) || p < 0 || p > 100) { msg = { text: "Limite: uma porcentagem inteira de 0 a 100 (vazio = sem limite).", bad: true }; render(); return; }
     const novoKb = visao?.discoKb !== null && visao?.discoKb !== undefined && p > 0 ? Math.floor((visao.discoKb * p) / 100) : 0;
@@ -339,7 +339,7 @@ export function mountUsuariosPage(deps: UsuariosPageDeps): { open: () => void } 
           }
           const tdPct = el("td");
           const ip = el("input") as HTMLInputElement; ip.type = "number"; ip.min = "0"; ip.max = "100"; ip.step = "1"; ip.style.width = "64px";
-          ip.value = rascunho.get(u.nome) ?? (pct === null ? "" : String(pct)); ip.placeholder = "—"; ip.disabled = ocupado !== null || u.sudo;
+          ip.value = textoDoLimite(rascunho.get(u.nome), u.limiteKb, v.discoKb); ip.placeholder = "—"; ip.disabled = ocupado !== null || u.sudo;
           ip.title = u.sudo ? "quem tem sudo não leva limite por aqui" : "% do disco (vazio = sem limite)";
           ip.addEventListener("input", () => { rascunho.set(u.nome, ip.value); });
           ip.addEventListener("keydown", (ev) => { if (ev.key === "Enter") void salvarLimite(u); });

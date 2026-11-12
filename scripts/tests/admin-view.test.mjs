@@ -1,7 +1,7 @@
 import { createRequire } from "node:module";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { deviceParts, deviceLine, ADMIN_ACTIONS, actionResultText, agoText, dateInputToIso, gb, healthLines, isoToDateInput, licenseSummary, personSuffix, progressLines, timeAgo, transcriptionNote, visibleActions } from "../../dist/renderer/lib/admin-view.js";
+import { deviceParts, deviceLine, pctDe, textoDoLimite, ADMIN_ACTIONS, actionResultText, agoText, dateInputToIso, gb, healthLines, isoToDateInput, licenseSummary, personSuffix, progressLines, timeAgo, transcriptionNote, visibleActions } from "../../dist/renderer/lib/admin-view.js";
 
 const probe = { reachable: true, user: "box", os: "Ubuntu", error: null, backendInstalled: true, backendListening: false, claudeLoggedIn: true, statusLine: false };
 const fmt = (d) => (d === null ? "" : `+${d}`);
@@ -219,4 +219,17 @@ test("este Mac: a linha do backend é a dos apps abertos; nenhum aberto é neutr
   const h = { probe: { reachable: true, backendInstalled: true }, whatsapp: null };
   assert.ok(!visibleActions(h, true).some((o) => o.id === "restart-gateway"));
   assert.ok(visibleActions(h).some((o) => o.id === "restart-gateway"));
+});
+
+test("limite de disco: Salvar sem editar mantém o % que o campo mostra (não vira \"sem limite\")", () => {
+  const disco = 412630000; // ~400 GB, o disco da máquina do box-kevo
+  const umPorCento = Math.floor(disco / 100);
+  assert.equal(pctDe(umPorCento, disco), 1);
+  assert.equal(pctDe(null, disco), null); assert.equal(pctDe(umPorCento, null), null); assert.equal(pctDe(umPorCento, 0), null);
+  // Sem rascunho: o % atual (antes o Salvar lia "" e gravava 0 = sem limite).
+  assert.equal(textoDoLimite(undefined, umPorCento, disco), "1");
+  assert.equal(textoDoLimite(undefined, null, disco), "");
+  // Com rascunho, vale o que a pessoa digitou, inclusive apagar tudo (vazio = sem limite de propósito).
+  assert.equal(textoDoLimite("5", umPorCento, disco), "5");
+  assert.equal(textoDoLimite("", umPorCento, disco), "");
 });
