@@ -156,8 +156,9 @@ const cspDoSite = (env: Env): string => {
   const ga = extraGa(env);
   return [
     "default-src 'self'",
-    `script-src 'self'${ga.script}`,
-    `connect-src 'self'${ga.connect}`,
+    // static.cloudflareinsights.com: o beacon do Web Analytics que a Cloudflare injeta no site (era bloqueado pela CSP).
+    `script-src 'self'${ga.script} https://static.cloudflareinsights.com`,
+    `connect-src 'self'${ga.connect} https://cloudflareinsights.com`,
     `img-src 'self' data:${ga.img}`,
     "style-src 'self'", "base-uri 'none'", "form-action 'none'", "frame-ancestors 'none'",
   ].join("; ");
