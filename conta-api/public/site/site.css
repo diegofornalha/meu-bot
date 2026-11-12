@@ -56,6 +56,8 @@ h2 { font-size: 20px; margin: 0 0 12px; }
 .legal ul { padding-left: 22px; }
 .legal .meta { color: var(--sub); font-size: 14px; margin: 0 0 8px; }
 .legal a { color: var(--primario); }
+.legal a.btn { color: var(--texto); }
+.legal a.btn-primary { color: var(--primario-texto); }
 .novidades .release { padding: 20px 0 8px; border-top: 1px solid var(--borda); }
 .novidades .release h2 { margin-top: 0; }
 .novidades .release h3, .novidades .release h4 { font-size: 16px; margin: 16px 0 6px; }
