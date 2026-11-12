@@ -418,10 +418,19 @@
             <span id="mcp-porta-hint" class="hint"></span>
           </div>
         </label>
-        <p class="hint">A configuração ainda é feita no cliente: no Claude Code é um comando no terminal, no Cursor um trecho do mcp.json. Os botões copiam o texto pronto, já com a porta e a chave.</p>
+        <p class="hint">Instalar registra este app no cliente já com a porta e a chave: no Claude Code vale para o seu usuário, em qualquer pasta; no Cursor abre o pedido de instalação, que você confirma lá. Trocar a chave ou a porta deixa o cliente desatualizado até você clicar em Atualizar.</p>
         <div class="row">
-          <button type="button" id="mcp-copiar-claude" class="btn btn-ghost btn-small" title="Comando claude mcp add … para colar no terminal">Claude Code</button>
-          <button type="button" id="mcp-copiar-cursor" class="btn btn-ghost btn-small" title="Trecho do mcp.json do Cursor">Cursor</button>
+          <strong>Claude Code</strong>
+          <span id="mcp-claude-estado" class="hint"></span>
+          <button type="button" id="mcp-instalar-claude" class="btn btn-primary btn-small">Instalar</button>
+          <button type="button" id="mcp-remover-claude" class="btn btn-ghost btn-small" hidden>Remover</button>
+          <button type="button" id="mcp-copiar-claude" class="btn btn-ghost btn-small" title="Comando claude mcp add … para colar no terminal">Copiar comando</button>
+        </div>
+        <div class="row">
+          <strong>Cursor</strong>
+          <span id="mcp-cursor-estado" class="hint"></span>
+          <button type="button" id="mcp-instalar-cursor" class="btn btn-primary btn-small">Instalar</button>
+          <button type="button" id="mcp-copiar-cursor" class="btn btn-ghost btn-small" title="Trecho do mcp.json do Cursor">Copiar mcp.json</button>
         </div>
         <p id="mcp-aviso" class="hint" hidden></p>
       </details>

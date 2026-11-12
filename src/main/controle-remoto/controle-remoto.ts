@@ -18,6 +18,7 @@ import { allMainWindows, hostOfWindow, sendWhenLoaded } from "../app/windows";
 import { log } from "../maquina/backend";
 import { navSocketPath } from "../navegador/nav-api";
 import { termSocketPath } from "../terminal/term-api";
+import { estadoClientes } from "./clientes-mcp";
 import { MAX_CORPO, configClaudeCode, configCursor, decidirNavegador, donoDe, erroRpc, gerarToken, pedidoOk, responderJsonRpc, roteador, urlMcp } from "./controle-remoto-core";
 
 let servidor: http.Server | null = null;
@@ -35,6 +36,7 @@ export function estadoControleRemoto(): ControleRemotoView {
     ligado: c.ligado, execucao: c.execucao, porta, portaPadrao: produto().portaMcp, token: c.token, rodando: servidor !== null, erro: erroAtual, url: urlMcp(porta), nome,
     configClaudeCode: c.token === "" ? "" : configClaudeCode(nome, porta, c.token),
     configCursor: c.token === "" ? "" : configCursor(nome, porta, c.token),
+    clientes: estadoClientes(nome, porta, c.token),
   };
 }
 

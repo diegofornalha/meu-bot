@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 const req = createRequire(import.meta.url);
-const { FERRAMENTAS, FERRAMENTAS_EXECUCAO, PAGINAS_APP, VERSAO_PROTOCOLO, ferramenta, ferramentasVisiveis, negociarVersao, roteador, donoDe, pedidoOk, responderJsonRpc, gerarToken, isToken, isPortaMcp, configClaudeCode, configCursor, urlMcp, erroRpc } = req("../../dist/main/controle-remoto/controle-remoto-core.js");
+const { FERRAMENTAS, FERRAMENTAS_EXECUCAO, PAGINAS_APP, VERSAO_PROTOCOLO, ferramenta, ferramentasVisiveis, negociarVersao, roteador, donoDe, pedidoOk, responderJsonRpc, gerarToken, isToken, isPortaMcp, configClaudeCode, configCursor, urlMcp, erroRpc, entradaMcp, deeplinkCursor, estadoCliente, isClienteMcp } = req("../../dist/main/controle-remoto/controle-remoto-core.js");
 const { PRODUTOS } = req("../../dist/main/app/variant-core.js");
 const { normalizeSettings, defaultSettings } = req("../../dist/main/app/settings-normalize.js");
 
@@ -150,8 +150,38 @@ test("token e porta: 64 hex; porta 1024–65535; a configuração pronta leva no
   assert.equal(isToken("abc"), false); assert.equal(isToken("G".repeat(64)), false);
   assert.equal(isPortaMcp(1024), true); assert.equal(isPortaMcp(1023), false); assert.equal(isPortaMcp(65535), true); assert.equal(isPortaMcp(65536), false); assert.equal(isPortaMcp("7830"), false); assert.equal(isPortaMcp(7830.5), false);
   assert.equal(urlMcp(7830), "http://127.0.0.1:7830/mcp");
-  assert.equal(configClaudeCode("meu-bot-staging", 7831, TOKEN), `claude mcp add --transport http meu-bot-staging http://127.0.0.1:7831/mcp --header "Authorization: Bearer ${TOKEN}"`);
-  assert.deepEqual(JSON.parse(configCursor("meu-bot", 7830, TOKEN)), { mcpServers: { "meu-bot": { url: "http://127.0.0.1:7830/mcp", headers: { Authorization: `Bearer ${TOKEN}` } } } });
+  assert.equal(configClaudeCode("meu-bot-staging", 7831, TOKEN), `claude mcp add --scope user --transport http meu-bot-staging http://127.0.0.1:7831/mcp --header "Authorization: Bearer ${TOKEN}" --header "X-Meu-Bot-Cliente: Claude Code"`);
+  assert.deepEqual(JSON.parse(configCursor("meu-bot", 7830, TOKEN)), { mcpServers: { "meu-bot": { url: "http://127.0.0.1:7830/mcp", headers: { Authorization: `Bearer ${TOKEN}`, "X-Meu-Bot-Cliente": "Cursor" } } } });
+});
+
+test("instalar: a entrada de cada cliente leva url, chave e o nome do cliente (o selo do app)", () => {
+  assert.deepEqual(entradaMcp(7830, TOKEN, "claude-code"), { type: "http", url: "http://127.0.0.1:7830/mcp", headers: { Authorization: `Bearer ${TOKEN}`, "X-Meu-Bot-Cliente": "Claude Code" } });
+  assert.deepEqual(entradaMcp(7830, TOKEN, "cursor"), { url: "http://127.0.0.1:7830/mcp", headers: { Authorization: `Bearer ${TOKEN}`, "X-Meu-Bot-Cliente": "Cursor" } });
+  assert.equal(donoDe(entradaMcp(7830, TOKEN, "claude-code").headers["X-Meu-Bot-Cliente"]).rotulo, "Claude Code (MCP)");
+  assert.equal(isClienteMcp("cursor"), true); assert.equal(isClienteMcp("claude"), false); assert.equal(isClienteMcp(undefined), false);
+});
+
+test("instalar: o deeplink do Cursor traz o nome e a config em base64", () => {
+  const u = new URL(deeplinkCursor("meu-bot-staging", 7831, TOKEN));
+  assert.equal(`${u.protocol}//${u.host}${u.pathname}`, "cursor://anysphere.cursor-deeplink/mcp/install");
+  assert.equal(u.searchParams.get("name"), "meu-bot-staging");
+  assert.deepEqual(JSON.parse(Buffer.from(u.searchParams.get("config"), "base64").toString("utf8")), entradaMcp(7831, TOKEN, "cursor"));
+});
+
+test("instalar: o estado do cliente compara url e chave, não só o nome", () => {
+  const cfg = (servidores) => JSON.stringify({ outra: 1, mcpServers: servidores });
+  const certo = { type: "http", url: "http://127.0.0.1:7830/mcp", headers: { Authorization: `Bearer ${TOKEN}` } };
+  assert.equal(estadoCliente(null, "meu-bot", 7830, TOKEN), "ausente");
+  assert.equal(estadoCliente("{}", "meu-bot", 7830, TOKEN), "ausente");
+  assert.equal(estadoCliente(cfg({ outro: certo }), "meu-bot", 7830, TOKEN), "ausente");
+  assert.equal(estadoCliente(cfg({ "meu-bot": certo }), "meu-bot", 7830, TOKEN), "instalado");
+  assert.equal(estadoCliente(cfg({ "meu-bot": certo }), "meu-bot", 7830, "b".repeat(64)), "desatualizado", "chave nova");
+  assert.equal(estadoCliente(cfg({ "meu-bot": certo }), "meu-bot", 7840, TOKEN), "desatualizado", "porta nova");
+  assert.equal(estadoCliente(cfg({ "meu-bot": certo }), "meu-bot", 7830, ""), "desatualizado", "sem chave nunca é instalado");
+  assert.equal(estadoCliente(cfg({ "meu-bot": { command: "node", args: ["app-mcp.mjs"] } }), "meu-bot", 7830, TOKEN), "desatualizado", "outra forma de servidor com o mesmo nome");
+  assert.equal(estadoCliente("{ quebrado", "meu-bot", 7830, TOKEN), "ilegivel");
+  assert.equal(estadoCliente("[]", "meu-bot", 7830, TOKEN), "ilegivel");
+  assert.equal(estadoCliente(JSON.stringify({ mcpServers: [] }), "meu-bot", 7830, TOKEN), "ilegivel");
 });
 
 test("produtos: cada app tem a própria porta do MCP, nenhuma é a 7822 do Rambox nem colide com a porta local", () => {

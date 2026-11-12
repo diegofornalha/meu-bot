@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webFrame } from "electron";
-import type { BackupRestauroPedido, FinanceAbcLado, FinanceAbcPor, AdminAction, AlertPrefs, AudioSetup, BackendModel, SupportProgress, SupportShare, ConversationRef, ExportFormat, FreedomLevel, LicensePatch, MainEventChannel, MainEvents, MemoryView, ObjectiveChoice, MeuBotApi, MeuBotAdminApi, MeuBotClientApi, MeuBotSharedApi, SettingsUpdate, SettingsView, StoredConversationView, TabMenuAction, WaMarkPatch, WhatsappGroupAgent, WhatsappGroupPatch, TypingChoice, WindowInfo, StatusLineSegments, ContaId, ZoomAction, ZoomState, FinanceConta, FinanceMoeda, FinanceLancarInput, FinanceTipoLinha, WhatsappAlvo } from "../shared/ipc";
+import type { BackupRestauroPedido, ClienteMcp, FinanceAbcLado, FinanceAbcPor, AdminAction, AlertPrefs, AudioSetup, BackendModel, SupportProgress, SupportShare, ConversationRef, ExportFormat, FreedomLevel, LicensePatch, MainEventChannel, MainEvents, MemoryView, ObjectiveChoice, MeuBotApi, MeuBotAdminApi, MeuBotClientApi, MeuBotSharedApi, SettingsUpdate, SettingsView, StoredConversationView, TabMenuAction, WaMarkPatch, WhatsappGroupAgent, WhatsappGroupPatch, TypingChoice, WindowInfo, StatusLineSegments, ContaId, ZoomAction, ZoomState, FinanceConta, FinanceMoeda, FinanceLancarInput, FinanceTipoLinha, WhatsappAlvo } from "../shared/ipc";
 
 // Preload roda em sandbox: não pode importar módulos do app, por isso a lista fica aqui.
 const MAIN_EVENT_CHANNELS: readonly MainEventChannel[] = [
@@ -131,6 +131,8 @@ const sharedApi: MeuBotSharedApi = {
   controleRemotoExecucao: (ligado: boolean) => ipcRenderer.invoke("controle-remoto:execucao", { ligado }),
   controleRemotoPorta: (porta: number) => ipcRenderer.invoke("controle-remoto:porta", { porta }),
   controleRemotoRegenerar: () => ipcRenderer.invoke("controle-remoto:regenerar", {}),
+  controleRemotoInstalar: (cliente: ClienteMcp) => ipcRenderer.invoke("controle-remoto:instalar", { cliente }),
+  controleRemotoRemover: (cliente: ClienteMcp) => ipcRenderer.invoke("controle-remoto:remover", { cliente }),
   googleContaStatus: (forcar?: boolean) => ipcRenderer.invoke("google-conta:status", { forcar }),
   googleContaConectar: () => ipcRenderer.invoke("google-conta:conectar", {}),
   googleContaDesconectar: () => ipcRenderer.invoke("google-conta:desconectar", {}),

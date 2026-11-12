@@ -38,7 +38,8 @@ import { dispararDadosAoDrive, enviarDadosAoDrive, estadoDadosDrive, listarCopia
 import { definirSenhaBackup, limparSenhaBackup, temSenhaBackup } from "../google/senha-backup";
 import { getControleRemoto, getDadosNoDrive, setControleRemoto, setDadosNoDrive } from "../app/settings";
 import { estadoControleRemoto, portaControleRemoto, reiniciarControleRemoto, startControleRemoto, stopControleRemoto } from "../controle-remoto/controle-remoto";
-import { PORTA_MAX, PORTA_MIN, gerarToken, isPortaMcp } from "../controle-remoto/controle-remoto-core";
+import { type ClienteMcp, PORTA_MAX, PORTA_MIN, gerarToken, isClienteMcp, isPortaMcp } from "../controle-remoto/controle-remoto-core";
+import { instalarCliente, removerCliente } from "../controle-remoto/clientes-mcp";
 import { produto } from "../app/variant";
 import { agendaCriar, agendaProximos, gmailApagar, gmailLer, gmailListar, gmailRestaurar, planilhaEscrever, planilhaLer } from "../google/apis";
 import { validaBusca, validaId, validaMax, validaPagina } from "../google/gmail-core";
@@ -602,6 +603,22 @@ export function registerSharedIpc(deps: SharedIpcDeps): void {
   handleShared("controle-remoto:regenerar", async () => {
     setControleRemoto({ token: gerarToken() });
     await reiniciarControleRemoto();
+    return mcpAvisar();
+  });
+  // Instalar: registra este app no cliente com a porta e a chave de agora (Claude Code pelo CLI; Cursor pelo deeplink).
+  const clienteDe = (payload: unknown): ClienteMcp => {
+    const c = (payload as { cliente?: unknown } | null)?.cliente;
+    if (!isClienteMcp(c)) throw new Error("Cliente MCP desconhecido.");
+    return c;
+  };
+  handleShared("controle-remoto:instalar", async (_event, payload: unknown) => {
+    const v = estadoControleRemoto();
+    await instalarCliente(clienteDe(payload), v.nome, v.porta, v.token);
+    return mcpAvisar();
+  });
+  handleShared("controle-remoto:remover", async (_event, payload: unknown) => {
+    const v = estadoControleRemoto();
+    await removerCliente(clienteDe(payload), v.nome, v.porta, v.token);
     return mcpAvisar();
   });
 

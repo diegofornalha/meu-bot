@@ -114,10 +114,15 @@ export interface ControleRemotoView {
   url: string;
   /** Nome do servidor nos clientes: o nome do app (meu-bot, meu-bot-staging…). */
   nome: string;
-  /** Comando `claude mcp add …` pronto e o trecho do mcp.json do Cursor, com o token. */
+  /** Comando `claude mcp add …` pronto e o trecho do mcp.json do Cursor, com o token (o plano B do botão Instalar). */
   configClaudeCode: string;
   configCursor: string;
+  /** Este app já está registrado em cada cliente, com a porta e a chave de agora? `cli`: achou o `claude` neste Mac. */
+  clientes: { claudeCode: { estado: EstadoClienteMcp; cli: boolean }; cursor: { estado: EstadoClienteMcp } };
 }
+/** ausente | instalado (url e chave atuais) | desatualizado (outra porta ou chave) | ilegivel (config quebrada: não mexemos). */
+export type EstadoClienteMcp = "ausente" | "instalado" | "desatualizado" | "ilegivel";
+export type ClienteMcp = "claude-code" | "cursor";
 
 /**
  * Qual produto é este app: meu-bot (de cada pessoa, com o CRM próprio liberado pela licença), meu-bot-admin (suporte)
