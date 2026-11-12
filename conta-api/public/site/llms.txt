@@ -7,7 +7,7 @@ Site do meu-bot (produto independente da Coflow): https://agentesgrok.com. Códi
 ## Planos
 
 - Teste com o seu número: 14 dias grátis, sem cartão, tudo liberado. No fim, nada é cobrado.
-- Agente com o chip da Coflow: R$ 97 por mês, num número dedicado ao agente.
+- Agente com o chip da Coflow: R$ 97 por mês, num número dedicado ao agente. A assinatura é feita no console da conta (Plano › Assinar), com pagamento pela AbacatePay (cartão), e o Pro é liberado assim que o pagamento é confirmado.
 - Com o seu próprio chip: sob cotação.
 
 ## Páginas
@@ -20,10 +20,14 @@ Site do meu-bot (produto independente da Coflow): https://agentesgrok.com. Códi
 - [Grok Bot e meu-bot](https://agentesgrok.com/grok-bot-e-meu-bot): a diferença entre o Grok Bot da xAI (agentes na nuvem) e o meu-bot (agente no seu Mac e no seu WhatsApp).
 - [O WhatsApp bloqueia o número que usa IA?](https://agentesgrok.com/guias/whatsapp-bloqueia-numero-com-ia): o que a Meta escreve, a regra de 15/1/2026 (só a API) e o que aumenta ou diminui o risco.
 - [Como automatizar o WhatsApp com IA](https://agentesgrok.com/guias/automatizar-whatsapp-com-ia): os 4 caminhos (app Business, API da Meta, n8n/Evolution, agente no Mac) e como escolher.
+- [Responder clientes no WhatsApp fora do horário](https://agentesgrok.com/guias/responder-clientes-whatsapp-fora-do-horario): três jeitos de atender à noite e no fim de semana, do grátis ao agente de IA, com custo e como testar.
+- [IA para pequena empresa](https://agentesgrok.com/guias/ia-para-pequena-empresa): dez tarefas da rotina (WhatsApp, e-mail, pesquisa em sites, CRM) que um assistente de IA já ajuda, e o que continua com você.
+- [IA que lê o seu Gmail](https://agentesgrok.com/guias/ia-que-le-seu-gmail): o que a IA vê nos e-mails, o que ela só faz com a sua confirmação e os cuidados antes de liberar.
 - [Guias](https://agentesgrok.com/guias): guias curtos sobre IA no WhatsApp, no e-mail e na rotina de uma pequena empresa.
 - [Novidades](https://agentesgrok.com/novidades): o que muda a cada versão (releases).
 - [Política de privacidade](https://agentesgrok.com/privacidade) e [Termos de uso](https://agentesgrok.com/termos).
 - [Todas as versões](https://github.com/diegofornalha/meu-bot/releases): releases assinadas; o app se atualiza sozinho.
+- [Documentação do app](https://github.com/diegofornalha/meu-bot/blob/main/docs/GUIA.md): como o app funciona por dentro (agente, WhatsApp, Navegador, Gmail, terminal, máquinas), em português.
 - [Console da conta](https://console.agentesgrok.com/account/overview): plano, devices, organizações (requer login; não indexar).
 
 ## Para agentes
@@ -33,4 +37,4 @@ Site do meu-bot (produto independente da Coflow): https://agentesgrok.com. Códi
 - Requisitos: Mac com chip Apple (M1 ou mais novo). O app é assinado com Developer ID e notarizado pela Apple: abre com dois cliques, sem "Abrir Mesmo Assim".
 - Não existe número oficial do Grok no WhatsApp; o meu-bot é um produto independente da Coflow que usa o Grok.
 
-<!-- rev 2026-11-09b -->
+<!-- rev 2026-11-12 -->
