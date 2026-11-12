@@ -1,7 +1,7 @@
 // /novidades e sitemap: releases do GitHub viram artigos (só as estáveis), markdown vira HTML escapado, sitemap com lastmod.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { lerReleases, mdParaHtml, novidadesHtml, sitemapXml } from "../dist/novidades-core.js";
+import { REVISAO_PAGINAS, lerReleases, mdParaHtml, novidadesHtml, sitemapXml } from "../dist/novidades-core.js";
 
 test("lerReleases: só estáveis com tag vX.Y.Z, mais nova primeiro, limitadas", () => {
   const json = [
@@ -35,19 +35,28 @@ test("novidadesHtml: um artigo por release com data em pt-BR; sem releases, o li
   assert.match(novidadesHtml([]), /github\.com\/diegofornalha\/meu-bot\/releases/);
 });
 
-test("sitemapXml: treze URLs, lastmod da release na home e em /novidades, data legal nas duas páginas, sem lastmod quando falta", () => {
-  const xml = sitemapXml("https://agentesgrok.com", "2026-11-09T10:00:00Z", "2026-11-09");
+test("sitemapXml: treze URLs, lastmod da release na home, /baixar e /novidades, a data própria de cada página, sem changefreq/priority/hreflang", () => {
+  const revisoes = { "/grok-no-whatsapp": "2026-11-10", "/perguntas": "2026-11-11", "/termos": "2026-11-05", "/guias/ia-que-le-seu-gmail": "2026-11-08" };
+  const xml = sitemapXml("https://agentesgrok.com", "2026-11-09T10:00:00Z", revisoes);
   assert.equal((xml.match(/<url>/g) || []).length, 13);
-  assert.match(xml, /<loc>https:\/\/agentesgrok\.com\/guias\/ia-que-le-seu-gmail<\/loc>\s*<lastmod>2026-11-09<\/lastmod>\s*<changefreq>monthly<\/changefreq>/);
-  assert.match(xml, /<loc>https:\/\/agentesgrok\.com\/grok-bot-e-meu-bot<\/loc>/);
-  assert.match(xml, /<loc>https:\/\/agentesgrok\.com\/guias<\/loc>\s*<lastmod>[^<]*<\/lastmod>\s*<changefreq>weekly<\/changefreq>/);
-  assert.match(xml, /<loc>https:\/\/agentesgrok\.com\/grok-no-whatsapp<\/loc>\s*<lastmod>2026-11-09<\/lastmod>\s*<changefreq>monthly<\/changefreq>\s*<priority>0\.8<\/priority>/);
-  assert.match(xml, /<loc>https:\/\/agentesgrok\.com\/parceria-xai<\/loc>/);
-  assert.match(xml, /<loc>https:\/\/agentesgrok\.com\/baixar<\/loc>\s*<lastmod>2026-11-09<\/lastmod>\s*<changefreq>weekly<\/changefreq>\s*<priority>0\.9<\/priority>/);
-  assert.match(xml, /<loc>https:\/\/agentesgrok\.com\/perguntas<\/loc>\s*<lastmod>2026-11-09<\/lastmod>\s*<changefreq>monthly<\/changefreq>/);
+  assert.equal((xml.match(/<loc>/g) || []).length, 13);
+  assert.doesNotMatch(xml, /changefreq|priority|xhtml|hreflang/);
+  assert.match(xml, /<loc>https:\/\/agentesgrok\.com\/<\/loc>\s*<lastmod>2026-11-09<\/lastmod>/);
+  assert.match(xml, /<loc>https:\/\/agentesgrok\.com\/baixar<\/loc>\s*<lastmod>2026-11-09<\/lastmod>/);
   assert.match(xml, /<loc>https:\/\/agentesgrok\.com\/novidades<\/loc>\s*<lastmod>2026-11-09<\/lastmod>/);
-  assert.match(xml, /<loc>https:\/\/agentesgrok\.com\/privacidade<\/loc>\s*<lastmod>2026-11-09<\/lastmod>/);
-  assert.match(xml, /hreflang="pt-BR" href="https:\/\/agentesgrok\.com\/"/);
-  const sem = sitemapXml("https://agentesgrok.com", null, "2026-11-09");
-  assert.match(sem, /<loc>https:\/\/agentesgrok\.com\/<\/loc>\s*<xhtml:link[^>]*\/>\s*<xhtml:link[^>]*\/>\s*<changefreq>/);
+  assert.match(xml, /<loc>https:\/\/agentesgrok\.com\/grok-no-whatsapp<\/loc>\s*<lastmod>2026-11-10<\/lastmod>/);
+  assert.match(xml, /<loc>https:\/\/agentesgrok\.com\/perguntas<\/loc>\s*<lastmod>2026-11-11<\/lastmod>/);
+  assert.match(xml, /<loc>https:\/\/agentesgrok\.com\/termos<\/loc>\s*<lastmod>2026-11-05<\/lastmod>/);
+  assert.match(xml, /<loc>https:\/\/agentesgrok\.com\/guias\/ia-que-le-seu-gmail<\/loc>\s*<lastmod>2026-11-08<\/lastmod>/);
+  // Página sem data no mapa: sai sem lastmod, em vez de herdar a de outra.
+  assert.match(xml, /<loc>https:\/\/agentesgrok\.com\/parceria-xai<\/loc>\s*<\/url>/);
+  assert.match(xml, /<loc>https:\/\/agentesgrok\.com\/grok-bot-e-meu-bot<\/loc>/);
+  const sem = sitemapXml("https://agentesgrok.com", null, {});
+  assert.match(sem, /<loc>https:\/\/agentesgrok\.com\/<\/loc>\s*<\/url>/);
+});
+
+test("sitemapXml: o mapa padrão (REVISAO_PAGINAS) dá lastmod a todas as páginas de texto", () => {
+  const xml = sitemapXml("https://agentesgrok.com", "2026-11-09T10:00:00Z");
+  assert.equal((xml.match(/<lastmod>/g) || []).length, 13);
+  for (const [caminho, data] of Object.entries(REVISAO_PAGINAS)) assert.match(xml, new RegExp(`<loc>https://agentesgrok\\.com${caminho}</loc>\\s*<lastmod>${data}</lastmod>`), caminho);
 });
