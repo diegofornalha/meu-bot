@@ -19,6 +19,18 @@ export function backendAtras(instalada: string | null, doApp: string | null): bo
   return false;
 }
 
+/** Limite de disco de uma conta em % do disco principal, arredondado; null = sem limite ou disco não lido. */
+export const pctDe = (limiteKb: number | null, discoKb: number | null): number | null => (limiteKb === null || discoKb === null || discoKb === 0 ? null : Math.round((limiteKb * 100) / discoKb));
+/**
+ * O texto do campo "% do disco" de uma conta, o mesmo para mostrar e para Salvar: o rascunho digitado ou, sem ele, o %
+ * atual. Vazio = sem limite. Antes o Salvar lia só o rascunho: salvar sem editar (como a dica "sem folga" manda) zerava o limite.
+ */
+export const textoDoLimite = (rascunho: string | undefined, limiteKb: number | null, discoKb: number | null): string => {
+  if (rascunho !== undefined) return rascunho;
+  const pct = pctDe(limiteKb, discoKb);
+  return pct === null ? "" : String(pct);
+};
+
 export const ADMIN_ACTIONS: readonly { id: AdminAction; label: string; confirm: string }[] = [
   { id: "install-backend", label: "Instalar o backend do meu-bot", confirm: "Confirmar? instala na conta dela (porta livre escolhida sozinha)" },
   { id: "restart-gateway", label: "Reiniciar o gateway do WhatsApp", confirm: "Confirmar? o WhatsApp dela cai por ~1 min" },
