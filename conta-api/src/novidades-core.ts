@@ -66,6 +66,9 @@ export function novidadesHtml(releases: readonly ReleaseResumo[]): string {
 }
 
 /** Sitemap com lastmod: a home e /novidades mudam a cada release; privacidade e termos têm a data da última revisão. */
+/** Os guias publicados em /guias/<slug> (arquivo em public/site/guias/<slug>.html): a rota e o sitemap leem esta lista. */
+export const GUIAS = ["ia-para-pequena-empresa", "responder-clientes-whatsapp-fora-do-horario", "ia-que-le-seu-gmail"] as const;
+
 export function sitemapXml(origem: string, ultimaRelease: string | null, revisaoLegal: string): string {
   const data = (iso: string | null): string => { const t = iso === null ? NaN : Date.parse(iso); return Number.isNaN(t) ? "" : `\n    <lastmod>${new Date(t).toISOString().slice(0, 10)}</lastmod>`; };
   const url = (caminho: string, lastmod: string | null, changefreq: string, priority: string, alternates = false): string => `  <url>
@@ -81,6 +84,9 @@ ${url("/novidades", ultimaRelease, "weekly", "0.7")}
 ${url("/grok-no-whatsapp", revisaoLegal, "monthly", "0.8")}
 ${url("/parceria-xai", revisaoLegal, "monthly", "0.8")}
 ${url("/perguntas", revisaoLegal, "monthly", "0.7")}
+${url("/grok-bot-e-meu-bot", revisaoLegal, "monthly", "0.7")}
+${url("/guias", revisaoLegal, "weekly", "0.6")}
+${GUIAS.map((g) => url(`/guias/${g}`, revisaoLegal, "monthly", "0.6")).join("\n")}
 ${url("/privacidade", revisaoLegal, "yearly", "0.3")}
 ${url("/termos", revisaoLegal, "yearly", "0.3")}
 </urlset>
