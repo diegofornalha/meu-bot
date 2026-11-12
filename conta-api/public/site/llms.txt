@@ -13,6 +13,8 @@ Site oficial: https://agentesgrok.com. Código aberto em https://github.com/dieg
 ## Páginas
 
 - [Home](https://agentesgrok.com/): o que o meu-bot faz, Grok e xAI, planos, dúvidas e o download para macOS.
+- [Baixar para Mac](https://agentesgrok.com/baixar): requisitos, como instalar e o teste grátis de 14 dias.
+- [Perguntas frequentes](https://agentesgrok.com/perguntas): teste e planos, WhatsApp, Grok e xAI, Mac e dados.
 - [Grok no WhatsApp](https://agentesgrok.com/grok-no-whatsapp): não existe número oficial do Grok no WhatsApp; como ter o Grok respondendo no seu número com o meu-bot.
 - [Parceria com a xAI](https://agentesgrok.com/parceria-xai): o que a parceria Coflow e xAI inclui e o que não é.
 - [Novidades](https://agentesgrok.com/novidades): o que muda a cada versão (releases).
