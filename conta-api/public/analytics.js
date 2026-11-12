@@ -1,7 +1,8 @@
 // Google Analytics 4 das páginas do meu-bot (site, login, console). Script clássico carregado logo depois de /config.js:
 // expõe window.meuBotGa = { pagina, evento } para as páginas. Sem `ga` no config (GA_ID vazio no Worker), as duas
 // funções não fazem nada e nenhum script de fora é carregado.
-// Regras: nunca mandar query nem fragmento da URL (o console recebe #code&verifier, o login tem ?state&challenge), nem
+// Regras: nunca mandar fragmento da URL (o console recebe #code&verifier) nem a query, a não ser as chaves de campanha
+// (utm_*, gclid, gbraid, wbraid: a mesma lista de CHAVES_CAMPANHA em src/analytics-core.ts; o login tem ?state&challenge), nem
 // e-mail, nome, slug de organização ou id de conta nos parâmetros; sem sinais de anúncios; em staging, debug_mode (o
 // DebugView do Analytics mostra os eventos na hora) e todo evento leva `ambiente`.
 (() => {
@@ -15,12 +16,15 @@
   window.gtag("js", new Date());
   /** O caminho sem o endereço de uma organização (/organizations/<slug>/… → /organizations/_/…). */
   const anonimo = (c) => c.replace(/^\/organizations\/(?!new(?:\/|$))[^/]+/, "/organizations/_").replace(/^\/enterprise\/[^/]+/, "/enterprise/_");
+  /** A query só com as chaves de campanha (cópia de campanhaDaQuery, src/analytics-core.ts): o clique do anúncio chega ao GA4. */
+  const CAMPANHA = ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "utm_id", "gclid", "gbraid", "wbraid"];
+  const campanha = () => { const p = new URLSearchParams(location.search); const q = new URLSearchParams(); for (const k of CAMPANHA) { const v = p.get(k); if (v) q.set(k, v.slice(0, 200)); } const s = q.toString(); return s ? `?${s}` : ""; };
   const semQuery = (url) => { try { const u = new URL(url, location.href); return `${u.origin}${anonimo(u.pathname)}`; } catch { return ""; } };
   /**
    * Fixa a URL limpa para TODO evento (os automáticos da medição otimizada e os de mudança de histórico usam a URL real
-   * se nada for fixado): origem + caminho anonimizado, sem query nem fragmento; o referrer também limpo.
+   * se nada for fixado): origem + caminho anonimizado + só as chaves de campanha, sem fragmento; o referrer sem query.
    */
-  const fixar = (caminho) => { const cam = anonimo(caminho || location.pathname); window.gtag("set", { page_location: `${location.origin}${cam}`, page_path: cam, page_referrer: semQuery(document.referrer) }); return cam; };
+  const fixar = (caminho) => { const cam = anonimo(caminho || location.pathname); window.gtag("set", { page_location: `${location.origin}${cam}${campanha()}`, page_path: cam, page_referrer: semQuery(document.referrer) }); return cam; };
   fixar();
   // Antes de o gtag carregar: o pushState/replaceState da página passa por aqui primeiro, e a URL fixada já é a nova (limpa).
   for (const m of ["pushState", "replaceState"]) { const original = history[m]; history[m] = function (st, titulo, url) { const r = original.apply(this, arguments); if (url !== undefined && url !== null) { try { fixar(new URL(String(url), location.href).pathname); } catch { /* url estranha: fica a anterior */ } } return r; }; }
@@ -38,6 +42,6 @@
   /** Um evento com `ambiente`; os parâmetros vêm de listas fechadas (nada pessoal). */
   const evento = (nome, params) => { window.gtag("event", nome, { ambiente, ...(params || {}) }); };
   /** Uma visualização de página com a URL limpa (SPA do console chama a cada troca de seção). */
-  const pagina = (caminho, params) => { const cam = fixar(caminho); window.gtag("event", "page_view", { ambiente, manual: true, page_location: `${location.origin}${cam}`, page_path: cam, page_title: document.title, ...(params || {}) }); };
+  const pagina = (caminho, params) => { const cam = fixar(caminho); window.gtag("event", "page_view", { ambiente, manual: true, page_location: `${location.origin}${cam}${campanha()}`, page_path: cam, page_title: document.title, ...(params || {}) }); };
   window.meuBotGa = { pagina, evento, ligado: true, ambiente };
 })();
