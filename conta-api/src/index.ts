@@ -22,7 +22,7 @@ import { deletePerfil, getAdminFirebase, getAdminVisao, patchLicenca, postAdminS
 import { downloadMac, REPO } from "./release-github.js";
 import { GUIAS, lerReleases, novidadesHtml, sitemapXml } from "./novidades-core.js";
 import { CSP_GA, gaIds } from "./analytics-core.js";
-import { caminhoCanonico, redirecionamentoInicial } from "./site-core.js";
+import { caminhoCanonico, llmsPorPagamentos, redirecionamentoInicial } from "./site-core.js";
 import { pagamentosLigados, postAssinatura, postWebhookAbacate } from "./rotas/pagamentos.js";
 import { deleteMembro, deleteOrg, getOrg, getOrgPublico, getOrgs, patchAdminOrg, patchMembro, patchOrg, postMembro, postOrg } from "./rotas/orgs.js";
 
@@ -197,6 +197,11 @@ async function sitePagina(req: Request, env: Env, url: URL): Promise<Response> {
   if (url.pathname === "/novidades") {
     const [modelo, releases] = await Promise.all([env.ASSETS.fetch(new Request(new URL("/site/novidades.html", url.origin).toString())).then((r) => r.text()), listarReleases()]);
     return comCabecalhos(new Response(modelo.replace("<!--RELEASES-->", novidadesHtml(releases)), { headers: { "content-type": "text/html; charset=utf-8" } }), { "content-security-policy": cspDoSite(env), "cache-control": "no-store" });
+  }
+  // llms.txt: as linhas da assinatura só saem com os pagamentos ligados (llmsPorPagamentos).
+  if (url.pathname === "/llms.txt") {
+    const t = await env.ASSETS.fetch(new Request(new URL("/site/llms.txt", url.origin).toString())).then((r) => r.text());
+    return comCabecalhos(new Response(llmsPorPagamentos(t, pagamentosLigados(env)), { headers: { "content-type": "text/plain; charset=utf-8" } }), { "cache-control": "no-cache" });
   }
   // robots.txt e llms.txt vivem em public/site/ e saem na raiz do host; privacidade e termos também.
   const raiz: Record<string, string> = { "/robots.txt": "/site/robots.txt", "/llms.txt": "/site/llms.txt", "/privacidade": "/site/privacidade.html", "/termos": "/site/termos.html", "/grok-no-whatsapp": "/site/grok-no-whatsapp.html", "/parceria-xai": "/site/parceria-xai.html", "/baixar": "/site/baixar.html", "/perguntas": "/site/perguntas.html", "/grok-bot-e-meu-bot": "/site/grok-bot-e-meu-bot.html", "/guias": "/site/guias/index.html" };

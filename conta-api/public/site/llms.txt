@@ -7,7 +7,8 @@ Site do meu-bot (produto independente da Coflow): https://agentesgrok.com. Códi
 ## Planos
 
 - Teste com o seu número: 14 dias grátis, sem cartão, tudo liberado. No fim, nada é cobrado.
-- Agente com o chip da Coflow: R$ 97 por mês, num número dedicado ao agente. A assinatura é feita no console da conta (Plano › Assinar), com pagamento pela AbacatePay (cartão), e o Pro é liberado assim que o pagamento é confirmado.
+- Agente com o chip da Coflow: R$ 97 por mês, num número dedicado ao agente.
+  A assinatura é feita no console da conta (Plano › Assinar), com pagamento pela AbacatePay (cartão), e o Pro é liberado assim que o pagamento é confirmado. <!--se-pagamentos-->
 - Com o seu próprio chip: sob cotação.
 
 ## Páginas
