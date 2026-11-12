@@ -25,6 +25,7 @@
   <meta name="twitter:image" content="https://agentesgrok.com/site/capa.jpg">
   <link rel="stylesheet" href="/site/home.css">
   <!-- Dados estruturados: o app como SoftwareApplication; site.js completa softwareVersion e datePublished com a release mais nova. -->
+  <script type="application/ld+json" id="ld-org">{"@context": "https://schema.org", "@type": "Organization", "@id": "https://agentesgrok.com/#coflow", "name": "Coflow", "url": "https://agentesgrok.com/", "taxID": "41.490.672/0001-00", "logo": "https://agentesgrok.com/site/icone.svg", "sameAs": ["https://github.com/diegofornalha/meu-bot"]}</script>
   <script type="application/ld+json" id="ld-app">
   {
     "@context": "https://schema.org",
@@ -42,7 +43,7 @@
       { "@type": "Offer", "name": "Teste com o seu número", "description": "14 dias grátis, sem cartão", "price": "0", "priceCurrency": "BRL" },
       { "@type": "Offer", "name": "Agente com o chip da Coflow", "description": "por mês, com um número dedicado ao agente", "price": "97", "priceCurrency": "BRL" }
     ],
-    "publisher": { "@type": "Organization", "name": "Coflow", "url": "https://agentesgrok.com/", "taxID": "41.490.672/0001-00" },
+    "publisher": { "@id": "https://agentesgrok.com/#coflow" },
     "sameAs": ["https://github.com/diegofornalha/meu-bot"]
   }
   </script>
@@ -109,11 +110,11 @@
 <!-- 3b. Grok e xAI: a Coflow é parceira da xAI; o app entra com a conta Grok (login OAuth da xAI) e usa o Grok como modelo. -->
 <section id="grok">
   <h2>Feito com o Grok, da xAI</h2>
-  <p class="sub">O Grok é o cérebro do agente e o WhatsApp é o canal. A Coflow, que faz o meu-bot, é parceira da xAI.</p>
+  <p class="sub">O Grok é o cérebro do agente e o WhatsApp é o canal. A Coflow, que faz o meu-bot, é <a href="/parceria-xai">parceira da xAI</a>.</p>
   <div class="grid3 mt24">
     <div class="card"><div class="ic">🔑</div><h3>Entre com a sua conta Grok</h3><p>Login com Grok direto no app: o agente usa a sua assinatura da xAI, sem chave de API para copiar. Também funciona com a sua conta do Claude.</p></div>
-    <div class="card"><div class="ic">⚡</div><h3>Grok no WhatsApp</h3><p>Respostas rápidas e contexto longo, no seu número, com as regras que você define. O agente roda na sua máquina, não num servidor de terceiros.</p></div>
-    <div class="card"><div class="ic">🤝</div><h3>API da xAI pela Coflow</h3><p>Precisa do Grok no seu próprio produto? Como parceira da xAI, a Coflow fornece acesso à API e ajuda a montar o agente. <a href="/console">Fale com a gente</a>.</p></div>
+    <div class="card"><div class="ic">⚡</div><h3>Grok no WhatsApp</h3><p>Respostas rápidas e contexto longo, no seu número, com as regras que você define. O agente roda na sua máquina, não num servidor de terceiros. <a href="/grok-no-whatsapp">Como funciona →</a></p></div>
+    <div class="card"><div class="ic">🤝</div><h3>Coflow, parceira da xAI</h3><p>Uma empresa responsável pelo produto e pelo suporte, com o Grok no centro da operação. O que a parceria é, e o que não é. <a href="/parceria-xai">Ver a parceria →</a></p></div>
   </div>
 </section>
 
@@ -192,7 +193,7 @@
 </div>
 
 <footer><div class="wrap">
-  <a href="/privacidade">Privacidade</a><a href="/termos">Termos de uso</a><a href="/novidades">Novidades</a><a href="/console">Console da conta</a><a href="https://github.com/diegofornalha/meu-bot" rel="noopener">GitHub</a>
+  <a href="/grok-no-whatsapp">Grok no WhatsApp</a><a href="/parceria-xai">Parceria com a xAI</a><a href="/privacidade">Privacidade</a><a href="/termos">Termos de uso</a><a href="/novidades">Novidades</a><a href="/console">Console da conta</a><a href="https://github.com/diegofornalha/meu-bot" rel="noopener">GitHub</a>
   <p>meu-bot é um produto da Coflow · CNPJ 41.490.672/0001-00 · agentesgrok.com</p>
   <p>Medimos visitas com o Google Analytics, sem anúncios e sem dados pessoais.</p>
   <p>Grok e xAI são marcas da xAI. WhatsApp é marca da Meta. O meu-bot é um produto independente da Coflow.</p>

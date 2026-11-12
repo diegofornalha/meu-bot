@@ -162,8 +162,8 @@ const cspDoSite = (env: Env): string => {
     "style-src 'self'", "base-uri 'none'", "form-action 'none'", "frame-ancestors 'none'",
   ].join("; ");
 };
-/** Data da última revisão de /privacidade e /termos (vai no sitemap); mude junto com o texto das páginas. */
-const REVISAO_LEGAL = "2026-11-09";
+/** Data da última revisão das páginas de texto (privacidade, termos, Grok no WhatsApp, parceria; vai no sitemap). */
+const REVISAO_PAGINAS = "2026-11-12";
 /** As releases estáveis do GitHub para /novidades (mesmo cache de 10 min do download). [] = GitHub fora ou sem release. */
 async function listarReleases(): Promise<ReturnType<typeof lerReleases>> {
   try {
@@ -183,7 +183,7 @@ async function sitePagina(req: Request, env: Env, url: URL): Promise<Response> {
   // /sitemap.xml é montado aqui: a home e /novidades levam a data da release mais nova; privacidade e termos, a da revisão.
   if (url.pathname === "/sitemap.xml") {
     const d = await downloadMac();
-    return comCabecalhos(new Response(sitemapXml(env.SITE_ORIGIN, d?.publicadoEm ?? null, REVISAO_LEGAL), { headers: { "content-type": "application/xml; charset=utf-8", "cache-control": "public, max-age=3600" } }), {});
+    return comCabecalhos(new Response(sitemapXml(env.SITE_ORIGIN, d?.publicadoEm ?? null, REVISAO_PAGINAS), { headers: { "content-type": "application/xml; charset=utf-8", "cache-control": "public, max-age=3600" } }), {});
   }
   // /novidades: as releases estáveis do GitHub (cache de 10 min no edge) dentro de public/site/novidades.html.
   if (url.pathname === "/novidades") {
@@ -191,7 +191,7 @@ async function sitePagina(req: Request, env: Env, url: URL): Promise<Response> {
     return comCabecalhos(new Response(modelo.replace("<!--RELEASES-->", novidadesHtml(releases)), { headers: { "content-type": "text/html; charset=utf-8" } }), { "content-security-policy": cspDoSite(env), "cache-control": "no-store" });
   }
   // robots.txt e llms.txt vivem em public/site/ e saem na raiz do host; privacidade e termos também.
-  const raiz: Record<string, string> = { "/robots.txt": "/site/robots.txt", "/llms.txt": "/site/llms.txt", "/privacidade": "/site/privacidade.html", "/termos": "/site/termos.html" };
+  const raiz: Record<string, string> = { "/robots.txt": "/site/robots.txt", "/llms.txt": "/site/llms.txt", "/privacidade": "/site/privacidade.html", "/termos": "/site/termos.html", "/grok-no-whatsapp": "/site/grok-no-whatsapp.html", "/parceria-xai": "/site/parceria-xai.html" };
   const caminho = url.pathname === "/" || url.pathname === "/index.html" ? "/site/index.html" : url.pathname === "/obrigado" ? "/site/obrigado.html" : raiz[url.pathname] ?? url.pathname;
   let res = await env.ASSETS.fetch(new Request(new URL(caminho, url.origin).toString(), { method: "GET", headers: req.headers }));
   // Caminho que não existe: a página 404 do site (com status 404), em vez do corpo vazio dos assets.

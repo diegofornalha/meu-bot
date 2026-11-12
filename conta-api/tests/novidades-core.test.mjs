@@ -35,9 +35,11 @@ test("novidadesHtml: um artigo por release com data em pt-BR; sem releases, o li
   assert.match(novidadesHtml([]), /github\.com\/diegofornalha\/meu-bot\/releases/);
 });
 
-test("sitemapXml: quatro URLs, lastmod da release na home e em /novidades, data legal nas duas páginas, sem lastmod quando falta", () => {
+test("sitemapXml: seis URLs, lastmod da release na home e em /novidades, data legal nas duas páginas, sem lastmod quando falta", () => {
   const xml = sitemapXml("https://agentesgrok.com", "2026-11-09T10:00:00Z", "2026-11-09");
-  assert.equal((xml.match(/<url>/g) || []).length, 4);
+  assert.equal((xml.match(/<url>/g) || []).length, 6);
+  assert.match(xml, /<loc>https:\/\/agentesgrok\.com\/grok-no-whatsapp<\/loc>\s*<lastmod>2026-11-09<\/lastmod>\s*<changefreq>monthly<\/changefreq>\s*<priority>0\.8<\/priority>/);
+  assert.match(xml, /<loc>https:\/\/agentesgrok\.com\/parceria-xai<\/loc>/);
   assert.match(xml, /<loc>https:\/\/agentesgrok\.com\/novidades<\/loc>\s*<lastmod>2026-11-09<\/lastmod>/);
   assert.match(xml, /<loc>https:\/\/agentesgrok\.com\/privacidade<\/loc>\s*<lastmod>2026-11-09<\/lastmod>/);
   assert.match(xml, /hreflang="pt-BR" href="https:\/\/agentesgrok\.com\/"/);
