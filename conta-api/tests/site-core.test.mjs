@@ -1,7 +1,7 @@
 // http → https: o Worker atende os dois esquemas, então o redirecionamento é dele (e o HSTS, em SEGURANCA).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { caminhoCanonico, ehAliasDoSite, paraHttps, redirecionamentoInicial, semBarraFinal } from "../dist/site-core.js";
+import { llmsPorPagamentos, caminhoCanonico, ehAliasDoSite, paraHttps, redirecionamentoInicial, semBarraFinal } from "../dist/site-core.js";
 
 test("paraHttps: http vira https com caminho e query; https e lixo ficam null", () => {
   assert.equal(paraHttps("http://agentesgrok.com/"), "https://agentesgrok.com/");
@@ -46,4 +46,10 @@ test("caminhoCanonico: /index.html vira /, barra final sai; o canônico fica nul
   assert.equal(caminhoCanonico("/"), null);
   assert.equal(caminhoCanonico("/perguntas"), null);
   assert.equal(caminhoCanonico("/guias/index.html"), null);
+});
+
+test("llmsPorPagamentos: a linha marcada sai sem a marca com pagamentos ligados e some com eles desligados", () => {
+  const t = "- Plano: R$ 97.\n  Assine no console. <!--se-pagamentos-->\n- Outro";
+  assert.equal(llmsPorPagamentos(t, true), "- Plano: R$ 97.\n  Assine no console.\n- Outro");
+  assert.equal(llmsPorPagamentos(t, false), "- Plano: R$ 97.\n- Outro");
 });

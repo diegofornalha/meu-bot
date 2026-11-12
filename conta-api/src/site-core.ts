@@ -47,3 +47,11 @@ export function caminhoCanonico(caminho: string): string | null {
   if (caminho === "/index.html") return "/";
   return semBarraFinal(caminho);
 }
+
+/**
+ * O llms.txt tem linhas que só valem com a assinatura ligada (marcadas com <!--se-pagamentos-->): com ela ligada, sai só
+ * a marca; desligada, sai a linha inteira. Assim uma IA que lê o arquivo não manda ninguém a um botão que não existe.
+ */
+export function llmsPorPagamentos(texto: string, ligados: boolean): string {
+  return texto.split("\n").filter((l) => ligados || !l.includes("<!--se-pagamentos-->")).map((l) => l.replace(/\s*<!--se-pagamentos-->/, "")).join("\n");
+}
