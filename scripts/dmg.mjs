@@ -8,7 +8,7 @@
 //
 // Para mandar a outra pessoa: o config/ssh-hosts.conf do app (as suas máquinas e IPs) é trocado por um
 // modelo vazio e o app é reassinado ad-hoc. `--com-minhas-maquinas` mantém o arquivo como está.
-import { assinar, ehDeveloperId } from "./assinatura.mjs";
+import { assinar, ehDeveloperId, identidadeDeveloperId } from "./assinatura.mjs";
 import { notarizar } from "./notarizar.mjs";
 import { execFileSync } from "node:child_process";
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -144,6 +144,9 @@ icon_locations = {${py(`${name}.app`)}: (165, 175), "Aplicativos": (495, 175)}
   rmSync(out, { force: true });
   run(join(venv, "bin", "dmgbuild"), ["-s", settings, name, out]);
   console.log(`✓ ${out}`);
+  // O próprio .dmg também leva a assinatura Developer ID: a Apple notariza um .dmg sem assinatura, mas o Gatekeeper
+  // (e o spctl) só reconhecem a notarização num .dmg assinado ("no usable signature"; a staging.6 parou nisso em 13 nov).
+  if (ehDeveloperId()) { step("assinando o .dmg com o Developer ID"); run("codesign", ["--force", "--sign", identidadeDeveloperId(), "--timestamp", out]); }
   // Com Developer ID, o instalador vai notarizado e grampeado (abre em qualquer Mac sem o aviso do Gatekeeper).
   // --sem-notarizar: só para testar o .dmg localmente mais rápido.
   if (ehDeveloperId() && !process.argv.includes("--sem-notarizar")) { step("notarizando o .dmg na Apple"); notarizar(out); }
