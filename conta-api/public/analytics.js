@@ -19,16 +19,24 @@
   /** A query só com as chaves de campanha (cópia de campanhaDaQuery, src/analytics-core.ts): o clique do anúncio chega ao GA4. */
   const CAMPANHA = ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "utm_id", "gclid", "gbraid", "wbraid"];
   const campanha = () => { const p = new URLSearchParams(location.search); const q = new URLSearchParams(); for (const k of CAMPANHA) { const v = p.get(k); if (v) q.set(k, v.slice(0, 200)); } const s = q.toString(); return s ? `?${s}` : ""; };
+  /**
+   * Volta do login do Google (accounts.google.com, <projeto>.firebaseapp.com): não é uma origem de visita, é o meio do
+   * login. Sem isto, a sessão do console vira "accounts.google.com / referral" e a campanha do anúncio se perde (o mesmo
+   * que a lista de "referências indesejadas" do GA4, mas no código). Cópia de HOSTS_LOGIN em src/analytics-core.ts.
+   */
+  const HOSTS_LOGIN = /(^|\.)accounts\.google\.com$|(^|\.)accounts\.youtube\.com$|\.firebaseapp\.com$/;
+  const veioDoLogin = (() => { try { return document.referrer !== "" && HOSTS_LOGIN.test(new URL(document.referrer).hostname); } catch { return false; } })();
   const semQuery = (url) => { try { const u = new URL(url, location.href); return `${u.origin}${anonimo(u.pathname)}`; } catch { return ""; } };
   /**
    * Fixa a URL limpa para TODO evento (os automáticos da medição otimizada e os de mudança de histórico usam a URL real
    * se nada for fixado): origem + caminho anonimizado + só as chaves de campanha, sem fragmento; o referrer sem query.
    */
-  const fixar = (caminho) => { const cam = anonimo(caminho || location.pathname); window.gtag("set", { page_location: `${location.origin}${cam}${campanha()}`, page_path: cam, page_referrer: semQuery(document.referrer) }); return cam; };
+  const fixar = (caminho) => { const cam = anonimo(caminho || location.pathname); window.gtag("set", { page_location: `${location.origin}${cam}${campanha()}`, page_path: cam, page_referrer: veioDoLogin ? "" : semQuery(document.referrer) }); return cam; };
   fixar();
   // Antes de o gtag carregar: o pushState/replaceState da página passa por aqui primeiro, e a URL fixada já é a nova (limpa).
   for (const m of ["pushState", "replaceState"]) { const original = history[m]; history[m] = function (st, titulo, url) { const r = original.apply(this, arguments); if (url !== undefined && url !== null) { try { fixar(new URL(String(url), location.href).pathname); } catch { /* url estranha: fica a anterior */ } } return r; }; }
   const base = { send_page_view: false, allow_google_signals: false, allow_ad_personalization_signals: false };
+  if (veioDoLogin) base.ignore_referrer = true;
   if (ambiente === "staging") base.debug_mode = true;
   // `set` vale para todos os IDs; o config de cada ID repete as opções num objeto próprio, porque o gtag guarda a referência.
   // A tag da propriedade de produção (criada pelo Firebase) ainda manda um page_view automático com a URL real, ignorando

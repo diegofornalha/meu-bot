@@ -2,6 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { CHAVES_CAMPANHA, campanhaDaQuery, caminhoAnonimo, gaIds, paginaLimpa } from "../dist/analytics-core.js";
+import { veioDoLogin } from "../dist/analytics-core.js";
 import { readFileSync } from "node:fs";
 
 test("gaIds: lista separada por vírgula, aparada, sem lixo nem repetição; vazio dá []", () => {
@@ -40,4 +41,15 @@ test("public/analytics.js copia a mesma lista de chaves de campanha", () => {
   const lista = /const CAMPANHA = (\[[^\]]*\]);/.exec(js);
   assert.ok(lista, "CAMPANHA não encontrada em analytics.js");
   assert.deepEqual(JSON.parse(lista[1]), [...CHAVES_CAMPANHA]);
+});
+
+test("veioDoLogin: accounts.google.com e firebaseapp.com são volta do login; o resto é origem de verdade", () => {
+  assert.equal(veioDoLogin("https://accounts.google.com/o/oauth2/auth?x=1"), true);
+  assert.equal(veioDoLogin("https://meu-bot-conta.firebaseapp.com/__/auth/handler"), true);
+  assert.equal(veioDoLogin("https://accounts.youtube.com/"), true);
+  assert.equal(veioDoLogin("https://www.google.com/"), false, "busca do Google é origem");
+  assert.equal(veioDoLogin("https://agentesgrok.com/"), false);
+  assert.equal(veioDoLogin("https://evil-accounts.google.com.example/"), false);
+  assert.equal(veioDoLogin(""), false);
+  assert.equal(veioDoLogin("nada"), false);
 });

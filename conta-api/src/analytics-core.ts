@@ -42,3 +42,13 @@ export function campanhaDaQuery(search: string): string {
   const s = q.toString();
   return s ? `?${s}` : "";
 }
+
+/**
+ * Hosts do meio do login do Google (a página de contas e o handler do Firebase): uma visita que chega deles não é
+ * origem, é volta do login. O analytics.js (cópia desta regra) manda ignore_referrer nesse caso.
+ */
+export const HOSTS_LOGIN = /(^|\.)accounts\.google\.com$|(^|\.)accounts\.youtube\.com$|\.firebaseapp\.com$/;
+export function veioDoLogin(referrer: string): boolean {
+  if (referrer === "") return false;
+  try { return HOSTS_LOGIN.test(new URL(referrer).hostname); } catch { return false; }
+}
