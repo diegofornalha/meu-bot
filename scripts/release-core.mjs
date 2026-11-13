@@ -119,6 +119,17 @@ export const QUIETUDE_MS = 10 * 60 * 1000;
 /** Quanto o staging fica no ar antes de virar estável (se passou na prova de saúde). */
 export const SOAK_MS = 24 * 60 * 60 * 1000;
 
+/** Trava sem PID (gravada por versão antiga do agente) só vale como órfã depois disso: uma rodada com notarização leva horas. */
+export const TRAVA_SEM_DONO_MS = 12 * 60 * 60 * 1000;
+/**
+ * A trava da rodada é órfã quando o processo que a criou não existe mais: o Mac reiniciou no meio de uma rodada (12 nov
+ * 2026, esperando a notarização da Apple) e a pasta ficou, travando todas as rodadas seguintes.
+ */
+export function travaOrfa({ pid, idadeMs, vivo }) {
+  if (Number.isInteger(pid) && pid > 0) return !vivo(pid);
+  return idadeMs > TRAVA_SEM_DONO_MS;
+}
+
 /** Arquivos que, sozinhos, não justificam um staging novo (o PR "Versão: base sobe" só mexe neles). */
 const SO_VERSAO = new Set(["package.json", "package-lock.json", "docs/CHANGELOG.md"]);
 

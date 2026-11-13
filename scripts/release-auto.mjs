@@ -17,12 +17,12 @@
 //   node scripts/release-auto.mjs --segurar "motivo"  o agente não promove a estável (staging e base seguem) até --soltar
 //   node scripts/release-auto.mjs --soltar       tira a trava; a promoção volta na rodada seguinte, se ainda couber
 import { execFileSync, spawnSync } from "node:child_process";
-import { appendFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, rmdirSync, symlinkSync, writeFileSync } from "node:fs";
+import { appendFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { dataPorExtenso, decideRodada, fecharChangelog, proximaBase, stagingMaisNovo } from "./release-core.mjs";
+import { dataPorExtenso, decideRodada, fecharChangelog, proximaBase, stagingMaisNovo, travaOrfa } from "./release-core.mjs";
 import { bundleDoStaging, saudeDesteMac } from "./release-saude.mjs";
 import { arquivosDeFragmento, lerFragmentos } from "./changelog-fragmentos.mjs";
 
@@ -161,9 +161,25 @@ function tentarMerge(branch, nova) {
 
 const aberto = (app) => spawnSync("pgrep", ["-f", `/${app}.app/Contents/MacOS/`]).status === 0;
 
+const processoVivo = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e?.code === "EPERM"; } };
+
+/** Pega a trava da rodada (pasta com o PID dentro); assume a de um processo que já morreu. */
+function pegarTrava(lock) {
+  try { mkdirSync(lock); } catch {
+    let pid = null; try { pid = Number(readFileSync(join(lock, "pid"), "utf8").trim()); } catch { /* sem PID: versão antiga */ }
+    let idadeMs = 0; try { idadeMs = Date.now() - statSync(lock).mtimeMs; } catch { /* sumiu agora */ }
+    if (!travaOrfa({ pid, idadeMs, vivo: processoVivo })) return false;
+    log(`trava órfã (o processo ${pid || "sem PID"} não existe mais): assumindo a rodada`);
+    rmSync(lock, { recursive: true, force: true });
+    try { mkdirSync(lock); } catch { return false; }
+  }
+  writeFileSync(join(lock, "pid"), String(process.pid));
+  return true;
+}
+
 function rodada() {
   const lock = join(ESTADO, "lock");
-  try { mkdirSync(lock); } catch { log("já há uma rodada em andamento; esta sai"); return; }
+  if (!pegarTrava(lock)) { log("já há uma rodada em andamento; esta sai"); return; }
   try {
     const { sha, base, tag, decisao } = olhar();
     // O agente roda deste worktree: mantê-lo no origin/main é o que atualiza o próprio agente na rodada seguinte.
@@ -200,7 +216,7 @@ function rodada() {
     }
   } catch (e) {
     log(`rodada quebrou: ${e?.stack ?? e}`);
-  } finally { rmdirSync(lock); }
+  } finally { rmSync(lock, { recursive: true, force: true }); }
 }
 
 /** Troca os apps staging locais (build do main, versão sem sufixo) pelos da última release staging: daí em diante, eles se atualizam pelo atualizador. */

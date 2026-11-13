@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { componentesSemVersao, dependenciasDesalinhadas, faltasParaPublicar, juntarFragmentos, lerVersao, notasDaRelease, produtosComInstalador, produtosDoCanal, proximaStaging, recusaPromocao } from "../release-core.mjs";
+import { componentesSemVersao, dependenciasDesalinhadas, faltasParaPublicar, juntarFragmentos, lerVersao, notasDaRelease, produtosComInstalador, produtosDoCanal, proximaStaging, recusaPromocao, TRAVA_SEM_DONO_MS, travaOrfa } from "../release-core.mjs";
 
 test("release staging: o próximo N sai das tags dessa versão", () => {
   assert.equal(proximaStaging("0.2.0", []), 1);
@@ -112,4 +112,14 @@ test("release recusa node_modules diferente do package-lock (a 0.83.0-staging.2 
   assert.deepEqual(dependenciasDesalinhadas(lock, (n) => ({ ...inst, electron: "44.10.2" })[n]), []);
   assert.deepEqual(dependenciasDesalinhadas(lock, () => null).length, 2);
   assert.deepEqual(dependenciasDesalinhadas({}, () => null), []);
+});
+
+test("trava da rodada: órfã quando o processo dono morreu; sem PID, só depois de 12 h", () => {
+  const vivos = new Set([111]);
+  const vivo = (p) => vivos.has(p);
+  assert.equal(travaOrfa({ pid: 111, idadeMs: 3 * TRAVA_SEM_DONO_MS, vivo }), false, "dono vivo segura a trava, mesmo antiga (notarização demorada)");
+  assert.equal(travaOrfa({ pid: 222, idadeMs: 1000, vivo }), true, "dono morto (Mac reiniciou): órfã na hora");
+  assert.equal(travaOrfa({ pid: null, idadeMs: 1000, vivo }), false);
+  assert.equal(travaOrfa({ pid: 0, idadeMs: TRAVA_SEM_DONO_MS + 1, vivo }), true);
+  assert.equal(travaOrfa({ pid: Number.NaN, idadeMs: TRAVA_SEM_DONO_MS - 1, vivo }), false);
 });
