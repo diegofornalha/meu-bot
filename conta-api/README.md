@@ -115,9 +115,10 @@ evento em staging pelo DebugView antes de publicar em produção; a mesma config
 Feito em 9 nov 2026 nas duas propriedades, pelo Navegador do meu-bot: fuso (São Paulo) e moeda, URL do fluxo, medição
 otimizada ligada **sem** "alterações de página por histórico do navegador" (o console mede as seções à mão; ligada, a tag
 mandaria um page_view duplicado a cada pushState), sinais do Google desligados, retenção de 14 meses, encobrir dados
-com as 7 chaves, e as 20 dimensões personalizadas de evento. Ficaram à mão, no Analytics: **referências indesejadas**
-(Fluxo › Tag do Google › Definir as configurações da tag › Listar referências indesejadas: `accounts.google.com`,
-`*.firebaseapp.com`; a tela abre fora do Navegador) e **eventos principais** (Administrador › Eventos › estrela em
+com as 7 chaves, e as 20 dimensões personalizadas de evento. As **referências indesejadas** (`accounts.google.com`,
+`*.firebaseapp.com`) ficam no código: o `analytics.js` manda `ignore_referrer` e não manda `page_referrer` quando a
+visita volta do login (`HOSTS_LOGIN`, `veioDoLogin` em `src/analytics-core.ts`), porque a tela do GA4 abre fora do
+Navegador. Ficaram à mão, no Analytics, os **eventos principais** (Administrador › Eventos › estrela em
 `download_iniciado`, `login_concluido`, `cadastro_concluido`, `org_criada`, sem `baixar_mac` desde 12 nov, que só aparecem na lista até
 24 h depois do primeiro disparo).
 
