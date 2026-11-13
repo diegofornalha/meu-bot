@@ -22,6 +22,8 @@ export function notarizar(arquivo, { perfil = PERFIL } = {}) {
   if (!existsSync(arquivo)) throw new Error(`não achei ${arquivo}`);
   if (identidadeDeveloperId() === null) { console.log(`(sem Developer ID no chaveiro: ${basename(arquivo)} não foi notarizado)`); return false; }
   const ehApp = arquivo.endsWith(".app");
+  // .dmg sem assinatura: a Apple aceita, mas o spctl não reconhece a notarização. Recusa antes de gastar o envio.
+  if (!ehApp && spawnSync("codesign", ["-v", arquivo]).status !== 0) throw new Error(`${basename(arquivo)} não está assinado: assine com o Developer ID antes de notarizar (o dmg.mjs faz isso)`);
   const tmp = mkdtempSync(join(tmpdir(), "meu-bot-notarizar-"));
   try {
     let envio = arquivo;
