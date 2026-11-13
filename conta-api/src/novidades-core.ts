@@ -66,7 +66,7 @@ export function novidadesHtml(releases: readonly ReleaseResumo[]): string {
 }
 
 /** Os guias publicados em /guias/<slug> (arquivo em public/site/guias/<slug>.html): a rota e o sitemap leem esta lista. */
-export const GUIAS = ["ia-para-pequena-empresa", "responder-clientes-whatsapp-fora-do-horario", "ia-que-le-seu-gmail", "whatsapp-bloqueia-numero-com-ia", "automatizar-whatsapp-com-ia"] as const;
+export const GUIAS = ["ia-para-pequena-empresa", "responder-clientes-whatsapp-fora-do-horario", "ia-que-le-seu-gmail", "whatsapp-bloqueia-numero-com-ia", "automatizar-whatsapp-com-ia", "api-oficial-do-whatsapp-ou-numero-proprio"] as const;
 
 /**
  * Data da última mudança de cada página de texto, para o lastmod do sitemap: o Google ignora lastmod que muda junto em
@@ -78,12 +78,13 @@ export const REVISAO_PAGINAS: Readonly<Record<string, string>> = {
   "/parceria-xai": "2026-11-12",
   "/perguntas": "2026-11-12",
   "/grok-bot-e-meu-bot": "2026-11-12",
-  "/guias": "2026-11-12",
+  "/guias": "2026-11-13",
   "/guias/ia-para-pequena-empresa": "2026-11-12",
   "/guias/responder-clientes-whatsapp-fora-do-horario": "2026-11-12",
   "/guias/ia-que-le-seu-gmail": "2026-11-12",
   "/guias/whatsapp-bloqueia-numero-com-ia": "2026-11-12",
   "/guias/automatizar-whatsapp-com-ia": "2026-11-12",
+  "/guias/api-oficial-do-whatsapp-ou-numero-proprio": "2026-11-13",
   "/privacidade": "2026-11-12",
   "/termos": "2026-11-12",
 };
