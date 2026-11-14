@@ -381,6 +381,24 @@ export const pastaSoLeitura = (e: unknown): boolean => {
 };
 
 /**
+ * Onde a troca acontece, decidido antes de mexer em qualquer arquivo. A troca é por renomeação (`<app>` → `<app>.antigo`,
+ * `<app>.novo` → `<app>`), então o que precisa de escrita é a PASTA do .app, não o .app: um meu-bot instalado em
+ * /Applications por outra conta de administrador do Mac troca normalmente. Sem escrita na pasta (a imagem do
+ * instalador, Downloads de outro usuário), a versão nova vai direto para a pasta Aplicativos e o app reabre de lá,
+ * sem segundo clique: quem pediu para atualizar não precisa entender onde o app estava.
+ * - "aqui": troca o .app em execução (e as cópias de ~/Applications e da mesa);
+ * - "aplicativos": troca a cópia que já está em /Applications (mesmo app) e reabre por ela;
+ * - "instalar": não há cópia em /Applications: instala a versão nova lá e reabre por ela;
+ * - "sem-permissao": esta conta não escreve nem na pasta do app nem em /Applications (conta sem administrador).
+ */
+export type DestinoTroca = "aqui" | "aplicativos" | "instalar" | "sem-permissao";
+export function destinoDaTroca(o: { pastaGravavel: boolean; emAplicativos: boolean; aplicativosGravavel: boolean; copiaEmAplicativos: boolean }): DestinoTroca {
+  if (o.pastaGravavel) return "aqui";
+  if (o.emAplicativos || !o.aplicativosGravavel) return "sem-permissao";
+  return o.copiaEmAplicativos ? "aplicativos" : "instalar";
+}
+
+/**
  * Versão já baixada, verificada e extraída, guardada em disco (`userData/update/preparada.json`) para a próxima
  * abertura não baixar de novo: `bundle` = caminho do .app extraído; `sha256` = do zip de onde ele veio.
  */

@@ -35,7 +35,7 @@ import { evento } from "../app/depuracao";
 import { offlineMessage } from "../app/net-core";
 import {
   abaixoDaMinima, alvosParaTrocar, candidataDe, decideAplicacaoEscolhida, decideInstalarListada, deveVerificarSozinho, listarReleases, parseFixada, podeTrocarComFixada, decideIdentidade, requisitoDeveloperId, assetName, CHECK_EVERY_MS, classificarRespostaFeed, compareVersions, decideAlvoAplicacao, decideFimDaEspera, CONFIRMA_FEED_MS, decideDescarte, decideReaproveitar, decideReconfirmacao, decideReinicioOcioso, decideRollback, escolherRelease, motivoManterTexto, motivoReleaseTexto, OCIOSO_SEG, parsePendente, parsePreparada, parseVersaoMinima,
-  pastaSoLeitura, proximaVerificacaoMs, releasesUrl, repararTroca, TENTATIVAS_ATE_VOLTAR, TRAVA_VELHA_MS, travaAbandonada, verificaAssinatura,
+  destinoDaTroca, pastaSoLeitura, proximaVerificacaoMs, releasesUrl, repararTroca, TENTATIVAS_ATE_VOLTAR, TRAVA_VELHA_MS, travaAbandonada, verificaAssinatura,
   type EscolhaRelease, type EstadoSistema, type ReleaseListada, type UpdateFixada, type UpdateCandidate, type UpdateGatilho, type UpdatePendente, type UpdatePreparada,
 } from "./updater-core";
 
@@ -520,7 +520,7 @@ export async function applyUpdate(expectedVersion: string, gatilho: Exclude<Upda
   try { mine = swapBundles(gatilho); } catch (e) {
     const ro = pastaSoLeitura(e); setPhase(ro ? "needs-move" : "ready");
     registrar("trocar", false, ro ? "pasta só de leitura" : erroTexto(e), { versao: expectedVersao, gatilho });
-    throw ro ? new Error("O app está numa pasta só de leitura (ainda na imagem do instalador?). Mova-o para a pasta Aplicativos e abra de lá.") : e;
+    throw ro ? new Error("Esta conta do Mac não tem permissão para trocar o app: ele está numa pasta protegida e a pasta Aplicativos também não aceita a cópia. Atualize por uma conta de administrador do Mac.") : e;
   }
   registrar("trocar", true, `trocado para a ${expectedVersao}`, { gatilho, forcado: forcar });
   relancar(mine);
@@ -573,16 +573,49 @@ function relancar(mine: string): void {
  */
 function swapBundles(gatilho: UpdateGatilho): string {
   if (preparada === null) throw new Error("não há atualização pronta");
-  const mine = runningBundle();
-  if (mine === null) throw new Error("fora de um .app");
-  // Pré-voo: sem escrita no .app ou na pasta dele (imagem .dmg, pasta de outro usuário) não há troca possível.
-  fs.accessSync(mine, fs.constants.W_OK); fs.accessSync(path.dirname(mine), fs.constants.W_OK);
+  const rodando = runningBundle();
+  if (rodando === null) throw new Error("fora de um .app");
+  // Pré-voo: a troca renomeia o .app, então basta escrita na PASTA dele (um .app de outra conta de administrador em
+  // /Applications troca normalmente). Sem ela (imagem do instalador, pasta de outro usuário), vai para /Applications.
+  const naAplicativos = path.join("/Applications", path.basename(rodando));
+  const destino = destinoDaTroca({
+    pastaGravavel: gravavel(path.dirname(rodando)),
+    emAplicativos: path.resolve(rodando) === naAplicativos,
+    aplicativosGravavel: gravavel("/Applications"),
+    copiaEmAplicativos: fs.existsSync(naAplicativos),
+  });
+  if (destino === "sem-permissao") { const e = new Error("sem escrita na pasta do app nem em /Applications") as Error & { code: string }; e.code = "EACCES"; throw e; }
+  if (destino === "instalar") return instalarEmAplicativos(rodando, naAplicativos, gatilho);
+  const mine = destino === "aplicativos" ? naAplicativos : rodando;
+  if (destino === "aplicativos") log(`[atualização] ${rodando} está numa pasta protegida: atualizo a cópia de ${naAplicativos} e reabro por ela`);
   // A trava de instância única do Electron é por userData, ou seja, por usuário do Mac. Com troca rápida de
   // usuário, duas sessões chegam aqui para a MESMA pasta Aplicativos. Esta trava é entre processos e mora ao lado
   // do alvo, no único lugar que as duas sessões enxergam e onde já sabemos que dá para escrever.
   const soltar = pegarTrava(mine);
   if (soltar === null) throw new Error("outra sessão deste Mac está trocando o app agora; tente de novo em instantes.");
   try { return trocarAlvos(mine, gatilho); } finally { soltar(); }
+}
+
+const gravavel = (p: string): boolean => { try { fs.accessSync(p, fs.constants.W_OK); return true; } catch { return false; } };
+
+/**
+ * O app roda de uma pasta protegida (imagem do instalador, Downloads de outro usuário) e não há cópia em /Applications:
+ * a versão nova, já conferida, vai direto para lá e o app reabre de lá. A cópia de origem fica onde está (numa imagem
+ * montada não dá para apagar). Sem `.antigo`: não há versão anterior em /Applications para voltar.
+ */
+function instalarEmAplicativos(origem: string, destino: string, gatilho: UpdateGatilho): string {
+  if (preparada === null) throw new Error("não há atualização pronta");
+  const fresh = `${destino}.novo`;
+  fs.rmSync(fresh, { recursive: true, force: true });
+  try {
+    execFileSync("ditto", [preparada.bundle, fresh]);
+    try { execFileSync("xattr", ["-dr", "com.apple.quarantine", fresh]); } catch { /* sem quarentena: nada a tirar */ }
+    fs.renameSync(fresh, destino);
+  } catch (e) { fs.rmSync(fresh, { recursive: true, force: true }); throw e; }
+  log(`[atualização] ${origem} estava numa pasta protegida: instalei a ${preparada.para} em ${destino} e reabro por lá (${gatilho})`);
+  fs.rmSync(updateDir(), { recursive: true, force: true });
+  preparada = null; state.ready = null;
+  return destino;
 }
 
 /**
@@ -763,7 +796,8 @@ function reporFaltantes(p: UpdatePendente): void {
 function descartarAntigos(p: UpdatePendente): void {
   const { apagar, manter } = decideDescarte(p.fase, p.antigos, fs.existsSync);
   for (const m of manter) log(`[atualização] mantive ${m.caminho}: ${motivoManterTexto(m.motivo)}`);
-  for (const a of apagar) fs.rmSync(a, { recursive: true, force: true });
+  // Um .antigo de outra conta do Mac pode ter arquivos que esta não apaga: fica lá, e a versão nova segue valendo.
+  for (const a of apagar) { try { fs.rmSync(a, { recursive: true, force: true }); } catch (e) { log(`[atualização] não consegui apagar ${a}: ${erroTexto(e)}`); } }
 }
 
 /** Restaura cada <app>.antigo no lugar do <app>. Quem reabre é `conferirPendente`, já sem a trava na mão. */

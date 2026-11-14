@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
-const { escolherRelease, candidataDe, motivoReleaseTexto, decideDescarte, motivoManterTexto, compareVersions, assetName, UPDATE_REPO, deveAtualizar, releasesUrl, precisaAtualizarBackend, verificaAssinatura, UPDATE_PUBLIC_KEYS, parsePendente, decideRollback, repararTroca, parsePreparada, proximaVerificacaoMs, CHECK_EVERY_MS, CHECK_JITTER_MS, feedAindaOferece, decideReinicioOcioso, parseVersaoMinima, abaixoDaMinima, classificarRespostaFeed, decideReconfirmacao, alvosParaTrocar, travaAbandonada, TRAVA_VELHA_MS, pastaSoLeitura, decideReaproveitar, decideAlvoAplicacao, decideFimDaEspera } = createRequire(import.meta.url)("../../dist/main/atualizacao/updater-core.js");
+const { escolherRelease, candidataDe, motivoReleaseTexto, decideDescarte, motivoManterTexto, compareVersions, assetName, UPDATE_REPO, deveAtualizar, releasesUrl, precisaAtualizarBackend, verificaAssinatura, UPDATE_PUBLIC_KEYS, parsePendente, decideRollback, repararTroca, parsePreparada, proximaVerificacaoMs, CHECK_EVERY_MS, CHECK_JITTER_MS, feedAindaOferece, decideReinicioOcioso, parseVersaoMinima, abaixoDaMinima, classificarRespostaFeed, decideReconfirmacao, alvosParaTrocar, travaAbandonada, TRAVA_VELHA_MS, pastaSoLeitura, destinoDaTroca, decideReaproveitar, decideAlvoAplicacao, decideFimDaEspera } = createRequire(import.meta.url)("../../dist/main/atualizacao/updater-core.js");
 import { generateKeyPairSync, sign } from "node:crypto";
 
 // Cada zip publicado vem com o .sig ao lado (o release assina); sem ele não há candidata (teste próprio abaixo).
@@ -369,4 +369,14 @@ test("requisitoDeveloperId: sem time aceita qualquer Developer ID; com time, só
   assert.equal(requisitoDeveloperId([]), base);
   assert.equal(requisitoDeveloperId(["ABCDE12345"]), `${base} and (certificate leaf[subject.OU] = "ABCDE12345")`);
   assert.equal(requisitoDeveloperId(['A" or 1', "ABCDE12345", "XYZ9876543"]), `${base} and (certificate leaf[subject.OU] = "ABCDE12345" or certificate leaf[subject.OU] = "XYZ9876543")`);
+});
+
+test("destinoDaTroca: a pasta do app manda; sem ela, a versão nova vai para /Applications sem segundo clique", () => {
+  const base = { pastaGravavel: false, emAplicativos: false, aplicativosGravavel: true, copiaEmAplicativos: false };
+  assert.equal(destinoDaTroca({ ...base, pastaGravavel: true, emAplicativos: true }), "aqui", ".app de outra conta admin em /Applications: troca por renomeação");
+  assert.equal(destinoDaTroca({ ...base, pastaGravavel: true }), "aqui");
+  assert.equal(destinoDaTroca(base), "instalar", "imagem do instalador sem cópia em /Applications");
+  assert.equal(destinoDaTroca({ ...base, copiaEmAplicativos: true }), "aplicativos", "atualiza a cópia que já está lá");
+  assert.equal(destinoDaTroca({ ...base, emAplicativos: true }), "sem-permissao", "em /Applications sem escrita: conta sem administrador");
+  assert.equal(destinoDaTroca({ ...base, aplicativosGravavel: false }), "sem-permissao");
 });
