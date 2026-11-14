@@ -155,8 +155,13 @@ async function api(req: Request, env: Env, url: URL, espera: (p: Promise<unknown
   return comCabecalhos(cors(req, env, res), {});
 }
 
-/** Login e console não são para indexar: robots.txt fecha tudo nesses hosts (a home tem o dela em public/site/). */
-const robotsFechado = (): Response => new Response("User-agent: *\nDisallow: /\n", { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "public, max-age=3600" } });
+/**
+ * Login e console não são para indexar. Quem tira os dois do Google é o cabeçalho `X-Robots-Tag: noindex` (`semIndice`),
+ * e o robots.txt desses hosts deixa visitar: com `Disallow: /` o Google não lia o noindex e mantinha no índice o
+ * endereço que o site linka (console/account/overview), como "Indexada, mas bloqueada pelo robots.txt" (14/11/2026).
+ */
+const semIndice = (res: Response): Response => { const h = new Headers(res.headers); h.set("x-robots-tag", "noindex"); return new Response(res.body, { status: res.status, statusText: res.statusText, headers: h }); };
+const robotsFechado = (): Response => new Response("# Fora do índice pelo cabeçalho X-Robots-Tag: noindex de cada resposta. Sem Disallow: o Google só lê o noindex\n# de quem pode visitar, e bloqueado aqui o endereço ficava \"indexado, mas bloqueado pelo robots.txt\".\nUser-agent: *\nAllow: /\n", { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "public, max-age=3600" } });
 /** A home: página, "obrigado" (que dispara o download), a versão mais nova em JSON e o redirecionamento ao asset do GitHub. */
 const cspDoSite = (env: Env): string => {
   const ga = extraGa(env);
@@ -242,7 +247,7 @@ export default {
       const destino = redirecionamentoInicial(req.url, env.SITE_ORIGIN);
       if (destino !== null) return comCabecalhos(Response.redirect(destino, 301), {});
       if (origem === env.SITE_ORIGIN) return await sitePagina(req, env, url);
-      return origem === env.AUTH_ORIGIN ? await pagina(req, env, url) : origem === env.CONSOLE_ORIGIN ? await consolePagina(req, env, url) : await api(req, env, url, (p) => ctx.waitUntil(p));
+      return origem === env.AUTH_ORIGIN ? semIndice(await pagina(req, env, url)) : origem === env.CONSOLE_ORIGIN ? semIndice(await consolePagina(req, env, url)) : await api(req, env, url, (p) => ctx.waitUntil(p));
     } catch (e) {
       console.log(`[conta-api] ${req.method} ${url.pathname}: ${e instanceof Error ? e.stack ?? e.message : String(e)}`);
       return comCabecalhos(json({ erro: "falha interna; tente de novo" }, 500), {});
