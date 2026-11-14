@@ -13,6 +13,126 @@ e entra aqui na seção da versão quando ela vira estável.
 
 ## Ainda não lançado
 
+---
+
+## 14 de novembro de 2026 · v0.83.0
+
+### Admin › Usuários: Salvar o limite de disco sem editar não apaga mais o limite
+#### Corrigido
+- Clicar em Salvar no campo "% do disco" de uma conta sem mudar o número tirava o limite dela ("sem limite"). Agora Salvar grava o % que o campo mostra.
+
+### Admin › Usuários: conta com OpenClaw deixa de mostrar "Preparar" depois de pronta
+#### Corrigido
+- Uma conta criada com o OpenClaw como agente do WhatsApp continuava com o botão Preparar mesmo depois de pronta. Agora o botão some, como já acontecia com o Hermes.
+
+#### Corrigido
+
+- Site: o Google Analytics passa a receber a campanha de quem chega por anúncio (utm e gclid), e cada download conta uma vez só. A política de privacidade explica a medição de anúncios, sem remarketing.
+
+#### Corrigido
+
+- Analytics: conta criada direto no login (pelo app, com Google ou link por e-mail) passa a contar como cadastro concluído.
+
+#### Corrigido
+
+- Site: quem volta do login do Google não aparece mais como visita vinda de accounts.google.com, então a campanha do anúncio de origem continua contando.
+
+### Assinatura Developer ID e notarização
+#### Mudado
+- O app passa a sair assinado com o Developer ID da Apple e notarizado quando o certificado está no Mac que publica: abre em qualquer Mac com dois cliques, sem o "Abrir Mesmo Assim". Na primeira abertura com a assinatura nova, o macOS pode pedir "Permitir sempre" para o chaveiro.
+
+### Controle externo (MCP): Atualizar também corrige o comando antigo colado numa pasta
+#### Corrigido
+- Quem colou o comando antigo do Claude Code continuava, naquela pasta, com a chave anterior depois de "Gerar outra", mesmo com o app mostrando "instalado". Agora o app mostra "desatualizado", e Atualizar ou Remover limpam também essa configuração antiga.
+
+### Controle externo (MCP): instalar no Claude Code e no Cursor com um clique
+#### Novo
+- Em Configurações › Controle externo (MCP), o botão Instalar registra o app no Claude Code, para o seu usuário e em qualquer pasta, sem colar comando no terminal. No Cursor, ele abre o pedido de instalação para você confirmar.
+- Cada cliente mostra se o app está instalado. Depois de gerar outra chave ou trocar a porta, ele aparece como desatualizado, e o botão Atualizar resolve. O Claude Code também tem Remover.
+- As ações feitas pelo Claude Code aparecem no app com o selo "Claude Code (MCP)".
+
+### Controle externo (MCP): configuração do comando antigo aparece como desatualizada
+#### Corrigido
+- Quem configurou o Claude Code pelo comando antigo via as ações dele no app como "Cliente MCP (Mac)", e a tela dizia "instalado". Agora aparece "desatualizado", e Atualizar regrava a configuração com o nome do cliente.
+
+#### Novo
+
+- Console: "Assinar por R$ 97/mês" no Plano. O pagamento é feito na página da AbacatePay e o Pro é liberado na conta assim que o pagamento é confirmado, sem esperar o admin. Por enquanto só no staging, em modo de teste.
+
+#### Corrigido
+
+- Site: endereços com barra no fim (agentesgrok.com/baixar/) redirecionam para a página certa em vez de dar 404.
+
+#### Corrigido
+
+- Site: nas páginas Grok no WhatsApp e Parceria com a xAI, o botão "Testar grátis por 14 dias" volta a ter a letra branca sobre o azul.
+
+#### Corrigido
+
+- Site: a imagem que aparece quando alguém compartilha o link (WhatsApp, X, LinkedIn) não sai mais cortada.
+
+#### Corrigido
+
+- Site: respostas mais francas sobre o risco de bloqueio no WhatsApp, a diferença entre o Grok Bot e o meu-bot em tabela, e textos dos guias alinhados ao que o app faz hoje.
+
+#### Corrigido
+
+- Site: o Google Analytics deixa de perder visitas (a política de segurança bloqueava parte dos envios), os botões azuis têm mais contraste no modo escuro e os links do rodapé ficam mais fáceis de tocar no celular.
+
+#### Novo
+
+- Site: agentesgrok.com.br (com e sem www) leva ao agentesgrok.com, na mesma página.
+
+### Site: Grok no WhatsApp e a parceria com a xAI
+#### Novo
+- **agentesgrok.com/grok-no-whatsapp** explica que não existe número oficial do Grok no WhatsApp e mostra o jeito seguro de ter o Grok respondendo no seu número com o meu-bot, passo a passo.
+- **agentesgrok.com/parceria-xai** diz o que a parceria da Coflow com a xAI significa para o seu negócio, e o que ela não é.
+- A home liga as duas páginas, e os dados da Coflow passam a aparecer para o Google como empresa responsável pelo meu-bot.
+
+#### Novo
+
+- Site: guia "API oficial do WhatsApp ou número próprio", que compara a API da Meta (coexistência, limite inicial, preço por mensagem, regra de janeiro de 2026) com o número de sempre como aparelho vinculado, e ajuda a escolher.
+
+#### Novo
+
+- Site: guia "Como automatizar o WhatsApp com IA", que compara os 4 caminhos (app Business, plataforma pela API da Meta, n8n ou Evolution e um agente no Mac) e ajuda a escolher.
+
+#### Novo
+
+- Site: guia "O WhatsApp bloqueia o número que usa IA?", com o que a Meta escreve, a regra de janeiro de 2026 e o que aumenta ou diminui o risco.
+
+#### Corrigido
+
+- Site: os guias do Gmail e de fora do horário ganham links para as páginas oficiais do Google e do WhatsApp, e o de fora do horário ganha mais modelos de mensagem de ausência para copiar.
+
+#### Novo
+
+- Site: guias para quem toca um negócio (agentesgrok.com/guias), com três textos (IA para pequena empresa, responder clientes no WhatsApp fora do horário e IA que lê o seu Gmail), e a página "Grok Bot e meu-bot", que explica a diferença entre os dois.
+
+#### Corrigido
+
+- Site: o llms.txt só fala da assinatura pelo console quando ela está ligada.
+
+#### Corrigido
+
+- Site: o llms.txt (o resumo do site para assistentes de IA) passa a listar os cinco guias, a assinatura pelo console e a documentação do app.
+
+#### Corrigido
+
+- Site: dados estruturados completos (pergunta do macOS na home, preço mensal, privacidade, termos e novidades com prévia para redes) e páginas que o navegador pode reaproveitar ao voltar.
+
+#### Corrigido
+
+- Site: o link para os Guias aparece no rodapé de todas as páginas; links do site compartilhados no WhatsApp e no X mostram a imagem grande do meu-bot; http://www.agentesgrok.com e agentesgrok.com/index.html levam direto à página certa num redirecionamento só; e o Google passa a ver a data real da última mudança de cada página.
+
+#### Novo
+
+- Site: páginas "Baixar o meu-bot para Mac" (agentesgrok.com/baixar) e "Perguntas frequentes" (agentesgrok.com/perguntas), e o mesmo menu (Baixar, Grok no WhatsApp, Perguntas, Novidades, Console) em todas as páginas.
+
+### Versões publicadas mais enxutas
+#### Mudado
+- A lista "Versões publicadas" (Configurações › Sobre e atualização) mostra só a instalada, as mais novas e as 2 mais velhas; as outras ficam em "Mostrar mais".
+
 ### Admin: a pressão da box diz quanto subir
 
 #### Melhorado
