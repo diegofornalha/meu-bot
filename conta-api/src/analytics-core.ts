@@ -21,6 +21,14 @@ export const CSP_GA = {
   img: "https://*.google-analytics.com https://*.googletagmanager.com https://stats.g.doubleclick.net",
 } as const;
 
+/**
+ * Medição de conversão do Google Ads (a conta do Ads está vinculada ao GA4 e a tag do Google passa a avisar o Ads do
+ * clique no anúncio). Só os caminhos de conversão (`/ccm/` e o cookie de atribuição): os de remarketing
+ * (`/rmkt/`, `/pagead/viewthroughconversion/`, `/ads/ga-audiences`) ficam de fora de propósito, e a CSP os bloqueia,
+ * porque /privacidade promete que não fazemos remarketing. Vale só no site, onde o anúncio chega.
+ */
+export const CSP_ADS = "https://www.google.com/ccm/ https://ad.doubleclick.net/ccm/ https://www.googleadservices.com/pagead/set_partitioned_cookie";
+
 /** Origem + caminho de uma URL, sem query nem fragmento ("https://console…/account/plan"); null se a URL não é legível. */
 export function paginaLimpa(url: string): string | null {
   try { const u = new URL(url); return `${u.origin}${u.pathname}`; } catch { return null; }

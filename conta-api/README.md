@@ -66,7 +66,8 @@ produção = **meu-bot-conta** (`G-12CJ787RGJ`, criada pelo Firebase, conta box@
 aceita vários IDs separados por vírgula, mas dois containers do Google na mesma página duplicam o `page_view` (o segundo
 ignora `send_page_view: false`): deixe um por ambiente. O Worker põe a lista no `/config.js` de cada host
 (`ga`) e libera na CSP de cada host os domínios da tag (`googletagmanager.com`, `google-analytics.com`,
-`analytics.google.com`) **só** quando há ID (`src/analytics-core.ts`). As páginas carregam `public/analytics.js` logo
+`analytics.google.com`) **só** quando há ID (`src/analytics-core.ts`). No site, a CSP libera também a medição de
+conversão do Google Ads (`CSP_ADS`: `/ccm/` e o cookie de atribuição) e continua bloqueando os envios de remarketing. As páginas carregam `public/analytics.js` logo
 depois de `/config.js`; ele expõe `window.meuBotGa = { pagina, evento }` e, sem ID, as duas funções não fazem nada.
 
 Regras: `send_page_view: false` em todo `config` e `page_view` à mão com `page_location = origem + caminho` (sem query
