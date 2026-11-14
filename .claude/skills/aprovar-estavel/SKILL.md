@@ -39,7 +39,7 @@ O usuário pode pedir ("roda agora", "antecipa?"). É o mesmo que o agente faria
 "aprovado". Pause o agente antes, para ele não soltar uma segunda staging por cima
 (`launchctl bootout gui/$(id -u)/com.meu-bot.release-auto`; confira `pgrep -fl scripts/release` vazio), e num worktree
 descartável no `origin/main` preparado como a fase 2 (`git worktree add --detach ../meu-bot-release-stg origin/main`,
-`node_modules`, `build/`, `config/google-*.json`): `npm test` e `npm run release:staging`. Depois: `gh release view`
+os dois `node_modules`, `build/`, `config/google-*.json`): `npm test` e `npm run release:staging`. Depois: `gh release view`
 (não é draft, 9 arquivos), religue o agente com o `bootstrap` acima e apague o worktree. O agente vê a tag no HEAD e
 passa a esperar a saúde; não publica outra. Nunca use o `../meu-bot-release` do agente para isso.
 
@@ -67,9 +67,18 @@ para o que a prova automática não encena (instalar por cima, preferências e a
 ## Fase 2: a estável passa em todas as recusas
 
 Antes de qualquer promoção manual (e para responder "dá para subir?"), num worktree **no commit da `<tag>`**:
-`git worktree add --detach ../meu-bot-promover <tag>` com `node_modules` (symlink do checkout principal), o `build/`
-inteiro (inclui `build/suporte`) e `config/google-*.json` copiados (skill `contribuir`). Nunca use o
-`../meu-bot-release` (é do agente). Lá:
+`git worktree add --detach ../meu-bot-promover <tag>` e, dentro dele:
+
+```
+ln -s ~/Desktop/meu-bot/node_modules node_modules
+ln -s ~/Desktop/meu-bot/extensao-crm/node_modules extensao-crm/node_modules
+cp -R ~/Desktop/meu-bot/build .            # inteiro, inclui build/suporte
+cp ~/Desktop/meu-bot/config/google-*.json config/
+```
+
+Os dois `node_modules` são obrigatórios. Sem o da extensão, o `--conferir` passa, mas o `npm run release` quebra no
+empacotamento com `Cannot find package 'esbuild'` (14 nov 2026; nada é publicado). O agente liga os dois sozinho.
+Nunca use o `../meu-bot-release`, que é do agente. Lá:
 
 ```
 npm test

@@ -67,7 +67,7 @@ Publique do checkout principal só se ele estiver limpo e no `origin/main`; sen�
    andou depois do staging (merges de outras pessoas), há dois caminhos; diga qual ao usuário:
    - promover o que ele testou: `git worktree add --detach ../meu-bot-promover v<versão>-staging.N` (nunca
      `../meu-bot-release`, que é do agente automático; pause o agente antes, como na skill `aprovar-estavel`), prepare
-     o worktree como na skill `contribuir` (node_modules, `build/` inteiro com `build/suporte`, `config/google-*.json`)
+     o worktree como na fase 2 da skill `aprovar-estavel` (`node_modules` e `extensao-crm/node_modules`, `build/` inteiro com `build/suporte`, `config/google-*.json`)
      e rode o `npm run release` de lá; os merges novos ficam para a próxima versão;
    - incluir os merges: novo `npm run release:staging` (`-staging.N+1`) e o usuário testa de novo.
    Publica
