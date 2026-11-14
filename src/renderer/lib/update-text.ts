@@ -56,7 +56,7 @@ export function updateStateText(u: UpdateState, appName: string, now: number = D
       return { text: `${appName} ${u.ready ?? ""} pronta para instalar.`, kind: "warn", showApply: true, applyLabel: APLICAR, showMove: false, short: null };
     }
     case "applying": return { text: u.aguardando ? "Esperando a resposta em andamento terminar para atualizar…" : `Instalando a versão ${u.ready ?? ""}…`, kind: "warn", showApply: false, applyLabel: APLICAR, showMove: false, short: u.aguardando ? "atualiza quando a resposta terminar…" : "instalando…" };
-    case "needs-move": return { text: "O app está numa pasta só de leitura (ainda na imagem do instalador?). Posso copiá-lo para a pasta Aplicativos e reabrir de lá.", kind: "bad", showApply: false, applyLabel: APLICAR, showMove: true, short: null };
+    case "needs-move": return { text: "Esta conta do Mac não tem permissão para trocar o app (nem na pasta dele, nem na pasta Aplicativos). Atualize por uma conta de administrador do Mac.", kind: "bad", showApply: false, applyLabel: APLICAR, showMove: false, short: null };
     case "error": {
       if (u.errorKind === "rede" || u.error === "sem internet") return { text: "Sem internet; verifico as atualizações de novo quando a conexão voltar.", kind: "warn", showApply: false, applyLabel: APLICAR, showMove: false, short: null };
       // Disco cheio e release que não dá para instalar têm frase própria: a genérica mandaria a pessoa procurar no
@@ -82,7 +82,7 @@ export function updateBlockerText(u: UpdateState, appName: string): { title: str
   const motivo = u.phase === "needs-move" ? updateStateText(u, appName).text : u.phase === "error" ? updateStateText(u, appName).text : "";
   // Com o backend exigindo uma versão nova e o app numa pasta sem escrita, mover é o ÚNICO caminho para destravar:
   // o botão tem de estar aqui também, senão esta tela só sabe mandar a pessoa baixar à mão.
-  return { title: "Atualização necessária", text: `Esta máquina precisa do ${appName} ${min} ou mais novo (este é o ${u.current}).${motivo === "" ? "" : ` ${motivo}`}`, showApply: false, applyLabel: APLICAR, showMove: u.phase === "needs-move", showManual: true };
+  return { title: "Atualização necessária", text: `Esta máquina precisa do ${appName} ${min} ou mais novo (este é o ${u.current}).${motivo === "" ? "" : ` ${motivo}`}`, showApply: false, applyLabel: APLICAR, showMove: false, showManual: true };
 }
 
 export const ATUALIZAR_AGORA = "Atualizar agora";
@@ -95,7 +95,8 @@ export function updateNowButton(u: UpdateState): { hidden: boolean; disabled: bo
   const t = updateStateText(u, "");
   const emCurso = u.phase === "checking" || u.phase === "available" || u.phase === "downloading" || u.phase === "verifying" || u.phase === "applying";
   if (u.buildLocal === true) return { hidden: t.showApply || t.showMove, disabled: true, label: ATUALIZAR_AGORA, title: "Este build vem de empacotar o código deste Mac (o rebuild do main), não de uma release: ele se atualiza quando um novo build é instalado." };
-  return { hidden: t.showApply || t.showMove, disabled: emCurso || u.phase === "idle", label: emCurso ? "Atualizando…" : ATUALIZAR_AGORA, title: "Procura a versão mais nova, baixa e reinicia o app nela." };
+  // Sem permissão para trocar (needs-move), "Atualizar agora" baixaria de novo e esbarraria no mesmo lugar: some.
+  return { hidden: t.showApply || t.showMove || u.phase === "needs-move", disabled: emCurso || u.phase === "idle", label: emCurso ? "Atualizando…" : ATUALIZAR_AGORA, title: "Procura a versão mais nova, baixa e reinicia o app nela." };
 }
 
 const REPO = "https://github.com/diegofornalha/meu-bot";

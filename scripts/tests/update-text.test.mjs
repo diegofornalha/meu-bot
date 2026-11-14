@@ -26,8 +26,10 @@ test("fases novas (molde do Grok Bot): download com porcentagem, conferência, i
   assert.deepEqual(updateStateText({ ...base, phase: "applying", ready: "0.2.0" }, "meu-bot", NOW), { text: "Instalando a versão 0.2.0…", kind: "warn", showApply: false, applyLabel: APLICAR, showMove: false, short: "instalando…" });
   assert.equal(updateStateText({ ...base, phase: "applying", ready: "0.2.0", aguardando: true }, "meu-bot", NOW).text, "Esperando a resposta em andamento terminar para atualizar…");
   const ro = updateStateText({ ...base, phase: "needs-move" }, "meu-bot", NOW);
-  assert.equal(ro.kind, "bad"); assert.match(ro.text, /Aplicativos/); assert.equal(ro.showApply, false);
-  assert.equal(ro.showMove, true, "numa pasta sem escrita o app oferece mover, em vez de só instruir");
+  assert.equal(ro.kind, "bad"); assert.match(ro.text, /administrador/); assert.equal(ro.showApply, false);
+  // Imagem do instalador e pasta de outra conta o app resolve sozinho (instala em /Applications); só sobra a conta sem
+  // permissão em lugar nenhum, e aí mover também falharia: o texto diz quem pode atualizar, sem botão que não funciona.
+  assert.equal(ro.showMove, false);
 });
 
 test("resposta em andamento: a tela oferece parar, em vez de o app reiniciar por cima da conversa", () => {
@@ -49,9 +51,9 @@ test("bloqueador de versão mínima: o que a pessoa vê em cada fase", () => {
   // Mesmo com o backend exigindo a versão nova, uma resposta em andamento não é interrompida sem a pessoa mandar.
   const ocupado = b({ phase: "ready", ready: "0.3.1", available: "0.3.1", ocupadoAoAplicar: true });
   assert.equal(ocupado.applyLabel, PARAR_E_APLICAR); assert.match(ocupado.text, /resposta em andamento/);
-  // E se o app está numa pasta sem escrita, mover é o ÚNICO caminho para destravar esta tela.
+  // Sem permissão em lugar nenhum: o caminho é o download manual (ou uma conta de administrador), não mover.
   const preso = b({ phase: "needs-move" });
-  assert.equal(preso.showMove, true); assert.equal(preso.showManual, true);
+  assert.equal(preso.showMove, false); assert.equal(preso.showManual, true); assert.match(preso.text, /administrador/);
   assert.equal(b({ phase: "error", errorKind: "github", error: "x" }).showMove, false);
   const d = b({ phase: "downloading", available: "0.3.1", progress: 0.5 });
   assert.equal(d.title, "Atualização necessária"); assert.match(d.text, /precisa do meu-bot 0\.3\.0 ou mais novo \(este é o 0\.1\.0\)\. Baixando a versão 0\.3\.1… 50%/); assert.equal(d.showApply, false); assert.equal(d.showManual, false);
@@ -81,7 +83,7 @@ test("'Atualizar agora': ligado em dia ou com erro, 'Atualizando…' no caminho,
   }
   assert.equal(updateNowButton({ ...base, phase: "idle" }).disabled, true, "fora do app instalado não há o que atualizar");
   assert.equal(updateNowButton({ ...base, phase: "ready", ready: "0.2.0" }).hidden, true, "pronta: o 'Reiniciar e atualizar' fala");
-  assert.equal(updateNowButton({ ...base, phase: "needs-move" }).hidden, true, "pasta só de leitura: o 'Mover para Aplicativos' fala");
+  assert.equal(updateNowButton({ ...base, phase: "needs-move" }).hidden, true, "sem permissão: o texto diz quem atualiza");
 });
 
 test("'Atualizar agora' num build local: desligado com a dica, para não levar a uma release mais velha", () => {
