@@ -21,7 +21,7 @@ import { getSuporteResumos, postSuporteResumo } from "./rotas/suporte.js";
 import { deletePerfil, getAdminFirebase, getAdminVisao, patchLicenca, postAdminSenha, postAtenderPedido, putAdminSenha, putPerfil } from "./rotas/admin.js";
 import { downloadMac, REPO } from "./release-github.js";
 import { GUIAS, lerReleases, novidadesHtml, sitemapXml } from "./novidades-core.js";
-import { CSP_GA, gaIds } from "./analytics-core.js";
+import { CSP_ADS, CSP_GA, gaIds } from "./analytics-core.js";
 import { caminhoCanonico, llmsPorPagamentos, redirecionamentoInicial } from "./site-core.js";
 import { pagamentosLigados, postAssinatura, postWebhookAbacate } from "./rotas/pagamentos.js";
 import { deleteMembro, deleteOrg, getOrg, getOrgPublico, getOrgs, patchAdminOrg, patchMembro, patchOrg, postMembro, postOrg } from "./rotas/orgs.js";
@@ -160,12 +160,14 @@ const robotsFechado = (): Response => new Response("User-agent: *\nDisallow: /\n
 /** A home: página, "obrigado" (que dispara o download), a versão mais nova em JSON e o redirecionamento ao asset do GitHub. */
 const cspDoSite = (env: Env): string => {
   const ga = extraGa(env);
+  // A medição de conversão do Google Ads entra junto com o Analytics (sem GA_ID, nada): só conversão, sem remarketing.
+  const ads = ga.script === "" ? "" : ` ${CSP_ADS}`;
   return [
     "default-src 'self'",
     // static.cloudflareinsights.com: o beacon do Web Analytics que a Cloudflare injeta no site (era bloqueado pela CSP).
     `script-src 'self'${ga.script} https://static.cloudflareinsights.com`,
-    `connect-src 'self'${ga.connect} https://cloudflareinsights.com`,
-    `img-src 'self' data:${ga.img}`,
+    `connect-src 'self'${ga.connect}${ads} https://cloudflareinsights.com`,
+    `img-src 'self' data:${ga.img}${ads}`,
     "style-src 'self'", "base-uri 'none'", "form-action 'none'", "frame-ancestors 'none'",
   ].join("; ");
 };
