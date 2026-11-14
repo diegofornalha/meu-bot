@@ -57,7 +57,8 @@ test("veioDoLogin: accounts.google.com e firebaseapp.com são volta do login; o 
 test("CSP_ADS: só os caminhos de conversão do Google Ads, nada de remarketing", async () => {
   const { CSP_ADS } = await import("../dist/analytics-core.js");
   const fontes = CSP_ADS.split(" ");
-  assert.ok(fontes.includes("https://www.google.com/ccm/"));
+  assert.equal(fontes.length, 3);
+  assert.equal(fontes[0], "https://www.google.com/ccm/");
   for (const f of fontes) {
     assert.match(f, /^https:\/\/[a-z.]+\/[a-z_/]+$/, "toda fonte tem caminho: nunca o host inteiro");
     assert.doesNotMatch(f, /rmkt|viewthroughconversion|ga-audiences/);
