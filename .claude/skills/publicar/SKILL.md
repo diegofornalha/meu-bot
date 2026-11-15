@@ -14,12 +14,13 @@ O agente do launchd `scripts/release-auto.mjs` (rótulo `com.meu-bot.release-aut
 `~/Library/Logs/meu-bot-release.log`) faz a sequência abaixo sozinho, no worktree fixo `../meu-bot-release`:
 
 1. **Staging**: 10 min depois do último merge no `main` (junta merges seguidos), `npm test` + `npm run release:staging`.
-   O macOS pede a chave da release no Chaveiro: é o único clique. Negou ou ninguém viu: tenta de novo em 1 h.
+   A chave da release sai do Chaveiro sem janela ("Sempre Permitir" neste Mac). Falhou: tenta de novo em 1 h.
 2. **Saúde**: o `meu-bot-staging` deste Mac (vindo da release) precisa receber a versão pelo atualizador e confirmá-la
    (`[atualização] <v> confirmada` no log; `node scripts/release-saude.mjs <v>`). Se ele estiver fechado, o agente o
    abre escondido. Se a versão voltou para a anterior, nada é promovido e o Mac avisa.
-3. **Estável**: 24 h depois do staging, saudável e ainda no HEAD do `main` → `npm run release` no mesmo commit, e
-   o deploy do site se `conta-api/` mudou desde a estável anterior. Merge novo no meio solta um staging novo e
+3. **Estável**: 24 h depois do staging, saudável e ainda no HEAD do `main` → `npm run release` no mesmo commit. Na
+   rodada seguinte, o site acompanha se `conta-api/` mudou desde a estável anterior (`scripts/site-publicar.mjs`:
+   staging, conferência, produção, conferência; desfaz se a conferência falhar). Merge novo no meio solta um staging novo e
    recomeça as 24 h.
 4. **Base**: PR "Versão: base sobe para X" (`package.json` + "Ainda não lançado" vira a seção datada), mergeado sozinho.
 

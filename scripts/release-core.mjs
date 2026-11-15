@@ -225,3 +225,59 @@ export function dependenciasDesalinhadas(lock, instalada) {
   }
   return erradas;
 }
+
+// ── Site (Worker conta-api): acompanha a estável sem esperar ninguém (scripts/site-publicar.mjs) ───────────────────
+
+const ESTAVEL = /^v(\d+)\.(\d+)\.(\d+)$/;
+/** A estável mais nova entre `tags` (ex.: "v0.83.0"), ou null. */
+export function estavelMaisNova(tags) {
+  let melhor = null, chave = null;
+  for (const t of tags) {
+    const m = ESTAVEL.exec(t.trim()); if (m === null) continue;
+    const k = [Number(m[1]), Number(m[2]), Number(m[3])];
+    if (chave === null || k[0] > chave[0] || (k[0] === chave[0] && (k[1] > chave[1] || (k[1] === chave[1] && k[2] > chave[2])))) { chave = k; melhor = t.trim(); }
+  }
+  return melhor;
+}
+
+/**
+ * O que a rodada faz com o site. `siteDe` = a estável que o site já acompanhou (estado do agente).
+ * - `marcar`: só anota a estável (primeira rodada do agente, ou conta-api não mudou desde `siteDe`);
+ * - `publicar`: saiu estável nova (pelo agente ou à mão) e conta-api mudou;
+ * - `nada`: site em dia, ou a última tentativa falhou há menos de `esperaMs`.
+ */
+export function decideSite({ ultimaEstavel, siteDe = null, mudouSite, falhouEm = null, agora, esperaMs }) {
+  if (ultimaEstavel === null || siteDe === ultimaEstavel) return { acao: "nada" };
+  if (siteDe === null) return { acao: "marcar", motivo: `primeira rodada: o site já estava no ar quando a ${ultimaEstavel} saiu` };
+  if (!mudouSite) return { acao: "marcar", motivo: `conta-api não mudou desde a ${siteDe}` };
+  if (falhouEm !== null && agora - falhouEm < esperaMs) return { acao: "nada", motivo: "a última publicação do site falhou há pouco" };
+  return { acao: "publicar", motivo: `${ultimaEstavel} saiu e conta-api mudou desde a ${siteDe}` };
+}
+
+/** Páginas que têm de responder 200 em cada canal (o staging fica fora dos buscadores pelo cabeçalho, sem sitemap). */
+export const PAGINAS_DO_SITE = { staging: ["/", "/obrigado"], producao: ["/", "/obrigado", "/robots.txt", "/sitemap.xml", "/llms.txt"] };
+
+/**
+ * O que está errado no site no ar (lista vazia = conferido). `health` = corpo JSON de /health (ou null),
+ * `download` = corpo JSON de /download/mac.json (ou null), `paginas` = { caminho: status HTTP }.
+ */
+export function faltasDoSite({ canal, health, download, paginas }) {
+  const f = [];
+  if (health?.ok !== true || health?.canal !== canal) f.push(`/health não respondeu {"ok":true,"canal":"${canal}"}`);
+  if (typeof download?.versao !== "string" || typeof download?.nome !== "string" || typeof download?.url !== "string") f.push("/download/mac.json sem versao, nome ou url");
+  else if (canal === "producao" && !/^\d+\.\d+\.\d+$/.test(download.versao)) f.push(`produção entregando ${download.versao}, que não é estável`);
+  for (const c of PAGINAS_DO_SITE[canal]) if (paginas?.[c] !== 200) f.push(`${c} respondeu ${paginas?.[c] ?? "nada"}`);
+  return f;
+}
+
+/**
+ * Conferência reprovada depois de um deploy: desfazer só quando o próprio Worker respondeu errado (/health com outro
+ * canal, página com erro). Sem resposta (status 0: este Mac sem rede) ou só o /download/mac.json falhando (ele depende
+ * do GitHub) não prova nada contra o deploy: ele fica, e a publicação é tentada de novo.
+ * `statusHealth` e `paginas` são status HTTP (0 = sem resposta).
+ */
+export function desfazDeploy({ canal, health, statusHealth, paginas }) {
+  if (statusHealth !== 0 && (health?.ok !== true || health?.canal !== canal)) return true;
+  return PAGINAS_DO_SITE[canal].some((c) => typeof paginas?.[c] === "number" && paginas[c] !== 0 && paginas[c] !== 200);
+}
+
