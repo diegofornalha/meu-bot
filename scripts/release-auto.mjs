@@ -273,9 +273,9 @@ function instalarAgente() {
   writeFileSync(PLIST, plistDoAgente({ rotulo: ROTULO, node: process.execPath, principal: PRINCIPAL, wt: WT, path, log: LOG }));
   spawnSync("launchctl", ["bootout", `gui/${uid}/${ROTULO}`], { stdio: "ignore" });
   // O bootout é assíncrono: o bootstrap logo em seguida pode dar "Input/output error" enquanto o antigo descarrega.
-  let ok = false;
-  for (let i = 0; i < 10 && !ok; i++) { if (i > 0) spawnSync("sleep", ["1"]); ok = spawnSync("launchctl", ["bootstrap", `gui/${uid}`, PLIST], { stdio: "ignore" }).status === 0; }
-  if (!ok) { console.error(`✗ o launchd não carregou ${PLIST}`); process.exit(1); }
+  let ok = false, ultimoErro = "";
+  for (let i = 0; i < 10 && !ok; i++) { if (i > 0) spawnSync("sleep", ["1"]); const r = spawnSync("launchctl", ["bootstrap", `gui/${uid}`, PLIST], { encoding: "utf8" }); ok = r.status === 0; ultimoErro = (r.stderr || "").trim(); }
+  if (!ok) { console.error(`✗ o launchd não carregou ${PLIST}${ultimoErro ? `: ${ultimoErro}` : ""}`); process.exit(1); }
   console.log(`✓ agente ${ROTULO} instalado (a cada 10 min; log em ${LOG})`);
 }
 function instalar() {

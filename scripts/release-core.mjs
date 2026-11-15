@@ -296,7 +296,8 @@ export function plistDoAgente({ rotulo, node, principal, wt, path, log, interval
   const partida = [
     `const { existsSync } = require("node:fs"), { spawnSync } = require("node:child_process");`,
     `const p = ${JSON.stringify(principal)}, wt = ${JSON.stringify(wt)};`,
-    `if (!existsSync(wt + "/.git")) for (const a of [["worktree", "prune"], ["fetch", "-q", "origin", "main"], ["worktree", "add", "-q", "--detach", wt, "origin/main"]]) spawnSync("git", a, { cwd: p, stdio: "inherit" });`,
+    // O fetch pode falhar sem rede (o origin/main local serve); prune e add têm de dar certo, senão sai com o motivo.
+    `if (!existsSync(wt + "/.git")) for (const a of [["worktree", "prune"], ["fetch", "-q", "origin", "main"], ["worktree", "add", "-q", "--detach", wt, "origin/main"]]) { if (spawnSync("git", a, { cwd: p, stdio: "inherit" }).status !== 0 && a[0] !== "fetch") { console.error(new Date().toISOString() + " ✗ não recriei o worktree da release: git " + a.join(" ")); process.exit(1); } }`,
     `process.exit(spawnSync(process.execPath, [wt + "/scripts/release-auto.mjs", "--run"], { cwd: wt, stdio: "inherit" }).status ?? 1);`,
   ].join(" ");
   return `<?xml version="1.0" encoding="UTF-8"?>
