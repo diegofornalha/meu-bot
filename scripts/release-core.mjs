@@ -281,3 +281,37 @@ export function desfazDeploy({ canal, health, statusHealth, paginas }) {
   return PAGINAS_DO_SITE[canal].some((c) => typeof paginas?.[c] === "number" && paginas[c] !== 0 && paginas[c] !== 200);
 }
 
+// ── O agente no launchd ────────────────────────────────────────────────────────────────────────────────────────
+
+const xml = (t) => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+/**
+ * O plist do agente. O launchd parte do checkout principal, que existe enquanto o repositório existir, e não do
+ * worktree da release: em 14 nov 2026 a pasta ../meu-bot-release foi apagada da Mesa e o agente, que morava nela,
+ * ficou dois dias saindo com 78 (EX_CONFIG) sem publicar nada. Agora a partida recria o worktree que sumiu
+ * (`git worktree prune` + `add`) e só então roda o agente de dentro dele.
+ * A partida é do próprio node (`node -e`), não um `sh -c`: a permissão do macOS para ler a Mesa é do executável que o
+ * launchd chama, e o /bin/sh não a tem ("getcwd: Operation not permitted").
+ */
+export function plistDoAgente({ rotulo, node, principal, wt, path, log, intervalo = 600 }) {
+  const partida = [
+    `const { existsSync } = require("node:fs"), { spawnSync } = require("node:child_process");`,
+    `const p = ${JSON.stringify(principal)}, wt = ${JSON.stringify(wt)};`,
+    // O fetch pode falhar sem rede (o origin/main local serve); prune e add têm de dar certo, senão sai com o motivo.
+    `if (!existsSync(wt + "/.git")) for (const a of [["worktree", "prune"], ["fetch", "-q", "origin", "main"], ["worktree", "add", "-q", "--detach", wt, "origin/main"]]) { if (spawnSync("git", a, { cwd: p, stdio: "inherit" }).status !== 0 && a[0] !== "fetch") { console.error(new Date().toISOString() + " ✗ não recriei o worktree da release: git " + a.join(" ")); process.exit(1); } }`,
+    `process.exit(spawnSync(process.execPath, [wt + "/scripts/release-auto.mjs", "--run"], { cwd: wt, stdio: "inherit" }).status ?? 1);`,
+  ].join(" ");
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>${xml(rotulo)}</string>
+  <key>ProgramArguments</key><array><string>${xml(node)}</string><string>-e</string><string>${xml(partida)}</string></array>
+  <key>WorkingDirectory</key><string>${xml(principal)}</string>
+  <key>EnvironmentVariables</key><dict><key>PATH</key><string>${xml(path)}</string></dict>
+  <key>StartInterval</key><integer>${intervalo}</integer>
+  <key>RunAtLoad</key><true/>
+  <key>StandardOutPath</key><string>${xml(log)}</string>
+  <key>StandardErrorPath</key><string>${xml(log)}</string>
+</dict></plist>
+`;
+}
+

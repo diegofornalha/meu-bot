@@ -14,6 +14,7 @@
 //   node scripts/release-auto.mjs --check        mostra a decisão da rodada, sem fazer nada
 //   node scripts/release-auto.mjs --run          uma rodada (o que o launchd chama)
 //   node scripts/release-auto.mjs --instalar     instala o agente do launchd e troca os staging locais pelos da release
+//   node scripts/release-auto.mjs --religar      regrava o plist e recarrega o agente, sem mexer nos apps staging
 //   node scripts/release-auto.mjs --desinstalar  tira o agente
 //   node scripts/release-auto.mjs --segurar "motivo"  o agente não promove a estável (staging e base seguem) até --soltar
 //   node scripts/release-auto.mjs --soltar       tira a trava; a promoção volta na rodada seguinte, se ainda couber
@@ -23,7 +24,7 @@ import { createHash } from "node:crypto";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { dataPorExtenso, decideRodada, decideSite, estavelMaisNova, fecharChangelog, proximaBase, stagingMaisNovo, travaOrfa } from "./release-core.mjs";
+import { dataPorExtenso, decideRodada, decideSite, estavelMaisNova, fecharChangelog, plistDoAgente, proximaBase, stagingMaisNovo, travaOrfa } from "./release-core.mjs";
 import { bundleDoStaging, saudeDesteMac } from "./release-saude.mjs";
 import { arquivosDeFragmento, lerFragmentos } from "./changelog-fragmentos.mjs";
 
@@ -99,7 +100,8 @@ function depsDoLock(dir) {
 }
 function prepararWorktree(sha) {
   if (existsSync(join(WT, ".git"))) { if (!rodar("git", ["checkout", "-q", "--detach", "-f", sha], WT)) return false; }
-  else if (!rodar("git", ["worktree", "add", "-q", "--detach", WT, sha], PRINCIPAL)) return false;
+  // prune antes: se a pasta foi apagada à mão, o git ainda a tem registrada e o `add` recusaria.
+  else if (!(rodar("git", ["worktree", "prune"], PRINCIPAL) && rodar("git", ["worktree", "add", "-q", "--detach", WT, sha], PRINCIPAL))) return false;
   // node_modules próprio, instalado pelo package-lock do commit da release (npm ci só quando o lock muda). Antes era um
   // symlink para o do checkout principal, que fica no branch dele: a 0.83.0-staging.2 saiu com o Electron velho.
   if (!depsDoLock(WT)) return false;
@@ -256,10 +258,11 @@ function instalarStagingDaRelease() {
   rmSync(tmp, { recursive: true, force: true });
 }
 
-function instalar() {
+/** Grava o plist e (re)carrega o agente no launchd, sem tocar nos apps staging instalados. */
+function instalarAgente() {
   const uid = process.getuid();
-  // O launchd roda o agente do worktree da release (no origin/main a cada rodada), não do checkout principal, que
-  // outras sessões usam e pode estar em outro branch.
+  // O agente roda do worktree da release (no origin/main a cada rodada), não do checkout principal, que outras sessões
+  // usam e pode estar em outro branch. Quem parte é o checkout principal: se o worktree sumir, a partida o recria.
   shOu("git", ["fetch", "-q", "--tags", "origin", "main"]);
   if (!prepararWorktree(sh("git", ["rev-parse", "origin/main"]))) { console.error(`✗ não preparei o worktree ${WT} (log: ${LOG})`); process.exit(1); }
   if (!existsSync(join(WT, "scripts", "release-auto.mjs"))) { console.error("✗ o origin/main ainda não tem scripts/release-auto.mjs: instale depois do merge"); process.exit(1); }
@@ -267,28 +270,23 @@ function instalar() {
   const path = ["/opt/homebrew/bin", "/usr/local/bin", join(homedir(), ".local", "bin"), dirname(process.execPath), "/usr/bin", "/bin", "/usr/sbin", "/sbin"].join(":");
   // Conta nova no macOS não tem ~/Library/LaunchAgents até alguém criar um agente.
   mkdirSync(dirname(PLIST), { recursive: true });
-  writeFileSync(PLIST, `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-  <key>Label</key><string>${ROTULO}</string>
-  <key>ProgramArguments</key><array><string>${process.execPath}</string><string>${join(WT, "scripts", "release-auto.mjs")}</string><string>--run</string></array>
-  <key>WorkingDirectory</key><string>${WT}</string>
-  <key>EnvironmentVariables</key><dict><key>PATH</key><string>${path}</string></dict>
-  <key>StartInterval</key><integer>600</integer>
-  <key>RunAtLoad</key><true/>
-  <key>StandardOutPath</key><string>${LOG}</string>
-  <key>StandardErrorPath</key><string>${LOG}</string>
-</dict></plist>
-`);
+  writeFileSync(PLIST, plistDoAgente({ rotulo: ROTULO, node: process.execPath, principal: PRINCIPAL, wt: WT, path, log: LOG }));
   spawnSync("launchctl", ["bootout", `gui/${uid}/${ROTULO}`], { stdio: "ignore" });
-  execFileSync("launchctl", ["bootstrap", `gui/${uid}`, PLIST]);
+  // O bootout é assíncrono: o bootstrap logo em seguida pode dar "Input/output error" enquanto o antigo descarrega.
+  let ok = false, ultimoErro = "";
+  for (let i = 0; i < 10 && !ok; i++) { if (i > 0) spawnSync("sleep", ["1"]); const r = spawnSync("launchctl", ["bootstrap", `gui/${uid}`, PLIST], { encoding: "utf8" }); ok = r.status === 0; ultimoErro = (r.stderr || "").trim(); }
+  if (!ok) { console.error(`✗ o launchd não carregou ${PLIST}${ultimoErro ? `: ${ultimoErro}` : ""}`); process.exit(1); }
   console.log(`✓ agente ${ROTULO} instalado (a cada 10 min; log em ${LOG})`);
+}
+function instalar() {
+  instalarAgente();
   instalarStagingDaRelease();
 }
 
 const modo = process.argv[2] ?? "--check";
 if (modo === "--run") rodada();
 else if (modo === "--instalar") instalar();
+else if (modo === "--religar") instalarAgente();
 else if (modo === "--desinstalar") { spawnSync("launchctl", ["bootout", `gui/${process.getuid()}/${ROTULO}`], { stdio: "ignore" }); rmSync(PLIST, { force: true }); console.log(`✓ agente ${ROTULO} removido`); }
 else if (modo === "--segurar") { mkdirSync(ESTADO, { recursive: true }); writeFileSync(SEGURAR, `${process.argv.slice(3).join(" ") || "sem motivo escrito"}\n`); log(`estável segurada: ${motivoSegurar()}`); console.log(`✓ o agente não promove a estável até --soltar (${motivoSegurar()})`); }
 else if (modo === "--soltar") { rmSync(SEGURAR, { force: true }); log("trava da estável solta"); console.log("✓ trava solta: a promoção volta na rodada seguinte, se couber"); }
@@ -301,4 +299,4 @@ else if (modo === "--check") {
   console.log(`site: ${e.siteDe ? `acompanhou a ${e.siteDe}` : "ainda não anotou a estável"}${e.siteFalhouEm ? ` · última publicação falhou em ${new Date(e.siteFalhouEm).toLocaleString("pt-BR")}` : ""}`);
   if (e.falhou) console.log(`última falha: ${e.falhou.chave} em ${new Date(e.falhou.em).toLocaleString("pt-BR")}: ${e.falhou.erro}`);
   console.log(`agente: ${existsSync(PLIST) ? "instalado" : "não instalado"} · worktree: ${WT}${existsSync(WT) ? "" : " (ainda não criado)"} · log: ${LOG}`);
-} else { console.error("uso: node scripts/release-auto.mjs --check | --run | --instalar | --desinstalar | --segurar \"motivo\" | --soltar"); process.exit(64); }
+} else { console.error("uso: node scripts/release-auto.mjs --check | --run | --instalar | --religar | --desinstalar | --segurar \"motivo\" | --soltar"); process.exit(64); }
