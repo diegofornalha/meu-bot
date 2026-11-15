@@ -270,3 +270,14 @@ export function faltasDoSite({ canal, health, download, paginas }) {
   return f;
 }
 
+/**
+ * Conferência reprovada depois de um deploy: desfazer só quando o próprio Worker respondeu errado (/health com outro
+ * canal, página com erro). Sem resposta (status 0: este Mac sem rede) ou só o /download/mac.json falhando (ele depende
+ * do GitHub) não prova nada contra o deploy: ele fica, e a publicação é tentada de novo.
+ * `statusHealth` e `paginas` são status HTTP (0 = sem resposta).
+ */
+export function desfazDeploy({ canal, health, statusHealth, paginas }) {
+  if (statusHealth !== 0 && (health?.ok !== true || health?.canal !== canal)) return true;
+  return PAGINAS_DO_SITE[canal].some((c) => typeof paginas?.[c] === "number" && paginas[c] !== 0 && paginas[c] !== 200);
+}
+

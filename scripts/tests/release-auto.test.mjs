@@ -1,7 +1,7 @@
 // Regras da release automática (scripts/release-auto.mjs): o que cada rodada do agente decide fazer.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { dataPorExtenso, decideRodada, decideSite, estavelMaisNova, faltasDoSite, fecharChangelog, proximaBase, QUIETUDE_MS, saudeStaging, SOAK_MS, stagingMaisNovo } from "../release-core.mjs";
+import { dataPorExtenso, decideRodada, decideSite, desfazDeploy, estavelMaisNova, faltasDoSite, fecharChangelog, proximaBase, QUIETUDE_MS, saudeStaging, SOAK_MS, stagingMaisNovo } from "../release-core.mjs";
 
 const AGORA = Date.parse("2026-11-10T15:00:00Z");
 const ok = { ok: true, motivo: "ok" };
@@ -102,5 +102,16 @@ test("site: conferência no ar por canal", () => {
   assert.equal(faltasDoSite({ canal: "producao", health: { ok: true, canal: "staging" }, download: dl, paginas: ok }).length, 1, "canal trocado");
   assert.equal(faltasDoSite({ canal: "producao", health: { ok: true, canal: "producao" }, download: { ...dl, versao: "0.84.0-staging.1" }, paginas: ok }).length, 1, "produção nunca entrega staging");
   assert.equal(faltasDoSite({ canal: "producao", health: null, download: null, paginas: { ...ok, "/obrigado": 500 } }).length, 3);
+});
+
+test("site: só desfaz o deploy quando o próprio Worker respondeu errado", () => {
+  const ok = { "/": 200, "/obrigado": 200, "/robots.txt": 200, "/sitemap.xml": 200, "/llms.txt": 200 };
+  const semRede = { "/": 0, "/obrigado": 0, "/robots.txt": 0, "/sitemap.xml": 0, "/llms.txt": 0 };
+  assert.equal(desfazDeploy({ canal: "producao", health: null, statusHealth: 0, paginas: semRede }), false, "Mac sem rede: não desfaz");
+  assert.equal(desfazDeploy({ canal: "producao", health: { ok: true, canal: "producao" }, statusHealth: 200, paginas: ok }), false, "só o download (GitHub) falhou");
+  assert.equal(desfazDeploy({ canal: "producao", health: { ok: true, canal: "staging" }, statusHealth: 200, paginas: ok }), true, "canal trocado");
+  assert.equal(desfazDeploy({ canal: "producao", health: null, statusHealth: 500, paginas: ok }), true, "/health com erro");
+  assert.equal(desfazDeploy({ canal: "staging", health: { ok: true, canal: "staging" }, statusHealth: 200, paginas: { "/": 200, "/obrigado": 500 } }), true, "página com erro");
+  assert.equal(desfazDeploy({ canal: "staging", health: { ok: true, canal: "staging" }, statusHealth: 200, paginas: { "/": 200, "/obrigado": 0 } }), false);
 });
 

@@ -155,10 +155,16 @@ function siteAcompanhaEstavel(sha) {
   const e = lerEstado();
   const ultimaEstavel = estavelMaisNova(sh("git", ["tag", "-l", "v*"]).split("\n"));
   const siteDe = e.siteDe ?? null;
-  const mudouSite = siteDe !== null && ultimaEstavel !== siteDe && (shOu("git", ["diff", "--name-only", `${siteDe}..${sha}`, "--", "conta-api"]) ?? "x") !== "";
+  let mudouSite = false;
+  if (siteDe !== null && ultimaEstavel !== null && ultimaEstavel !== siteDe) {
+    // Não consegui comparar (tag fora deste clone?): não sei se o site mudou, então não publico às cegas.
+    const diff = shOu("git", ["diff", "--name-only", `${siteDe}..${sha}`, "--", "conta-api"]);
+    if (diff === null) { const aviso = `site: não consegui comparar conta-api com a ${siteDe}; nada publicado`; if (e.siteAviso !== aviso) { log(aviso); gravarEstado({ ...e, siteAviso: aviso }); } return; }
+    mudouSite = diff !== "";
+  }
   const d = decideSite({ ultimaEstavel, siteDe, mudouSite, falhouEm: e.siteFalhouEm ?? null, agora: Date.now(), esperaMs: ESPERA_FALHA_MS });
   if (d.acao === "nada") return;
-  if (d.acao === "marcar") { log(`site: ${d.motivo}`); gravarEstado({ ...e, siteDe: ultimaEstavel, siteFalhouEm: null }); return; }
+  if (d.acao === "marcar") { log(`site: ${d.motivo}`); gravarEstado({ ...e, siteDe: ultimaEstavel, siteFalhouEm: null, siteAviso: null }); return; }
   log(`=== site (${d.motivo}) no origin/main ${sha.slice(0, 12)}`);
   if (rodar("node", ["scripts/site-publicar.mjs"], WT)) {
     log("=== site ok");
