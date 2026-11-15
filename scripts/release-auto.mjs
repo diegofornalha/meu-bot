@@ -2,11 +2,12 @@
 // GitHub Actions não serve: a chave da release está no Chaveiro deste Mac, e build/suporte e config/google-*.json
 // ficam fora do git. Cada rodada olha só para o origin/main e faz no máximo uma coisa (regras em decideRodada,
 // release-core.mjs):
-//   staging     → 10 min depois do último merge: npm test + npm run release:staging (o macOS pede a chave: um clique)
-//   promover    → staging no ar há 24 h e confirmado no meu-bot-staging deste Mac (release-saude.mjs): npm run release,
-//                 e o deploy do site se conta-api/ mudou desde a estável anterior
+//   staging     → 10 min depois do último merge: npm test + npm run release:staging (a chave da release sai do Chaveiro)
+//   promover    → staging no ar há 24 h e confirmado no meu-bot-staging deste Mac (release-saude.mjs): npm run release
 //   subir-base  → depois da estável: PR "Versão: base sobe" (package.json + CHANGELOG datado), mergeado sozinho
 //   aguardar    → nada; se o staging ainda não foi confirmado, abre o meu-bot-staging escondido para ele se atualizar
+// Antes disso, toda rodada vê se saiu estável nova (por este agente ou à mão) com conta-api/ diferente: aí publica o
+// site sozinha (scripts/site-publicar.mjs: staging, conferência, produção, conferência; desfaz se a conferência falhar).
 // Tudo roda no worktree fixo ../meu-bot-release (detached no commit da vez); o log fica em
 // ~/Library/Logs/meu-bot-release.log e o Mac avisa por notificação.
 //
@@ -22,7 +23,7 @@ import { createHash } from "node:crypto";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { dataPorExtenso, decideRodada, fecharChangelog, proximaBase, stagingMaisNovo, travaOrfa } from "./release-core.mjs";
+import { dataPorExtenso, decideRodada, decideSite, estavelMaisNova, fecharChangelog, proximaBase, stagingMaisNovo, travaOrfa } from "./release-core.mjs";
 import { bundleDoStaging, saudeDesteMac } from "./release-saude.mjs";
 import { arquivosDeFragmento, lerFragmentos } from "./changelog-fragmentos.mjs";
 
@@ -116,23 +117,13 @@ function prepararWorktree(sha) {
 function fazerStaging(sha) {
   if (!prepararWorktree(sha)) return "não preparei o worktree da release";
   if (!rodar("npm", ["test"], WT)) return "testes falharam no origin/main";
-  avisar("aprove a chave", "Publicando o staging: o macOS vai pedir a chave da release no Chaveiro.");
-  if (!rodar("npm", ["run", "release:staging"], WT)) return "release:staging falhou (chave negada? veja o log)";
+  if (!rodar("npm", ["run", "release:staging"], WT)) return "release:staging falhou (veja o log)";
   return null;
 }
 
 function promover(sha, base) {
   if (!prepararWorktree(sha)) return "não preparei o worktree da release";
-  avisar("aprove a chave", `Promovendo a v${base} para estável: o macOS vai pedir a chave da release.`);
   if (!rodar("npm", ["run", "release"], WT)) return "npm run release falhou (veja o log)";
-  // O site (conta-api) acompanha a estável quando mudou desde a anterior (o que a skill publicar-site faz à mão).
-  const anteriores = sh("git", ["tag", "-l", "v*", "--sort=-v:refname"]).split("\n").filter((t) => /^v\d+\.\d+\.\d+$/.test(t) && t !== `v${base}`);
-  const mudouSite = anteriores.length === 0 || (shOu("git", ["diff", "--name-only", `${anteriores[0]}..${sha}`, "--", "conta-api"]) ?? "") !== "";
-  if (mudouSite) {
-    const site = join(WT, "conta-api");
-    if (!rodar("npm", ["ci"], site) || !rodar("npm", ["run", "deploy"], site)) return `v${base} publicada, mas o deploy do site falhou (skill publicar-site)`;
-    log("site publicado junto com a estável");
-  }
   return null;
 }
 
@@ -157,6 +148,27 @@ function subirBase(sha, base) {
 function tentarMerge(branch, nova) {
   if (rodar("gh", ["pr", "merge", branch, "--merge", "--delete-branch"], WT) || rodar("gh", ["pr", "merge", branch, "--merge", "--auto"], WT)) { log(`base ${nova} no main`); return null; }
   return `PR ${branch} aberto, mas não consegui mergear`;
+}
+
+/** O site acompanha a estável: saiu uma nova (por este agente ou à mão) e conta-api mudou → publica, sem esperar ninguém. */
+function siteAcompanhaEstavel(sha) {
+  const e = lerEstado();
+  const ultimaEstavel = estavelMaisNova(sh("git", ["tag", "-l", "v*"]).split("\n"));
+  const siteDe = e.siteDe ?? null;
+  const mudouSite = siteDe !== null && ultimaEstavel !== siteDe && (shOu("git", ["diff", "--name-only", `${siteDe}..${sha}`, "--", "conta-api"]) ?? "x") !== "";
+  const d = decideSite({ ultimaEstavel, siteDe, mudouSite, falhouEm: e.siteFalhouEm ?? null, agora: Date.now(), esperaMs: ESPERA_FALHA_MS });
+  if (d.acao === "nada") return;
+  if (d.acao === "marcar") { log(`site: ${d.motivo}`); gravarEstado({ ...e, siteDe: ultimaEstavel, siteFalhouEm: null }); return; }
+  log(`=== site (${d.motivo}) no origin/main ${sha.slice(0, 12)}`);
+  if (rodar("node", ["scripts/site-publicar.mjs"], WT)) {
+    log("=== site ok");
+    gravarEstado({ ...lerEstado(), siteDe: ultimaEstavel, siteFalhouEm: null });
+    avisar("site publicado", `agentesgrok.com acompanha a ${ultimaEstavel}.`);
+  } else {
+    log("=== site FALHOU");
+    gravarEstado({ ...lerEstado(), siteFalhouEm: Date.now() });
+    avisar("site não publicado", "A conferência ou o deploy falhou; o site ficou como estava. Tento de novo em 1 h (log: ~/Library/Logs/meu-bot-release.log)");
+  }
 }
 
 const aberto = (app) => spawnSync("pgrep", ["-f", `/${app}.app/Contents/MacOS/`]).status === 0;
@@ -184,6 +196,7 @@ function rodada() {
     const { sha, base, tag, decisao } = olhar();
     // O agente roda deste worktree: mantê-lo no origin/main é o que atualiza o próprio agente na rodada seguinte.
     if (existsSync(join(WT, ".git")) && shOu("git", ["rev-parse", "HEAD"], WT) !== sha) rodar("git", ["checkout", "-q", "--detach", "-f", sha], WT);
+    if (existsSync(join(WT, "scripts", "site-publicar.mjs"))) siteAcompanhaEstavel(sha);
     const estado = lerEstado();
     const chave = `${decisao.acao}@${sha}`;
     if (decisao.acao === "aguardar") {
@@ -279,6 +292,7 @@ else if (modo === "--check") {
   console.log(`origin/main ${sha.slice(0, 12)} · base ${base} · staging no HEAD: ${tag ?? "nenhum"}`);
   console.log(`decisão: ${decisao.acao} — ${decisao.motivo}`);
   if (motivoSegurar() !== null) console.log(`estável segurada: ${motivoSegurar()} (solte com --soltar)`);
+  console.log(`site: ${e.siteDe ? `acompanhou a ${e.siteDe}` : "ainda não anotou a estável"}${e.siteFalhouEm ? ` · última publicação falhou em ${new Date(e.siteFalhouEm).toLocaleString("pt-BR")}` : ""}`);
   if (e.falhou) console.log(`última falha: ${e.falhou.chave} em ${new Date(e.falhou.em).toLocaleString("pt-BR")}: ${e.falhou.erro}`);
   console.log(`agente: ${existsSync(PLIST) ? "instalado" : "não instalado"} · worktree: ${WT}${existsSync(WT) ? "" : " (ainda não criado)"} · log: ${LOG}`);
 } else { console.error("uso: node scripts/release-auto.mjs --check | --run | --instalar | --desinstalar | --segurar \"motivo\" | --soltar"); process.exit(64); }

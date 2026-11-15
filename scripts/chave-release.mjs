@@ -3,8 +3,9 @@
 // src/main/atualizacao/updater-core.ts (UPDATE_PUBLIC_KEYS: a principal e a RESERVA).
 //
 // Onde mora cada privada:
-// - principal: no Chaveiro de login (serviço meu-bot-release, conta principal), sem nenhum app confiável (-T ""):
-//   todo uso pede a aprovação do macOS com a senha. Cópia no gerenciador de senhas do dono.
+// - principal: no Chaveiro de login (serviço meu-bot-release, conta principal), criada sem nenhum app confiável
+//   (-T ""): o macOS pede a aprovação com a senha até o dono clicar em "Sempre Permitir" (feito no Mac da release em
+//   15 nov 2026, para a release automática não esperar ninguém). Cópia no gerenciador de senhas do dono.
 // - reserva: SÓ no gerenciador de senhas (nunca neste Mac). Serve para trocar de chave sem reinstalar ninguém se a
 //   principal se perder ou vazar (procedimento na skill publicar e em docs/guia/app.md).
 //

@@ -1,7 +1,7 @@
 // Regras da release automática (scripts/release-auto.mjs): o que cada rodada do agente decide fazer.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { dataPorExtenso, decideRodada, fecharChangelog, proximaBase, QUIETUDE_MS, saudeStaging, SOAK_MS, stagingMaisNovo } from "../release-core.mjs";
+import { dataPorExtenso, decideRodada, decideSite, estavelMaisNova, faltasDoSite, fecharChangelog, proximaBase, QUIETUDE_MS, saudeStaging, SOAK_MS, stagingMaisNovo } from "../release-core.mjs";
 
 const AGORA = Date.parse("2026-11-10T15:00:00Z");
 const ok = { ok: true, motivo: "ok" };
@@ -77,3 +77,30 @@ test("CHANGELOG depois da estável: os itens de docs/changelog/ entram no topo d
   // "$&" num item não vira a seção casada (replace com função).
   assert.match(fecharChangelog("## Ainda não lançado\n", "1.0.0", "d", "- custa $& 10"), /- custa \$& 10/);
 });
+
+test("site: a estável mais nova ignora staging e ordena por número, não por texto", () => {
+  assert.equal(estavelMaisNova(["v0.9.0", "v0.83.0", "v0.84.0-staging.2", "v0.10.1", "lixo", ""]), "v0.83.0");
+  assert.equal(estavelMaisNova(["v0.84.0-staging.1"]), null);
+});
+
+test("site: publica quando sai estável nova com conta-api diferente; a primeira rodada só anota", () => {
+  const b = { ultimaEstavel: "v0.84.0", siteDe: "v0.83.0", mudouSite: true, falhouEm: null, agora: 10_000_000, esperaMs: 3_600_000 };
+  assert.equal(decideSite(b).acao, "publicar");
+  assert.equal(decideSite({ ...b, siteDe: "v0.84.0" }).acao, "nada", "site já acompanhou esta estável");
+  assert.equal(decideSite({ ...b, siteDe: null }).acao, "marcar", "agente recém-instalado não publica o que não viu sair");
+  assert.equal(decideSite({ ...b, mudouSite: false }).acao, "marcar", "conta-api igual: só anota a estável");
+  assert.equal(decideSite({ ...b, falhouEm: b.agora - 60_000 }).acao, "nada", "falhou há 1 min: espera");
+  assert.equal(decideSite({ ...b, falhouEm: b.agora - 3_600_000 }).acao, "publicar", "passou a espera: tenta de novo");
+  assert.equal(decideSite({ ...b, ultimaEstavel: null }).acao, "nada");
+});
+
+test("site: conferência no ar por canal", () => {
+  const ok = { "/": 200, "/obrigado": 200, "/robots.txt": 200, "/sitemap.xml": 200, "/llms.txt": 200 };
+  const dl = { versao: "0.83.0", nome: "meu-bot-0.83.0-arm64.dmg", url: "https://x/y.dmg" };
+  assert.deepEqual(faltasDoSite({ canal: "producao", health: { ok: true, canal: "producao" }, download: dl, paginas: ok }), []);
+  assert.deepEqual(faltasDoSite({ canal: "staging", health: { ok: true, canal: "staging" }, download: { ...dl, versao: "0.84.0-staging.1" }, paginas: { "/": 200, "/obrigado": 200 } }), [], "staging não precisa de sitemap");
+  assert.equal(faltasDoSite({ canal: "producao", health: { ok: true, canal: "staging" }, download: dl, paginas: ok }).length, 1, "canal trocado");
+  assert.equal(faltasDoSite({ canal: "producao", health: { ok: true, canal: "producao" }, download: { ...dl, versao: "0.84.0-staging.1" }, paginas: ok }).length, 1, "produção nunca entrega staging");
+  assert.equal(faltasDoSite({ canal: "producao", health: null, download: null, paginas: { ...ok, "/obrigado": 500 } }).length, 3);
+});
+

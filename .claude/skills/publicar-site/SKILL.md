@@ -6,8 +6,11 @@ description: Publica o Worker conta-api (site agentesgrok.com, login, console e 
 # Publicar o site (Worker conta-api)
 
 Um Worker só serve `agentesgrok.com` (site), `auth.`, `console.` e `conta.` (API); o de staging serve os mesmos com
-`-staging` (`site-staging.agentesgrok.com` …). Merge no `main` **não publica**: sem deploy, o ar fica com o código
-antigo. O app (`npm run release…`) é outra coisa: ver skill `publicar`.
+`-staging` (`site-staging.agentesgrok.com` …). Merge no `main` **não publica** na hora: o site acompanha a
+estável. A cada estável nova com `conta-api/` diferente, o agente da release publica sozinho
+(`scripts/site-publicar.mjs`; `=== site ok` em `~/Library/Logs/meu-bot-release.log`). Use esta skill para publicar
+antes disso (mudança só de site que não deve esperar a estável) ou para mostrar um branch no staging. O app
+(`npm run release…`) é outra coisa: ver skill `publicar`.
 
 ## Antes
 
@@ -23,20 +26,20 @@ antigo. O app (`npm run release…`) é outra coisa: ver skill `publicar`.
 
 ## A sequência
 
-1. **Testes:** `npm test` em `conta-api`. Quebrou: pare e mostre.
-2. **Migrações:** se `conta-api/migrations/` mudou desde o último deploy, `npm run migrar:staging` (e depois
-   `npm run migrar` para produção) antes do deploy.
-3. **Staging:** `npm run deploy:staging`. A saída lista os domínios e o `Current Version ID`.
-4. **Conferir o staging no ar** (o que mudou, mais o básico):
-   - `curl -s https://conta-staging.agentesgrok.com/health` → `{"ok":true,"canal":"staging"}`
-   - `curl -s https://site-staging.agentesgrok.com/download/mac.json` → a pre-release de staging mais nova
-     (`meu-bot-staging-…zip`; cai na estável se não houver)
-   - `curl -s -o /dev/null -w '%{http_code}' https://site-staging.agentesgrok.com/obrigado` → 200
-   - `curl -s -D - -o /dev/null https://site-staging.agentesgrok.com/ | grep -i x-robots` → `x-robots-tag: noindex, nofollow`
-     (staging é a mesma home em revisão e fica fora dos buscadores por esse cabeçalho; o `robots.txt` é o mesmo da produção)
-5. **Produção só com o "pode" do usuário** (é o site público): `npm run deploy`, e as mesmas conferências sem
-   `-staging`: `/health` com `"canal":"producao"`, `/download/mac.json` com a **estável** mais nova
-   (`/releases/latest`), `robots.txt`, `sitemap.xml` e `llms.txt` com 200.
+De dentro do worktree no `origin/main`: `node scripts/site-publicar.mjs`. Ele faz tudo e para no primeiro erro:
+
+1. **Login e testes:** `wrangler whoami`, `npm ci` e `npm test` em `conta-api`.
+2. **Staging:** migrações (`npm run migrar:staging`), `npm run deploy:staging` e a conferência no ar: `/health` com
+   `{"ok":true,"canal":"staging"}`, `/download/mac.json` com versão, nome e url, `/` e `/obrigado` com 200.
+3. **Produção**, sem esperar "pode" (decisão do usuário em 15 nov 2026: nenhuma pessoa como gargalo): migrações
+   (`npm run migrar`), `npm run deploy` e a conferência: `/health` com `"canal":"producao"`, `/download/mac.json` com
+   uma versão **estável**, `/`, `/obrigado`, `robots.txt`, `sitemap.xml` e `llms.txt` com 200.
+4. **Conferência que falha desfaz o deploy** daquele ambiente (`wrangler rollback`) e o script sai com 1: mostre as
+   linhas `✗` ao usuário.
+
+`--so-staging` para depois do passo 2 (branch em revisão); `--conferir` só confere os dois ambientes no ar. O staging
+fica fora dos buscadores pelo cabeçalho `x-robots-tag: noindex, nofollow`; o `robots.txt` é o mesmo da produção.
+Confira também, à mão, o que a mudança da vez alterou (a página nova, o texto novo): o script só garante o básico.
 
 ## Ao terminar
 

@@ -21,11 +21,11 @@ carregou. Confira `launchctl list | grep release-auto` (uma linha = carregado) e
 20 min sem nada, com a decisão "staging" ou "promover", é agente parado. Religa com
 `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.meu-bot.release-auto.plist`; ele roda na hora (RunAtLoad).
 
-**A chave no Chaveiro, para quem aprova:** toda release (do agente ou manual) assina os zips com a chave guardada no
-Chaveiro de login, sem app confiável. O macOS abre a janela "node quer usar informações confidenciais armazenadas em
-'meu-bot-release'": a pessoa digita a senha do Mac e clica **Permitir** (não "Sempre Permitir": a ideia é ver cada
-uso). **Negar** é seguro: nada é publicado e o agente tenta de novo na rodada seguinte. Diga isso ao usuário quando uma
-publicação estiver a caminho, em vez de só "aprove a chave".
+**A chave no Chaveiro:** toda release (do agente ou manual) assina os zips com a chave guardada no Chaveiro de
+login. Neste Mac ela está em "Sempre Permitir" desde 15 nov 2026 (decisão do usuário: nenhuma pessoa como gargalo),
+então a release sai sem janela e sem ninguém por perto. Se a janela "…quer usar informações confidenciais armazenadas
+em 'meu-bot-release'" voltar (Mac novo, chave regravada), peça ao usuário, uma vez, a senha do Mac e **Sempre
+Permitir**; prova: `npm run chave-release -- --testar` duas vezes seguidas, a segunda sem janela.
 
 **Segurar a estável** (ex.: esperando o certificado Developer ID para ela sair notarizada): `node scripts/release-auto.mjs
 --segurar "motivo"` no worktree do agente. O agente segue soltando staging e subindo a base, mas não promove; o
@@ -92,9 +92,9 @@ pode sair do commit …. Nada foi publicado.` Um `✗` para tudo: mostre a linha
 
 **Antecipar a estável** (antes das 24 h): só com o **"aprovado"** explícito do usuário, fase 1 com saúde ✓ e fase 2
 ✓. Pause o agente antes (`launchctl bootout`, como em "Antecipar o staging"), aí `npm run release` no mesmo worktree,
-o deploy do site se `conta-api/` mudou (skill `publicar-site`; produção só com o "pode"), religue o agente
-(`bootstrap`) e apague o worktree. O agente vê a `v<base>` publicada e abre e mergeia sozinho a PR "Versão: base
-sobe" (confira no log `=== subir-base ok`); se o `main` já tinha merges depois da `<tag>`, ele solta em seguida a
+religue o agente (`bootstrap`) e apague o worktree. O agente vê a `v<base>` publicada e, sozinho: publica o site se
+`conta-api/` mudou desde a estável anterior (`=== site ok` no log; não espera "pode") e abre e mergeia a PR "Versão:
+base sobe" (`=== subir-base ok`); se o `main` já tinha merges depois da `<tag>`, ele solta em seguida a
 `-staging.1` da base nova com eles.
 
 **Quando o usuário pergunta "quando posso dizer aprovado?":** quando (1) a staging candidata está publicada, (2) o

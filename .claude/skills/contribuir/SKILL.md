@@ -58,9 +58,13 @@ nesta sessão** (branch de outra sessão: só avise o usuário).
 ## Ao terminar
 
 - **Quadro** (skill `quadro`): ponha a PR no Project #6 em "Claude trabalhando"
-  (`gh project item-add 6 --owner diegofornalha --url <url da PR>`). Quando Testes, Revisão Claude e CodeQL ficarem
-  verdes e a correção estiver provada, rotule `pronto para merge` e mova para "Esperando você"; é o sinal para o
-  usuário mesclar sem reler.
+  (`gh project item-add 6 --owner diegofornalha --url <url da PR>`). Quando a correção estiver provada (memória "PR só aprovada
+  funcionando") e você tiver lido os comentários da Revisão Claude, **mescle você mesmo**, sem esperar o usuário
+  (decisão dele em 15 nov 2026: nenhuma pessoa como gargalo): `gh pr merge <n> --merge --auto --delete-branch`. O
+  `main` exige o check `testes`: com `--auto` a PR entra sozinha quando ele ficar verde, mesmo que a sessão acabe
+  antes. Confira depois (`gh pr view <n> --json state`), mova o cartão para Arquivados e apague o worktree. Não
+  mescle: PR de prova ("NÃO MESCLAR"), PR de outra sessão ou pessoa, PR com comentário da revisão ainda sem resposta,
+  nem mudança que o usuário pediu para ver antes; essas vão para "Esperando você" com a ação exata.
 
 Diga em pt-BR, em poucas linhas: o link do PR, o branch, o que foi testado e o que falta conferir. Avise onde está o
 worktree (`../meu-bot-<nome>`), que o checkout principal não mudou, e que ele sai com `git worktree remove ../meu-bot-<nome>`
