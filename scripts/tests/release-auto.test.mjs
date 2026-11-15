@@ -1,7 +1,7 @@
 // Regras da release automática (scripts/release-auto.mjs): o que cada rodada do agente decide fazer.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { dataPorExtenso, decideRodada, decideSite, desfazDeploy, estavelMaisNova, faltasDoSite, fecharChangelog, proximaBase, QUIETUDE_MS, saudeStaging, SOAK_MS, stagingMaisNovo } from "../release-core.mjs";
+import { dataPorExtenso, decideRodada, decideSite, desfazDeploy, estavelMaisNova, faltasDoSite, fecharChangelog, plistDoAgente, proximaBase, QUIETUDE_MS, saudeStaging, SOAK_MS, stagingMaisNovo } from "../release-core.mjs";
 
 const AGORA = Date.parse("2026-11-10T15:00:00Z");
 const ok = { ok: true, motivo: "ok" };
@@ -115,3 +115,14 @@ test("site: só desfaz o deploy quando o próprio Worker respondeu errado", () =
   assert.equal(desfazDeploy({ canal: "staging", health: { ok: true, canal: "staging" }, statusHealth: 200, paginas: { "/": 200, "/obrigado": 0 } }), false);
 });
 
+test("plist do agente: parte do checkout principal, pelo node, e recria o worktree da release que sumiu", () => {
+  const p = plistDoAgente({ rotulo: "com.x.agente", node: "/opt/n&d/bin/node", principal: "/Users/a/Desktop/meu-bot", wt: "/Users/a/Desktop/meu-bot-release", path: "/usr/bin:/bin", log: "/tmp/x.log" });
+  assert.match(p, /<key>WorkingDirectory<\/key><string>\/Users\/a\/Desktop\/meu-bot<\/string>/, "nunca o worktree: se ele some, o launchd sai com 78");
+  assert.match(p, /<array><string>\/opt\/n&amp;d\/bin\/node<\/string><string>-e<\/string>/, "node, não sh (permissão da Mesa); & escapado no XML");
+  assert.doesNotMatch(p, /\/bin\/sh/);
+  assert.match(p, /\["worktree", "add", "-q", "--detach", wt, "origin\/main"\]/);
+  assert.match(p, /wt = "\/Users\/a\/Desktop\/meu-bot-release"/);
+  // A partida é JavaScript válido depois de desfazer o XML.
+  const js = /<string>-e<\/string><string>([\s\S]*?)<\/string><\/array>/.exec(p)[1].replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+  assert.doesNotThrow(() => new Function("require", "process", js));
+});
