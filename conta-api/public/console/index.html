@@ -32,6 +32,7 @@
         <a href="/account/devices" data-secao="devices"><span class="ico" aria-hidden="true">▭</span>Devices</a>
         <a href="/account/plan" data-secao="plan"><span class="ico" aria-hidden="true">▤</span>Plano</a>
         <a href="/account/support" data-secao="support"><span class="ico" aria-hidden="true">?</span>Suporte</a>
+        <a href="/account/sales" data-secao="sales" id="menu-sales" hidden><span class="ico" aria-hidden="true">$</span>Assinaturas</a>
         <a href="/account/access" data-secao="access" id="menu-access" hidden><span class="ico" aria-hidden="true">⚙</span>Perfis de acesso</a>
         <a href="/support-window" data-secao="janelas" id="menu-janelas" hidden><span class="ico" aria-hidden="true">◧</span>Janelas de suporte</a>
         <div class="grupo">Organizações</div>
@@ -113,14 +114,16 @@
         <details class="pessoal" open><summary>Minha conta</summary>
         <div class="cartoes" id="pl-cartoes"></div>
         <div class="painel" id="pl-assinar" hidden><h2>Assinar o Pro</h2><p>R$ 97 por mês, com o chip da Coflow. O pagamento é feito na página segura da AbacatePay, e o Pro é liberado nesta conta assim que o pagamento é confirmado. Você cancela quando quiser e o Pro continua até o fim do mês pago.</p><p id="pl-assinar-aviso" class="sub" role="status"></p><p><button type="button" class="btn btn-primary" id="pl-assinar-btn">Assinar por R$ 97/mês</button></p></div>
+        <div id="pl-addons"></div>
+        <div class="painel tabela-rolagem" id="pl-assinaturas" hidden><h2>Suas assinaturas</h2><table class="tabela"><thead><tr><th>Produto</th><th>Valor</th><th>Situação</th><th>Vale até</th></tr></thead><tbody></tbody></table><p class="sub">Para cancelar, use o link que a AbacatePay mandou no e-mail da compra ou fale com o suporte. O acesso continua até o fim do mês já pago.</p></div>
         <div class="painel" id="pl-pagamento" hidden><h2>Como pagar</h2><p id="pl-instrucoes"></p><p><a class="btn btn-primary" id="pl-link" target="_blank" rel="noopener" hidden>Abrir o link de pagamento</a></p></div>
         <p class="sub">Quem muda o plano, o prazo e os add-ons é o admin do seu meu-bot. No app, o bloqueio Pro tem "Pedir o Pro ao admin".</p>
         </details>
         <div class="admin" id="ad-plan" hidden>
           <h2>Planos de todas as contas <span class="selo">admin</span></h2>
           <form class="busca" id="ad-busca-form"><input id="ad-busca" type="search" placeholder="Buscar por e-mail ou nome" autocomplete="off"><button type="submit" class="btn btn-ghost">Buscar</button></form>
-          <div class="painel tabela-rolagem"><table class="tabela" id="ad-contas"><thead><tr><th>Conta</th><th>Plano</th><th>Fase</th><th>Vale até</th><th>Devices</th><th>Máquinas</th><th>Pedidos</th><th>Entrou em</th><th></th></tr></thead><tbody></tbody></table></div>
-          <p class="sub">Conta nova começa em trial do Pro; "Mudar" grava plano, status, prazo, limite de devices, add-ons e a orientação de pagamento. O que libera o Pro no app ainda é a licença da máquina (próxima versão).</p>
+          <div class="painel tabela-rolagem"><table class="tabela" id="ad-contas"><thead><tr><th>Conta</th><th>Plano</th><th>Fase</th><th>Vale até</th><th title="Apps à parte: pagos pela AbacatePay (com prazo) ou concedidos pelo admin">Add-ons</th><th>Devices</th><th>Máquinas</th><th>Pedidos</th><th>Entrou em</th><th></th></tr></thead><tbody></tbody></table></div>
+          <p class="sub">Conta nova começa em trial do Pro; "Mudar" grava plano, status, prazo, limite de devices, add-ons concedidos e a orientação de pagamento. O que foi pago pela AbacatePay entra sozinho na conta; no app, o acesso ainda depende da licença da máquina, e cada primeira compra abre um pedido "Liberar na máquina" em Suporte.</p>
         </div>
       </section>
 
@@ -136,6 +139,17 @@
         <div class="admin" id="ad-support" hidden>
           <h2>Pedidos abertos de todas as contas <span class="selo">admin</span></h2>
           <div class="painel tabela-rolagem"><table class="tabela" id="ad-pedidos"><thead><tr><th>Quando</th><th>Conta</th><th>Pedido</th><th>Detalhe</th><th></th></tr></thead><tbody></tbody></table></div>
+        </div>
+      </section>
+      <section data-secao="sales" hidden>
+        <div class="admin aberto" id="ad-sales">
+          <h2>Assinaturas <span class="selo">super admin</span></h2>
+          <p class="sub">Quem paga o quê pela AbacatePay. "Em dia" é a assinatura ativa com prazo no futuro; "atrasada" é a que não renovou e ainda não foi cancelada. A receita mensal soma só as que estão em dia.</p>
+          <div class="cartoes" id="ad-vendas-totais"></div>
+          <form class="busca" id="ad-vendas-filtro"><select id="ad-vendas-produto" aria-label="Produto"></select><select id="ad-vendas-situacao" aria-label="Situação"><option value="">Todas as situações</option><option value="em-dia">Em dia</option><option value="atrasada">Atrasada</option><option value="cancelada">Cancelada</option></select></form>
+          <div class="painel tabela-rolagem"><table class="tabela" id="ad-assinaturas"><thead><tr><th>Conta</th><th>Produto</th><th>Situação</th><th>Valor</th><th>Desde</th><th>Último pagamento</th><th>Vale até</th></tr></thead><tbody></tbody></table></div>
+          <h2>Últimos pagamentos</h2>
+          <div class="painel tabela-rolagem"><table class="tabela" id="ad-pagamentos"><thead><tr><th>Quando</th><th>Conta</th><th>Produto</th><th>Valor</th><th>Cobrança</th><th title="Se a compra foi registrada no Google Analytics">Analytics</th></tr></thead><tbody></tbody></table></div>
         </div>
       </section>
       <section data-secao="access" hidden>

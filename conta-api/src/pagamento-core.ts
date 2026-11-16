@@ -129,13 +129,53 @@ export const sessionIdValido = (x: unknown): string | null => (typeof x === "str
  * o Google Ads importa); as renovações são `assinatura_renovada`, para a receita aparecer sem contar de novo como
  * conversão do anúncio. `transaction_id` é o id do pagamento: o GA4 descarta compra repetida com o mesmo id.
  */
-export function compraGa4(p: { clientId: string; sessionId: string | null; pagamentoId: string; valorCentavos: number; primeira: boolean; ambiente: "producao" | "staging" }): Record<string, unknown> {
+export function compraGa4(p: { clientId: string; sessionId: string | null; pagamentoId: string; valorCentavos: number; primeira: boolean; ambiente: "producao" | "staging"; item?: { id: string; nome: string } }): Record<string, unknown> {
   const valor = Math.round(p.valorCentavos) / 100;
   const params: Record<string, unknown> = {
     transaction_id: p.pagamentoId, value: valor, currency: "BRL", ambiente: p.ambiente, engagement_time_msec: 1,
-    items: [{ item_id: "pro-mensal", item_name: "meu-bot Pro mensal", price: valor, quantity: 1 }],
+    items: [{ item_id: p.item?.id ?? "pro-mensal", item_name: p.item?.nome ?? "meu-bot Pro mensal", price: valor, quantity: 1 }],
   };
   if (p.sessionId !== null) params.session_id = p.sessionId;
   if (p.ambiente === "staging") params.debug_mode = true;
   return { client_id: p.clientId, events: [{ name: p.primeira ? "purchase" : "assinatura_renovada", params }] };
+}
+
+/** Um app vendido à parte (add-on da licença): o produto de assinatura mensal na AbacatePay, o preço e o nome na tela. */
+export interface OfertaAddon { nome: string; produto: string; centavos: number; rotulo: string }
+
+/**
+ * Lê `ABACATEPAY_ADDONS` (`{"meu-bot-finance":{"produto":"prod_...","centavos":99700,"rotulo":"Finanças"}}`). Entrada
+ * fora da forma é descartada: o add-on some da tela em vez de abrir um checkout com produto ou preço errados.
+ */
+export function lerAddons(bruto: string | undefined): OfertaAddon[] {
+  let o: Record<string, unknown> | null = null;
+  try { o = obj(JSON.parse(bruto ?? "")); } catch { return []; }
+  if (o === null) return [];
+  const out: OfertaAddon[] = [];
+  for (const [nome, v] of Object.entries(o)) {
+    const a = obj(v);
+    if (a === null || !/^meu-bot-[a-z0-9-]{1,30}$/.test(nome)) continue;
+    const produto = txt(a.produto, 80), centavos = num(a.centavos), rotulo = txt(a.rotulo, 40);
+    if (produto === null || !/^prod_[A-Za-z0-9]{6,70}$/.test(produto) || centavos === null || centavos <= 0 || rotulo === null) continue;
+    out.push({ nome, produto, centavos, rotulo });
+  }
+  return out.sort((x, y) => x.nome.localeCompare(y.nome));
+}
+
+/** A licença como o admin a gravou; estrutural para não depender de tipos.ts (este arquivo é puro). */
+interface LicencaBase { plan: "free" | "pro"; status: "free" | "trialing" | "active" | "expired"; interval: "month" | "year" | null; expiresAt: string | null; produtos: string[] }
+
+/**
+ * A licença que o app e o console recebem: a gravada mais os add-ons pagos que ainda não venceram. O app só libera um
+ * add-on se a licença não estiver vencida; por isso, quem paga um add-on com o Pro ou o teste já vencidos recebe o
+ * plano grátis (sem prazo) com os add-ons pagos, e não uma licença vencida que bloquearia o que foi pago. Nesse caso os
+ * add-ons concedidos pelo admin, que valiam junto com a licença vencida, não voltam.
+ */
+export function licencaComAddons<L extends LicencaBase>(l: L, pagos: readonly { produto: string; expiresAt: string }[], agora: string): L {
+  const t = Date.parse(agora);
+  const vivos = pagos.filter((p) => Date.parse(p.expiresAt) > t).map((p) => p.produto);
+  if (vivos.length === 0) return l;
+  const vencida = l.status === "expired" || (l.expiresAt !== null && !Number.isNaN(Date.parse(l.expiresAt)) && Date.parse(l.expiresAt) < t);
+  if (vencida) return { ...l, plan: "free", status: "free", interval: null, expiresAt: null, produtos: [...new Set(vivos)].sort() };
+  return { ...l, produtos: [...new Set([...l.produtos, ...vivos])].sort() };
 }

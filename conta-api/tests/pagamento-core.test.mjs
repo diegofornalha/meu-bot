@@ -1,7 +1,7 @@
 // Assinatura do Pro pela AbacatePay: conferência do webhook, leitura do evento, decisão, prazo e a compra do GA4.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CHAVE_HMAC_ABACATEPAY, clientIdValido, compraGa4, decidir, hmacBase64, iguais, lerEvento, refValida, sessionIdValido, validoAte, webhookConfere } from "../dist/pagamento-core.js";
+import { CHAVE_HMAC_ABACATEPAY, clientIdValido, compraGa4, decidir, hmacBase64, iguais, lerAddons, lerEvento, licencaComAddons, refValida, sessionIdValido, validoAte, webhookConfere } from "../dist/pagamento-core.js";
 
 const SECRET = "s".repeat(40);
 const REF = "mb_123e4567-e89b-12d3-a456-426614174000";
@@ -107,4 +107,44 @@ test("compraGa4: purchase na primeira, assinatura_renovada depois; staging com d
   assert.equal(r.events[0].name, "assinatura_renovada");
   assert.equal(r.events[0].params.session_id, undefined);
   assert.equal(r.events[0].params.debug_mode, true);
+});
+
+test("lerAddons: só entra add-on com nome, produto, preço e rótulo na forma certa", () => {
+  const ok = { produto: "prod_12Das4f2bcXQtaR0bs4hrXms", centavos: 99700, rotulo: "Finanças" };
+  assert.deepEqual(lerAddons(JSON.stringify({ "meu-bot-finance": ok })), [{ nome: "meu-bot-finance", ...ok }]);
+  assert.deepEqual(lerAddons(undefined), []);
+  assert.deepEqual(lerAddons("não é json"), []);
+  assert.deepEqual(lerAddons("[1]"), []);
+  const ruins = { "outro-app": ok, "meu-bot-a": { ...ok, produto: "bill_123456" }, "meu-bot-b": { ...ok, centavos: 0 }, "meu-bot-c": { ...ok, centavos: 9.5 }, "meu-bot-d": { produto: ok.produto, centavos: 100 }, "meu-bot-e": "x" };
+  assert.deepEqual(lerAddons(JSON.stringify(ruins)), []);
+  assert.deepEqual(lerAddons(JSON.stringify({ "meu-bot-fit": ok, "meu-bot-finance": ok })).map((a) => a.nome), ["meu-bot-finance", "meu-bot-fit"], "ordenado");
+});
+
+test("licencaComAddons: junta os pagos em dia e não entrega licença vencida a quem pagou um add-on", () => {
+  const agora = "2026-11-16T12:00:00.000Z";
+  const base = { plan: "pro", status: "active", interval: "month", expiresAt: "2026-12-01T00:00:00.000Z", produtos: ["meu-bot-fit"], deviceLimit: 2 };
+  const pago = { produto: "meu-bot-finance", expiresAt: "2026-12-19T00:00:00.000Z" };
+  assert.equal(licencaComAddons(base, [], agora), base, "sem pagos, a mesma licença");
+  assert.equal(licencaComAddons(base, [{ ...pago, expiresAt: "2026-11-01T00:00:00.000Z" }], agora), base, "add-on vencido não entra");
+  assert.deepEqual(licencaComAddons(base, [pago], agora), { ...base, produtos: ["meu-bot-finance", "meu-bot-fit"] });
+  assert.deepEqual(licencaComAddons({ ...base, produtos: ["meu-bot-finance"] }, [pago], agora).produtos, ["meu-bot-finance"], "sem repetir");
+  // Teste do Pro vencido + Finanças pago: plano grátis sem prazo, só com o que foi pago (o app não libera add-on de licença vencida).
+  const vencida = { ...base, status: "trialing", interval: null, expiresAt: "2026-11-10T00:00:00.000Z" };
+  assert.deepEqual(licencaComAddons(vencida, [pago], agora), { ...vencida, plan: "free", status: "free", interval: null, expiresAt: null, produtos: ["meu-bot-finance"] });
+  assert.equal(licencaComAddons({ ...base, status: "expired", expiresAt: null }, [pago], agora).status, "free");
+  // Plano grátis sem prazo não está vencido: mantém os concedidos.
+  assert.deepEqual(licencaComAddons({ ...base, plan: "free", status: "free", expiresAt: null }, [pago], agora).produtos, ["meu-bot-finance", "meu-bot-fit"]);
+});
+
+test("decidir: o preço exigido é o do produto (add-on pago pelo preço do Pro vai para revisão)", () => {
+  const finance = (pago) => evento({}, { subscription: { id: "subs_2", amount: 99700, method: "CARD", status: "ACTIVE" }, payment: { id: "card_2", paidAmount: pago, status: "APPROVED" } });
+  assert.equal(decidir(lerEvento(finance(99700)), "producao", 99700).acao, "liberar");
+  assert.equal(decidir(lerEvento(finance(9700)), "producao", 99700).acao, "revisar");
+  assert.equal(decidir(lerEvento(finance(99700)), "producao", Number.MAX_SAFE_INTEGER).acao, "revisar", "produto fora do catálogo");
+});
+
+test("compraGa4: o item é o do produto pago; sem item, o Pro", () => {
+  const p = { clientId: "123.1700000000", sessionId: null, pagamentoId: "card_2", valorCentavos: 99700, primeira: true, ambiente: "producao" };
+  assert.deepEqual(compraGa4(p).events[0].params.items, [{ item_id: "pro-mensal", item_name: "meu-bot Pro mensal", price: 997, quantity: 1 }]);
+  assert.deepEqual(compraGa4({ ...p, item: { id: "meu-bot-finance-mensal", nome: "Finanças mensal" } }).events[0].params.items, [{ item_id: "meu-bot-finance-mensal", item_name: "Finanças mensal", price: 997, quantity: 1 }]);
 });

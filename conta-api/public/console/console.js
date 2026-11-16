@@ -11,8 +11,8 @@ const caminhoAnonimo = (c) => c.replace(/^\/organizations\/(?!new(?:\/|$))[^/]+/
 let ultimoCaminhoMedido = null;
 function medirPagina(secao) { const cam = caminhoAnonimo(location.pathname); if (cam === ultimoCaminhoMedido) return; ultimoCaminhoMedido = cam; ga.pagina(cam, { secao }); }
 const CH_SESSAO = "meu-bot-console-sessao", CH_LOGIN = "meu-bot-console-login";
-const SECOES = ["overview", "profile", "devices", "plan", "support", "access", "organizations"];
-const TITULOS = { janelas: "Janelas de suporte", overview: "Visão geral", profile: "Perfil", devices: "Devices", plan: "Plano", support: "Suporte", access: "Perfis de acesso", orgs: "Organizações", "org-nova": "Nova organização" };
+const SECOES = ["overview", "profile", "devices", "plan", "support", "access", "sales", "organizations"];
+const TITULOS = { sales: "Assinaturas", janelas: "Janelas de suporte", overview: "Visão geral", profile: "Perfil", devices: "Devices", plan: "Plano", support: "Suporte", access: "Perfis de acesso", orgs: "Organizações", "org-nova": "Nova organização" };
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/;
 const PAPEL_ORG = { dona: "dona", admin: "admin", membro: "membro" };
 const TOKEN_RE = /^[A-Za-z0-9_-]{16,128}$/;
@@ -23,6 +23,13 @@ const ss = { get(k) { try { return JSON.parse(localStorage.getItem(k) ?? "null")
 const data = (iso) => { const t = Date.parse(iso ?? ""); return Number.isNaN(t) ? "-" : new Date(t).toLocaleDateString("pt-BR", { day: "numeric", month: "short", year: "numeric" }); };
 const dataHora = (iso) => { const t = Date.parse(iso ?? ""); return Number.isNaN(t) ? "-" : new Date(t).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }); };
 const PLANO = { free: "Free", pro: "Pro" }, STATUS = { free: "Free", trialing: "Trial", active: "Ativo", expired: "Expirado" }, CICLO = { month: "mensal", year: "anual" };
+/** Os apps à venda neste ambiente (config.js do Worker): [{nome, rotulo, centavos}]. */
+const ADDONS = (() => { try { const a = JSON.parse(cfg.addons ?? "[]"); return Array.isArray(a) ? a.filter((x) => x && typeof x.nome === "string" && typeof x.rotulo === "string" && Number.isInteger(x.centavos)) : []; } catch { return []; } })();
+const reais = (centavos) => (typeof centavos === "number" ? (centavos / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "-");
+/** O nome de um produto pago na tela: null é o Pro; add-on fora do catálogo aparece pelo nome técnico. */
+const rotuloProduto = (p) => (p === null || p === undefined ? "Pro" : ADDONS.find((a) => a.nome === p)?.rotulo ?? p);
+/** Situação de uma assinatura: cancelada; em dia (ativa com prazo no futuro); atrasada (ativa sem renovar). */
+const situacaoDe = (a, agora = Date.now()) => (a.status === "CANCELLED" ? { chave: "cancelada", texto: "Cancelada", tom: "" } : a.valeAte && Date.parse(a.valeAte) > agora ? { chave: "em-dia", texto: "Em dia", tom: "ok" } : { chave: "atrasada", texto: "Atrasada", tom: "mau" });
 const el = (tag, cls, texto) => { const e = document.createElement(tag); if (cls) e.className = cls; if (texto !== undefined) e.textContent = texto; return e; };
 const selo = (texto, tom) => el("span", `selo${tom ? ` ${tom}` : ""}`, texto);
 const inicial = (c) => (c.nome ?? c.email).trim().charAt(0).toUpperCase() || "?";
@@ -147,17 +154,18 @@ function mostrarConsole(c) {
   const admin = visao !== null;
   $("console").classList.toggle("modo-admin", admin);
   $("menu-access").hidden = !(admin && c.admin === "super");
+  $("menu-sales").hidden = !(admin && c.admin === "super");
   $("menu-orgs-todas").hidden = !(admin && c.admin === "super");
   $("menu-janelas").hidden = !(admin && c.admin === "super");
   for (const id of ["ad-overview", "ad-plan", "ad-devices", "ad-support"]) $(id).hidden = !admin;
   for (const d of document.querySelectorAll("details.pessoal")) d.open = !admin;
-  if ((secao === "access" || secao === "orgs" || secao === "janelas") && !(admin && c.admin === "super")) { history.replaceState(null, "", "/account/overview"); mostrarConsole(c); return; }
+  if ((secao === "access" || secao === "sales" || secao === "orgs" || secao === "janelas") && !(admin && c.admin === "super")) { history.replaceState(null, "", "/account/overview"); mostrarConsole(c); return; }
   if (secao === "org-nova") { pintarOrgNova(); return; }
   if (secao === "janelas") { void pintarJanelas(); return; }
   if (secao === "orgs") { pintarAdminOrgs(visao); return; }
   if (secao === "org") { void abrirOrg(r.slug, r.aba); return; }
-  ({ overview: pintarOverview, profile: pintarPerfil, devices: pintarDevices, plan: pintarPlano, support: pintarSuporte, access: () => undefined })[secao](c);
-  if (admin) ({ overview: pintarAdminTotais, profile: () => undefined, devices: pintarAdminDevices, plan: pintarAdminContas, support: pintarAdminPedidos, access: pintarAdminPerfis })[secao](visao);
+  ({ overview: pintarOverview, profile: pintarPerfil, devices: pintarDevices, plan: pintarPlano, support: pintarSuporte, access: () => undefined, sales: () => undefined })[secao](c);
+  if (admin) ({ overview: pintarAdminTotais, profile: () => undefined, devices: pintarAdminDevices, plan: pintarAdminContas, support: pintarAdminPedidos, access: pintarAdminPerfis, sales: pintarAdminVendas })[secao](visao);
 }
 
 // ---- janelas de suporte (/support-window): o último resumo de cada pessoa que o meu-bot-admin-gestao leu
@@ -465,12 +473,49 @@ function pintarAdminTotais(v) {
     cartao("⬢", "Pro ativo", document.createTextNode(String(n(/^Pro ativo|^Pro ·/)))),
     cartao("▭", "Devices pendentes", document.createTextNode(String(v.totais.devicesPendentes)), ...(v.totais.devicesPendentes > 0 ? [selo("liberar", "mau")] : [])),
     cartao("✉", "Pedidos abertos", document.createTextNode(String(v.totais.pedidosAbertos)), ...(v.totais.pedidosAbertos > 0 ? [selo("ver em Suporte", "mau")] : [])),
+    ...(v.vendas ? cartoesVendas(v.vendas) : []),
   );
+}
+/** Os cartões de receita (só o super admin recebe `vendas`): Pro pago, cada add-on pago, receita mensal e a revisar. */
+function cartoesVendas(vd) {
+  const nomes = [...new Set([...ADDONS.map((a) => a.nome), ...Object.keys(vd.totais.addons)])];
+  return [
+    cartao("$", "Pro pago", document.createTextNode(String(vd.totais.proPago))),
+    ...nomes.map((n) => cartao("$", `${rotuloProduto(n)} pago`, document.createTextNode(String(vd.totais.addons[n] ?? 0)))),
+    cartao("↻", "Receita mensal", document.createTextNode(reais(vd.totais.mensalCentavos))),
+    cartao("!", "Pagamentos a revisar", document.createTextNode(String(vd.totais.aRevisar)), ...(vd.totais.aRevisar > 0 ? [selo("ver em Suporte", "mau")] : [])),
+  ];
+}
+/** Super admin › Assinaturas: quem paga o quê, com filtro por produto e situação, e os últimos pagamentos. */
+function pintarAdminVendas(v) {
+  const vd = v.vendas; if (!vd) return;
+  $("ad-vendas-totais").replaceChildren(...cartoesVendas(vd));
+  const selP = $("ad-vendas-produto"), escolhido = selP.value;
+  const produtos = [...new Set(["", "pro", ...ADDONS.map((a) => a.nome), ...vd.assinaturas.map((a) => a.produto ?? "pro")])];
+  selP.replaceChildren(...produtos.map((p) => { const o = el("option", "", p === "" ? "Todos os produtos" : rotuloProduto(p === "pro" ? null : p)); o.value = p; o.selected = p === escolhido; return o; }));
+  const sit = $("ad-vendas-situacao").value;
+  const linhas = vd.assinaturas.filter((a) => (selP.value === "" || (a.produto ?? "pro") === selP.value) && (sit === "" || situacaoDe(a).chave === sit));
+  const tb = $("ad-assinaturas").querySelector("tbody"); tb.replaceChildren();
+  if (linhas.length === 0) { const tr = el("tr"); const td = el("td", "", vd.assinaturas.length === 0 ? "Nenhuma assinatura paga ainda." : "Nenhuma assinatura com esse filtro."); td.colSpan = 7; tr.append(td); tb.append(tr); }
+  for (const a of linhas) {
+    const s = situacaoDe(a); const tr = el("tr");
+    const tdP = el("td"); tdP.append(selo(rotuloProduto(a.produto), a.produto === null ? "ok" : ""));
+    const tdS = el("td"); tdS.append(selo(s.texto, s.tom));
+    tr.append(contaCelula(a.conta.email, a.conta.nome), tdP, tdS, el("td", "", `${reais(a.valorCentavos)}/mês`), el("td", "", data(a.criadaEm)), el("td", "", a.ultimoPagamentoEm ? dataHora(a.ultimoPagamentoEm) : "-"), el("td", "", a.valeAte ? data(a.valeAte) : "-"));
+    tb.append(tr);
+  }
+  const tp = $("ad-pagamentos").querySelector("tbody"); tp.replaceChildren();
+  if (vd.pagamentos.length === 0) { const tr = el("tr"); const td = el("td", "", "Nenhum pagamento ainda."); td.colSpan = 6; tr.append(td); tp.append(tr); }
+  for (const p of vd.pagamentos) {
+    const tr = el("tr");
+    tr.append(el("td", "", dataHora(p.pagoEm)), contaCelula(p.conta.email, p.conta.nome), el("td", "", rotuloProduto(p.produto)), el("td", "", reais(p.valorCentavos)), el("td", "", p.primeira ? "primeira" : "renovação"), el("td", "", p.noAnalytics ? "registrada" : "não foi"));
+    tp.append(tr);
+  }
 }
 function pintarAdminContas(v) {
   $("ad-busca").value = visaoBusca;
   const tb = $("ad-contas").querySelector("tbody"); tb.replaceChildren();
-  if (v.contas.length === 0) { const tr = el("tr"); const td = el("td", "", visaoBusca ? "Nenhuma conta com esse e-mail ou nome." : "Ninguém entrou ainda."); td.colSpan = 8; tr.append(td); tb.append(tr); }
+  if (v.contas.length === 0) { const tr = el("tr"); const td = el("td", "", visaoBusca ? "Nenhuma conta com esse e-mail ou nome." : "Ninguém entrou ainda."); td.colSpan = 10; tr.append(td); tb.append(tr); }
   for (const c of v.contas) {
     const l = c.licenca, ativos = c.devices.filter((d) => d.status !== "pending").length, pend = c.devices.length - ativos;
     const tr = el("tr");
@@ -478,6 +523,12 @@ function pintarAdminContas(v) {
     const plano = el("td"); plano.append(selo(PLANO[l.plan] ?? l.plan, l.plan === "pro" ? "ok" : "")); if (c.admin) plano.append(document.createTextNode(" "), selo(c.admin === "super" ? "super admin" : "admin")); tr.append(plano);
     const f = fase(l); const tdFase = el("td"); tdFase.append(selo(f.texto, f.tom)); tr.append(tdFase);
     tr.append(el("td", "", l.expiresAt ? data(l.expiresAt) : l.trialEnd ? data(l.trialEnd) : "-"));
+    // Add-ons: os pagos com o prazo (vencido fica marcado) e os concedidos pelo admin, que valem junto com a licença.
+    const tdAd = el("td"); const pagosC = c.addonsPagos ?? [];
+    for (const a of pagosC) { const emDia = Date.parse(a.expiresAt) > Date.now(); tdAd.append(selo(`${rotuloProduto(a.produto)} · ${emDia ? "pago até" : "venceu em"} ${data(a.expiresAt)}`, emDia ? "ok" : "mau"), document.createTextNode(" ")); }
+    for (const p of l.produtos) tdAd.append(selo(`${rotuloProduto(p)} · concedido`), document.createTextNode(" "));
+    if (pagosC.length === 0 && l.produtos.length === 0) tdAd.textContent = "-";
+    tr.append(tdAd);
     const dv = el("td", "", `${ativos}/${l.deviceLimit}`); if (pend > 0) dv.append(document.createTextNode(" "), selo(`${pend} pendente${pend === 1 ? "" : "s"}`, "mau")); tr.append(dv);
     tr.append(el("td", "", String(c.maquinas)), el("td", "", String(c.pedidos)), el("td", "", data(c.criadaEm)));
     const acao = el("td"); const b = el("button", "btn btn-ghost", "Mudar"); b.type = "button"; b.addEventListener("click", () => editorLicenca(tr, c)); acao.append(b); tr.append(acao);
@@ -499,7 +550,7 @@ function editorLicenca(tr, c) {
   const existente = tr.nextElementSibling;
   if (existente !== null && existente.classList.contains("editor")) { existente.remove(); return; }
   const l = c.licenca;
-  const linha = el("tr", "editor"); const td = el("td"); td.colSpan = 10;
+  const linha = el("tr", "editor"); const td = el("td"); td.colSpan = 11;
   const form = el("form", "editor-form");
   const campo = (rotulo, input) => { const lb = el("label"); lb.append(el("span", "", rotulo), input); return lb; };
   const select = (nome, opcoes, atual) => { const s = el("select"); s.name = nome; for (const [v, t] of opcoes) { const o = el("option", "", t); o.value = v; o.selected = v === atual; s.append(o); } return s; };
@@ -511,7 +562,7 @@ function editorLicenca(tr, c) {
   const produtos = input("produtos", "text", l.produtos.join(", "), "meu-bot-finance, …");
   const instrucoes = input("instrucoes", "text", l.pagamento?.instrucoes ?? "", "Pix, link, contato…");
   const link = input("link", "url", l.pagamento?.link ?? "", "https://…");
-  form.append(campo("Plano", plan), campo("Status", status), campo("Vale até", ate), campo("Devices", limite), campo("Add-ons", produtos), campo("Como pagar", instrucoes), campo("Link", link));
+  form.append(campo("Plano", plan), campo("Status", status), campo("Vale até", ate), campo("Devices", limite), campo("Add-ons concedidos", produtos), campo("Como pagar", instrucoes), campo("Link", link));
   // Senha: o super admin define na hora (em branco não muda); qualquer admin manda o e-mail de redefinição.
   const superAdmin = conta !== null && conta.admin === "super";
   const senha = input("senha", "password", "", superAdmin ? "nova senha (em branco: não muda)" : "só o super admin define"); senha.autocomplete = "new-password"; senha.minLength = 8; senha.maxLength = 128; senha.disabled = !superAdmin;
@@ -520,7 +571,8 @@ function editorLicenca(tr, c) {
   const emailSenha = el("button", "btn btn-ghost", "E-mail de senha"); emailSenha.type = "button"; emailSenha.title = `Manda a ${c.email} o e-mail para criar ou redefinir a senha (o mesmo de "Esqueci a senha").`; emailSenha.addEventListener("click", () => { void adminSenha(c, emailSenha); });
   const cancelar = el("button", "btn btn-ghost", "Cancelar"); cancelar.type = "button"; cancelar.addEventListener("click", () => linha.remove());
   const acoes = el("div", "acoes"); acoes.append(salvar, emailSenha, cancelar); form.append(acoes);
-  const aviso = el("p", "sub", "Vale na conta e no console; o que libera o Pro no app ainda é a licença da máquina (próxima versão). Senha preenchida: troca no Firebase e desconecta a pessoa de todos os Macs.");
+  const pagosTxt = (c.addonsPagos ?? []).map((a) => `${rotuloProduto(a.produto)} até ${data(a.expiresAt)}`).join(", ");
+  const aviso = el("p", "sub", `${pagosTxt ? `Pagos pela AbacatePay (não se mudam aqui): ${pagosTxt}. ` : ""}Vale na conta e no console; no app, o acesso ainda depende da licença da máquina (meu-bot-admin › Suporte). Senha preenchida: troca no Firebase e desconecta a pessoa de todos os Macs.`);
   form.append(aviso);
   form.addEventListener("submit", async (ev) => {
     ev.preventDefault(); salvar.disabled = true;
@@ -557,7 +609,7 @@ function pintarAdminDevices(v) {
     tb.append(tr);
   }
 }
-const TIPO_PEDIDO = { "plano.pedir": "Pro", "addon.pedir": "Add-on", "device.pedir": "Device", "importar": "Importar licença" };
+const TIPO_PEDIDO = { "pagamento.liberar": "Liberar na máquina", "pagamento.revisar": "Revisar pagamento", "plano.pedir": "Pro", "addon.pedir": "Add-on", "device.pedir": "Device", "importar": "Importar licença" };
 function pintarAdminPedidos(v) {
   const tb = $("ad-pedidos").querySelector("tbody"); tb.replaceChildren();
   if (v.pedidos.length === 0) { const tr = el("tr"); const td = el("td", "", "Nenhum pedido aberto."); td.colSpan = 5; tr.append(td); tb.append(tr); }
@@ -588,7 +640,7 @@ function pintarOverview(c) {
     cartao("↻", "Ciclo de cobrança", document.createTextNode(l.interval ? CICLO[l.interval] : "-")),
     cartao("▭", "Devices", document.createTextNode(`${ativos} de ${l.deviceLimit}`), ...(pendentes > 0 ? [selo(`${pendentes} pendente${pendentes === 1 ? "" : "s"}`, "mau")] : [])),
     cartao("⌂", "Máquinas", document.createTextNode(String(c.maquinas.length))),
-    ...(l.produtos.length > 0 ? [cartao("+", "Add-ons", ...l.produtos.map((p) => selo(p)))] : []),
+    ...(l.produtos.length > 0 ? [cartao("+", "Add-ons", ...l.produtos.map((p) => selo(rotuloProduto(p))))] : []),
     ...(c.pedidos > 0 ? [cartao("✉", "Pedidos abertos", document.createTextNode(String(c.pedidos)))] : []),
   );
 }
@@ -679,14 +731,41 @@ function pintarDevices(c) {
 }
 let esperasPagamento = 0;
 /** "Assinar": pede o checkout à API (com o client_id/session_id do GA4, para a compra ir à mesma visita) e vai para a página da AbacatePay. */
-async function assinar() {
+async function assinar(produto = null, btn = $("pl-assinar-btn"), aviso = $("pl-assinar-aviso")) {
   const s = sessaoGuardada();
   if (s === null) { void entrar(); return; }
-  const btn = $("pl-assinar-btn"); btn.disabled = true; $("pl-assinar-aviso").textContent = "Abrindo a página de pagamento…";
+  btn.disabled = true; aviso.textContent = "Abrindo a página de pagamento…";
   const v = typeof ga.visita === "function" ? await ga.visita() : { clientId: null, sessionId: null };
-  const r = await api("POST", "/conta/assinatura", { gaClientId: v.clientId, gaSessionId: v.sessionId }, s.acesso);
-  if (r.status === 200 && r.corpo && typeof r.corpo.url === "string") { ga.evento("checkout_iniciado", { plano: "chip-coflow" }); location.assign(r.corpo.url); return; }
-  btn.disabled = false; $("pl-assinar-aviso").textContent = erroDe(r);
+  const r = await api("POST", "/conta/assinatura", { gaClientId: v.clientId, gaSessionId: v.sessionId, ...(produto === null ? {} : { produto }) }, s.acesso);
+  if (r.status === 200 && r.corpo && typeof r.corpo.url === "string") { ga.evento("checkout_iniciado", { plano: produto ?? "chip-coflow" }); location.assign(r.corpo.url); return; }
+  btn.disabled = false; aviso.textContent = erroDe(r);
+}
+/** Um painel "Assinar" por app à venda que a conta ainda não tem; quem voltou do pagamento vê o aviso no painel do app. */
+function pintarAddons(l, voltouDe) {
+  const caixa = $("pl-addons"); caixa.replaceChildren();
+  if (cfg.pagamentos !== "1") return;
+  for (const a of ADDONS) {
+    const tem = l.produtos.includes(a.nome);
+    if (tem && voltouDe !== a.nome) continue;
+    const painel = el("div", "painel"); const aviso = el("p", "sub"); aviso.setAttribute("role", "status");
+    painel.append(el("h2", "", tem ? a.rotulo : `Assinar o ${a.rotulo}`));
+    if (tem) { aviso.textContent = `Pagamento confirmado: o ${a.rotulo} está ativo nesta conta.`; painel.append(aviso); caixa.append(painel); continue; }
+    painel.append(el("p", "", `${reais(a.centavos)} por mês, à parte do Pro. O pagamento é feito na página segura da AbacatePay, e o ${a.rotulo} entra nesta conta assim que o pagamento é confirmado. Você cancela quando quiser e o acesso continua até o fim do mês pago.`));
+    if (voltouDe === a.nome) aviso.textContent = `Recebemos você de volta. Assim que a AbacatePay confirmar o pagamento, o ${a.rotulo} aparece aqui (costuma levar alguns segundos).`;
+    const p = el("p"); const b = el("button", "btn btn-primary", `Assinar por ${reais(a.centavos)}/mês`); b.type = "button"; b.addEventListener("click", () => { void assinar(a.nome, b, aviso); }); p.append(b);
+    painel.append(aviso, p); caixa.append(painel);
+  }
+}
+/** "Suas assinaturas": o que a conta paga pela AbacatePay, com a situação e até quando vale. */
+function pintarAssinaturas(c) {
+  const lista = c.assinaturas ?? [];
+  $("pl-assinaturas").hidden = lista.length === 0;
+  const tb = $("pl-assinaturas").querySelector("tbody"); tb.replaceChildren();
+  for (const a of lista) {
+    const s = situacaoDe(a); const tr = el("tr"); const tdS = el("td"); tdS.append(selo(s.texto, s.tom));
+    tr.append(el("td", "", rotuloProduto(a.produto)), el("td", "", `${reais(a.valorCentavos)}/mês`), tdS, el("td", "", a.valeAte ? data(a.valeAte) : "-"));
+    tb.append(tr);
+  }
 }
 function pintarPlano(c) {
   const l = c.licenca;
@@ -696,14 +775,19 @@ function pintarPlano(c) {
     cartao("▦", "Vale até", document.createTextNode(l.expiresAt ? data(l.expiresAt) : l.trialEnd ? `trial até ${data(l.trialEnd)}` : "sem prazo")),
     cartao("↻", "Ciclo", document.createTextNode(l.interval ? CICLO[l.interval] : "-")),
     cartao("▭", "Limite de devices", document.createTextNode(String(l.deviceLimit))),
-    cartao("+", "Add-ons", ...(l.produtos.length > 0 ? l.produtos.map((p) => selo(p)) : [document.createTextNode("nenhum")])),
+    cartao("+", "Add-ons", ...(l.produtos.length > 0 ? l.produtos.map((p) => selo(rotuloProduto(p))) : [document.createTextNode("nenhum")])),
   );
   // Assinar pela AbacatePay: só com os pagamentos ligados no Worker (config.js) e enquanto não há Pro pago ativo.
   const pagoAtivo = l.plan === "pro" && l.status === "active";
   $("pl-assinar").hidden = cfg.pagamentos !== "1" || pagoAtivo;
-  const voltou = new URLSearchParams(location.search).get("assinatura") === "paga";
+  const qs = new URLSearchParams(location.search);
+  const voltouDe = qs.get("assinatura") === "paga" ? qs.get("produto") : null;
+  const voltou = qs.get("assinatura") === "paga" && voltouDe === null;
   if (voltou) $("pl-assinar-aviso").textContent = pagoAtivo ? "Pagamento confirmado: o Pro está ativo." : "Recebemos você de volta. Assim que a AbacatePay confirmar o pagamento, o Pro aparece aqui (costuma levar alguns segundos).";
-  if (voltou && !pagoAtivo && esperasPagamento < 10) { esperasPagamento++; setTimeout(() => { void lerConta().then((c2) => { if (c2) pintarPlano(c2); }).catch(() => undefined); }, 3000); }
+  pintarAddons(l, voltouDe);
+  pintarAssinaturas(c);
+  const esperando = (voltou && !pagoAtivo) || (voltouDe !== null && !l.produtos.includes(voltouDe));
+  if (esperando && esperasPagamento < 10) { esperasPagamento++; setTimeout(() => { void lerConta().then((c2) => { if (c2) pintarPlano(c2); }).catch(() => undefined); }, 3000); }
   const pg = l.pagamento;
   $("pl-pagamento").hidden = !pg;
   if (pg) { $("pl-instrucoes").textContent = pg.instrucoes; const link = typeof pg.link === "string" && /^https?:\/\//.test(pg.link); $("pl-link").hidden = !link; if (link) $("pl-link").href = pg.link; }
@@ -715,6 +799,8 @@ function pintarSuporte(c) {
 
 // ---- arranque
 $("pl-assinar-btn").addEventListener("click", () => { void assinar(); });
+for (const id of ["ad-vendas-produto", "ad-vendas-situacao"]) $(id).addEventListener("change", () => { if (visao !== null) pintarAdminVendas(visao); });
+$("ad-vendas-filtro").addEventListener("submit", (ev) => ev.preventDefault());
 $("btn-entrar").addEventListener("click", () => { $("btn-entrar").disabled = true; void entrar(); });
 $("btn-sair").addEventListener("click", () => { void sair(); });
 $("pf-form").addEventListener("submit", (ev) => { ev.preventDefault(); void perfilSalvar(); });

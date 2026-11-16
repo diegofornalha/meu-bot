@@ -13,7 +13,7 @@ import { enviarEmailSenha } from "./conta.js";
 
 export async function getAdminVisao(auth: Autenticado, env: Env, url: URL): Promise<Response> {
   if (auth.claims.adm === null) return json({ erro: "só admin" }, 403);
-  return json(await visaoAdmin(env.DB, validaBusca(url.searchParams.get("busca"))));
+  return json(await visaoAdmin(env.DB, validaBusca(url.searchParams.get("busca")), auth.claims.adm === "super"));
 }
 export async function postAtenderPedido(auth: Autenticado, env: Env, id: string): Promise<Response> {
   if (auth.claims.adm === null) return json({ erro: "só admin" }, 403);
