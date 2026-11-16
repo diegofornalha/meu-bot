@@ -84,7 +84,13 @@ async function subir(): Promise<InspectorAbrir> {
   return new Promise<InspectorAbrir>((resolve) => {
     let saida = ""; let decidido = false;
     const fim = (r: InspectorAbrir): void => { if (decidido) return; decidido = true; clearTimeout(prazo); resolve(r); };
-    const falhou = (codigo: number | null): void => { const erro = erroDaSubida(saida, codigo); log(`[inspector] não subiu: ${erro}`); fim({ ok: false, erro }); };
+    // Subida que falhou não deixa o arquivo de sessão (a chave do controle externo) no disco até o app fechar.
+    const falhou = (codigo: number | null): void => {
+      if (decidido) return;
+      const erro = erroDaSubida(saida, codigo); log(`[inspector] não subiu: ${erro}`);
+      if (vivo?.child !== child) apagarSessao();
+      fim({ ok: false, erro });
+    };
     const prazo = setTimeout(() => { matar(child); falhou(null); }, PRAZO_SUBIDA_MS);
     const ler = (ch: Buffer): void => {
       if (decidido) return;
@@ -97,7 +103,7 @@ async function subir(): Promise<InspectorAbrir> {
     child.stdout?.on("data", ler); child.stderr?.on("data", ler);
     child.on("error", (e) => { saida += `\n${e.message}`; falhou(null); });
     child.on("exit", (code) => {
-      if (vivo?.child === child) { vivo = null; log(`[inspector] o processo saiu (${code ?? "sinal"})`); }
+      if (vivo?.child === child) { vivo = null; apagarSessao(); log(`[inspector] o processo saiu (${code ?? "sinal"})`); }
       falhou(code ?? 1);
     });
   });
@@ -114,5 +120,14 @@ export function abrirInspector(): Promise<InspectorAbrir> {
 /** Encerra o processo e apaga o arquivo de sessão (ele guarda a chave do controle externo). Chamado ao sair do app. */
 export function pararInspector(): void {
   if (vivo !== null) { matar(vivo.child); vivo = null; log("[inspector] encerrado"); }
-  try { fs.rmSync(arquivoSessao(), { force: true }); } catch { /* sem o arquivo */ }
+  apagarSessao();
 }
+
+function apagarSessao(): void { try { fs.rmSync(arquivoSessao(), { force: true }); } catch { /* sem o arquivo */ } }
+
+/**
+ * Na abertura do app: se a execução anterior caiu sem passar pelo `will-quit`, o arquivo de sessão (com a chave do
+ * controle externo) ficou no disco. Apaga antes de qualquer coisa; o Inspector velho, se ainda vivo, fica sem dono e
+ * é substituído na próxima subida (porta e token novos).
+ */
+export function limparSessaoAntiga(): void { if (vivo === null) apagarSessao(); }

@@ -23,7 +23,7 @@ import { checkNow as checkNetNow, disposeNet, initNet, onBackOnline } from "./ap
 import { installBrowserHooks } from "./navegador/browser";
 import { startTermApi } from "./terminal/term-api";
 import { startControleRemoto, stopControleRemoto } from "./controle-remoto/controle-remoto";
-import { pararInspector } from "./inspector/inspector";
+import { limparSessaoAntiga, pararInspector } from "./inspector/inspector";
 import { getBackendPort, getControleRemoto, guardarAntesDeVoltar } from "./app/settings";
 import { installAppMenu, refreshAppMenu } from "./app/menu";
 import { changeWindowZoom } from "./app/zoom";
@@ -138,6 +138,7 @@ app.whenReady().then(() => {
   installBrowserHooks();
   void startTermApi().catch((e: unknown) => { log(`[terminal] controle local não subiu: ${e instanceof Error ? e.message : String(e)}`); });
   // Controle remoto (MCP): só se a pessoa ligou em Configurações; porta ocupada fica como erro no estado, não derruba nada.
+  if (caps().inspector) limparSessaoAntiga(); // execução anterior que caiu: a chave do MCP não fica no disco
   if (getControleRemoto().ligado) void startControleRemoto().catch((e: unknown) => { log(`[mcp] não subiu: ${e instanceof Error ? e.message : String(e)}`); });
   onBackOnline(() => {
     markSuspect(); void revalidate();
