@@ -1,7 +1,8 @@
 /** Acesso ao D1: consultas tipadas, uma função por intenção. O que sai do banco é dado; quem decide é a rota. */
-import type { AdminContaResumo, AdminOrg, AdminPedido, AdminPerfil, AdminVisao, CodigoLinha, ContaApi, ContaLinha, DeviceApi, DeviceLinha, License, LicencaLinha, MaquinaLinha, MembroApi, MembroLinha, OrgApi, OrgLinha, OrgResumo, PapelOrg, PerfilApi, SessaoLinha } from "./tipos.js";
+import type { AdminAssinatura, AdminContaResumo, ContaAssinatura, AdminOrg, AdminPagamento, AdminVendas, AdminPedido, AdminPerfil, AdminVisao, CodigoLinha, ContaApi, ContaLinha, DeviceApi, DeviceLinha, License, LicencaLinha, MaquinaLinha, MembroApi, MembroLinha, OrgApi, OrgLinha, OrgResumo, PapelOrg, PerfilApi, SessaoLinha } from "./tipos.js";
 import { agoraIso, nomeExibicao, parseProvedores, provedoresDoLogin, unirProvedores, uuid, type MetodoLogin, type PatchLicenca, type PatchOrg, type PatchPerfil } from "./sessao-core.js";
 import type { UsuarioFirebase } from "./firebase.js";
+import { licencaComAddons } from "./pagamento-core.js";
 
 export async function contaPorUid(db: D1Database, uid: string): Promise<ContaLinha | null> {
   return (await db.prepare("SELECT * FROM contas WHERE firebase_uid = ?1 AND apagada_em IS NULL").bind(uid).first<ContaLinha>()) ?? null;
@@ -118,9 +119,19 @@ function licencaDaLinha(l: LicencaLinha | null, memberSince: string): License {
     produtos, pagamento, updatedAt: l.updated_at, updatedBy: l.updated_by === "admin" ? "admin" : "system",
   };
 }
-export async function licencaDaConta(db: D1Database, conta: ContaLinha): Promise<License> {
+/** A licença como está gravada (o que o admin definiu e o Pro pago), sem os add-ons pagos: é a base de toda gravação. */
+export async function licencaGravada(db: D1Database, conta: ContaLinha): Promise<License> {
   const l = (await db.prepare("SELECT * FROM licencas WHERE conta_id = ?1").bind(conta.id).first<LicencaLinha>()) ?? null;
   return licencaDaLinha(l, conta.criada_em);
+}
+/** Os add-ons pagos da conta (addons_pagos), vencidos ou não. */
+export async function addonsPagos(db: D1Database, contaId: string): Promise<{ produto: string; expiresAt: string }[]> {
+  return (await db.prepare("SELECT produto, expires_at FROM addons_pagos WHERE conta_id = ?1").bind(contaId).all<{ produto: string; expires_at: string }>()).results.map((r) => ({ produto: r.produto, expiresAt: r.expires_at }));
+}
+/** A licença em vigor, que o app e o console recebem: a gravada mais os add-ons pagos em dia (licencaComAddons). */
+export async function licencaDaConta(db: D1Database, conta: ContaLinha, agora = agoraIso()): Promise<License> {
+  const [l, pagos] = await Promise.all([licencaGravada(db, conta), addonsPagos(db, conta.id)]);
+  return licencaComAddons(l, pagos, agora);
 }
 
 export async function devicesDaConta(db: D1Database, contaId: string): Promise<DeviceLinha[]> {
@@ -189,13 +200,16 @@ export async function auditar(db: D1Database, quem: string, acao: string, contaI
 
 /** A conta como o app a vê: licença, devices (com "este"), máquinas, pedidos e o papel de admin. */
 export async function montarContaApi(db: D1Database, conta: ContaLinha, admin: "super" | "admin" | null, deviceAtual: string | null): Promise<ContaApi> {
-  const [licenca, devices, maquinas, pedidos, orgs] = await Promise.all([licencaDaConta(db, conta), devicesDaConta(db, conta.id), maquinasDaConta(db, conta.id), pedidosAbertos(db, conta.id), orgsDaConta(db, conta.id)]);
+  const [gravada, pagos, devices, maquinas, pedidos, orgs, ass] = await Promise.all([licencaGravada(db, conta), addonsPagos(db, conta.id), devicesDaConta(db, conta.id), maquinasDaConta(db, conta.id), pedidosAbertos(db, conta.id), orgsDaConta(db, conta.id),
+    db.prepare("SELECT produto, status, valor_centavos FROM assinaturas WHERE conta_id = ?1 ORDER BY criada_em DESC LIMIT 50").bind(conta.id).all<{ produto: string | null; status: string; valor_centavos: number | null }>()]);
+  const licenca = licencaComAddons(gravada, pagos, agoraIso());
+  const assinaturas: ContaAssinatura[] = ass.results.map((a) => ({ produto: a.produto, status: a.status === "CANCELLED" ? "CANCELLED" : "ACTIVE", valorCentavos: a.valor_centavos, valeAte: a.produto === null ? gravada.expiresAt : pagos.find((p) => p.produto === a.produto)?.expiresAt ?? null }));
   const ds: DeviceApi[] = devices.map((d) => {
     let apps: DeviceApi["apps"] = {};
     try { const a: unknown = JSON.parse(d.apps); if (a !== null && typeof a === "object") apps = a as DeviceApi["apps"]; } catch { apps = {}; }
     return { id: d.id, alias: d.alias_legado, name: d.name ?? "", user: d.user ?? "", platform: d.platform ?? "", status: d.status === "pending" ? "pending" : "active", requestedAt: d.requested_at, firstSeen: d.first_seen, lastSeen: d.last_seen, apps, este: deviceAtual !== null && (d.id === deviceAtual || d.alias_legado === deviceAtual) };
   });
-  return { id: conta.id, email: conta.email, nome: nomeExibicao(conta), nomeLogin: conta.nome, foto: conta.foto, perfil: perfilDaLinha(conta), provedores: parseProvedores(conta.provedores), dadosUso: conta.dados_uso !== 0, admin, licenca, devices: ds, maquinas: maquinas.map((m) => ({ id: m.id, apelido: m.apelido, vinculadaPor: m.vinculada_por })), pedidos, orgs };
+  return { id: conta.id, email: conta.email, nome: nomeExibicao(conta), nomeLogin: conta.nome, foto: conta.foto, perfil: perfilDaLinha(conta), provedores: parseProvedores(conta.provedores), dadosUso: conta.dados_uso !== 0, admin, licenca, devices: ds, maquinas: maquinas.map((m) => ({ id: m.id, apelido: m.apelido, vinculadaPor: m.vinculada_por })), pedidos, assinaturas, orgs };
 }
 
 // ---- Admin: a visão de todas as contas. `busca` filtra por e-mail ou nome (LIKE, escapado); até 500 contas.
@@ -205,7 +219,7 @@ const deviceApi = (d: DeviceLinha): DeviceApi => {
   return { id: d.id, alias: d.alias_legado, name: d.name ?? "", user: d.user ?? "", platform: d.platform ?? "", status: d.status === "pending" ? "pending" : "active", requestedAt: d.requested_at, firstSeen: d.first_seen, lastSeen: d.last_seen, apps, este: false };
 };
 interface PedidoLinha { id: string; conta_id: string; tipo: string; detalhe: string | null; maquina_id: string | null; criado_em: string; atendido_em: string | null; atendido_por: string | null; email: string; nome: string | null }
-export async function visaoAdmin(db: D1Database, busca: string): Promise<AdminVisao> {
+export async function visaoAdmin(db: D1Database, busca: string, comVendas = false, agora = agoraIso()): Promise<AdminVisao> {
   const like = `%${busca.replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
   const contas = (await db.prepare("SELECT * FROM contas WHERE apagada_em IS NULL AND (?1 = '' OR email LIKE ?2 ESCAPE '\\' OR nome LIKE ?2 ESCAPE '\\' OR nome_proprio LIKE ?2 ESCAPE '\\' OR sobrenome LIKE ?2 ESCAPE '\\') ORDER BY criada_em DESC LIMIT 500").bind(busca, like).all<ContaLinha>()).results;
   const [licencas, devices, maquinas, pedidosN, admins, pedidos, orgsLinhas] = await Promise.all([
@@ -219,17 +233,41 @@ export async function visaoAdmin(db: D1Database, busca: string): Promise<AdminVi
   ]);
   const orgs: AdminOrg[] = orgsLinhas.results.map((o) => ({ id: o.id, slug: o.slug, nome: o.nome, dona: o.dona, membros: o.membros, assentos: o.assentos, criadaEm: o.criada_em }));
   const lic = new Map(licencas.results.map((l) => [l.conta_id, l]));
+  const pagosLinhas = (await db.prepare("SELECT conta_id, produto, expires_at FROM addons_pagos").all<{ conta_id: string; produto: string; expires_at: string }>()).results;
+  const pagos = new Map<string, { produto: string; expiresAt: string }[]>();
+  for (const a of pagosLinhas) { const lista = pagos.get(a.conta_id) ?? []; lista.push({ produto: a.produto, expiresAt: a.expires_at }); pagos.set(a.conta_id, lista); }
   const devs = new Map<string, DeviceApi[]>();
   for (const d of devices.results) { const lista = devs.get(d.conta_id) ?? []; lista.push(deviceApi(d)); devs.set(d.conta_id, lista); }
   const maq = new Map(maquinas.results.map((m) => [m.conta_id, m.n]));
   const ped = new Map(pedidosN.results.map((m) => [m.conta_id, m.n]));
   const adm = new Map(admins.results.map((a) => [a.email, a.papel === "super" ? "super" as const : "admin" as const]));
-  const resumo: AdminContaResumo[] = contas.map((c) => ({ id: c.id, email: c.email, nome: nomeExibicao(c), foto: c.foto, admin: adm.get(c.email) ?? null, criadaEm: c.criada_em, licenca: licencaDaLinha(lic.get(c.id) ?? null, c.criada_em), devices: devs.get(c.id) ?? [], maquinas: maq.get(c.id) ?? 0, pedidos: ped.get(c.id) ?? 0 }));
+  const resumo: AdminContaResumo[] = contas.map((c) => ({ id: c.id, email: c.email, nome: nomeExibicao(c), foto: c.foto, admin: adm.get(c.email) ?? null, criadaEm: c.criada_em, licenca: licencaDaLinha(lic.get(c.id) ?? null, c.criada_em), addonsPagos: pagos.get(c.id) ?? [], devices: devs.get(c.id) ?? [], maquinas: maq.get(c.id) ?? 0, pedidos: ped.get(c.id) ?? 0 }));
   const todas = busca === "" ? resumo : (await db.prepare("SELECT id, criada_em FROM contas WHERE apagada_em IS NULL").all<{ id: string; criada_em: string }>()).results.map((c) => ({ id: c.id, licenca: licencaDaLinha(lic.get(c.id) ?? null, c.criada_em), devices: devs.get(c.id) ?? [] }));
   const totais = { contas: todas.length, pro: todas.filter((c) => c.licenca.plan === "pro").length, devicesPendentes: devices.results.filter((d) => d.status === "pending").length, pedidosAbertos: pedidos.results.length, orgs: orgs.length };
   const emails = new Set((await db.prepare("SELECT email FROM contas WHERE apagada_em IS NULL").all<{ email: string }>()).results.map((c) => c.email));
   const perfis: AdminPerfil[] = admins.results.map((a) => ({ email: a.email, papel: a.papel === "super" ? "super" : "admin", criadoEm: a.criado_em, entrou: emails.has(a.email) }));
-  return { contas: resumo, perfis, pedidos: pedidos.results.map((p): AdminPedido => ({ id: p.id, tipo: p.tipo, detalhe: p.detalhe, maquinaId: p.maquina_id, criadoEm: p.criado_em, atendidoEm: p.atendido_em, atendidoPor: p.atendido_por, conta: { id: p.conta_id, email: p.email, nome: p.nome } })), orgs, totais };
+  return { contas: resumo, perfis, pedidos: pedidos.results.map((p): AdminPedido => ({ id: p.id, tipo: p.tipo, detalhe: p.detalhe, maquinaId: p.maquina_id, criadoEm: p.criado_em, atendidoEm: p.atendido_em, atendidoPor: p.atendido_por, conta: { id: p.conta_id, email: p.email, nome: p.nome } })), orgs, totais, vendas: comVendas ? await vendasAdmin(db, lic, pagos, pedidos.results.filter((p) => p.tipo === "pagamento.revisar").length, agora) : null };
+}
+/** Quem paga o quê (super admin): as assinaturas com o prazo que sustentam, os últimos pagamentos e os totais em dia. */
+async function vendasAdmin(db: D1Database, lic: Map<string, LicencaLinha>, pagos: Map<string, { produto: string; expiresAt: string }[]>, aRevisar: number, agora: string): Promise<AdminVendas> {
+  const [ass, pgs] = await Promise.all([
+    db.prepare("SELECT a.id, a.conta_id, a.produto, a.status, a.valor_centavos, a.criada_em, a.atualizada_em, c.email, c.nome, (SELECT MAX(p.pago_em) FROM pagamentos p WHERE p.assinatura_id = a.id) AS ultimo FROM assinaturas a JOIN contas c ON c.id = a.conta_id ORDER BY a.criada_em DESC LIMIT 500").all<{ id: string; conta_id: string; produto: string | null; status: string; valor_centavos: number | null; criada_em: string; atualizada_em: string; email: string; nome: string | null; ultimo: string | null }>(),
+    db.prepare("SELECT p.id, p.conta_id, p.produto, p.valor_centavos, p.evento, p.pago_em, p.ga_enviado_em, c.email, c.nome FROM pagamentos p JOIN contas c ON c.id = p.conta_id ORDER BY p.pago_em DESC LIMIT 100").all<{ id: string; conta_id: string; produto: string | null; valor_centavos: number; evento: string; pago_em: string; ga_enviado_em: string | null; email: string; nome: string | null }>(),
+  ]);
+  const assinaturas: AdminAssinatura[] = ass.results.map((a) => ({
+    id: a.id, produto: a.produto, status: a.status === "CANCELLED" ? "CANCELLED" : "ACTIVE", valorCentavos: a.valor_centavos, criadaEm: a.criada_em, atualizadaEm: a.atualizada_em,
+    valeAte: a.produto === null ? lic.get(a.conta_id)?.expires_at ?? null : pagos.get(a.conta_id)?.find((p) => p.produto === a.produto)?.expiresAt ?? null,
+    ultimoPagamentoEm: a.ultimo, conta: { id: a.conta_id, email: a.email, nome: a.nome },
+  }));
+  // Em dia = ativa e com prazo no futuro: assinatura que parou de renovar sem avisar não conta como receita.
+  const emDia = assinaturas.filter((a) => a.status === "ACTIVE" && a.valeAte !== null && Date.parse(a.valeAte) > Date.parse(agora));
+  const addons: Record<string, number> = {};
+  for (const a of emDia) if (a.produto !== null) addons[a.produto] = (addons[a.produto] ?? 0) + 1;
+  return {
+    assinaturas,
+    pagamentos: pgs.results.map((p): AdminPagamento => ({ id: p.id, produto: p.produto, valorCentavos: p.valor_centavos, primeira: p.evento === "subscription.completed", pagoEm: p.pago_em, noAnalytics: p.ga_enviado_em !== null, conta: { id: p.conta_id, email: p.email, nome: p.nome } })),
+    totais: { proPago: emDia.filter((a) => a.produto === null).length, addons, mensalCentavos: emDia.reduce((s, a) => s + (a.valorCentavos ?? 0), 0), aRevisar },
+  };
 }
 /** Marca um pedido como atendido; false se não existe ou já estava atendido. */
 export async function atenderPedido(db: D1Database, id: string, quem: string, agora = agoraIso()): Promise<boolean> {
@@ -238,8 +276,12 @@ export async function atenderPedido(db: D1Database, id: string, quem: string, ag
 }
 /** O admin muda a licença de uma conta: lê a atual (ou a default), aplica o patch e grava (upsert). Devolve a nova. */
 export async function gravarLicenca(db: D1Database, conta: ContaLinha, patch: PatchLicenca, agora = agoraIso()): Promise<License> {
-  const atual = await licencaDaConta(db, conta);
+  // Parte da gravada: o formulário do admin mostra a licença em vigor, e um add-on pago que viesse de volta na lista
+  // viraria concessão sem prazo. Só fica na lista o que já era concessão ou não está pago em dia.
+  const [atual, pagos] = await Promise.all([licencaGravada(db, conta), addonsPagos(db, conta.id)]);
+  const emDia = new Set(pagos.filter((p) => Date.parse(p.expiresAt) > Date.parse(agora)).map((p) => p.produto));
   const nova: License = { ...atual, ...patch, updatedAt: agora, updatedBy: "admin" } as License;
+  if (patch.produtos !== undefined) nova.produtos = patch.produtos.filter((x) => atual.produtos.includes(x) || !emDia.has(x));
   if (patch.plan === "pro" && patch.status === undefined && atual.status === "free") nova.status = "active";
   if (patch.plan === "free" && patch.status === undefined) nova.status = "free";
   await db.prepare("INSERT INTO licencas (conta_id, plan, status, interval, member_since, trial_end, expires_at, device_limit, produtos, pagamento, updated_at, updated_by) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 'admin') ON CONFLICT(conta_id) DO UPDATE SET plan = excluded.plan, status = excluded.status, interval = excluded.interval, trial_end = excluded.trial_end, expires_at = excluded.expires_at, device_limit = excluded.device_limit, produtos = excluded.produtos, pagamento = excluded.pagamento, updated_at = excluded.updated_at, updated_by = 'admin'")

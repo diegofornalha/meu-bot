@@ -150,6 +150,18 @@ O console › Plano mostra "Assinar por R$ 97/mês" quando o Worker tem `ABACATE
      (console › Suporte). Ninguém perde o Pro automaticamente.
    - Produção ignora eventos do Modo Teste (`devMode: true`), e o staging ignora eventos reais.
 
+**Apps vendidos à parte (add-ons).** Cada app com preço próprio (o primeiro é o Finanças, `meu-bot-finance`) é uma
+assinatura mensal separada do Pro. O catálogo fica em `ABACATEPAY_ADDONS` (`wrangler.toml`, por ambiente):
+`{"meu-bot-finance":{"produto":"prod_...","centavos":99700,"rotulo":"Finanças"}}`. O console › Plano mostra um "Assinar"
+por app e `POST /conta/assinatura` recebe `{produto}`. A cobrança paga grava o prazo em `addons_pagos`
+(`0007_addons_pagos.sql`); a licença que o app e o console recebem é a gravada mais os add-ons pagos em dia
+(`licencaComAddons`), e quem paga um add-on com o Pro ou o teste vencidos recebe o plano grátis com o add-on, não uma
+licença vencida. Os add-ons que o admin concede continuam em `licencas.produtos`, sem prazo próprio.
+
+**Quem paga o quê.** O super admin vê em console › Assinaturas cada assinatura (produto, situação, valor, prazo), os
+últimos pagamentos e os totais em dia; o `GET /admin/visao` só devolve `vendas` a ele. Cada primeira cobrança paga abre
+um pedido "Liberar na máquina" em Suporte: a licença da conta ainda não chega sozinha à máquina, quem libera é o admin.
+
 Ligar num ambiente (o staging usa a loja no Modo Teste):
 
 ```bash

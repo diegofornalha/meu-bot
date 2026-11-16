@@ -33,6 +33,8 @@ export interface Env {
   ABACATEPAY_PRODUTO?: string;
   /** Preço do Pro em centavos ("9700"): pagamento abaixo disso vai para revisão em vez de liberar. */
   ABACATEPAY_PRECO_CENTAVOS?: string;
+  /** Apps vendidos à parte, cada um com produto mensal e preço próprios (JSON; a forma está em lerAddons, pagamento-core.ts). */
+  ABACATEPAY_ADDONS?: string;
   /** Formas de pagamento da assinatura: "CARD" ou "CARD,PIX" (Pix Automático precisa estar liberado na conta). */
   ABACATEPAY_METODOS?: string;
   /** Secret: api_secret do Measurement Protocol do fluxo Web do GA4 (a compra vai ao Analytics pelo servidor). */
@@ -98,6 +100,8 @@ export interface DeviceApi {
   este: boolean;
 }
 /** O que `GET /conta` e `POST /token` devolvem: a conta como o app a mostra. */
+/** Uma assinatura paga da conta, como o console › Plano a mostra: `produto` null é o Pro. */
+export interface ContaAssinatura { produto: string | null; status: "ACTIVE" | "CANCELLED"; valorCentavos: number | null; valeAte: string | null }
 export interface ContaApi {
   id: string;
   email: string;
@@ -117,14 +121,21 @@ export interface ContaApi {
   maquinas: { id: string; apelido: string | null; vinculadaPor: string }[];
   /** Pedidos abertos desta conta (Pro, add-on, device). */
   pedidos: number;
+  /** As assinaturas pagas da conta (Pro e add-ons), a mais nova primeiro. */
+  assinaturas: ContaAssinatura[];
   /** Organizações de que a conta é membro (dona, admin ou membro). */
   orgs: OrgResumo[];
 }
 /** `GET /admin/visao`: todas as contas (com licença, devices e máquinas), os pedidos abertos e os totais. Só admin. */
-export interface AdminContaResumo { id: string; email: string; nome: string | null; foto: string | null; admin: "super" | "admin" | null; criadaEm: string; licenca: License; devices: DeviceApi[]; maquinas: number; pedidos: number }
+export interface AdminContaResumo { id: string; email: string; nome: string | null; foto: string | null; admin: "super" | "admin" | null; criadaEm: string; licenca: License; /** Add-ons pagos pela AbacatePay, com o prazo de cada um (os concedidos pelo admin estão em licenca.produtos). */ addonsPagos: { produto: string; expiresAt: string }[]; devices: DeviceApi[]; maquinas: number; pedidos: number }
 export interface AdminPedido { id: string; tipo: string; detalhe: string | null; maquinaId: string | null; criadoEm: string; atendidoEm: string | null; atendidoPor: string | null; conta: { id: string; email: string; nome: string | null } }
 export interface AdminPerfil { email: string; papel: "super" | "admin"; criadoEm: string; entrou: boolean }
-export interface AdminVisao { contas: AdminContaResumo[]; pedidos: AdminPedido[]; perfis: AdminPerfil[]; orgs: AdminOrg[]; totais: { contas: number; pro: number; devicesPendentes: number; pedidosAbertos: number; orgs: number } }
+/** Uma assinatura paga (subs_...): `produto` null é o Pro; `valeAte` é o prazo que ela sustenta hoje na conta. */
+export interface AdminAssinatura { id: string; produto: string | null; status: "ACTIVE" | "CANCELLED"; valorCentavos: number | null; criadaEm: string; atualizadaEm: string; valeAte: string | null; ultimoPagamentoEm: string | null; conta: { id: string; email: string; nome: string | null } }
+export interface AdminPagamento { id: string; produto: string | null; valorCentavos: number; primeira: boolean; pagoEm: string; noAnalytics: boolean; conta: { id: string; email: string; nome: string | null } }
+/** Quem paga o quê: só o super admin recebe (para o admin comum vem null). */
+export interface AdminVendas { assinaturas: AdminAssinatura[]; pagamentos: AdminPagamento[]; totais: { proPago: number; addons: Record<string, number>; mensalCentavos: number; aRevisar: number } }
+export interface AdminVisao { contas: AdminContaResumo[]; pedidos: AdminPedido[]; perfis: AdminPerfil[]; orgs: AdminOrg[]; vendas: AdminVendas | null; totais: { contas: number; pro: number; devicesPendentes: number; pedidosAbertos: number; orgs: number } }
 /** O que o app manda no `POST /token` para se registrar como device. */
 export interface DevicePedido { id: string; alias: string | null; name: string; user: string; platform: string; app: string; versao: string }
 /** Claims do token de acesso (HS256, 1 h). */
