@@ -67,6 +67,11 @@ FIREBASE_AUTH_DOMAIN = "auth.agentesgrok.com"
 ADMIN_BOOTSTRAP_EMAIL = "diegofornalha@gmail.com"
 # Conta nova (primeiro login) começa em trial do Pro por estes dias; 0 desliga (começa free).
 TRIAL_DIAS = "14"
+# Produto "meu-bot Pro mensal" (R$ 97, mensal) da loja meu-bot em produção na AbacatePay. A assinatura só liga quando
+# os secrets ABACATEPAY_KEY e ABACATEPAY_WEBHOOK_SECRET também existirem neste ambiente.
+ABACATEPAY_PRODUTO = "prod_3ubFY5sxLU1nG2a5GPbj5S1Q"
+ABACATEPAY_PRECO_CENTAVOS = "9700"
+ABACATEPAY_METODOS = "CARD"
 
 [env.staging]
 name = "conta-api-staging"
@@ -94,8 +99,8 @@ database_id = "609f1493-e49e-446e-a36b-fe98cbf91df1"
 migrations_dir = "migrations"
 [env.staging.vars]
 CANAL = "staging"
-# Produto "meu-bot Pro mensal" (R$ 97, mensal) da loja meu-bot no Modo Teste da AbacatePay. Em produção, o produto
-# real entra junto com a chave de produção, depois do teste completo aqui.
+# Produto "meu-bot Pro mensal" (R$ 97, mensal) da loja meu-bot no Modo Teste da AbacatePay. O de produção fica
+# em [vars], acima.
 ABACATEPAY_PRODUTO = "prod_12Das4f2bcXQtaR0bs4hrXms"
 ABACATEPAY_PRECO_CENTAVOS = "9700"
 ABACATEPAY_METODOS = "CARD"
