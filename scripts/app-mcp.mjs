@@ -13,10 +13,10 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline';
+import { appsInstalados, bundleDoApp, pastasDeApps } from './app-mcp-apps.mjs';
 
 const UID = os.userInfo().uid;
 const DONO_HDR = Buffer.from(JSON.stringify({ id: 'claude-code:mac', rotulo: 'Claude Code (Mac)', origem: 'claude-code' }), 'utf8').toString('base64');
-const APPS_DIR = path.join(os.homedir(), 'Applications');
 
 /** Apps abertos: pasta /tmp/<app>-<uid> com term.sock; as máquinas vêm dos nav-<host>.sock. */
 function apps() {
@@ -95,12 +95,11 @@ const APP_ROTAS = { app: 'app', janela_abrir: 'janela', pagina_abrir: 'pagina', 
 async function call(name, args) {
   const { app, maquina, ...resto } = args;
   if (name === 'apps') {
-    let instalados = []; try { instalados = fs.readdirSync(APPS_DIR).filter((f) => /^meu-bot.*\.app$/.test(f)).map((f) => f.slice(0, -4)); } catch { /* sem pasta */ }
-    return { abertos: apps().map(({ app: a, maquinas }) => ({ app: a, maquinas })), instalados };
+    return { abertos: apps().map(({ app: a, maquinas }) => ({ app: a, maquinas })), instalados: appsInstalados() };
   }
   if (name === 'app_abrir') {
     if (!/^meu-bot[\w-]*$/.test(app) || !/^[\w.-]+$/.test(maquina)) throw new Error('app ou máquina inválidos');
-    const bin = path.join(APPS_DIR, `${app}.app`); if (!fs.existsSync(bin)) throw new Error(`${bin} não existe`);
+    const bin = bundleDoApp(app); if (bin === null) throw new Error(`o ${app} não está instalado (procurei em ${pastasDeApps().join(' e ')})`);
     await new Promise((res, rej) => execFile('open', ['-n', '-a', bin, '--args', `--host=${maquina}`], (e) => (e ? rej(e) : res())));
     const t0 = Date.now(); while (Date.now() - t0 < 25_000) { if (apps().some((x) => x.app === app)) break; await new Promise((r) => setTimeout(r, 500)); }
     return { ok: apps().some((x) => x.app === app), app, maquina };
