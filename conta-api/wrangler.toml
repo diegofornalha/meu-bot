@@ -72,6 +72,8 @@ TRIAL_DIAS = "14"
 ABACATEPAY_PRODUTO = "prod_3ubFY5sxLU1nG2a5GPbj5S1Q"
 ABACATEPAY_PRECO_CENTAVOS = "9700"
 ABACATEPAY_METODOS = "CARD"
+# Apps vendidos à parte (lerAddons, src/pagamento-core.ts): produto "meu-bot Finanças mensal" (R$ 997, mensal).
+ABACATEPAY_ADDONS = '{"meu-bot-finance":{"produto":"prod_0nZWGHEd334ZBsBbmzbpxB1y","centavos":99700,"rotulo":"Finanças"}}'
 
 [env.staging]
 name = "conta-api-staging"
