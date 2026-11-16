@@ -61,16 +61,16 @@ export const NAO_ADDON: readonly string[] = ["meu-bot-admin", "meu-bot-crm"];
 /** O plano "personalizado" (removido em 22 out) liberava o Pro e estes add-ons; quem o tinha vira Pro com eles. */
 export const ADDONS_DO_PERSONALIZADO: readonly string[] = ["meu-bot-finance"];
 /** Páginas que um produto pode pôr na frente ao abrir (Produto.abreEm); o renderer sabe abrir cada uma. */
-export const PAGINAS_INICIAIS = ["financas"] as const;
+export const PAGINAS_INICIAIS = ["financas", "inspector"] as const;
 export type PaginaInicial = (typeof PAGINAS_INICIAIS)[number];
 
 const PESSOA: Produto["caps"] = {
   chat: true, pair: true, login: true, manageWa: true, tunnel: true, install: true, supportClient: true, supportAdmin: false,
-  navegador: true, planoExigido: "free", usuariosMac: false,
+  navegador: true, planoExigido: "free", usuariosMac: false, inspector: false,
 };
 const ADMIN: Produto["caps"] = {
   chat: false, pair: false, login: false, manageWa: false, tunnel: false, install: false, supportClient: false, supportAdmin: true,
-  navegador: false, planoExigido: "free", usuariosMac: false,
+  navegador: false, planoExigido: "free", usuariosMac: false, inspector: false,
 };
 
 // meu-bot: o app da pessoa. Traz as duas extensões; o CRM próprio no Gmail abre pela licença da máquina (Pro ou superior,
@@ -100,6 +100,11 @@ export const PRODUTOS: readonly Produto[] = [
   // e porta próprios para conviver com o meu-bot e o meu-bot-staging. Nasce como cópia dos dados do meu-bot-staging.
   { ...staging(CLIENT, "finance-staging", 8792, 7832), nome: "meu-bot-finance-staging", bundleId: "local.meu-bot-finance.staging", icone: "assets/icon-finance-staging.icns", userData: "meu-bot-finance-staging", herdaDe: "meu-bot-staging", fundeDe: null, addon: "meu-bot-finance", instalador: false, abreEm: "financas",
     descricao: "O meu-bot em teste com o Financeiro na frente (abre na página Finanças); o financeiro é liberado pelo add-on meu-bot-finance." },
+  // meu-bot-inspector-staging: o meu-bot em teste com o MCP Inspector na frente (abre na página Inspector, que sobe a
+  // interface oficial do @modelcontextprotocol/inspector já ligada ao controle externo deste app). Mesmo molde do
+  // finance-staging: nome, ícone, dados e portas próprios; nasce como cópia dos dados do meu-bot-staging. Só staging.
+  { ...staging(CLIENT, "inspector-staging", 8793, 7835), nome: "meu-bot-inspector-staging", bundleId: "local.meu-bot-inspector.staging", icone: "assets/icon-inspector-staging.icns", userData: "meu-bot-inspector-staging", herdaDe: "meu-bot-staging", fundeDe: null, addon: null, instalador: false, abreEm: "inspector", caps: { ...PESSOA, inspector: true },
+    descricao: "O meu-bot em teste com o MCP Inspector na frente (abre na página Inspector): a interface oficial do Inspector ligada ao controle externo (MCP) do próprio app." },
 ];
 
 /**

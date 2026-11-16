@@ -64,10 +64,10 @@ export interface SettingsView {
   abaFixa: AbaFixa;
 }
 /**
- * Aba que fica na frente ao abrir: "padrao" = a do produto (Finanças no finance-staging, Tutoriais nos outros, para
+ * Aba que fica na frente ao abrir: "padrao" = a do produto (Finanças no finance-staging, Inspector no inspector-staging, Tutoriais nos outros, para
  * quem chega leigo); "conversa" = sem alfinete, a última conversa; o resto é o id de uma página.
  */
-export type AbaFixa = "padrao" | "conversa" | "tutoriais" | "acervo" | "conta-google" | "gmail" | "computador" | "financas" | "navegador" | "usuarios";
+export type AbaFixa = "padrao" | "conversa" | "tutoriais" | "acervo" | "conta-google" | "gmail" | "computador" | "financas" | "inspector" | "navegador" | "usuarios";
 
 export interface SettingsUpdate {
   backendModel?: BackendModel;
@@ -128,7 +128,7 @@ export type ClienteMcp = "claude-code" | "cursor";
  * Qual produto é este app: meu-bot (de cada pessoa, com o CRM próprio liberado pela licença), meu-bot-admin (suporte)
  * e os staging. Tabela em src/main/variant-core.ts.
  */
-export type AppVariant = "client" | "admin" | "client-staging" | "finance-staging" | "admin-mac";
+export type AppVariant = "client" | "admin" | "client-staging" | "finance-staging" | "inspector-staging" | "admin-mac";
 /** Canal do app: estável (só o aprovado) ou staging (o que está em teste), como VS Code e VS Code Insiders. */
 export type Canal = "estavel" | "staging";
 /**
@@ -157,6 +157,8 @@ export interface Capabilities {
   navegador: boolean;
   /** meu-bot-admin-mac: o app é só a janela das contas deste Mac (sem seletor de máquinas). */
   usuariosMac: boolean;
+  /** meu-bot-inspector-staging: botão e página Inspector (o MCP Inspector oficial ligado ao controle externo deste app). */
+  inspector: boolean;
   /**
    * Plano que a licença da máquina precisa ter para o app funcionar. "free" = app grátis com módulos Pro à parte
    * (etiqueta Pro, "pedir ao admin"); acima disso o app inteiro dependeria do add-on `produto` (hoje nenhum app usa).
@@ -175,7 +177,7 @@ export interface Capabilities {
   titulo: string;
   /** Add-on que é a razão deste app (a entrada dele fica sempre à vista); null = nenhum. Tabela em variant-core.ts. */
   addon: string | null;
-  /** Página que fica na frente quando a janela abre ("financas"); null = as abas de conversa. */
+  /** Página que fica na frente quando a janela abre ("financas", "inspector"); null = as abas de conversa. */
   abreEm: string | null;
   /** Catálogo de add-ons (nome e rótulo para ler), para as telas não escreverem nomes à mão. */
   addons: { nome: string; rotulo: string }[];

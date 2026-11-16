@@ -52,7 +52,7 @@ Publique do checkout principal só se ele estiver limpo e no `origin/main`; sen�
 3. **Commitar tudo**: o release exige árvore limpa e `gh` logado (`gh auth status`; se expirou, o usuário roda
    `! gh auth refresh -h github.com`).
 4. **`npm run release:staging`**: publica a pre-release `v<versão>-staging.N` com os apps staging (meu-bot-staging,
-   meu-bot-finance-staging), cada zip com o `.sig`. Os staging instalados a partir de release atualizam calados ao fechar.
+   meu-bot-finance-staging, meu-bot-inspector-staging), cada zip com o `.sig`. Os staging instalados a partir de release atualizam calados ao fechar.
    O app das pessoas (meu-bot, meu-bot-staging: campo `instalador` em `variant-core.ts`) sai também como instalador
    `.dmg` (`scripts/dmg.mjs`, Python do sistema; o ambiente fica em `build/.venv-dmg`), que é o que o site entrega; o
    atualizador segue no `.zip` + `.sig`.

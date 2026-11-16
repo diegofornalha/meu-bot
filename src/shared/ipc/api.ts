@@ -5,6 +5,7 @@ import type { AlertPrefs, BackendModel, ClienteMcp, ControleRemotoView, DonoInfo
 import type { ReleasePublicada, UpdateState } from "./atualizacao";
 import type { ContaView } from "./conta";
 import type { TelaEndereco, TelaInstalacao, TelaStatus } from "./computador";
+import type { InspectorAbrir } from "./inspector";
 import type { ClaudeSessionRef, ContextEvent, ConversationRef, DoneEvent, ErrorEvent, ExportFormat, MemoryView, StoredConversationView, TabMenuAction, ToolEvent } from "./conversa";
 import type { CrmDiag, CrmInfo, CrmLocal } from "./crm";
 import type { FinanceAbc, FinanceAbcLado, FinanceAbcPor, FinanceCategoria, FinanceConfig, FinanceConta, FinanceImportacao, FinanceInfo, FinanceLancamento, FinanceLancarInput, FinanceMoeda, FinanceTipoLinha } from "./financeiro";
@@ -101,7 +102,7 @@ export interface MainEvents {
   /** Terminal: o controle local (term-api.ts) pede uma aba nova de terminal nesta janela. */
   "term:ask": { kind: "new" };
   /** Controle remoto (MCP), ferramenta `pagina_abrir`: põe esta página na frente da janela. */
-  "ui:abrir-pagina": { pagina: "tutoriais" | "acervo" | "financas" | "conta-google" | "gmail" | "computador" | "navegador" };
+  "ui:abrir-pagina": { pagina: "tutoriais" | "acervo" | "financas" | "inspector" | "conta-google" | "gmail" | "computador" | "navegador" };
   /** Controle remoto (MCP) ligou/desligou, trocou de porta ou de token: a seção das Configurações repinta em todas as janelas. */
   "controle-remoto:changed": ControleRemotoView;
   /** Controle local (term-api.ts): mais uma coluna com a página à direita; juntar tira uma (id/pagina) ou todas. */
@@ -397,6 +398,8 @@ export interface MeuBotClientApi {
   computadorInstalar(): Promise<TelaInstalacao>;
   /** Endereço local do noVNC (abre o forward); lança se a tela não está ligada. */
   computadorUrl(): Promise<TelaEndereco>;
+  /** Inspector (meu-bot-inspector-staging): sobe o MCP Inspector ligado ao controle externo deste app e devolve o endereço, ou o que falta. */
+  inspectorAbrir(): Promise<InspectorAbrir>;
   /** Resposta ao balão de câmera/microfone de um site do Navegador. */
   browserPermissao(id: string, decisao: "sempre" | "agora" | "nunca"): Promise<void>;
   /** Esquece as permissões de câmera/microfone dadas aos sites (uma origem ou todas) nesta máquina. */

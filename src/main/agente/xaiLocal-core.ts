@@ -11,7 +11,7 @@ export const HERMES_VERSION_LOCAL = "0.22.2";
 
 /**
  * Porta do proxy de cada app: 100 abaixo da porta do backend local (meu-bot 8690, meu-bot-staging 8691,
- * finance-staging 8692). Fora da 8645 das máquinas, que o Lima do Colima pode encaminhar para o Mac, e diferente
+ * finance-staging 8692, inspector-staging 8693). Fora da 8645 das máquinas, que o Lima do Colima pode encaminhar para o Mac, e diferente
  * entre os apps, que podem ficar abertos juntos.
  */
 export const proxyPortaLocal = (portaBackend: number): number => portaBackend - 100;

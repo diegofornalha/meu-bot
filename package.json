@@ -29,7 +29,8 @@
     "assinatura": "node scripts/assinatura.mjs --criar",
     "chave-release": "node scripts/chave-release.mjs",
     "chave-licenca": "node scripts/chave-licenca.mjs",
-    "dist:finance-staging": "node scripts/dist.mjs --variant finance-staging"
+    "dist:finance-staging": "node scripts/dist.mjs --variant finance-staging",
+    "dist:inspector-staging": "node scripts/dist.mjs --variant inspector-staging"
   },
   "devDependencies": {
     "@electron/fuses": "2.1.3",

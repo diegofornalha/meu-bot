@@ -1,6 +1,6 @@
 // Publica uma release no GitHub com os produtos de um canal zipados (tabela em src/main/app/variant-core.ts): é daí que a
 // atualização automática (src/main/atualizacao/updater.ts) baixa. Dois modos (regras em release-core.mjs):
-//   npm run release:staging  → pre-release v<versão>-staging.N com os apps staging (meu-bot-staging, meu-bot-finance-staging);
+//   npm run release:staging  → pre-release v<versão>-staging.N com os apps staging (meu-bot-staging, meu-bot-finance-staging, meu-bot-inspector-staging);
 //                              N = próximo pelas tags que já existem. Os staging instalados atualizam sozinhos.
 //   npm run release -- --conferir (ou release:staging -- --conferir) → só confere tudo, sem empacotar nem publicar.
 //   npm run release          → promoção: release v<versão> com os estáveis (meu-bot, meu-bot-admin), SÓ

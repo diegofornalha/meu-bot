@@ -23,6 +23,7 @@ import { checkNow as checkNetNow, disposeNet, initNet, onBackOnline } from "./ap
 import { installBrowserHooks } from "./navegador/browser";
 import { startTermApi } from "./terminal/term-api";
 import { startControleRemoto, stopControleRemoto } from "./controle-remoto/controle-remoto";
+import { pararInspector } from "./inspector/inspector";
 import { getBackendPort, getControleRemoto, guardarAntesDeVoltar } from "./app/settings";
 import { installAppMenu, refreshAppMenu } from "./app/menu";
 import { changeWindowZoom } from "./app/zoom";
@@ -39,7 +40,7 @@ import { aoRetornarAuth, aoRetorno, aoSair, contaEntrada, papelConfirmado } from
 
 // Cada produto além do meu-bot tem userData próprio (senão dividiria pasta e trava de instância). Antes de tudo.
 // O admin traz o pessoas.json antigo; um produto da pessoa (meu-bot-finance-staging…) nasce como cópia do meu-bot dela.
-{ const ud = userDataName(); const de = produto().herdaDe; if (ud !== null) useVariantUserData(ud, caps().supportAdmin ? migrateAdminPessoas : de !== null ? herdarDe(de) : undefined); }
+{ const ud = userDataName(); const de = produto().herdaDe; if (ud !== null) useVariantUserData(ud, caps().supportAdmin ? migrateAdminPessoas : de !== null ? herdarDe(de, produto().abreEm !== null) : undefined); }
 // O meu-bot adota a pasta do antigo meu-bot-crm (uma vez; a origem fica como backup). Depois de herdar, antes de ler qualquer coisa.
 { const fd = produto().fundeDe; if (fd !== null && !app.commandLine.hasSwitch("user-data-dir")) fundirDe(fd)(app.getPath("userData"), app.getPath("appData")); }
 
@@ -214,4 +215,4 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
-app.on("will-quit", () => { stopControleRemoto(); disposeNet(); disposeUpdater(); disposeQuickEntry(); disposeWindows(); closeTunnel(); applyStagedOnQuit(); });
+app.on("will-quit", () => { pararInspector(); stopControleRemoto(); disposeNet(); disposeUpdater(); disposeQuickEntry(); disposeWindows(); closeTunnel(); applyStagedOnQuit(); });

@@ -6,8 +6,8 @@ import { createRequire } from "node:module";
 const c = createRequire(import.meta.url)("../../dist/main/agente/xaiLocal-core.js");
 
 test("proxyPortaLocal: uma porta por app, fora da 8645 das máquinas", () => {
-  assert.deepEqual([8790, 8791, 8792].map(c.proxyPortaLocal), [8690, 8691, 8692]);
-  assert.ok(![8790, 8791, 8792].map(c.proxyPortaLocal).includes(8645));
+  assert.deepEqual([8790, 8791, 8792, 8793].map(c.proxyPortaLocal), [8690, 8691, 8692, 8693]);
+  assert.ok(![8790, 8791, 8792, 8793].map(c.proxyPortaLocal).includes(8645));
 });
 
 test("providersComGrokLocal: agente primeiro, grok-4 pelo proxy local sem chave", () => {

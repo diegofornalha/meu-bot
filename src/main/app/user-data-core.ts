@@ -14,6 +14,19 @@ const PULAR = [
 ];
 export const entradaHerdavel = (nome: string): boolean => !PULAR.some((re) => re.test(nome));
 
+/**
+ * O settings.json herdado, para um produto que abre numa página própria (Produto.abreEm): a aba fixada volta ao padrão
+ * do produto. A escolha da pessoa no app de origem ("abrir na conversa") foi feita para outro app; herdada, o
+ * meu-bot-inspector-staging abria na conversa em vez do Inspector. JSON ilegível volta como veio.
+ */
+export function settingsHerdados(raw: string): string {
+  try {
+    const v: unknown = JSON.parse(raw);
+    if (v === null || typeof v !== "object" || Array.isArray(v)) return raw;
+    return `${JSON.stringify({ ...(v as Record<string, unknown>), abaFixa: "padrao" }, null, 2)}\n`;
+  } catch { return raw; }
+}
+
 /** Carimbo da herança, por origem: ".herdado-de-meu-bot", ".herdado-de-meu-bot-crm". */
 export const carimboDe = (origem: string): string => `.herdado-de-${origem}`;
 

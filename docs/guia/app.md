@@ -28,7 +28,7 @@ cliente (um `claude mcp add` ou um trecho de `mcp.json`); o app só gera o texto
   Desligado, elas nem aparecem em `tools/list` e a chamada volta `isError`. A chave **fica guardada ao desligar**
   (religar não obriga a reconfigurar os clientes); "Gerar outra" é o que invalida.
 - **Configuração** (`settings.json`: `mcpLigado`, `mcpExecucao`, `mcpPorta` null = padrão da variante, `mcpToken`) e
-  porta por produto (`Produto.portaMcp`: 7830 meu-bot, 7831 staging, 7832 finance-staging, 7833 admin, 7834 admin-mac;
+  porta por produto (`Produto.portaMcp`: 7830 meu-bot, 7831 staging, 7832 finance-staging, 7833 admin, 7834 admin-mac, 7835 inspector-staging;
   fora da 7822 do Rambox). IPC `controle-remoto:status|ligar|execucao|porta|regenerar` (shared);
   `controle-remoto:changed` repinta as outras janelas.
 - **Tela** (`renderer/configuracoes/controle-remoto.ts`, grupo `#mcp-group`): os dois interruptores, status, chave
@@ -807,3 +807,36 @@ menu.
 **Defeito achado no caminho.** `getAtualizarOcioso()` devolvia `true` fixo e `settingsView` também, de quando o
 interruptor era travado. Como a PR anterior destravou o interruptor na tela, ele salvava e a tela remarcava a caixa
 no primeiro repinte. Agora os dois leem o arquivo.
+
+## meu-bot-inspector-staging: o MCP Inspector dentro do app (15 nov 2026)
+
+Um app de teste a mais, no molde do meu-bot-finance-staging (`staging(CLIENT, "inspector-staging", 8793, 7835)` em
+`variant-core.ts`): nome, ícone, dados e portas próprios, nasce como cópia dos dados do meu-bot-staging, só no canal
+staging (`.zip` + `.sig`, sem `.dmg`), nunca na estável nem no site. A diferença é a capacidade `inspector` (true só
+nele): a barra lateral ganha o botão **Inspector** e a janela abre nessa página (`abreEm: "inspector"`).
+
+- **O que a página mostra:** a interface oficial do `@modelcontextprotocol/inspector` (linha v2), num `<webview>`,
+  já conectada ao controle externo (MCP) do próprio app: lista e chama `app`, `nav_*`, `terminal_*`… O app aparece
+  no selo como "Inspector (MCP)".
+- **Como sobe** (`src/main/inspector/`): ao abrir a página, o main roda
+  `npx -y @modelcontextprotocol/inspector@<versão fixa> --web --config <dados>/inspector/sessao.json` numa porta livre
+  de 127.0.0.1, sem abrir o navegador do sistema, com os segredos só em memória e o armazenamento dentro da pasta de
+  dados do app (não toca no `~/.mcp-inspector`). O pacote **não** entra no `package.json`. O processo morre com o app
+  (`will-quit`), e o arquivo de sessão é apagado.
+- **Versão fixa** (`INSPECTOR_VERSAO`, hoje 2.13.0, de 28 out 2026): só uma publicada há mais de duas semanas. Subir a
+  versão é uma PR, com a prova na tela.
+- **Transporte e autenticação:** na v2 quem fala com o servidor MCP é o backend Node do Inspector (não há mais o proxy
+  da v1), por streamable-http. O pedido chega ao app sem `Origin` e com `Host` de loopback: o `pedidoOk` não mudou. O
+  `GET /mcp` (SSE) que o transporte tenta depois do `initialize` leva o 405 de sempre e a conexão segue só com `POST`.
+  O `Authorization: Bearer` do app vai no campo `headers` do arquivo de sessão (0600), nunca na linha de comando. A
+  interface conecta sozinha pelo deep link dela (`?serverUrl=…&transport=http&autoConnect=<token da API>`), que usa a
+  linha `deep-link` do arquivo, cabeçalhos inclusive.
+- **Controle externo:** abrir a página liga o controle externo deste app se ele estava desligado (e grava "ligado").
+  Trocar a porta ou a chave em Configurações faz a próxima abertura da página subir o Inspector de novo.
+- **Quando não sobe:** a página mostra o que falta, em pt-BR, e "Tentar de novo": sem Node/npx neste Mac, Node mais
+  antigo que o 22.19, sem internet na primeira vez (o npx baixa o pacote), porta do controle externo ocupada.
+  `MEU_BOT_INSPECTOR_NPX=<caminho>` aponta outro npx.
+- **Cuidado (do README do Inspector):** quem consegue abrir a página da interface age por ela. Ela só escuta em
+  127.0.0.1, mas outra conta deste mesmo Mac alcança o loopback. É um app de teste; as ferramentas de execução
+  (`terminal_digitar`, `nav_js`) seguem atrás do interruptor de Configurações.
+- **Empacotar à mão:** `npm run dist:inspector-staging` de dentro do worktree. Teste: `scripts/tests/inspector-core.test.mjs`.

@@ -38,6 +38,7 @@ import { mountContaGoogle } from "./conta-google/conta-google-page.js";
 import { mountGmail } from "./gmail/gmail-page.js";
 import { gmailGuiaFato, ligarGmailGuia, refreshGmailGuia } from "./gmail/gmail-guia.js";
 import { mountComputador } from "./computador/computador-page.js";
+import { mountInspector } from "./inspector/inspector-page.js";
 import { clampSplitRatio, maxColunas, minDireita, parseSplitPref, splitAdd, splitLabel, splitLayout, splitPrefPageIds, SPLIT_MIN_PX } from "./lib/split.js";
 import { recorteOculto, recorteTitulo, recortesPara, parseRecortesPref, type Recorte, type RecortesPref } from "./lib/recortes.js";
 import { favLabel, favOf, favTitleFor } from "./lib/favoritos.js";
@@ -371,7 +372,7 @@ let usuariosAdmin: { open: () => void } | null = null;
 let appVersion = "";
 /** Build deste app (`WindowInfo.build`): o cache só devolve o que este mesmo build gravou. */
 let appBuild = "";
-let caps: Capabilities = { variant: "client", produto: "meu-bot", canal: "estavel", nome: "meu-bot", titulo: "meu-bot", chat: true, pair: true, login: true, manageWa: true, tunnel: true, install: true, supportClient: true, supportAdmin: false, navegador: true, planoExigido: "free", usuariosMac: false, addon: null, abreEm: null, addons: [] };
+let caps: Capabilities = { variant: "client", produto: "meu-bot", canal: "estavel", nome: "meu-bot", titulo: "meu-bot", chat: true, pair: true, login: true, manageWa: true, tunnel: true, install: true, supportClient: true, supportAdmin: false, navegador: true, planoExigido: "free", usuariosMac: false, inspector: false, addon: null, abreEm: null, addons: [] };
 const lastHostEl = $<HTMLParagraphElement>("last-host");
 const settingsError = $<HTMLParagraphElement>("settings-error");
 const cancelBtn = $<HTMLButtonElement>("btn-cancel");
@@ -1821,6 +1822,8 @@ let gmailPage: ReturnType<typeof mountGmail> | null = null;
 let contaGooglePage: ReturnType<typeof mountContaGoogle> | null = null;
 /** Página Computador, para o controle remoto (`pagina_abrir`) alcançar como as outras. */
 let computadorPage: ReturnType<typeof mountComputador> | null = null;
+/** Só existe no produto com a capacidade `inspector` (meu-bot-inspector-staging). */
+let inspectorPage: ReturnType<typeof mountInspector> | null = null;
 let financeState: FinanceInfo | null = null;
 ligarNavegador();
 ligarTerminal();
@@ -1842,6 +1845,7 @@ window.meuBot.on("ui:abrir-pagina", ({ pagina }) => {
   if (pagina === "tutoriais") openPage(tutoriaisPage);
   else if (pagina === "acervo") openPage(acervoPage);
   else if (pagina === "financas") financePage?.open();
+  else if (pagina === "inspector") inspectorPage?.open();
   else if (pagina === "conta-google") contaGooglePage?.open();
   else if (pagina === "gmail") gmailPage?.open();
   else if (pagina === "computador") computadorPage?.open();
@@ -1976,6 +1980,13 @@ void (async () => {
   $<HTMLButtonElement>("financas-line").addEventListener("click", () => financePage?.open());
   // O app cujo add-on é o financeiro mostra o botão sempre (sem licença, a página diz como liberar).
   if (caps.addon === "meu-bot-finance") paintFinanceLine();
+  // Inspector: por capacidade (só o meu-bot-inspector-staging); nos outros produtos o botão fica escondido e a página nem é montada.
+  if (caps.inspector) {
+    inspectorPage = mountInspector({ panelsEl, definePage, openPage, api: window.meuBot });
+    const linha = $<HTMLButtonElement>("inspector-line");
+    linha.hidden = false;
+    linha.addEventListener("click", () => inspectorPage?.open());
+  }
   void window.meuBot.getAccountStatus().then((s) => { account = s; paintContext(active()); checkSessionThreshold(); checkEspacoThreshold(); paintEspaco(s?.cota); paintGuide(); });
   void refreshStatusLine();
   void refreshWhatsapp();
@@ -2002,11 +2013,12 @@ void (async () => {
   renderSidebar();
   tabsReady = true;
   // A aba fixada (📌) fica na frente depois de restaurar as conversas: Tutoriais por padrão (quem chega leigo começa
-  // pelo passo a passo), Finanças no finance-staging; desafixar volta a abrir na conversa.
+  // pelo passo a passo), Finanças no finance-staging, Inspector no inspector-staging; desafixar volta a abrir na conversa.
   const fixa = abaFixaAtual();
   if (fixa === "tutoriais") openPage(tutoriaisPage);
   else if (fixa === "acervo") openPage(acervoPage);
   else if (fixa === "financas") financePage?.open();
+  else if (fixa === "inspector") inspectorPage?.open();
   else if (fixa === "conta-google") contaGoogle.open();
   else if (fixa === "gmail") gmail.open();
   else if (fixa === "computador") computador.open();

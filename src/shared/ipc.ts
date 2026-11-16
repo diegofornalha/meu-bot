@@ -14,6 +14,7 @@ export type * from "./ipc/usuarios-mac";
 export type * from "./ipc/conversa";
 export type * from "./ipc/navegador";
 export type * from "./ipc/computador";
+export type * from "./ipc/inspector";
 export type * from "./ipc/seletor";
 export type * from "./ipc/depuracao";
 export type * from "./ipc/conta";

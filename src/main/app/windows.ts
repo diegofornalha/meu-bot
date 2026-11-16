@@ -15,6 +15,7 @@ import { caps } from "./variant";
 import { closeTerminalsOfWindow } from "../terminal/terminal";
 import { browserForget } from "../navegador/browser";
 import { PARTICAO_COMPUTADOR, particaoComputador, urlTelaPermitida } from "../maquina/tela-core";
+import { PARTICAO_INSPECTOR, mesmaOrigem, urlInspectorPermitida } from "../inspector/inspector-core";
 
 export type OpenOrigin = "startup" | "picker" | "notify" | "quick" | "menu" | "shortcut";
 
@@ -145,12 +146,26 @@ export function openMainWindow(host: string, origin: OpenOrigin): BrowserWindow 
   win.webContents.on("will-navigate", (event) => event.preventDefault());
   // Computador: o <webview> da tela do bot só carrega o noVNC do forward local, sem preload, e não navega para fora.
   win.webContents.on("will-attach-webview", (event, prefs, params) => {
+    // Inspector: o <webview> só existe no produto com a capacidade e só carrega a interface em 127.0.0.1, sem preload.
+    if (params.partition === PARTICAO_INSPECTOR) {
+      if (!caps().inspector || params.src === undefined || !urlInspectorPermitida(params.src)) { event.preventDefault(); return; }
+      delete prefs.preload;
+      prefs.nodeIntegration = false; prefs.contextIsolation = true; prefs.sandbox = true; prefs.webSecurity = true;
+      return;
+    }
     if (params.partition?.startsWith(PARTICAO_COMPUTADOR) !== true) return;
     if (params.partition !== particaoComputador(host) || params.src === undefined || !urlTelaPermitida(params.src)) { event.preventDefault(); return; }
     delete prefs.preload;
     prefs.nodeIntegration = false; prefs.contextIsolation = true; prefs.sandbox = true; prefs.webSecurity = true;
   });
   win.webContents.on("did-attach-webview", (_event, guest) => {
+    // Inspector: a interface não sai da própria origem; links de fora (documentação) abrem no navegador do sistema.
+    if (caps().inspector && guest.session === session.fromPartition(PARTICAO_INSPECTOR)) {
+      const dentro = (url: string): boolean => { const atual = guest.getURL(); return atual === "" ? urlInspectorPermitida(url) : mesmaOrigem(url, atual); };
+      guest.on("will-navigate", (e, url) => { if (!dentro(url)) e.preventDefault(); });
+      guest.setWindowOpenHandler(({ url }) => { if (/^https:\/\//.test(url)) void shell.openExternal(url); return { action: "deny" }; });
+      return;
+    }
     if (guest.session !== session.fromPartition(particaoComputador(host))) return;
     guest.on("will-navigate", (e, url) => { if (!urlTelaPermitida(url)) e.preventDefault(); });
     guest.setWindowOpenHandler(() => ({ action: "deny" }));

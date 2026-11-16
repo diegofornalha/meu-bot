@@ -36,7 +36,7 @@ const motivoSegurar = () => { try { return readFileSync(SEGURAR, "utf8").trim() 
 const LOG = process.env.MEU_BOT_RELEASE_LOG ?? join(HOME, "Library", "Logs", "meu-bot-release.log");
 const ROTULO = "com.meu-bot.release-auto";
 const PLIST = join(HOME, "Library", "LaunchAgents", `${ROTULO}.plist`);
-const STAGING_APPS = ["meu-bot-staging", "meu-bot-finance-staging"];
+const STAGING_APPS = ["meu-bot-staging", "meu-bot-finance-staging", "meu-bot-inspector-staging"];
 /** Uma ação que falhou (testes, chave negada…) só é tentada de novo no mesmo commit depois disto. */
 const ESPERA_FALHA_MS = 60 * 60 * 1000;
 

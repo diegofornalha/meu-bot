@@ -46,7 +46,7 @@ passa a esperar a saúde; não publica outra. Nunca use o `../meu-bot-release` d
 ## Fase 1: o staging está no ar e saudável
 
 - **Release completa:** `gh release view <tag> -R diegofornalha/meu-bot --json isDraft,assets` → não é draft;
-  `.zip` + `.zip.sig` de meu-bot-staging e meu-bot-finance-staging, e o `.dmg` do meu-bot-staging.
+  `.zip` + `.zip.sig` de meu-bot-staging, meu-bot-finance-staging e meu-bot-inspector-staging, e o `.dmg` do meu-bot-staging.
 - **Site de staging:** `curl -s https://site-staging.agentesgrok.com/download/mac.json` → `versao` da `<tag>`, `nome`
   `.dmg` (até 10 min de cache).
 - **Saúde neste Mac:** `node scripts/release-saude.mjs <versão>` → `✓ … confirmada neste Mac`. É a mesma prova que o
