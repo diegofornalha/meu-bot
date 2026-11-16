@@ -162,6 +162,16 @@ export function lerAddons(bruto: string | undefined): OfertaAddon[] {
   return out.sort((x, y) => x.nome.localeCompare(y.nome));
 }
 
+/**
+ * O preço que uma cobrança precisa atingir para liberar: sem produto no checkout (null ou ausente) é o do Pro; com
+ * produto, o do add-on no catálogo. Add-on que saiu do catálogo não libera sozinho: o preço fica inatingível e o
+ * pagamento vai para a revisão do admin.
+ */
+export function precoExigido(produto: string | null | undefined, precoPro: number, addons: readonly OfertaAddon[]): number {
+  if (produto === null || produto === undefined || produto === "") return precoPro;
+  return addons.find((a) => a.nome === produto)?.centavos ?? Number.MAX_SAFE_INTEGER;
+}
+
 /** A licença como o admin a gravou; estrutural para não depender de tipos.ts (este arquivo é puro). */
 interface LicencaBase { plan: "free" | "pro"; status: "free" | "trialing" | "active" | "expired"; interval: "month" | "year" | null; expiresAt: string | null; produtos: string[] }
 

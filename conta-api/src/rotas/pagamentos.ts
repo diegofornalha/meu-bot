@@ -11,7 +11,7 @@ import { addonsPagos, auditar, contaPorId, contarLimite, licencaDaConta, licenca
 import { agoraIso, janelaMinuto, uuid } from "../sessao-core.js";
 import { json, lerJson, type Autenticado } from "../http.js";
 import { gaIds } from "../analytics-core.js";
-import { clientIdValido, compraGa4, decidir, lerAddons, lerEvento, refValida, sessionIdValido, validoAte, webhookConfere, type Decisao, type OfertaAddon } from "../pagamento-core.js";
+import { clientIdValido, compraGa4, decidir, lerAddons, lerEvento, precoExigido, refValida, sessionIdValido, validoAte, webhookConfere, type Decisao, type OfertaAddon } from "../pagamento-core.js";
 
 const API = "https://api.abacatepay.com/v2";
 export const pagamentosLigados = (env: Env): boolean => Boolean(env.ABACATEPAY_KEY && env.ABACATEPAY_WEBHOOK_SECRET && env.ABACATEPAY_PRODUTO);
@@ -89,7 +89,7 @@ export async function postWebhookAbacate(req: Request, env: Env, url: URL, esper
   // sozinho (preço impossível de atingir): vai para a revisão do admin.
   const refEv = e.checkout?.ref ?? null;
   const doEvento = refValida(refEv) ? await checkoutPor(env, refEv) : null;
-  const exigido = doEvento === null || doEvento.produto === null ? preco(env) : lerAddons(env.ABACATEPAY_ADDONS).find((a) => a.nome === doEvento.produto)?.centavos ?? Number.MAX_SAFE_INTEGER;
+  const exigido = precoExigido(doEvento?.produto, preco(env), lerAddons(env.ABACATEPAY_ADDONS));
   const d = decidir(e, env.CANAL === "staging" ? "staging" : "producao", exigido);
   const resultado = await aplicar(env, d, e.devMode, agora, espera);
   await env.DB.prepare("UPDATE webhook_eventos SET resultado = ?1 WHERE id = ?2").bind(resultado.slice(0, 300), e.id).run();
@@ -98,7 +98,7 @@ export async function postWebhookAbacate(req: Request, env: Env, url: URL, esper
 
 interface CheckoutLinha { ref: string; conta_id: string; ga_client_id: string | null; ga_session_id: string | null; produto: string | null }
 const checkoutPor = (env: Env, ref: string | null): Promise<CheckoutLinha | null> =>
-  ref === null ? Promise.resolve(null) : env.DB.prepare("SELECT ref, conta_id, ga_client_id, ga_session_id FROM pagamento_checkouts WHERE ref = ?1").bind(ref).first<CheckoutLinha>();
+  ref === null ? Promise.resolve(null) : env.DB.prepare("SELECT ref, conta_id, ga_client_id, ga_session_id, produto FROM pagamento_checkouts WHERE ref = ?1").bind(ref).first<CheckoutLinha>();
 
 /** Executa a decisão e devolve uma linha curta para `webhook_eventos.resultado` (e o log). */
 async function aplicar(env: Env, d: Decisao, devMode: boolean, agora: string, espera: (p: Promise<unknown>) => void): Promise<string> {

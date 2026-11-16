@@ -1,7 +1,7 @@
 // Assinatura do Pro pela AbacatePay: conferência do webhook, leitura do evento, decisão, prazo e a compra do GA4.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CHAVE_HMAC_ABACATEPAY, clientIdValido, compraGa4, decidir, hmacBase64, iguais, lerAddons, lerEvento, licencaComAddons, refValida, sessionIdValido, validoAte, webhookConfere } from "../dist/pagamento-core.js";
+import { CHAVE_HMAC_ABACATEPAY, clientIdValido, compraGa4, decidir, hmacBase64, iguais, lerAddons, lerEvento, licencaComAddons, precoExigido, refValida, sessionIdValido, validoAte, webhookConfere } from "../dist/pagamento-core.js";
 
 const SECRET = "s".repeat(40);
 const REF = "mb_123e4567-e89b-12d3-a456-426614174000";
@@ -147,4 +147,12 @@ test("compraGa4: o item é o do produto pago; sem item, o Pro", () => {
   const p = { clientId: "123.1700000000", sessionId: null, pagamentoId: "card_2", valorCentavos: 99700, primeira: true, ambiente: "producao" };
   assert.deepEqual(compraGa4(p).events[0].params.items, [{ item_id: "pro-mensal", item_name: "meu-bot Pro mensal", price: 997, quantity: 1 }]);
   assert.deepEqual(compraGa4({ ...p, item: { id: "meu-bot-finance-mensal", nome: "Finanças mensal" } }).events[0].params.items, [{ item_id: "meu-bot-finance-mensal", item_name: "Finanças mensal", price: 997, quantity: 1 }]);
+});
+
+test("precoExigido: checkout sem produto é o Pro; add-on usa o preço do catálogo; fora do catálogo não libera", () => {
+  const addons = [{ nome: "meu-bot-finance", produto: "prod_12Das4f2bcXQtaR0bs4hrXms", centavos: 99700, rotulo: "Finanças" }];
+  assert.equal(precoExigido(null, 9700, addons), 9700);
+  assert.equal(precoExigido(undefined, 9700, addons), 9700, "linha lida sem a coluna não pode virar add-on desconhecido");
+  assert.equal(precoExigido("meu-bot-finance", 9700, addons), 99700);
+  assert.equal(precoExigido("meu-bot-fit", 9700, addons), Number.MAX_SAFE_INTEGER);
 });
