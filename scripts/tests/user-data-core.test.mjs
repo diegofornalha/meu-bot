@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
-const { deveHerdar, entradaHerdavel, carimboDe } = createRequire(import.meta.url)("../../dist/main/app/user-data-core.js");
+const { deveHerdar, entradaHerdavel, carimboDe, settingsHerdados } = createRequire(import.meta.url)("../../dist/main/app/user-data-core.js");
 
 test("deveHerdar: só sem carimbo e sem conversas de verdade", () => {
   assert.equal(deveHerdar(false, null), true, "pasta nova");
@@ -60,4 +60,13 @@ test("fundirMemoria e fundirGoogleWhatsapp", () => {
   assert.deepEqual(g.criados, ["+1", "+2", "+3"]); assert.equal(g.grupo, "WhatsApp");
   assert.equal(carimboFusao("meu-bot-crm"), ".fundido-de-meu-bot-crm");
   assert.ok(COPIAR_SE_FALTAR.includes("google-oauth.json") && !COPIAR_SE_FALTAR.includes("google-contatos.bin"), "o .bin do chaveiro nunca");
+});
+
+test("settingsHerdados: produto com página própria não herda a aba fixada do app de origem", () => {
+  const out = JSON.parse(settingsHerdados('{"abaFixa":"conversa","tema":"escuro"}'));
+  assert.equal(out.abaFixa, "padrao");
+  assert.equal(out.tema, "escuro", "o resto das preferências vem junto");
+  assert.equal(JSON.parse(settingsHerdados("{}")).abaFixa, "padrao");
+  assert.equal(settingsHerdados("lixo"), "lixo");
+  assert.equal(settingsHerdados("[1]"), "[1]");
 });

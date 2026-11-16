@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2b2350"/>
+      <stop offset="1" stop-color="#120e26"/>
+    </linearGradient>
+    <linearGradient id="bubble" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#b9a5ff"/>
+      <stop offset="1" stop-color="#6d4fe0"/>
+    </linearGradient>
+  </defs>
+  <rect x="64" y="64" width="896" height="896" rx="200" fill="url(#bg)"/>
+  <path d="M232 300 h560 a72 72 0 0 1 72 72 v300 a72 72 0 0 1 -72 72 h-300 l-150 120 v-120 h-110 a72 72 0 0 1 -72 -72 v-300 a72 72 0 0 1 72 -72 z" fill="url(#bubble)"/>
+  <!-- meu-bot-inspector: a lupa do MCP Inspector no lugar do prompt. -->
+  <circle cx="480" cy="505" r="108" fill="none" stroke="#120e26" stroke-width="44"/>
+  <line x1="562" y1="587" x2="668" y2="693" stroke="#120e26" stroke-width="52" stroke-linecap="round"/>
+  <circle cx="760" cy="300" r="56" fill="#ffd166"/>
+  <clipPath id="canto"><rect x="64" y="64" width="896" height="896" rx="200"/></clipPath>
+  <g clip-path="url(#canto)">
+    <rect x="64" y="780" width="896" height="180" fill="#f08c00"/>
+    <text x="512" y="900" text-anchor="middle" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="112" font-weight="800" letter-spacing="10" fill="#ffffff">STAGING</text>
+  </g>
+</svg>

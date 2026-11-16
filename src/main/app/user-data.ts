@@ -8,7 +8,7 @@
 import { app } from "electron";
 import fs from "node:fs";
 import path from "node:path";
-import { carimboDe, carimboFusao, COPIAR_SE_FALTAR, deveHerdar, entradaHerdavel, fundirConversas, fundirGoogleWhatsapp, fundirMemoria, fundirSettings, POR_MAQUINA } from "./user-data-core";
+import { carimboDe, carimboFusao, COPIAR_SE_FALTAR, deveHerdar, entradaHerdavel, settingsHerdados, fundirConversas, fundirGoogleWhatsapp, fundirMemoria, fundirSettings, POR_MAQUINA } from "./user-data-core";
 
 /** `migrate(dir, appData)` roda uma vez depois de apontar o userData (ex.: o admin traz o pessoas.json). */
 export function useVariantUserData(name: string, migrate?: (dir: string, appData: string) => void): void {
@@ -28,7 +28,7 @@ export function useVariantUserData(name: string, migrate?: (dir: string, appData
  * sozinho. Caches, logs, o backend local e o que o chaveiro cifra com o nome do app ficam de fora (user-data-core.ts):
  * logins do Google Contatos e, em geral, do Navegador precisam ser refeitos no app novo.
  */
-export const herdarDe = (nomeOrigem: string) => (dir: string, appData: string): void => {
+export const herdarDe = (nomeOrigem: string, paginaPropria = false) => (dir: string, appData: string): void => {
   const origem = path.join(appData, nomeOrigem);
   const carimbo = path.join(dir, carimboDe(nomeOrigem));
   if (!fs.existsSync(path.join(origem, "settings.json"))) return;
@@ -43,6 +43,8 @@ export const herdarDe = (nomeOrigem: string) => (dir: string, appData: string): 
     try { fs.rmSync(para, { recursive: true, force: true }); fs.cpSync(de, para, { recursive: true }); n++; }
     catch { /* uma entrada que não copiou não impede as outras */ }
   }
+  // Produto com página própria: a aba fixada do app de origem não vale aqui (user-data-core.ts, settingsHerdados).
+  if (paginaPropria) { const f = path.join(dir, "settings.json"); try { fs.writeFileSync(f, settingsHerdados(fs.readFileSync(f, "utf8")), { mode: 0o600 }); } catch { /* sem settings herdado */ } }
   fs.writeFileSync(carimbo, `${new Date().toISOString()} ${n} entradas de ${origem}\n`);
 };
 

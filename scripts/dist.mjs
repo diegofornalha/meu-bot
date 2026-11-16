@@ -1,7 +1,7 @@
 // Empacota um produto da tabela (src/main/app/variant-core.ts) de ponta a ponta: build, extensões embutidas (se o
 // produto tiver), package e fuses. Um produto novo na tabela já empacota sem entrada nova no package.json:
 //   npm run dist -- --variant <id>      (sem --variant: o meu-bot)
-// Os atalhos dist:staging, dist:finance-staging e dist:admin só chamam este script com o id.
+// Os atalhos dist:staging, dist:finance-staging, dist:inspector-staging e dist:admin só chamam este script com o id.
 import { spawnSync } from "node:child_process";
 
 const passo = (cmd, args) => {

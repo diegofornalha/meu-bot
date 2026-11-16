@@ -80,7 +80,7 @@ export interface SettingsFile {
   /** Bearer token do controle externo (64 hex); "" = nenhum (gerado ao ligar; fica gravado ao desligar, "Gerar outro" troca). */
   mcpToken: string;
 }
-export const ABAS_FIXAVEIS: readonly AbaFixa[] = ["padrao", "conversa", "tutoriais", "acervo", "conta-google", "gmail", "computador", "financas", "navegador", "usuarios"];
+export const ABAS_FIXAVEIS: readonly AbaFixa[] = ["padrao", "conversa", "tutoriais", "acervo", "conta-google", "gmail", "computador", "financas", "inspector", "navegador", "usuarios"];
 export const isAbaFixa = (v: unknown): v is AbaFixa => typeof v === "string" && (ABAS_FIXAVEIS as readonly string[]).includes(v);
 export const MAX_ESPACOS = 20;
 export const MAX_SERVICOS = 30;

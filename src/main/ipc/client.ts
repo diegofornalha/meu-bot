@@ -13,6 +13,7 @@ import { atualizarContaClaude, conferirContaClaude, criarContaClaude, deleteBack
 import { lerLicenca, lerLicencaDaMaquina } from "../licenca/licenca-maquina";
 import { assertAcesso, assertFinance } from "../licenca/acesso";
 import { telaAcordar, telaStatus, telaUrl } from "../maquina/tela";
+import { abrirInspector } from "../inspector/inspector";
 import { esquecerPermissoes, responderPermissao } from "../navegador/nav-permissoes";
 import { financeAbc, financeImportarPlanilha, financeCategorias, financeComprovante, financeConfig, financeConfigLer, financeCorrigir, financeLinhaRemover, financeLinhaSalvar, financeConfirmar, financeConfirmarTodas, financeContaCriar, financeDescartar, financeFecharMes, financeInfo, financeLancamentos, financeLancar, financeMes } from "../financeiro/finance-local";
 import { navWhatsappInfo, setNavWhatsapp } from "../navegador/navegador-whatsapp";
@@ -313,6 +314,8 @@ export function registerClientIpc(): void {
   handleClient("computador:acordar", async (event) => { const host = await comp(event); const st = await telaAcordar(host); log(`[computador] ${host}: acordar → ${st.erro ?? (st.rodando ? "no ar" : "parada")}`); return st; });
   handleClient("computador:instalar", async (event) => { const host = await comp(event); const r = await installTela(host); void registrar(host, "computador.instalar", "", r.ok ? "ok" : `código ${r.codigo ?? "timeout"}`); return r; });
   handleClient("computador:url", async (event) => telaUrl(await comp(event)));
+  // Inspector: só no produto que tem a capacidade (meu-bot-inspector-staging); nos outros o canal recusa.
+  handleClient("inspector:abrir", async () => { if (!caps().inspector) throw new Error("o Inspector só existe no meu-bot-inspector-staging"); return abrirInspector(); });
   handleClient("plano:avisar-pagamento", async (event) => { const h = ctxOf(event); await registrar(h.host, "plano.pago", "avisou que já pagou (aviso de plano)"); log(`[plano] ${h.host}: avisou que já pagou`); });
   // Espaço da conta na máquina (Configurações › Espaço): a cota dela, o que dá para apagar (só caches e workspaces, como ela) e o pedido de mais espaço.
   handleClient("cota:status", (event) => cotaStatus(ctxOf(event).host));

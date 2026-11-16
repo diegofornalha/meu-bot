@@ -6,7 +6,7 @@
 #   2. curl: initialize anuncia a revisão certa, tools/list vem com ferramentas, GET → 405, sem Bearer → 401;
 #   3. `claude mcp add --transport http` em escopo local (só este diretório) e `claude mcp list` tem de dizer Connected;
 #   4. remove o registro, sempre (também em falha).
-# Uso: scripts/mcp-fumaca.sh [meu-bot|meu-bot-staging|meu-bot-finance-staging|meu-bot-admin-gestao]  (padrão: meu-bot)
+# Uso: scripts/mcp-fumaca.sh [meu-bot|meu-bot-staging|meu-bot-finance-staging|meu-bot-inspector-staging|meu-bot-admin-gestao]  (padrão: meu-bot)
 # Sai 0 quando tudo passou; 1 com a primeira falha explicada. Nada aqui muda o app nem a configuração global do Claude Code.
 set -u
 export PATH="$HOME/.local/bin:$PATH"

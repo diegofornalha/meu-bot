@@ -11,7 +11,7 @@ import { createHash } from "node:crypto";
 
 export type QuemTipo = "dono" | "admin" | "agente" | "sistema" | "legado";
 export interface Quem { tipo: QuemTipo; nome: string }
-export const APPS = ["meu-bot", "meu-bot-crm", "meu-bot-admin-gestao", "meu-bot-admin", "meu-bot-admin-mac", "meu-bot-staging", "meu-bot-crm-staging", "meu-bot-finance-staging", "backend", "plugin", "legado"] as const;
+export const APPS = ["meu-bot", "meu-bot-crm", "meu-bot-admin-gestao", "meu-bot-admin", "meu-bot-admin-mac", "meu-bot-staging", "meu-bot-crm-staging", "meu-bot-finance-staging", "meu-bot-inspector-staging", "backend", "plugin", "legado"] as const;
 export type AuditoriaApp = (typeof APPS)[number];
 export const isApp = (v: string): v is AuditoriaApp => (APPS as readonly string[]).includes(v);
 export interface AuditoriaLinha { v: number; em: string; maquina: string; quem: Quem; app: string; acao: string; alvo: string; detalhe: string; prev: string; hash: string }

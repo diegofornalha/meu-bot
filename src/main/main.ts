@@ -23,6 +23,7 @@ import { checkNow as checkNetNow, disposeNet, initNet, onBackOnline } from "./ap
 import { installBrowserHooks } from "./navegador/browser";
 import { startTermApi } from "./terminal/term-api";
 import { startControleRemoto, stopControleRemoto } from "./controle-remoto/controle-remoto";
+import { limparSessaoAntiga, pararInspector } from "./inspector/inspector";
 import { getBackendPort, getControleRemoto, guardarAntesDeVoltar } from "./app/settings";
 import { installAppMenu, refreshAppMenu } from "./app/menu";
 import { changeWindowZoom } from "./app/zoom";
@@ -39,7 +40,7 @@ import { aoRetornarAuth, aoRetorno, aoSair, contaEntrada, papelConfirmado } from
 
 // Cada produto além do meu-bot tem userData próprio (senão dividiria pasta e trava de instância). Antes de tudo.
 // O admin traz o pessoas.json antigo; um produto da pessoa (meu-bot-finance-staging…) nasce como cópia do meu-bot dela.
-{ const ud = userDataName(); const de = produto().herdaDe; if (ud !== null) useVariantUserData(ud, caps().supportAdmin ? migrateAdminPessoas : de !== null ? herdarDe(de) : undefined); }
+{ const ud = userDataName(); const de = produto().herdaDe; if (ud !== null) useVariantUserData(ud, caps().supportAdmin ? migrateAdminPessoas : de !== null ? herdarDe(de, produto().abreEm !== null) : undefined); }
 // O meu-bot adota a pasta do antigo meu-bot-crm (uma vez; a origem fica como backup). Depois de herdar, antes de ler qualquer coisa.
 { const fd = produto().fundeDe; if (fd !== null && !app.commandLine.hasSwitch("user-data-dir")) fundirDe(fd)(app.getPath("userData"), app.getPath("appData")); }
 
@@ -137,6 +138,7 @@ app.whenReady().then(() => {
   installBrowserHooks();
   void startTermApi().catch((e: unknown) => { log(`[terminal] controle local não subiu: ${e instanceof Error ? e.message : String(e)}`); });
   // Controle remoto (MCP): só se a pessoa ligou em Configurações; porta ocupada fica como erro no estado, não derruba nada.
+  if (caps().inspector) limparSessaoAntiga(); // execução anterior que caiu: a chave do MCP não fica no disco
   if (getControleRemoto().ligado) void startControleRemoto().catch((e: unknown) => { log(`[mcp] não subiu: ${e instanceof Error ? e.message : String(e)}`); });
   onBackOnline(() => {
     markSuspect(); void revalidate();
@@ -214,4 +216,4 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
-app.on("will-quit", () => { stopControleRemoto(); disposeNet(); disposeUpdater(); disposeQuickEntry(); disposeWindows(); closeTunnel(); applyStagedOnQuit(); });
+app.on("will-quit", () => { pararInspector(); stopControleRemoto(); disposeNet(); disposeUpdater(); disposeQuickEntry(); disposeWindows(); closeTunnel(); applyStagedOnQuit(); });
