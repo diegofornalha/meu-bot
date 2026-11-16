@@ -15,7 +15,7 @@ export interface InspectorDeps {
   panelsEl: HTMLElement;
   definePage(id: string, title: string, panel: HTMLElement, render: () => void): PageTab;
   openPage(page: PageTab): void;
-  api: Pick<MeuBotApi, "inspectorAbrir">;
+  api: Pick<MeuBotApi, "inspectorAbrir" | "zoomFactorNow" | "on">;
 }
 
 /** O pouco do <webview> que a página usa (o renderer não tem os tipos do Electron). */
@@ -41,9 +41,11 @@ export function mountInspector(deps: InspectorDeps): { open: () => void } {
   let pronto = false;
   function ajustarZoom(): void {
     if (wv === null || !pronto || telaBox.clientWidth === 0) return;
-    try { wv.setZoomFactor(zoomDoInspector(telaBox.clientWidth)); } catch { /* webview saindo: o próximo dom-ready ajusta */ }
+    try { wv.setZoomFactor(zoomDoInspector(telaBox.clientWidth, deps.api.zoomFactorNow())); } catch { /* webview saindo: o próximo dom-ready ajusta */ }
   }
   new ResizeObserver(ajustarZoom).observe(telaBox);
+  // Cmd+= / Cmd+- na janela: a letra do Inspector acompanha (o ResizeObserver nem sempre dispara, ex.: painel já no mínimo).
+  deps.api.on("window:zoom-changed", () => { ajustarZoom(); });
 
   async function subir(): Promise<void> {
     fechar();

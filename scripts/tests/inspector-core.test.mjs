@@ -147,3 +147,17 @@ test("zoom da interface: cabe inteira em painel estreito, nunca abaixo de 0.5 ne
   for (const ruim of [0, -10, Number.NaN, Number.POSITIVE_INFINITY]) assert.equal(zoomDoInspector(ruim), 1);
   assert.ok(zoomDoInspector(900) * INSPECTOR_LARGURA_MIN <= 900 + INSPECTOR_LARGURA_MIN * 0.005, "a interface escalada cabe na largura");
 });
+
+test("zoom da janela (Cmd+=): a letra do Inspector cresce junto, em vez de encolher para caber", async () => {
+  const { zoomDoInspector, INSPECTOR_ZOOM_MAX } = await import("../../dist/renderer/lib/inspector-zoom.js");
+  // Painel de 640 px de tela. Em 100%: 0.5. Com a janela em 150% o painel mede 427 px de CSS, mas a tela é a mesma:
+  // antes o zoom caía (0.5 de piso, e a letra não mexia); agora é 0.5 × 1.5.
+  assert.equal(zoomDoInspector(640, 1), 0.5);
+  assert.equal(zoomDoInspector(640 / 1.5, 1.5), 0.75);
+  assert.ok(zoomDoInspector(1400 / 1.2, 1.2) > zoomDoInspector(1400, 1), "em painel folgado o Cmd+= também aumenta");
+  assert.equal(zoomDoInspector(1400 / 1.2, 1.2), 1.2);
+  assert.equal(zoomDoInspector(1280 / 0.8, 0.8), 0.8, "Cmd+- diminui");
+  assert.equal(zoomDoInspector(960), 0.75, "sem o segundo argumento, como antes");
+  assert.equal(zoomDoInspector(2000, 10), INSPECTOR_ZOOM_MAX);
+  for (const ruim of [0, -1, Number.NaN]) assert.equal(zoomDoInspector(960, ruim), 0.75);
+});

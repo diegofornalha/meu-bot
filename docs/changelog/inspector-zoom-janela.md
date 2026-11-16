@@ -1,0 +1,1 @@
+- **Inspector:** o zoom da janela (Cmd+= e Cmd+-) agora aumenta e diminui também a letra da interface do Inspector; antes ela encolhia para caber e ficava pequena.
