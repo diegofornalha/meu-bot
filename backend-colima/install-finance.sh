@@ -11,6 +11,8 @@ export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:/opt/node/bin:/usr/local/bin:$
 command -v node >/dev/null 2>&1 || { echo "esta máquina não tem node; reinstale o backend do meu-bot"; exit 2; }
 [ -f "$HERE/finance/index.js" ] || { echo "a pasta finance/ não está ao lado deste script"; exit 1; }
 SRC=$HOME/.local/share/meu-bot/finance
+# Com o módulo financas ligado (marcador MODULO, issue #312), o plugin e os dados são dele: este instalador não mexe.
+[ -f "$SRC/MODULO" ] && { echo "o financeiro desta máquina é o módulo Finanças (página Módulos); o instalador antigo não roda"; exit 4; }
 mkdir -p "$SRC/db"
 for f in index.js regras.mjs backend.mjs finance.mjs package.json openclaw.plugin.json; do cp "$HERE/finance/$f" "$SRC/"; done
 chmod 700 "$SRC" "$SRC/db"; chmod 644 "$SRC"/*.js "$SRC"/*.mjs "$SRC"/*.json; chmod 755 "$SRC/finance.mjs"

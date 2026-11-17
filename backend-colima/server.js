@@ -112,6 +112,13 @@ const CRM_CONFIG = path.join(MEU_BOT_DIR, 'crm.json');
 const CRM_DB = process.env.MEU_BOT_CRM_DB || path.join(MEU_BOT_DIR, 'crm', 'db');
 /** Financeiro (produto meu-bot-finance): rotas /v1/finance/* sobre ~/.local/share/meu-bot/finance/db (finance-api.js). */
 const FINANCE_DB = process.env.MEU_BOT_FINANCE_DB || path.join(MEU_BOT_DIR, 'finance', 'db');
+/**
+ * Marcador do módulo `financas` (repositório meu-bot-finance, issue #312): ligado o módulo, o serviço dele é o único dono
+ * de finance/db. A API daqui deixa de gravar (o store guarda tudo em memória e gravaria por cima do módulo) e as pontes
+ * com o CRM param; o instalador antigo (install-finance.sh) também não roda.
+ */
+const FINANCE_MODULO = path.join(MEU_BOT_DIR, 'finance', 'MODULO');
+const financeEhModulo = () => fs.existsSync(FINANCE_MODULO);
 const readJson = (f, fallback) => { try { const v = JSON.parse(fs.readFileSync(f, 'utf8')); return v && typeof v === 'object' ? v : fallback; } catch (_) { return fallback; } };
 function writeJson(f, v) { fs.mkdirSync(MEU_BOT_DIR, { recursive: true, mode: 0o700 }); const tmp = `${f}.tmp`; fs.writeFileSync(tmp, JSON.stringify(v, null, 1), { mode: 0o600 }); fs.renameSync(tmp, f); }
 const alertPrefs = () => { const a = readJson(ALERTS_FILE, {}); return { whatsapp: a.whatsapp !== false }; };
@@ -232,7 +239,7 @@ function agendarSyncVendas(espera = 2000) {
   syncVendasTimer = setTimeout(() => {
     syncVendasTimer = null;
     let lic; try { lic = ensureLicense(); } catch { return; }
-    if (!licenca.financeOk(lic) || !licenca.crmOk(lic)) return;
+    if (!licenca.financeOk(lic) || !licenca.crmOk(lic) || financeEhModulo()) return;
     Promise.resolve().then(() => sincronizarVendas(crmApi(), financeApi())).then((r) => {
       if (r.criados || r.atualizados || r.removidos || r.pipelineCriado || r.erros.length) log(`sync crm→financeiro (vendas): ${r.criados} novas, ${r.atualizados} atualizadas, ${r.removidos} removidas${r.pipelineCriado ? `; pipeline ${r.pipelineCriado} criado` : ''}${r.erros.length ? `; erros: ${r.erros.slice(0, 3).map((e) => `${e.ref} ${e.motivo}`).join('; ')}` : ''}`);
     }).catch((e) => log(`sync crm→financeiro (vendas) falhou: ${e.message}`));
@@ -245,7 +252,7 @@ function agendarSyncInvestimentos() {
   syncCrmTimer = setTimeout(() => {
     syncCrmTimer = null;
     let lic; try { lic = ensureLicense(); } catch { return; }
-    if (!licenca.financeOk(lic) || !licenca.crmOk(lic)) return;
+    if (!licenca.financeOk(lic) || !licenca.crmOk(lic) || financeEhModulo()) return;
     Promise.resolve().then(() => sincronizarInvestimentos(financeApi(), crmApi())).catch((e) => log(`sync financeiro→crm falhou: ${e.message}`));
   }, 1500);
   if (typeof syncCrmTimer.unref === 'function') syncCrmTimer.unref();
@@ -932,6 +939,7 @@ const server = http.createServer(async (req, res) => {
   // Licença e devices da conta: o app mostra o próprio painel (plano/status/membro desde) e a tabela de máquinas.
   if (url.pathname === '/v1/meu-bot/license' && req.method === 'GET') return json(res, 200, licenseView());
   // CRM próprio (meu-bot-crm): extensão do Gmail (pelo app), agente (crm.mjs), job do WhatsApp e importador.
+  if ((url.pathname.startsWith('/v1/finance/') || url.pathname === '/v1/finance') && financeEhModulo()) return json(res, 409, { error: { code: 'finance_modulo', type: 'invalid_request_error', message: 'o Financeiro desta máquina agora é o módulo Finanças: abra pela página Módulos (ou desligue o módulo para voltar a esta página)' } });
   if (url.pathname.startsWith('/v1/finance/') || url.pathname === '/v1/finance') { const mut = req.method === 'POST' || req.method === 'PUT'; financeApi().handle(req, res, url).then(() => { if (mut) agendarSyncInvestimentos(); }, (e) => { log(`finance falhou: ${e.stack || e.message}`); if (!res.headersSent) json(res, 500, { error: { message: e.message, type: 'server_error' } }); }); return; }
   if (url.pathname.startsWith('/v1/crm/') || url.pathname === '/v1/crm') { crmApi().handle(req, res, url, papelDe(req)).catch((e) => { log(`crm falhou: ${e.stack || e.message}`); if (!res.headersSent) json(res, 500, { error: { message: e.message, type: 'server_error' } }); }); return; }
   if (url.pathname === '/v1/meu-bot/alerts' && req.method === 'GET') return json(res, 200, alertPrefs());
