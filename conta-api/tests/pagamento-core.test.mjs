@@ -1,7 +1,7 @@
 // Assinatura do Pro pela AbacatePay: conferência do webhook, leitura do evento, decisão, prazo e a compra do GA4.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CHAVE_HMAC_ABACATEPAY, clientIdValido, compraGa4, decidir, hmacBase64, iguais, lerAddons, lerEvento, licencaComAddons, metodosSemPix, precoExigido, refValida, sessionIdValido, validoAte, webhookConfere, umaPorContaEProduto } from "../dist/pagamento-core.js";
+import { CHAVE_HMAC_ABACATEPAY, clientIdDeReserva, clientIdValido, compraGa4, decidir, hmacBase64, iguais, lerAddons, lerEvento, licencaComAddons, metodosSemPix, precoExigido, refValida, sessionIdValido, validoAte, webhookConfere, umaPorContaEProduto } from "../dist/pagamento-core.js";
 
 const SECRET = "s".repeat(40);
 const REF = "mb_123e4567-e89b-12d3-a456-426614174000";
@@ -107,6 +107,14 @@ test("compraGa4: purchase na primeira, assinatura_renovada depois; staging com d
   assert.equal(r.events[0].name, "assinatura_renovada");
   assert.equal(r.events[0].params.session_id, undefined);
   assert.equal(r.events[0].params.debug_mode, true);
+});
+
+test("clientIdDeReserva: forma de client_id do GA4, o mesmo pagamento dá o mesmo número", () => {
+  const a = clientIdDeReserva("pix_char_abc", 1731400000123);
+  assert.equal(clientIdValido(a), a);
+  assert.equal(a, clientIdDeReserva("pix_char_abc", 1731400000999));
+  assert.notEqual(a.split(".")[0], clientIdDeReserva("card_xyz", 1731400000123).split(".")[0]);
+  assert.equal(a.split(".")[1], "1731400000");
 });
 
 test("lerAddons: só entra add-on com nome, produto, preço e rótulo na forma certa", () => {

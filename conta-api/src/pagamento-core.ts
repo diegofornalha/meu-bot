@@ -122,6 +122,16 @@ export function validoAte(pagoEm: string, atual: string | null): string {
 
 /** client_id do GA4 (o do cookie _ga: "123456789.1700000000") e session_id (só dígitos); o resto vira null. */
 export const clientIdValido = (x: unknown): string | null => (typeof x === "string" && /^\d{1,12}\.\d{9,11}$/.test(x) ? x : null);
+/**
+ * client_id de reserva para a compra de quem pagou sem o Analytics no navegador (bloqueador, navegador que não carrega o
+ * gtag): sem ele a receita não aparecia no GA4. Sai do id do pagamento (o mesmo pagamento dá sempre o mesmo número) e
+ * não identifica ninguém. A compra entra sem campanha: não há visita para ligar.
+ */
+export function clientIdDeReserva(pagamentoId: string, agoraMs: number): string {
+  let h = 2166136261;
+  for (let i = 0; i < pagamentoId.length; i++) { h ^= pagamentoId.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  return `${h % 1_000_000_000 + 1}.${Math.floor(agoraMs / 1000)}`;
+}
 export const sessionIdValido = (x: unknown): string | null => (typeof x === "string" && /^\d{6,12}$/.test(x) ? x : null);
 
 /**
