@@ -1,15 +1,14 @@
-/* Tema: a pessoa escolhe Sistema, Claro ou Escuro (console › barra lateral). A escolha fica em data-tema no <html>
-   (tema.js, antes da primeira pintura); sem escolha, vale o tema do sistema. O claro é a base; o escuro entra pelo
-   sistema (se a pessoa não pediu claro) ou pela escolha. */
+/* Tema: o console é claro por padrão, como o site. A pessoa pode escolher Escuro ou Sistema (console › barra
+   lateral); a escolha fica em data-tema no <html> (tema.js, antes da primeira pintura). O claro é a base; o escuro
+   entra pela escolha "escuro" ou por "sistema" num sistema em modo escuro. Sem o tema.js, fica claro. */
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
   --fundo: #f5f6f8; --cartao: #ffffff; --texto: #1b1f24; --sub: #5a6270; --borda: #dfe3e8;
   --primario: #1f6feb; --primario-texto: #ffffff; --ghost: #eef1f5; --codigo: #f0f2f5;
   --lateral: #ffffff; --lateral-texto: #1b1f24; --lateral-sub: #5a6270; --lateral-ativo: #eef1f5; --lateral-linha: #dfe3e8; --ok: #1a7f37; --ok-fundo: #dafbe1; --mau: #b35c00; --mau-fundo: #fff1d6;
 }
-:root[data-tema="claro"] { color-scheme: light; }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-tema="claro"]) { --fundo: #0f1115; --cartao: #171a20; --texto: #e8eaed; --sub: #9aa3ad; --borda: #2a2f37; --primario: #3b82f6; --ghost: #232833; --codigo: #0f1115; --lateral: #0b0d11; --lateral-texto: #e8eaed; --lateral-sub: #9aa3ad; --lateral-ativo: #1b1f27; --lateral-linha: rgba(255,255,255,.1); --ok: #7ee2a0; --ok-fundo: #12301d; --mau: #ffc46b; --mau-fundo: #3a2a0c; }
+  :root[data-tema="sistema"] { color-scheme: dark; --fundo: #0f1115; --cartao: #171a20; --texto: #e8eaed; --sub: #9aa3ad; --borda: #2a2f37; --primario: #3b82f6; --ghost: #232833; --codigo: #0f1115; --lateral: #0b0d11; --lateral-texto: #e8eaed; --lateral-sub: #9aa3ad; --lateral-ativo: #1b1f27; --lateral-linha: rgba(255,255,255,.1); --ok: #7ee2a0; --ok-fundo: #12301d; --mau: #ffc46b; --mau-fundo: #3a2a0c; }
 }
 :root[data-tema="escuro"] { color-scheme: dark; --fundo: #0f1115; --cartao: #171a20; --texto: #e8eaed; --sub: #9aa3ad; --borda: #2a2f37; --primario: #3b82f6; --ghost: #232833; --codigo: #0f1115; --lateral: #0b0d11; --lateral-texto: #e8eaed; --lateral-sub: #9aa3ad; --lateral-ativo: #1b1f27; --lateral-linha: rgba(255,255,255,.1); --ok: #7ee2a0; --ok-fundo: #12301d; --mau: #ffc46b; --mau-fundo: #3a2a0c; }
 * { box-sizing: border-box; }
