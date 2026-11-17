@@ -72,6 +72,18 @@ export const assetName = (app: string, version: string, arch: string, plataforma
 export const argsDoInstalador = (gatilho: UpdateGatilho): string[] => (gatilho === "saida" ? ["--updated", "/S"] : ["--updated", "/S", "--force-run"]);
 
 /**
+ * Espera o instalador do Windows abrir de fato: resolve no `spawn` do processo e rejeita no `error` (o Windows não o
+ * deixou abrir: antivírus, arquivo bloqueado), com a frase que a pessoa vê. O `error` do spawn chega depois da chamada,
+ * então sair do app sem esta espera faria o app sumir sem dizer nada. `filho` = o ChildProcess (aqui só o que se usa dele).
+ */
+export function esperarInstaladorAbrir(filho: { once(evento: "spawn", cb: () => void): unknown; once(evento: "error", cb: (e: Error) => void): unknown }): Promise<void> {
+  return new Promise<void>((ok, falha) => {
+    filho.once("spawn", () => ok());
+    filho.once("error", (e) => falha(new Error(`Não consegui abrir o instalador da atualização (${e.message}). Tente de novo; se continuar, baixe a versão nova pelo site.`)));
+  });
+}
+
+/**
  * Compara versões na ordem do semver; negativo = `a` é mais antiga: 0.2.0-staging.3 < 0.2.0-staging.10 < 0.2.0.
  * (Mesma regra de src/renderer/lib/admin-view.ts: o renderer compila à parte e não importa daqui.)
  */

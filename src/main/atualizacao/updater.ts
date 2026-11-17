@@ -39,7 +39,7 @@ import { noteNetworkError } from "../app/net";
 import { evento } from "../app/depuracao";
 import { offlineMessage } from "../app/net-core";
 import {
-  abaixoDaMinima, alvosParaTrocar, argsDoInstalador, candidataDe, decideAplicacaoEscolhida, decideInstalarListada, deveVerificarSozinho, listarReleases, parseFixada, podeTrocarComFixada, decideIdentidade, requisitoDeveloperId, assetName, CHECK_EVERY_MS, classificarRespostaFeed, compareVersions, decideAlvoAplicacao, decideFimDaEspera, CONFIRMA_FEED_MS, decideDescarte, decideReaproveitar, decideReconfirmacao, decideReinicioOcioso, decideRollback, escolherRelease, motivoManterTexto, motivoReleaseTexto, OCIOSO_SEG, parsePendente, parsePreparada, parseVersaoMinima,
+  abaixoDaMinima, alvosParaTrocar, argsDoInstalador, candidataDe, esperarInstaladorAbrir, decideAplicacaoEscolhida, decideInstalarListada, deveVerificarSozinho, listarReleases, parseFixada, podeTrocarComFixada, decideIdentidade, requisitoDeveloperId, assetName, CHECK_EVERY_MS, classificarRespostaFeed, compareVersions, decideAlvoAplicacao, decideFimDaEspera, CONFIRMA_FEED_MS, decideDescarte, decideReaproveitar, decideReconfirmacao, decideReinicioOcioso, decideRollback, escolherRelease, motivoManterTexto, motivoReleaseTexto, OCIOSO_SEG, parsePendente, parsePreparada, parseVersaoMinima,
   destinoDaTroca, pastaSoLeitura, proximaVerificacaoMs, releasesUrl, repararTroca, TENTATIVAS_ATE_VOLTAR, TRAVA_VELHA_MS, travaAbandonada, verificaAssinatura,
   type EscolhaRelease, type EstadoSistema, type ReleaseListada, type UpdateFixada, type UpdateCandidate, type UpdateGatilho, type UpdatePendente, type UpdatePreparada,
 } from "./updater-core";
@@ -538,7 +538,7 @@ export async function applyUpdate(expectedVersion: string, gatilho: Exclude<Upda
       const instalador = aplicarNoWindows(gatilho);
       // Só sai do app com o instalador de pé: se o Windows não o deixou abrir (antivírus, arquivo bloqueado), o `error`
       // do spawn chega depois, e sem esta espera a pessoa clicaria em atualizar e o app sumiria sem dizer nada.
-      await new Promise<void>((ok, falha) => { instalador.once("spawn", () => ok()); instalador.once("error", (e) => falha(new Error(`Não consegui abrir o instalador da atualização (${e.message}). Tente de novo; se continuar, baixe a versão nova pelo site.`))); });
+      await esperarInstaladorAbrir(instalador);
     } catch (e) {
       fs.rmSync(pendenteFile(), { force: true });
       setPhase(preparada !== null ? "ready" : "idle");
