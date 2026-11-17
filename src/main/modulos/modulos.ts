@@ -312,9 +312,9 @@ export async function atualizarModulos(host: string, log: (l: string) => void): 
 }
 
 /** Partições de página de módulo abertas nesta sessão: a máquina e a origem do forward que cada uma pode carregar. */
-const paginas = new Map<string, { host: string; origem: string }>();
+const paginas = new Map<string, { host: string; origem: string; id: string; rotulo: string }>();
 /** O que o windows.ts confere ao anexar o <webview> e a cada navegação; null = partição que o app não abriu. */
-export const paginaRegistrada = (particao: string): { host: string; origem: string } | null => paginas.get(particao) ?? null;
+export const paginaRegistrada = (particao: string): { host: string; origem: string; id: string; rotulo: string } | null => paginas.get(particao) ?? null;
 /** As partições de página abertas para uma máquina (o windows.ts acha a do <webview> anexado pela sessão). */
 export const particoesDaMaquina = (host: string): string[] => [...paginas].filter(([, r]) => r.host === host).map(([p]) => p);
 
@@ -333,6 +333,6 @@ export async function abrirPaginaModulo(host: string, id: string): Promise<Modul
   if (!st.rodando) throw new Error(`a página de ${m.rotulo} não respondeu na máquina (o serviço do módulo parou). Desligue e ligue o módulo de novo.`);
   const local = await ensureForwardExtra(host, m.pagina.porta);
   const particao = particaoModulo(id, host);
-  paginas.set(particao, { host, origem: origemForward(local) });
+  paginas.set(particao, { host, origem: origemForward(local), id, rotulo: m.rotulo });
   return { url: urlPagina(local, m.pagina.caminho, st.token), particao };
 }

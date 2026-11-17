@@ -66,3 +66,16 @@ export async function askAgentAbout(text: string): Promise<void> {
   ctx.inputEl.focus(); ctx.inputEl.setSelectionRange(ctx.inputEl.value.length, ctx.inputEl.value.length);
   ctx.syncComposer();
 }
+
+/**
+ * Leva ao chat um texto pedido por fora (a página de um módulo): só preenche a caixa, com um aviso de onde veio; quem
+ * envia é a pessoa. Diferente do goToChatFromGuide, não há envio automático.
+ */
+export async function preencherChat(message: string, aviso: string): Promise<void> {
+  const tab = await backToChat();
+  if (tab === null) return;
+  ctx.inputEl.value = message;
+  ctx.addNotice(tab, aviso);
+  ctx.inputEl.focus(); ctx.inputEl.setSelectionRange(ctx.inputEl.value.length, ctx.inputEl.value.length);
+  ctx.syncComposer();
+}

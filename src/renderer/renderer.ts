@@ -75,7 +75,7 @@ import { ligarFinanceiroGuia, paintFinanceLine } from "./finance/financeiro-guia
 import { NAV_TUTORIAL, disposeNav, ligarNavegador, navAccess, navCurrent, navCurrentHost, navDonoView, navEstavaAberto, navExtensions, navFavsShown, navMarcarAberto, navPage, navPartition, navServicosCount, navTabs, navZoomStep, openNavTab, origemNome, paintNav, toggleFavsBar } from "./navegador/navegador.js";
 import { cssVar, disposeTerminal, ligarTerminal, openTerminalTab, rethemeTerminals, runInTerminal, terminals, themeNow, xtermClass } from "./terminal/terminal.js";
 import type { XTermCtor } from "./terminal/terminal.js";
-import { askAgentAbout, cancelAutoSend, goToChatFromGuide } from "./conversa/ponte-chat.js";
+import { askAgentAbout, cancelAutoSend, goToChatFromGuide, preencherChat } from "./conversa/ponte-chat.js";
 import { activityPage, ligarAtividade } from "./conversa/atividade.js";
 import { ligarRede, net, paintNet, setNet } from "./app/rede.js";
 import { alternarDepuracao, faixaLigada, ligarFaixaDepuracao } from "./depuracao/faixa.js";
@@ -2003,6 +2003,8 @@ void (async () => {
   if (caps.modulos !== null || caps.addons.some((a) => a.modulos)) {
     modulosPage = mountModulosPage({ panelsEl, definePage, openPage, armConfirm, api: window.meuBot, host: () => windowHost, goToChat: goToChatFromGuide });
     $<HTMLButtonElement>("modulos-line").addEventListener("click", () => modulosPage?.open());
+    // A página de um módulo pediu para levar um texto ao chat: só preenche; quem envia é a pessoa.
+    window.meuBot.on("modulos:acao", (a) => { if (a.acao === "chat") void preencherChat(a.texto, `Sugerido pela página ${a.rotulo}: revise e envie quando quiser.`); });
     paintModulosLine();
   }
   // O app cujo add-on é o financeiro mostra o botão sempre (sem licença, a página diz como liberar).

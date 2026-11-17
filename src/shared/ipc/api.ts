@@ -69,6 +69,8 @@ export interface MainEvents {
   "finance:progress": { line: string };
   /** Módulos de produto (meu-bot-diego): uma linha do instalador do módulo `id`. */
   "modulos:progress": { id: string; line: string };
+  /** A página de um módulo pediu uma ação ao app (lista fechada: modulos-pagina-core.ts › lerAcao). */
+  "modulos:acao": { id: string; rotulo: string; acao: "chat"; texto: string };
   /** meu-bot-admin, backup e mudança de máquina: bytes recebidos ou uma linha da restauração. */
   "admin:backup-progress": { bytes?: number; line?: string };
   /** Uma linha do job de criar/preparar usuário (onboarding), para o log ao vivo da aba Usuários. */
