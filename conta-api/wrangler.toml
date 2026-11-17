@@ -108,7 +108,7 @@ ABACATEPAY_PRECO_CENTAVOS = "9700"
 ABACATEPAY_METODOS = "CARD,PIX"
 # Apps vendidos à parte, cada um com produto mensal e preço próprios (lerAddons, src/pagamento-core.ts). App novo: criar
 # o produto de assinatura mensal na AbacatePay e acrescentar aqui; o nome é o do add-on da licença (meu-bot-<app>).
-ABACATEPAY_ADDONS = '{"meu-bot-finance":{"produto":"prod_PLmaXSs2SJ4Zf1hY6ugwNx4H","centavos":99700,"rotulo":"Finanças"}}'
+ABACATEPAY_ADDONS = '{"meu-bot-finance":{"produto":"prod_PLmaXSs2SJ4Zf1hY6ugwNx4H","centavos":99700,"rotulo":"Finanças"},"meu-bot-diego":{"produto":"prod_tranFZhgAaERduCZGsa3wgEB","centavos":99700,"rotulo":"Módulos do Diego"}}'
 AUTH_ORIGIN = "https://auth-staging.agentesgrok.com"
 API_ORIGIN = "https://conta-staging.agentesgrok.com"
 CONSOLE_ORIGIN = "https://console-staging.agentesgrok.com"
