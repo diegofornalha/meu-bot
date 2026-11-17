@@ -107,8 +107,8 @@ test("variante meu-bot-diego-staging: só ela leva os módulos (abre na página 
   assert.equal(produtoDe("diego-staging").abreEm, "modulos");
   for (const v of ["client", "client-staging", "finance-staging", "inspector-staging", "admin"]) assert.equal(capsFor(v).modulos, null, v);
   assert.ok(ADDONS.some((a) => a.nome === "meu-bot-diego"));
-  // Add-on com módulos por licença só se liga quando o repositório dele existe e foi testado (issue #312).
-  assert.deepEqual(ADDONS.filter((a) => a.modulos).map((a) => a.nome), []);
+  // Add-on com módulos por licença: o Financeiro, do repositório público meu-bot-finance (issue #312).
+  assert.deepEqual(ADDONS.filter((a) => a.modulos).map((a) => a.nome), ["meu-bot-finance"]);
   for (const v of ["client", "diego-staging"]) assert.deepEqual(capsFor(v).addons.map((a) => [a.nome, a.modulos]), ADDONS.map((a) => [a.nome, a.modulos]), v);
   assert.ok(require("../../backend-colima/licenca.js").produtoOk({ plan: "free", status: "active", produtos: ["meu-bot-diego"] }, "meu-bot-diego"));
 });
