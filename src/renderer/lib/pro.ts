@@ -46,6 +46,13 @@ export const crmProprioOk = (view: LicenseView | null, host: string, now: number
 export const financeOk = (view: LicenseView | null, host: string, now: number = Date.now()): boolean =>
   host !== "local" && acessoAddon(view, host, "meu-bot-finance", now) === "ok";
 
+/**
+ * Página Módulos por licença: algum add-on com módulos (caps.addons[].modulos) liberado nesta máquina. O app com produto
+ * fixo (caps.modulos) mostra a página sempre. Mesma regra do main (produtosDeModulos, modulos-fonte-core.ts).
+ */
+export const modulosNaLicenca = (view: LicenseView | null, host: string, addons: readonly { nome: string; modulos: boolean }[], now: number = Date.now()): boolean =>
+  addons.some((a) => a.modulos && acessoAddon(view, host, a.nome, now) === "ok");
+
 export function browserAccess(view: LicenseView | null, host: string, exige: PlanName = "free", produto: string = "meu-bot", now: number = Date.now()): ProAccess {
   if (exige !== "free") { const a = acessoProduto(view, host, exige, produto, now); return a === "ok" ? "ok" : a === "unknown" ? "unknown" : "assinatura"; }
   if (view === null) return "unknown";

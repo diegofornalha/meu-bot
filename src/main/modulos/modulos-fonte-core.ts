@@ -9,6 +9,18 @@ import type { EstadoFonte, FonteModulos } from "../../shared/ipc";
 /** Dono dos repositórios de módulos no GitHub (a URL padrão sai do nome do produto). */
 export const DONO_PADRAO = "diegofornalha";
 export const repoPadrao = (produto: string): string => `https://github.com/${DONO_PADRAO}/${produto}.git`;
+
+/**
+ * Os produtos de módulos de uma máquina, na ordem da página: o fixo do app (`caps.modulos`, sempre, mesmo sem licença: a
+ * página diz como liberar) e depois cada add-on com `modulos` liberado na licença dela. Sem repetir.
+ */
+export function produtosDeModulos(fixo: string | null, addons: readonly { nome: string; modulos: boolean }[], liberado: (nome: string) => boolean): string[] {
+  const out = fixo === null ? [] : [fixo];
+  for (const a of addons) if (a.modulos && !out.includes(a.nome) && liberado(a.nome)) out.push(a.nome);
+  return out;
+}
+/** O app pode ter módulos em alguma máquina? (sem isso, nem se lê a licença para procurar). */
+export const appTemModulos = (fixo: string | null, addons: readonly { modulos: boolean }[]): boolean => fixo !== null || addons.some((a) => a.modulos);
 // Só https, ssh:// e git@host:caminho, com caracteres de URL comuns: nada que o git leia como opção ("-…") ou como
 // transporte que executa comando (ext::, file://, caminho local).
 const REPO_HTTPS_RE = /^(https|ssh):\/\/[A-Za-z0-9][A-Za-z0-9._~@:/-]{2,300}$/;

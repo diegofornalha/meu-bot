@@ -52,10 +52,15 @@ export interface Produto {
  * (`licenca.produtos`). Única lista do app: licença, admin (rótulo, candidatos a incluir) e nomes reservados saem daqui.
  * O backend da máquina tem a cópia dele em backend-colima/licenca.js; o teste produtos-alinhados confere as duas.
  */
-export interface Addon { nome: string; rotulo: string; descricao: string }
+/**
+ * `modulos`: o add-on chega como módulos baixados do repositório dele (`github.com/diegofornalha/<nome>`, modulos-fonte-core.ts):
+ * com ele na licença da máquina, a página Módulos aparece em qualquer app de cliente, com os módulos dele. É o whitelabel:
+ * quem decide o que a pessoa vê é a licença, não o app. Liga-se quando o repositório existe e foi testado.
+ */
+export interface Addon { nome: string; rotulo: string; descricao: string; modulos: boolean }
 export const ADDONS: readonly Addon[] = [
-  { nome: "meu-bot-finance", rotulo: "Financeiro", descricao: "O agente vira o financeiro da pessoa no WhatsApp e no chat; página Finanças e Curva ABC." },
-  { nome: "meu-bot-diego", rotulo: "Módulos do Diego", descricao: "Os módulos do produto meu-bot-diego (Salvy, Sendfy…), baixados do repositório dele e ligados um a um na página Módulos, cada um com o seu tutorial." },
+  { nome: "meu-bot-finance", rotulo: "Financeiro", descricao: "O agente vira o financeiro da pessoa no WhatsApp e no chat; página Finanças e Curva ABC.", modulos: false },
+  { nome: "meu-bot-diego", rotulo: "Módulos do Diego", descricao: "Os módulos do produto meu-bot-diego (Salvy, Sendfy…), baixados do repositório dele e ligados um a um na página Módulos, cada um com o seu tutorial.", modulos: false },
 ];
 /** Nomes na licença que não são add-on: o admin, e o meu-bot-crm (o CRM entrou no Pro em 22 out). */
 export const NAO_ADDON: readonly string[] = ["meu-bot-admin", "meu-bot-crm"];
@@ -162,5 +167,5 @@ export const userDataNameFor = (v: AppVariant): string | null => produtoDe(v).us
 /** O admin só lê e faz as ações de suporte; os outros produtos fazem tudo o mais (ver a tabela). */
 export function capsFor(variant: AppVariant, versao?: string): Capabilities {
   const p = produtoDe(variant);
-  return { variant, produto: p.licenca, canal: p.canal, nome: p.nome, titulo: titleFor(variant, versao), addon: p.addon, abreEm: p.abreEm, addons: ADDONS.map((a) => ({ nome: a.nome, rotulo: a.rotulo })), ...p.caps };
+  return { variant, produto: p.licenca, canal: p.canal, nome: p.nome, titulo: titleFor(variant, versao), addon: p.addon, abreEm: p.abreEm, addons: ADDONS.map((a) => ({ nome: a.nome, rotulo: a.rotulo, modulos: a.modulos })), ...p.caps };
 }

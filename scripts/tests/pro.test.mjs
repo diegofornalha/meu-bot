@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { acessoAddon, acessoProduto, browserAccess, crmProprioOk, displayUrl, financeOk, pagamentoDoBloqueio, planoLiberaPro, proBlockText, tabLabel } from "../../dist/renderer/lib/pro.js";
+import { acessoAddon, acessoProduto, browserAccess, crmProprioOk, displayUrl, financeOk, modulosNaLicenca, pagamentoDoBloqueio, planoLiberaPro, proBlockText, tabLabel } from "../../dist/renderer/lib/pro.js";
 
 const lic = (over) => ({ license: { plan: "free", status: "free", interval: null, memberSince: "2026-10-18T00:00:00Z", trialEnd: null, expiresAt: null, deviceLimit: 1, produtos: [], updatedAt: "2026-10-18T00:00:00Z", updatedBy: "admin", ...over }, devices: [] });
 
@@ -91,4 +91,13 @@ test("proBlockText: módulo Computador tem texto próprio e oferece pedir ao adm
   const t = proBlockText("free", lic({}), "computador");
   assert.match(t.title, /Computador/);
   assert.equal(t.askAdmin, true);
+});
+
+test("modulosNaLicenca: só add-on com módulos e liberado nesta máquina traz a página Módulos", () => {
+  const addons = [{ nome: "meu-bot-finance", modulos: true }, { nome: "meu-bot-diego", modulos: false }];
+  assert.equal(modulosNaLicenca(lic({ produtos: ["meu-bot-finance"] }), "agente-box", addons), true);
+  assert.equal(modulosNaLicenca(lic({ produtos: ["meu-bot-diego"] }), "agente-box", addons), false, "add-on sem módulos");
+  assert.equal(modulosNaLicenca(lic({ produtos: ["meu-bot-finance"], expiresAt: "2020-01-01T00:00:00Z" }), "agente-box", addons), false, "vencida");
+  assert.equal(modulosNaLicenca(lic({ produtos: ["meu-bot-finance"] }), "local", addons), false, "este Mac");
+  assert.equal(modulosNaLicenca(null, "agente-box", addons), false, "licença ainda não lida");
 });
