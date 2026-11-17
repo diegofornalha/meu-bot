@@ -323,7 +323,8 @@ export function registerClientIpc(): void {
     const o = p as { link?: unknown; aba?: unknown; tipo?: unknown; simular?: unknown };
     if (typeof o.link !== "string" || typeof o.aba !== "string" || typeof o.tipo !== "string" || typeof o.simular !== "boolean") throw new Error("pedido de planilha inválido");
     const r = await planilhaParaModulo(h.host, id, { link: o.link, aba: o.aba, tipo: o.tipo, simular: o.simular });
-    if (!o.simular) void registrar(h.host, "modulo.planilha", id);
+    // A prévia também fica na auditoria: é nela que as células saem da Conta Google para o serviço do módulo.
+    void registrar(h.host, o.simular ? "modulo.planilha-previa" : "modulo.planilha", id);
     return r;
   });
   handleClient("modulos:testar", async (event, p: unknown) => { const h = ctxOf(event); const id = modId(p); return testarModulo(h.host, id, progressoModulo(h, id)); });

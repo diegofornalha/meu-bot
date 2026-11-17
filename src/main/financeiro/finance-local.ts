@@ -7,7 +7,8 @@ import type { FinanceImportacao, FinanceAbc, FinanceAbcLado, FinanceAbcPor, Fina
 import { ensureTunnel } from "../maquina/tunnel";
 import { getBackendPort } from "../app/settings";
 import { runSsh } from "../whatsapp/whatsapp";
-import { idDaPlanilha, lerValoresPlanilha } from "../google/planilha";
+import { lerValoresPlanilha } from "../google/planilha";
+import { idDaPlanilha } from "../google/planilha-core";
 
 type Metodo = "GET" | "POST" | "PUT";
 async function api<T>(host: string, method: Metodo, rota: string, body?: unknown): Promise<T> {

@@ -85,3 +85,18 @@ test("ação planilha: link, aba e tipo validados; a resposta do módulo vira te
   assert.equal(P.lerRespostaPlanilha({ mensagem: "x", podeImportar: "sim" }).podeImportar, false);
   for (const ruim of [null, "texto", {}, { mensagem: "" }, { mensagem: 3 }]) assert.equal(P.lerRespostaPlanilha(ruim), null, JSON.stringify(ruim));
 });
+
+test("idDaPlanilha: o link do Google Sheets ou o id colado; o resto não é planilha", () => {
+  const { idDaPlanilha } = require("../../dist/main/google/planilha-core.js");
+  const id = "1AbC_dEf-GhIjKlMnOpQrStUvWxYz0123456789";
+  assert.equal(idDaPlanilha(`https://docs.google.com/spreadsheets/d/${id}/edit#gid=0`), id);
+  assert.equal(idDaPlanilha(`  https://docs.google.com/spreadsheets/d/${id}  `), id, "espaços em volta saem");
+  assert.equal(idDaPlanilha(id), id, "o id colado puro vale");
+  for (const ruim of ["", "planilha de vendas", "https://docs.google.com/document/d/abc", "https://docs.google.com/spreadsheets/d/curto/edit", "https://exemplo.com/planilha", "id com espaço 1234567890123456789012345"]) assert.equal(idDaPlanilha(ruim), null, ruim);
+});
+
+test("auditoria: a prévia da planilha e a importação têm cada uma o seu texto", () => {
+  const { textoDaLinha } = require("../../dist/main/auditoria/auditoria-core.js");
+  assert.equal(textoDaLinha({ acao: "modulo.planilha-previa", alvo: "financas", detalhe: "" }), "leu uma planilha do Google para a prévia do módulo financas");
+  assert.equal(textoDaLinha({ acao: "modulo.planilha", alvo: "financas", detalhe: "" }), "importou uma planilha do Google no módulo financas");
+});

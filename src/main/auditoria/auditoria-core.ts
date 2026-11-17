@@ -74,6 +74,7 @@ export const ACOES = {
   "finance.instalar": () => "instalou o financeiro (WhatsApp e chat)",
   "modulo.ligar": (a: string) => `ligou o módulo ${a}`,
   "modulo.pagina": (a: string) => `abriu a página do módulo ${a}`,
+  "modulo.planilha-previa": (a: string) => `leu uma planilha do Google para a prévia do módulo ${a}`,
   "modulo.planilha": (a: string) => `importou uma planilha do Google no módulo ${a}`,
   "modulo.desligar": (a: string) => `desligou o módulo ${a}`,
   "modulo.credenciais": (a: string) => `trocou as chaves do módulo ${a}`,
