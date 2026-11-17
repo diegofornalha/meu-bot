@@ -217,6 +217,8 @@ async function sitePagina(req: Request, env: Env, url: URL): Promise<Response> {
   // robots.txt e llms.txt vivem em public/site/ e saem na raiz do host; privacidade e termos também.
   const raiz: Record<string, string> = { "/robots.txt": "/site/robots.txt", "/llms.txt": "/site/llms.txt", "/privacidade": "/site/privacidade.html", "/termos": "/site/termos.html", "/grok-no-whatsapp": "/site/grok-no-whatsapp.html", "/parceria-xai": "/site/parceria-xai.html", "/baixar": "/site/baixar.html", "/perguntas": "/site/perguntas.html", "/grok-bot-e-meu-bot": "/site/grok-bot-e-meu-bot.html", "/guias": "/site/guias/index.html" };
   // Guias: só os da lista GUIAS (o resto cai na 404 do site).
+  // Rascunho da página de planos: só o staging a serve em /suport (em produção o caminho cai na 404 do site).
+  if (env.CANAL === "staging") raiz["/suport"] = "/site/suport.html";
   const guia = /^\/guias\/([a-z0-9-]+)$/.exec(url.pathname)?.[1];
   if (guia && (GUIAS as readonly string[]).includes(guia)) raiz[url.pathname] = `/site/guias/${guia}.html`;
   const caminho = url.pathname === "/" ? "/site/index.html" : url.pathname === "/obrigado" ? "/site/obrigado.html" : raiz[url.pathname] ?? url.pathname;

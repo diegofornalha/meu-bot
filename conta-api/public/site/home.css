@@ -52,6 +52,7 @@ h2 { font-size: clamp(30px, 3.8vw, 46px); line-height: 1.12; letter-spacing: -.0
 /* Cartões: brancos, contorno fino, sem sombra pesada. */
 .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
 .grid2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+.grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; align-items: stretch; }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 26px; box-shadow: 0 2px 6px rgba(13, 34, 54, .04); }
 .card h3 { margin: .2em 0 .45em; font-size: 18px; font-weight: 600; letter-spacing: -.01em; }
 .card p { margin: 0; color: var(--mut); }
@@ -85,6 +86,14 @@ summary { cursor: pointer; font-weight: 600; font-size: 17px; letter-spacing: -.
 details p { color: var(--mut); margin: .7em 0 0; }
 #faq > p { margin-top: 22px; }
 
+/* Página de planos (rascunho no staging): quatro colunas, duas em tela média. */
+.planos-topo { padding: 40px 0 48px; }
+.planos-lista { padding: 56px 0 72px; }
+.planos-lista .mini { margin-top: 24px; }
+.precos .card > p { color: var(--mut); font-size: 15px; min-height: 3.2em; }
+.precos .dest > p { color: rgba(255, 255, 255, .78); }
+.selo.recomendado { align-self: flex-start; background: #fff; color: var(--pri); border-color: #fff; text-transform: uppercase; letter-spacing: .1em; font-size: 11px; }
+@media (max-width: 1080px) and (min-width: 821px) { .grid4 { grid-template-columns: repeat(2, 1fr); } }
 .cel { display: none; }
 .aviso-titulo { color: var(--tx); }
 .mt24 { margin-top: 28px; }
@@ -98,7 +107,7 @@ footer a { color: var(--mut); margin-right: 18px; display: inline-block; padding
 footer a:hover { color: var(--tx); text-decoration: underline; }
 .fixo { display: none; }
 @media (max-width: 820px) {
-  .hero, .grid3, .grid2 { grid-template-columns: 1fr; }
+  .hero, .grid3, .grid2, .grid4 { grid-template-columns: 1fr; }
   .hero { gap: 32px; padding: 28px 0 56px; }
   section { padding: 56px 0; }
   nav { display: none; }
