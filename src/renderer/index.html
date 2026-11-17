@@ -395,6 +395,16 @@
         <p class="hint">Deixe ligada. Desligue só se a janela piscar, rasgar ou ficar preta neste Mac: sem aceleração o app fica menos fluido e gasta mais bateria. <strong>Só vale depois de fechar e abrir o app.</strong></p>
       </details>
 
+      <!-- Notificações: avisar quando o agente responde com a janela fora de foco, com ou sem o som do sistema. -->
+      <details class="group" data-group="notificacoes">
+        <summary>Notificações <span class="sum-hint" id="notificacoes-sum">aviso e som quando o agente responde</span></summary>
+        <label class="switch switch-row"><input id="notificacoes-ligadas" type="checkbox" /><span class="track"></span><span class="switch-label">Avisar quando o agente responder</span></label>
+        <p class="hint">Aparece só com a janela fora de foco ou em outra aba; clicar no aviso abre a conversa. O macOS também precisa permitir as notificações deste app (Ajustes do Sistema › Notificações).</p>
+        <label class="switch switch-row"><input id="notificacao-som" type="checkbox" /><span class="track"></span><span class="switch-label">Tocar o som da notificação</span></label>
+        <p class="hint">Desligado, o aviso aparece em silêncio.</p>
+        <p><button type="button" id="notificacao-testar" class="btn btn-ghost btn-small">Testar</button> <span class="hint" id="notificacao-teste-linha" role="status"></span></p>
+      </details>
+
       <!-- Controle externo (MCP), no desenho do Remote Control do Rambox: um servidor em 127.0.0.1 para um cliente MCP deste
            Mac (Claude Code, Cursor) usar o app. Tudo aqui vale na hora, sem Salvar. A chave fica guardada ao desligar; as
            ferramentas que executam comando e código têm interruptor próprio, desligado por padrão. -->

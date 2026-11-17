@@ -56,6 +56,8 @@ export interface SettingsView {
   atualizarOcioso: boolean;
   /** Corretor ortográfico enquanto se digita (sublinhado vermelho e sugestões no menu do botão direito). */
   corretorOrtografico: boolean;
+  /** A notificação do app toca som (padrão) ou só aparece. */
+  notificacaoSom: boolean;
   /** Aceleração por hardware do Chromium; mudar só vale depois de reabrir o app. */
   aceleracaoHardware: boolean;
   /** Modo de depuração gravado (null = o padrão da variante: ligado no staging). */
@@ -90,6 +92,7 @@ export interface SettingsUpdate {
   openAtLogin?: boolean;
   atualizarOcioso?: boolean;
   corretorOrtografico?: boolean;
+  notificacaoSom?: boolean;
   aceleracaoHardware?: boolean;
   abaFixa?: AbaFixa;  /** Modo de depuração: true/false grava; null volta ao padrão da variante. */
   depuracao?: boolean | null;

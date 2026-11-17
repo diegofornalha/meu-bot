@@ -79,7 +79,7 @@ import { askAgentAbout, cancelAutoSend, goToChatFromGuide, preencherChat } from 
 import { activityPage, ligarAtividade } from "./conversa/atividade.js";
 import { ligarRede, net, paintNet, setNet } from "./app/rede.js";
 import { alternarDepuracao, faixaLigada, ligarFaixaDepuracao } from "./depuracao/faixa.js";
-import { aceleracaoInput, atualizarOciosoInput, corretorInput, lastUpdate, ligarAtualizacao, paintUpdateState } from "./atualizacao/atualizacao.js";
+import { aceleracaoInput, atualizarOciosoInput, corretorInput, lastUpdate, ligarAtualizacao, notificacaoSomInput, notificacoesInput, paintUpdateState } from "./atualizacao/atualizacao.js";
 import { abrirAtalhos, abrirBusca, buscaAberta, ligarAlvoWebview, ligarBusca, pararBusca, usarTeclaCmd, type AlvoWebview } from "./busca/busca.js";
 import { dicaTeclas, ehDoShell, rotuloTeclas, temTeclaDoApp } from "./lib/teclas-core.js";
 import { ligarConfiguracoes, maybeAskNotificationsOnce } from "./configuracoes/configuracoes.js";
@@ -1499,6 +1499,10 @@ function applySettings(view: SettingsView): void {
   atualizarOciosoInput.checked = view.atualizarOcioso;
   corretorInput.checked = view.corretorOrtografico;
   aceleracaoInput.checked = view.aceleracaoHardware;
+  notificacoesInput.checked = view.notifications;
+  notificacaoSomInput.checked = view.notificacaoSom;
+  // Sem aviso não há som para escolher.
+  notificacaoSomInput.disabled = !view.notifications;
   applyZoomState({ level: view.zoomLevel, factor: Math.pow(1.2, view.zoomLevel), percent: Math.round(Math.pow(1.2, view.zoomLevel) * 100) }, false);
   document.documentElement.dataset["theme"] = view.theme;
   pintarFixada();

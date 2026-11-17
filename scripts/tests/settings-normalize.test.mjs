@@ -106,6 +106,15 @@ test("atualizarOcioso: ligado por padrão (como o Grok Bot); só um boolean muda
   assert.equal(normalizeSettings({ atualizarOcioso: "nao" }).atualizarOcioso, true);
 });
 
+test("notificações e som: ligados por padrão; só um boolean muda", () => {
+  for (const k of ["notifications", "notificacaoSom"]) {
+    assert.equal(defaultSettings()[k], true, k);
+    assert.equal(normalizeSettings({})[k], true, k);
+    assert.equal(normalizeSettings({ [k]: false })[k], false, k);
+    assert.equal(normalizeSettings({ [k]: "nao" })[k], true, k);
+  }
+});
+
 test("agente do Gmail: ligado por padrão; só a lista de desligados é lembrada; a lista antiga de ligados é ignorada", () => {
   assert.deepEqual(defaultSettings().gmailAgentDesligados, []);
   const s = normalizeSettings({ version: 1, gmailAgentHosts: ["meu-root-root"], gmailAgentDesligados: ["box-2", "box-2", 7, "inválido host"] });
