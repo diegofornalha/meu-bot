@@ -26,6 +26,7 @@
       if (!a) return;
       if (a.dataset.ev === "link_celular") ga.evento("link_celular", { via: a.dataset.via || "whatsapp" });
       else if (a.dataset.ev === "plano_interesse") ga.evento("plano_interesse", { plano: a.dataset.plano || "chip-coflow" });
+      else if (a.dataset.ev === "falar_whatsapp") ga.evento("falar_whatsapp", { origem: a.dataset.origem || "home" });
       else ga.evento("baixar_mac", { origem: a.dataset.origem || "home" });
     });
   }

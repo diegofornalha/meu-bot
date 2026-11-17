@@ -151,6 +151,10 @@ footer { padding: 40px 0; color: var(--mut); font-size: 14px; border-top: 1px so
 footer a { color: var(--mut); margin-right: 18px; display: inline-block; padding: 6px 0; text-decoration: none; }
 footer a:hover { color: var(--tx); text-decoration: underline; }
 .fixo { display: none; }
+/* Botão flutuante do WhatsApp: leva ao número de atendimento; no celular sobe para não cobrir a barra fixa. */
+.zap { position: fixed; right: 20px; bottom: 20px; z-index: 10; display: inline-flex; align-items: center; gap: 10px; padding: 12px 18px 12px 14px; border-radius: 999px; background: #128a4a; color: #fff; font-weight: 600; font-size: 15px; text-decoration: none; box-shadow: 0 8px 24px rgba(13, 34, 54, .22); }
+.zap:hover, .zap:focus-visible { background: #0f7a41; color: #fff; }
+.zap svg { flex: none; }
 @media (max-width: 820px) {
   .hero, .grid3, .grid2, .grid4, .pedidos, .comparar { grid-template-columns: 1fr; }
   .quadro { min-height: 0; }
@@ -163,6 +167,8 @@ footer a:hover { color: var(--tx); text-decoration: underline; }
   .fixo { display: block; position: fixed; bottom: 0; left: 0; right: 0; padding: 12px 16px; background: rgba(255, 255, 255, .96); border-top: 1px solid var(--line); z-index: 9; }
   .fixo .btn { width: 100%; text-align: center; }
   body { padding-bottom: 80px; }
+  .zap { right: 14px; bottom: 92px; padding: 13px; }
+  .zap span { display: none; }
 }
 body.mobile .soMac { display: none; }
 body.mobile .cel { display: block; }
