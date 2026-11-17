@@ -407,6 +407,20 @@ depois da estável. Os dois staging deste Mac deixaram de ser builds locais (`re
 porque um build local sai com a versão sem sufixo e nunca recebe a `-staging.N`. O CI (`scripts/release-checar.mjs`)
 recusa já no PR o componente da máquina que mudou sem subir a versão. Detalhes na skill `publicar`.
 
+### Windows (x64, cliente remoto)
+
+Os produtos marcados `windows` em `src/main/app/variant-core.ts` (hoje só o `meu-bot-staging`) saem também para
+Windows, do mesmo Mac e na mesma release: `scripts/release.mjs` empacota com `--plataforma win32`, grava os fuses,
+monta o instalador (`scripts/instalador-win.mjs`, NSIS por usuário, sem pedir administrador) e o assina com a mesma
+chave Ed25519. O asset é `<app>-<versão>-x64-setup.exe` mais o `.sig`; se essa etapa falhar, a release inteira não sai.
+À mão: `npm run dist:staging-win`.
+
+No Windows o app é só cliente de uma máquina por SSH (`capsFor` desliga o host local, os atalhos na mesa, o agente no
+Navegador, o controle remoto e o painel Computador) e o túnel não usa conexão compartilhada (`ssh-opcoes-core.ts`).
+A atualização baixa o instalador novo, confere a assinatura e o roda em silêncio (`aplicarNoWindows`, `updater.ts`).
+O instalador ainda não tem Authenticode, por isso o Windows fica só no canal staging; a prova de saúde que promove o
+staging para estável continua sendo a do `meu-bot-staging` deste Mac, e nada confere o Windows automaticamente.
+
 ### Revisão no molde do Brave/Sparkle (22 out 2026)
 
 REA do Brave 155→156 (Sparkle: `SUPublicEDKey`, delta baixado em `~/Library/Caches/…/PersistentDownloads`) e do

@@ -123,6 +123,20 @@ for (const p of produtosDoCanal(PRODUTOS, staging ? "staging" : "estavel")) {
     if (!existsSync(dmg)) { console.error(`✗ não achei ${dmg}: nada foi publicado`); process.exit(1); }
     zips.push(dmg);
   }
+  // Windows (produtos marcados `windows` na tabela): o instalador sai na mesma release, com a mesma versão e a mesma
+  // chave. Uma falha aqui para tudo antes da tag: Mac e Windows nunca saem em versões diferentes.
+  if (p.windows) {
+    step(`instalador Windows de ${name}`);
+    execSync(`node scripts/package.mjs --variant ${p.variant} --versao ${version} --plataforma win32${process.argv.includes("--sem-google") ? " --sem-google" : ""} && node scripts/fuses.mjs --variant ${p.variant} --plataforma win32 && node scripts/instalador-win.mjs --variant ${p.variant} --versao ${version}`, { stdio: "inherit" });
+    const { assetName, verificaAssinatura } = createRequire(import.meta.url)("../dist/main/atualizacao/updater-core.js");
+    // O nome é o que o atualizador do Windows procura (assetName): se o instalador sair com outro, não publica.
+    const exe = join("out", assetName(name, version, "x64", "win32"));
+    if (!existsSync(exe)) { console.error(`✗ não achei ${exe}: nada foi publicado`); process.exit(1); }
+    const sigExe = sign(null, readFileSync(exe), chave).toString("base64");
+    if (!verificaAssinatura(readFileSync(exe), sigExe)) { console.error("✗ a assinatura do instalador Windows não confere com nenhuma chave de UPDATE_PUBLIC_KEYS: nada foi publicado"); process.exit(1); }
+    writeFileSync(`${exe}.sig`, `${sigExe}\n`);
+    zips.push(exe, `${exe}.sig`);
+  }
 }
 // Client OAuth do Google como asset avulso e assinado: o app que veio sem (Mac que empacotou sem config/) baixa daqui
 // sozinho e confere com UPDATE_PUBLIC_KEYS (src/main/google/cliente-release.ts). Sem os arquivos neste Mac, avisa.
