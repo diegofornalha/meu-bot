@@ -47,6 +47,14 @@ cliente (um `claude mcp add` ou um trecho de `mcp.json`); o app só gera o texto
   e a local vence a user naquela pasta. Uma local com chave ou porta velhas deixa o cliente "desatualizado"; Atualizar
   roda `claude mcp remove --scope local` com o `cwd` na pasta dela (o `claude` só a tira de lá dentro), e Remover tira
   todas. Pasta que não existe mais não conta.
+- **Conexões** (`src/main/conexoes/`, 16 nov 2026): grupo das Configurações com um catálogo de MCPs de terceiros
+  (`CONEXOES` em `conexoes-core.ts`; o primeiro é o Salvy, `https://mcp.salvy.com.br/mcp`). Conectar roda
+  `claude mcp add-json --scope user <id> {"type":"http","url":…}`; o login (OAuth do fornecedor, com registro dinâmico
+  e PKCE) é do Claude Code, no `/mcp` → Authenticate, e o token fica no Chaveiro dele: o app nunca o vê. Por isso o
+  estado é "registrado", e não "logado". Uma entrada com o mesmo nome e outra url ou tipo (user, ou local que vence a
+  user) vira "outra-config", e o botão passa a ser Substituir. O `~/.claude.json` é lido por `claude-code/config-core.ts`
+  e escrito só pelo `claude` (`claude-code/cli.ts`, o mesmo do botão Instalar do controle externo). Para o agente da
+  box, ver o PR 2 (proxy no Mac + túnel reverso, como o Gmail).
 - **Fumaça com cliente real** (`scripts/mcp-fumaca.sh [app]`): com o app aberto e o controle ligado, lê porta e chave
   do `settings.json`, confere por `curl` (initialize anuncia 2025-06-18, `tools/list` com ≥ 20 ferramentas, GET → 405,
   sem chave → 401), registra `<app>-fumaca` no Claude Code em escopo local e exige `✔ Connected`; remove o registro ao

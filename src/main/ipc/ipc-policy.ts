@@ -29,6 +29,8 @@ export const SHARED_CHANNELS = [
   "conta:get", "conta:entrar", "conta:cancelar", "conta:sair", "conta:console",
   // controle externo (MCP) deste Mac: os dois apps têm terminal e janelas para um cliente MCP controlar
   "controle-remoto:status", "controle-remoto:ligar", "controle-remoto:execucao", "controle-remoto:porta", "controle-remoto:regenerar", "controle-remoto:instalar", "controle-remoto:remover",
+  // conexões: MCPs de terceiros (Salvy…) no Claude Code deste Mac
+  "conexoes:status", "conexoes:conectar", "conexoes:desconectar", "conexoes:abrir-guia",
   // seletor
   "picker:list", "picker:plans", "picker:locais", "picker:probe", "picker:choose", "picker:use-port", "picker:shortcut", "picker:relief-shortcut", "picker:relieve",
   "picker:open-grokbot-reset", "picker:open-url", "picker:tailscale-credential", "picker:cancel",
