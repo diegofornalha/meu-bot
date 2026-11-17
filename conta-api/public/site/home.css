@@ -139,7 +139,7 @@ details p { color: var(--mut); margin: .7em 0 0; }
 .precos .dest > p { color: rgba(255, 255, 255, .78); }
 .selo.recomendado { align-self: flex-start; background: #fff; color: var(--pri); border-color: #fff; text-transform: uppercase; letter-spacing: .1em; font-size: 11px; }
 @media (max-width: 1080px) and (min-width: 821px) { .grid4 { grid-template-columns: repeat(2, 1fr); } }
-.cel { display: none; }
+.cel, .win { display: none; }
 .aviso-titulo { color: var(--tx); }
 .mt24 { margin-top: 28px; }
 .mt12 { margin-top: 12px; }
@@ -172,3 +172,16 @@ footer a:hover { color: var(--tx); text-decoration: underline; }
 }
 body.mobile .soMac { display: none; }
 body.mobile .cel { display: block; }
+/* Windows no computador: sem download do Mac; o contato vira lista de espera pelo WhatsApp (site.js põe a classe). */
+body.windows .soMac { display: none; }
+body.windows .win { display: block; }
+body.windows a.btn.win { display: inline-block; }
+
+/* Lista de espera (visitante de Windows): um campo e um botão na mesma linha, quebrando no celular. */
+.lista-form { margin-top: 14px; }
+.lista-rotulo { display: block; font-size: 14px; color: var(--mut); margin-bottom: 6px; }
+.lista-linha { display: flex; gap: 8px; flex-wrap: wrap; }
+.lista-linha input { flex: 1 1 220px; min-width: 0; padding: 11px 14px; border: 1px solid var(--line2, #cfd6e0); border-radius: 12px; font: inherit; color: inherit; background: transparent; }
+.lista-aviso { font-size: 13px; color: var(--mut); margin-top: 8px; }
+.lista-aviso.ok { color: #12824a; }
+.lista-aviso.ruim { color: #b3261e; }

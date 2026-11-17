@@ -17,14 +17,26 @@
     </nav>
   </header>
 
-  <main class="hero">
+  <main class="hero" id="obrigado-win" hidden>
+    <p class="selo">Windows · em teste</p>
+    <h1>O meu-bot para Windows está chegando</h1>
+    <p class="sub">Hoje o app é instalado no Mac com chip Apple. A versão para Windows está em teste: fale com a gente no WhatsApp e avisamos assim que ela sair.</p>
+    <p class="acao"><a class="btn btn-primary" target="_blank" rel="noopener" data-ev="lista_windows" data-origem="obrigado" href="https://wa.me/5521923670743?text=Ol%C3%A1!%20Uso%20Windows%20e%20quero%20ser%20avisado%20quando%20o%20meu-bot%20sair%20para%20Windows.">Avise-me quando sair para Windows</a></p>
+    <form class="lista-form" data-lista="windows" data-origem="obrigado">
+      <label class="lista-rotulo" for="lista-obrigado">Ou deixe seu e-mail ou WhatsApp e avisamos:</label>
+      <div class="lista-linha"><input id="lista-obrigado" name="contato" type="text" autocomplete="email" maxlength="120" placeholder="seu@email.com ou (11) 99999-9999" required><button class="btn btn-ghost" type="submit">Avisar-me</button></div>
+      <p class="lista-aviso" role="status">Usamos só para avisar do lançamento para Windows.</p>
+    </form>
+    <p class="sub">Tem um Mac? <a id="btn-mac-mesmo" href="/download/mac">Baixe a versão para Mac</a>.</p>
+  </main>
+  <main class="hero" id="obrigado-mac">
     <p class="selo">macOS · Apple Silicon</p>
     <h1>Obrigado por baixar o meu-bot</h1>
     <p class="sub">Seu download deve começar automaticamente em poucos segundos. <span id="versao"></span></p>
     <p class="sub">Caso contrário, <a id="btn-denovo" href="/download/mac">use este link para iniciar o download</a>.</p>
   </main>
 
-  <section class="passos passos-tres">
+  <section class="passos passos-tres" id="obrigado-passos">
     <h2>O download foi concluído? Próximo…</h2>
     <ol class="colunas">
       <li>

@@ -77,3 +77,12 @@ h2 { font-size: 20px; margin: 0 0 12px; }
 .legal th, .legal td { text-align: left; vertical-align: top; padding: 10px 12px; border-bottom: 1px solid var(--borda); }
 .legal th { color: var(--sub); font-weight: 600; }
 .legal td:first-child { font-weight: 600; }
+
+/* Lista de espera (visitante de Windows): um campo e um botão na mesma linha, quebrando no celular. */
+.lista-form { margin-top: 14px; }
+.lista-rotulo { display: block; font-size: 14px; color: var(--sub); margin-bottom: 6px; }
+.lista-linha { display: flex; gap: 8px; flex-wrap: wrap; }
+.lista-linha input { flex: 1 1 220px; min-width: 0; padding: 11px 14px; border: 1px solid var(--borda); border-radius: 12px; font: inherit; color: inherit; background: transparent; }
+.lista-aviso { font-size: 13px; color: var(--sub); margin-top: 8px; }
+.lista-aviso.ok { color: #12824a; }
+.lista-aviso.ruim { color: #b3261e; }

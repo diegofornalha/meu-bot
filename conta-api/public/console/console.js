@@ -487,6 +487,20 @@ function cartoesVendas(vd) {
   ];
 }
 /** Super admin › Assinaturas: quem paga o quê, com filtro por produto e situação, e os últimos pagamentos. */
+/** Lista de espera do site (Windows): os contatos mais novos, para o super admin avisar no lançamento. */
+let listaContatos = [];
+function pintarListaEspera(le) {
+  const tb = $("ad-lista").querySelector("tbody"); tb.replaceChildren();
+  listaContatos = le ? le.contatos.map((c) => (c.tipo === "whatsapp" ? `+${c.contato}` : c.contato)) : [];
+  $("ad-lista-total").textContent = le ? `${le.total} contato${le.total === 1 ? "" : "s"}${le.semAviso < le.total ? ` · ${le.semAviso} sem aviso` : ""}` : "";
+  $("ad-lista-copiar").hidden = listaContatos.length === 0;
+  if (!le || le.contatos.length === 0) { const tr = el("tr"); const td = el("td", "", "Ninguém na lista ainda."); td.colSpan = 6; tr.append(td); tb.append(tr); return; }
+  for (const c of le.contatos) {
+    const tr = el("tr");
+    tr.append(el("td", "", dataHora(c.criadoEm)), el("td", "", c.tipo === "whatsapp" ? `+${c.contato}` : c.contato), el("td", "", c.tipo === "whatsapp" ? "WhatsApp" : "e-mail"), el("td", "", c.origem), el("td", "", c.viaAnuncio ? "anúncio" : "-"), el("td", "", c.avisadoEm ? data(c.avisadoEm) : "-"));
+    tb.append(tr);
+  }
+}
 function pintarAdminVendas(v) {
   const vd = v.vendas; if (!vd) return;
   $("ad-vendas-totais").replaceChildren(...cartoesVendas(vd));
@@ -504,6 +518,7 @@ function pintarAdminVendas(v) {
     tr.append(contaCelula(a.conta.email, a.conta.nome), tdP, tdS, el("td", "", `${reais(a.valorCentavos)}/mês`), el("td", "", data(a.criadaEm)), el("td", "", a.ultimoPagamentoEm ? dataHora(a.ultimoPagamentoEm) : "-"), el("td", "", a.valeAte ? data(a.valeAte) : "-"));
     tb.append(tr);
   }
+  pintarListaEspera(v.listaEspera);
   const tp = $("ad-pagamentos").querySelector("tbody"); tp.replaceChildren();
   if (vd.pagamentos.length === 0) { const tr = el("tr"); const td = el("td", "", "Nenhum pagamento ainda."); td.colSpan = 6; tr.append(td); tp.append(tr); }
   for (const p of vd.pagamentos) {
@@ -884,6 +899,9 @@ $("pl-assinar-btn").addEventListener("click", () => { void assinar(); });
 if (window.MEU_BOT_TEMA) { $("tema").value = window.MEU_BOT_TEMA.atual(); $("tema").addEventListener("change", () => window.MEU_BOT_TEMA.definir($("tema").value)); }
 for (const id of ["ad-vendas-produto", "ad-vendas-situacao"]) $(id).addEventListener("change", () => { if (visao !== null) pintarAdminVendas(visao); });
 $("ad-vendas-filtro").addEventListener("submit", (ev) => ev.preventDefault());
+$("ad-lista-copiar").addEventListener("click", () => {
+  navigator.clipboard.writeText(listaContatos.join("\n")).then(() => { $("ad-lista-aviso").textContent = `${listaContatos.length} copiados.`; }, () => { $("ad-lista-aviso").textContent = "Não copiou."; });
+});
 $("btn-entrar").addEventListener("click", () => { $("btn-entrar").disabled = true; void entrar(); });
 $("btn-sair").addEventListener("click", () => { void sair(); });
 $("pf-form").addEventListener("submit", (ev) => { ev.preventDefault(); void perfilSalvar(); });
