@@ -1236,6 +1236,3 @@ table.fin-abc tr.fin-abc-C td.fin-abc-tag { color: #757575; }
 .releases-lista .rel-selo.bad { color: var(--bad); }
 .releases-lista .rel-aviso { flex-basis: 100%; margin: 0; color: var(--warn); }
 
-/* Configurações › Conexões: uma linha por serviço do catálogo. */
-.conexao + .conexao { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border, rgba(127,127,127,.25)); }
-.conexao .row { flex-wrap: wrap; align-items: center; gap: 8px; }
