@@ -75,8 +75,11 @@ export function urlNaOrigem(url: string, origem: string): boolean {
  * `/__meu-bot/acao?…` na própria origem (window.open); o main intercepta antes de abrir qualquer janela, lê com
  * `lerAcao` e entrega à janela do app. Lista fechada; tudo o mais é recusado.
  * - `chat`: põe um texto (até 500 caracteres) na caixa do chat do agente. Só preenche: quem envia é a pessoa.
+ * - `planilha`: pede para ler uma planilha do Google Sheets com a Conta Google da máquina. O app só pergunta: nada é
+ *   lido sem a pessoa confirmar no cartão acima da página (modulos-page.ts), e o que for lido vai só para o serviço do
+ *   módulo (POST /__meu-bot/planilha, com o token), que devolve a prévia e importa.
  */
-export type AcaoPagina = { acao: "chat"; texto: string };
+export type AcaoPagina = { acao: "chat"; texto: string } | { acao: "planilha"; link: string; aba: string; tipo: string };
 export const CAMINHO_ACAO = "/__meu-bot/acao";
 export function lerAcao(url: string, origem: string): AcaoPagina | null {
   let u: URL;
@@ -86,5 +89,21 @@ export function lerAcao(url: string, origem: string): AcaoPagina | null {
     const texto = (u.searchParams.get("texto") ?? "").replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 500);
     return texto === "" ? null : { acao: "chat", texto };
   }
+  if (u.searchParams.get("acao") === "planilha") {
+    const link = (u.searchParams.get("link") ?? "").trim().slice(0, 500);
+    const aba = (u.searchParams.get("aba") ?? "").replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 100);
+    const tipo = u.searchParams.get("tipo") ?? "";
+    if (link === "" || !/^[a-z]{1,20}$/.test(tipo)) return null;
+    return { acao: "planilha", link, aba, tipo };
+  }
   return null;
+}
+
+/** O que o módulo devolve de POST /__meu-bot/planilha, como o app mostra (texto puro, cortado). null = resposta estranha. */
+export function lerRespostaPlanilha(j: unknown): { mensagem: string; linhas: string[]; podeImportar: boolean } | null {
+  if (j === null || typeof j !== "object") return null;
+  const o = j as Record<string, unknown>;
+  if (typeof o.mensagem !== "string" || o.mensagem.trim() === "") return null;
+  const linhas = Array.isArray(o.linhas) ? o.linhas.filter((x): x is string => typeof x === "string").map((x) => x.slice(0, 200)).slice(0, 8) : [];
+  return { mensagem: o.mensagem.trim().slice(0, 600), linhas, podeImportar: o.podeImportar === true };
 }

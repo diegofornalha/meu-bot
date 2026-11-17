@@ -271,6 +271,7 @@ const clientApi: MeuBotClientApi = {
   modulosAtualizarFonte: () => ipcRenderer.invoke("modulos:atualizar-fonte", {}),
   modulosTestar: (id: string) => ipcRenderer.invoke("modulos:testar", { id }),
   modulosAbrirPagina: (id: string) => ipcRenderer.invoke("modulos:abrir-pagina", { id }),
+  modulosPlanilha: (id: string, p: { link: string; aba: string; tipo: string; simular: boolean }) => ipcRenderer.invoke("modulos:planilha", { id, ...p }),
   modulosListar: () => ipcRenderer.invoke("modulos:listar", {}),
   modulosLigar: (id: string) => ipcRenderer.invoke("modulos:ligar", { id }),
   modulosDesligar: (id: string) => ipcRenderer.invoke("modulos:desligar", { id }),

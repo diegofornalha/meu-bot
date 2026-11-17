@@ -11,7 +11,7 @@ import type { CrmDiag, CrmInfo, CrmLocal } from "./crm";
 import type { FinanceAbc, FinanceAbcLado, FinanceAbcPor, FinanceCategoria, FinanceConfig, FinanceConta, FinanceImportacao, FinanceInfo, FinanceLancamento, FinanceLancarInput, FinanceMoeda, FinanceTipoLinha } from "./financeiro";
 import type { AgendaEvento, BackupCopiasView, BackupDadosProgresso, BackupDadosView, BackupRestauroPedido, BackupRestauroProgresso, BackupRestauroResultado, GmailAgenteState, GmailApagado, GmailDetalhe, GmailLista, GoogleContaStatus, PlanilhaLeitura } from "./google";
 import type { LicensePatch, LicenseView } from "./licenca";
-import type { ModuloPaginaAberta, ModuloResultado, ModuloTeste, ModulosLista } from "./modulos";
+import type { ModuloPaginaAberta, ModuloPlanilhaResultado, ModuloResultado, ModuloTeste, ModulosLista } from "./modulos";
 import type { BackendStatusEvent, InstallBackendResult, TailscaleSshResult } from "./maquina";
 import type { BrowserAgentState, BrowserExtensionInfo, BrowserOpenInfo, NavFavorito, NavWorkspaces } from "./navegador";
 import type { MotorNovoUsuario, AdminAction, AdminHealth, AuditoriaVisao, UsuariosVisao, PrepararId, PrepararVisao, BackupIndiceView, BackupRestauracao, BotChat, BotMenuAction, BotMessage, ProdutoMvp, SupportInfo, SupportProgress, SupportShare, CgEstado, LpEstado, LpAviso } from "./suporte";
@@ -70,7 +70,7 @@ export interface MainEvents {
   /** Módulos de produto (meu-bot-diego): uma linha do instalador do módulo `id`. */
   "modulos:progress": { id: string; line: string };
   /** A página de um módulo pediu uma ação ao app (lista fechada: modulos-pagina-core.ts › lerAcao). */
-  "modulos:acao": { id: string; rotulo: string; acao: "chat"; texto: string };
+  "modulos:acao": { id: string; rotulo: string } & ({ acao: "chat"; texto: string } | { acao: "planilha"; link: string; aba: string; tipo: string });
   /** meu-bot-admin, backup e mudança de máquina: bytes recebidos ou uma linha da restauração. */
   "admin:backup-progress": { bytes?: number; line?: string };
   /** Uma linha do job de criar/preparar usuário (onboarding), para o log ao vivo da aba Usuários. */
@@ -463,6 +463,8 @@ export interface MeuBotClientApi {
   modulosTestar(id: string): Promise<ModuloTeste>;
   /** Abre a página própria do módulo: forward até o serviço dele na máquina, com o token; o <webview> usa a partição devolvida. */
   modulosAbrirPagina(id: string): Promise<ModuloPaginaAberta>;
+  /** Planilha pedida pela página do módulo, já confirmada pela pessoa: lê com a Conta Google e entrega ao módulo. */
+  modulosPlanilha(id: string, p: { link: string; aba: string; tipo: string; simular: boolean }): Promise<ModuloPlanilhaResultado>;
   modulosListar(): Promise<ModulosLista[]>;
   modulosLigar(id: string): Promise<ModuloResultado>;
   modulosDesligar(id: string): Promise<ModuloResultado>;

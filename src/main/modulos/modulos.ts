@@ -10,7 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { app } from "electron";
-import type { EstadoFonte, FonteModulos, LicenseView, Modulo, ModuloEstado, ModuloGateway, ModuloPaginaAberta, ModuloResultado, ModuloTeste, ModulosLista } from "../../shared/ipc";
+import type { EstadoFonte, FonteModulos, LicenseView, Modulo, ModuloEstado, ModuloGateway, ModuloPaginaAberta, ModuloPlanilhaResultado, ModuloResultado, ModuloTeste, ModulosLista } from "../../shared/ipc";
 import { caps } from "../app/variant";
 import { getModulosRepo } from "../app/settings";
 import { lerLicenca } from "../licenca/licenca-maquina";
@@ -18,7 +18,8 @@ import { acessoAddon } from "../licenca/licenca";
 import { enviarModulo } from "../maquina/hostProbe";
 import { runSsh } from "../whatsapp/whatsapp";
 import { WA_MOTOR_SH } from "../whatsapp/whatsapp-capacidades";
-import { origemForward, paginaStatusSh, parsePaginaStatus, particaoModulo, tokenSh, urlPagina } from "./modulos-pagina-core";
+import { idDaPlanilha, lerValoresPlanilha } from "../google/planilha";
+import { lerRespostaPlanilha, origemForward, paginaStatusSh, parsePaginaStatus, particaoModulo, tokenSh, urlPagina } from "./modulos-pagina-core";
 import { ensureForwardExtra } from "../maquina/tunnel";
 import { LOCAL_HOST } from "../maquina/localBackend";
 import { MODULOS_DIR, ambienteSh, credenciaisSh, desatualizado, estadoSh, lerTeste, mesclarOpcoes, opcoesSh, parseEstado, parseManifesto } from "./modulos-core";
@@ -312,9 +313,9 @@ export async function atualizarModulos(host: string, log: (l: string) => void): 
 }
 
 /** Partições de página de módulo abertas nesta sessão: a máquina e a origem do forward que cada uma pode carregar. */
-const paginas = new Map<string, { host: string; origem: string; id: string; rotulo: string }>();
+const paginas = new Map<string, { host: string; origem: string; id: string; rotulo: string; token: string }>();
 /** O que o windows.ts confere ao anexar o <webview> e a cada navegação; null = partição que o app não abriu. */
-export const paginaRegistrada = (particao: string): { host: string; origem: string; id: string; rotulo: string } | null => paginas.get(particao) ?? null;
+export const paginaRegistrada = (particao: string): { host: string; origem: string; id: string; rotulo: string } | null => { const r = paginas.get(particao); return r === undefined ? null : { host: r.host, origem: r.origem, id: r.id, rotulo: r.rotulo }; };
 /** As partições de página abertas para uma máquina (o windows.ts acha a do <webview> anexado pela sessão). */
 export const particoesDaMaquina = (host: string): string[] => [...paginas].filter(([, r]) => r.host === host).map(([p]) => p);
 
@@ -333,6 +334,33 @@ export async function abrirPaginaModulo(host: string, id: string): Promise<Modul
   if (!st.rodando) throw new Error(`a página de ${m.rotulo} não respondeu na máquina (o serviço do módulo parou). Desligue e ligue o módulo de novo.`);
   const local = await ensureForwardExtra(host, m.pagina.porta);
   const particao = particaoModulo(id, host);
-  paginas.set(particao, { host, origem: origemForward(local), id, rotulo: m.rotulo });
+  paginas.set(particao, { host, origem: origemForward(local), id, rotulo: m.rotulo, token: st.token });
   return { url: urlPagina(local, m.pagina.caminho, st.token), particao };
+}
+
+/**
+ * Planilha pedida pela página do módulo, depois que a pessoa confirmou no app: lê as células com a Conta Google da
+ * máquina e entrega ao serviço do módulo (POST /__meu-bot/planilha, com o token da instalação), que devolve a prévia
+ * (`simular`) ou importa. Só com a página aberta nesta sessão (a origem e o token vêm do registro) e o módulo liberado.
+ */
+export async function planilhaParaModulo(host: string, id: string, p: { link: string; aba: string; tipo: string; simular: boolean }): Promise<ModuloPlanilhaResultado> {
+  const reg = paginas.get(particaoModulo(id, host));
+  if (reg === undefined) throw new Error("abra a página do módulo de novo e peça a planilha por ela");
+  await liberado(host, id);
+  const planilha = idDaPlanilha(p.link);
+  if (planilha === null) throw new Error("cole o link da planilha do Google Sheets (docs.google.com/spreadsheets/d/…)");
+  if (!/^[a-z]{1,20}$/.test(p.tipo)) throw new Error("tipo de importação inválido");
+  const aba = p.aba.trim().slice(0, 100);
+  const valores = await lerValoresPlanilha(host, planilha, aba);
+  const r = await fetch(`${reg.origem}/__meu-bot/planilha`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${reg.token}`, "content-type": "application/json" },
+    body: JSON.stringify({ valores, fonte: `sheets:${planilha}${aba ? `:${aba}` : ""}`, tipo: p.tipo, simular: p.simular }),
+    signal: AbortSignal.timeout(60_000),
+  });
+  const j = (await r.json().catch(() => null)) as { error?: { message?: string } } | null;
+  if (!r.ok) throw new Error(j?.error?.message ?? `o módulo respondeu ${r.status}`);
+  const out = lerRespostaPlanilha(j);
+  if (out === null) throw new Error("o módulo deu uma resposta que o app não entende para a planilha");
+  return out;
 }

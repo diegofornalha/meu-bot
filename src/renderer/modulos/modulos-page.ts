@@ -20,7 +20,7 @@ export interface ModulosPageDeps {
   definePage(id: string, title: string, panel: HTMLElement, render: () => void): PageTab;
   openPage(page: PageTab): void;
   armConfirm(btn: HTMLButtonElement, label: string, run: () => void): void;
-  api: Pick<MeuBotApi, "modulosAbrirPagina" | "modulosAtualizarFonte" | "modulosListar" | "modulosLigar" | "modulosDesligar" | "modulosTestar" | "modulosCredenciais" | "modulosOpcoes" | "openExternal" | "on">;
+  api: Pick<MeuBotApi, "modulosAbrirPagina" | "modulosPlanilha" | "modulosAtualizarFonte" | "modulosListar" | "modulosLigar" | "modulosDesligar" | "modulosTestar" | "modulosCredenciais" | "modulosOpcoes" | "openExternal" | "on">;
   /** Leva uma pergunta pronta ao chat do agente (o mesmo caminho dos tutoriais). */
   goToChat(message: string, hint: string): Promise<void>;
   /** Máquina desta janela (as marcações dos primeiros passos são por máquina); lida na hora, não na montagem. */
@@ -30,7 +30,7 @@ export interface ModulosPageDeps {
 type Aba = "geral" | "ferramentas" | "guia" | "passos";
 const MSG_LICENCA = (rotulo: string): string => `Os módulos ainda não estão liberados nesta máquina: peça ao admin para incluir o add-on "${rotulo}" na licença dela (no meu-bot-admin, Suporte › Conta e licença).`;
 
-export function mountModulosPage(deps: ModulosPageDeps): { open: () => void } {
+export function mountModulosPage(deps: ModulosPageDeps): { open: () => void; pedirPlanilha: (a: { id: string; rotulo: string; link: string; aba: string; tipo: string }) => void } {
   const panel = el("section", "acervo-panel modulos-panel"); panel.hidden = true;
   deps.panelsEl.append(panel);
   let page: PageTab | null = null;
@@ -121,6 +121,41 @@ export function mountModulosPage(deps: ModulosPageDeps): { open: () => void } {
       });
       aviso.replaceChildren(); caixa.replaceChildren(v);
     } catch (e) { aviso.replaceChildren(el("p", "hint bad-hint", ipcErrorText(e))); }
+  }
+
+  /**
+   * A página de um módulo pediu para ler uma planilha do Google: cartão acima da página, e nada é lido sem a pessoa
+   * clicar. Prévia primeiro (o módulo diz o que entraria); importar é outro clique.
+   */
+  function pedirPlanilha(a: { id: string; rotulo: string; link: string; aba: string; tipo: string }): void {
+    const p = paginas.get(a.id);
+    if (p === undefined) return;
+    deps.openPage(p.page);
+    const caixa = el("div", "admin-card modulo-pedido");
+    const linha = (texto: string, cls = "hint"): HTMLElement => el("p", cls, texto);
+    const botao = (rotulo: string, cls: string, run: () => void): HTMLButtonElement => { const b = el("button", `btn ${cls} btn-small`, rotulo); b.type = "button"; b.addEventListener("click", run); return b; };
+    const fechar = (): void => { caixa.remove(); };
+    const pedir = async (simular: boolean): Promise<void> => {
+      caixa.replaceChildren(el("strong", "", `Planilha para ${a.rotulo}`), carregando(simular ? "Lendo a planilha com a sua Conta Google…" : "Importando…"));
+      try {
+        const r = await deps.api.modulosPlanilha(a.id, { link: a.link, aba: a.aba, tipo: a.tipo, simular });
+        caixa.replaceChildren(el("strong", "", simular ? `Prévia da planilha para ${a.rotulo}` : `Planilha importada em ${a.rotulo}`), linha(r.mensagem, simular ? "hint" : "hint audio-ok"));
+        if (r.linhas.length > 0) { const ul = el("ul", "admin-health"); for (const x of r.linhas) ul.append(el("li", "", x)); caixa.append(ul); }
+        const acoes = el("div", "admin-actions");
+        if (simular && r.podeImportar) acoes.append(botao("Importar", "btn-primary", () => { void pedir(false); }));
+        acoes.append(botao(simular ? "Cancelar" : "Fechar", "btn-ghost", fechar));
+        caixa.append(acoes);
+      } catch (e) {
+        caixa.replaceChildren(el("strong", "", `Planilha para ${a.rotulo}`), linha(ipcErrorText(e), "hint bad-hint"));
+        caixa.append(botao("Fechar", "btn-ghost", fechar));
+      }
+    };
+    caixa.append(el("strong", "", `${a.rotulo} quer ler uma planilha do Google`), linha(`Com a sua Conta Google, o meu-bot lê a planilha ${a.link}${a.aba ? ` (aba ${a.aba})` : ""} e entrega o conteúdo só a este módulo. Nada é lido sem o seu clique.`));
+    const acoes = el("div", "admin-actions");
+    acoes.append(botao("Ler e ver a prévia", "btn-primary", () => { void pedir(true); }), botao("Cancelar", "btn-ghost", fechar));
+    caixa.append(acoes);
+    p.aviso.querySelectorAll(".modulo-pedido").forEach((x) => x.remove());
+    p.aviso.append(caixa);
   }
 
   /* ---------- peças ---------- */
@@ -367,6 +402,7 @@ export function mountModulosPage(deps: ModulosPageDeps): { open: () => void } {
   }
 
   return {
+    pedirPlanilha,
     open: () => {
       if (page === null) { page = deps.definePage("modulos", "Módulos", panel, render); void atualizar(); }
       deps.openPage(page);

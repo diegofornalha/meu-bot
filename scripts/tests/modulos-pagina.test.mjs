@@ -72,3 +72,16 @@ test("ações da página: só /__meu-bot/acao na origem do forward, só chat com
   assert.equal(P.lerAcao(`${o}/__meu-bot/acao?acao=chat&texto=a%0Ab`, o).texto, "a b", "sem quebra de linha nem controle");
   for (const u of [`${o}/__meu-bot/acao?acao=chat&texto=`, `${o}/__meu-bot/acao?acao=enviar&texto=x`, `${o}/__meu-bot/acao?acao=planilha&link=x`, `${o}/outra?acao=chat&texto=x`, `http://127.0.0.1:9/__meu-bot/acao?acao=chat&texto=x`, `https://evil.com/__meu-bot/acao?acao=chat&texto=x`, "lixo"]) assert.equal(P.lerAcao(u, o), null, u);
 });
+
+test("ação planilha: link, aba e tipo validados; a resposta do módulo vira texto puro cortado", () => {
+  const o = P.origemForward(51234);
+  const L = encodeURIComponent("https://docs.google.com/spreadsheets/d/abcdefghijklmnopqrstuvwxyz123/edit");
+  assert.deepEqual(P.lerAcao(`${o}/__meu-bot/acao?acao=planilha&link=${L}&aba=Vendas&tipo=venda`, o), { acao: "planilha", link: decodeURIComponent(L), aba: "Vendas", tipo: "venda" });
+  assert.equal(P.lerAcao(`${o}/__meu-bot/acao?acao=planilha&link=${L}&tipo=VENDA`, o), null, "tipo fora do formato");
+  assert.equal(P.lerAcao(`${o}/__meu-bot/acao?acao=planilha&link=&tipo=venda`, o), null, "sem link");
+  assert.equal(P.lerAcao(`http://127.0.0.1:9/__meu-bot/acao?acao=planilha&link=${L}&tipo=venda`, o), null, "outra origem");
+  assert.deepEqual(P.lerRespostaPlanilha({ mensagem: " ok ", linhas: ["a", 3, "b"], podeImportar: true }), { mensagem: "ok", linhas: ["a", "b"], podeImportar: true });
+  assert.equal(P.lerRespostaPlanilha({ mensagem: "x".repeat(900) }).mensagem.length, 600);
+  assert.equal(P.lerRespostaPlanilha({ mensagem: "x", podeImportar: "sim" }).podeImportar, false);
+  for (const ruim of [null, "texto", {}, { mensagem: "" }, { mensagem: 3 }]) assert.equal(P.lerRespostaPlanilha(ruim), null, JSON.stringify(ruim));
+});
