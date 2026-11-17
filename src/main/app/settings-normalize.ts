@@ -66,6 +66,8 @@ export interface SettingsFile {
   atualizarOcioso: boolean;
   /** Corretor ortográfico enquanto se digita nos campos de texto do app. */
   corretorOrtografico: boolean;
+  /** A notificação toca o som do sistema; desligado, ela só aparece (silent). */
+  notificacaoSom: boolean;
   /** Aceleração por hardware do Chromium. Desligar ajuda em Mac com vídeo problemático; custa fluidez. */
   aceleracaoHardware: boolean;
   /** Modo de depuração: true/false gravado pela pessoa; null = o padrão da variante (ligado no staging). */
@@ -173,7 +175,7 @@ const validHost = (v: unknown): string | null => (typeof v === "string" && isVal
 export const defaultSettings = (): SettingsFile => ({
   version: 1, lastHost: null, backendModel: DEFAULT_MODEL, defaultModelByHost: {}, backendPort: DEFAULT_PORT, backendPortByHost: {}, zoomLevel: 0,
   theme: "system", notifications: true, contextBudgetTokens: DEFAULT_BUDGET, memoryEveryTurns: DEFAULT_MEMORY_EVERY,
-  quickEntryEnabled: true, dadosNoDrive: true, quickEntryShortcut: DEFAULT_SHORTCUT, podHosts: [], navAgentHosts: [], navAgentDesligados: [], gmailAgentDesligados: [], navFavoritos: {}, onboarding: "pending", openDirect: true, hostNames: {}, navEspacos: {}, atualizarOcioso: true, corretorOrtografico: true, aceleracaoHardware: true, depuracao: null, abaFixa: "padrao",
+  quickEntryEnabled: true, dadosNoDrive: true, quickEntryShortcut: DEFAULT_SHORTCUT, podHosts: [], navAgentHosts: [], navAgentDesligados: [], gmailAgentDesligados: [], navFavoritos: {}, onboarding: "pending", openDirect: true, hostNames: {}, navEspacos: {}, atualizarOcioso: true, corretorOrtografico: true, notificacaoSom: true, aceleracaoHardware: true, depuracao: null, abaFixa: "padrao",
   // "Executar comandos e código" vem ligado (7 nov): o controle externo só existe com mcpLigado, e quem o liga quer o cliente agindo.
   mcpLigado: false, mcpExecucao: true, mcpPorta: null, mcpToken: "", modulosRepo: "",
 });
@@ -219,6 +221,7 @@ export function normalizeSettings(input: unknown): SettingsFile {
     navEspacos: normalizeNavEspacos(p["navEspacos"]),
     atualizarOcioso: typeof p["atualizarOcioso"] === "boolean" ? p["atualizarOcioso"] : true,
     corretorOrtografico: typeof p["corretorOrtografico"] === "boolean" ? p["corretorOrtografico"] : true,
+    notificacaoSom: typeof p["notificacaoSom"] === "boolean" ? p["notificacaoSom"] : true,
     aceleracaoHardware: typeof p["aceleracaoHardware"] === "boolean" ? p["aceleracaoHardware"] : true,
     depuracao: p["depuracao"] === true ? true : p["depuracao"] === false ? false : null,
     abaFixa: isAbaFixa(p["abaFixa"]) ? p["abaFixa"] : "padrao",

@@ -242,6 +242,7 @@ export const settingsView = (host?: string): SettingsView => ({
   navEspacos: host === undefined ? emptyWorkspaces() : navEspacos(host),
   atualizarOcioso: file.atualizarOcioso,
   corretorOrtografico: file.corretorOrtografico,
+  notificacaoSom: file.notificacaoSom,
   aceleracaoHardware: file.aceleracaoHardware,
   depuracao: file.depuracao,
   abaFixa: file.abaFixa,
@@ -255,6 +256,7 @@ export const settingsView = (host?: string): SettingsView => ({
 export const getAtualizarOcioso = (): boolean => file.atualizarOcioso;
 /** Corretor ortográfico enquanto se digita; vale para as janelas abertas a partir daqui. */
 export const getCorretorOrtografico = (): boolean => file.corretorOrtografico;
+export const getNotificacaoSom = (): boolean => file.notificacaoSom;
 /** Aceleração por hardware do Chromium. Lido no arranque: `app.disableHardwareAcceleration` só vale antes do ready. */
 export const getAceleracaoHardware = (): boolean => file.aceleracaoHardware;
 
@@ -304,6 +306,7 @@ export function updateSettings(update: SettingsUpdate, host?: string): SettingsV
   }
   if (update.atualizarOcioso !== undefined) file.atualizarOcioso = update.atualizarOcioso === true;
   if (update.corretorOrtografico !== undefined) file.corretorOrtografico = update.corretorOrtografico === true;
+  if (update.notificacaoSom !== undefined) file.notificacaoSom = update.notificacaoSom === true;
   if (update.aceleracaoHardware !== undefined) file.aceleracaoHardware = update.aceleracaoHardware === true;
   if (update.modulosRepo !== undefined) {
     const url = typeof update.modulosRepo === "string" ? update.modulosRepo.trim() : "";

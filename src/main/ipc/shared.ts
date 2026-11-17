@@ -554,6 +554,7 @@ export function registerSharedIpc(deps: SharedIpcDeps): void {
       ...(typeof u.openAtLogin === "boolean" ? { openAtLogin: u.openAtLogin } : {}),
       ...(typeof u.atualizarOcioso === "boolean" ? { atualizarOcioso: u.atualizarOcioso } : {}),
       ...(typeof u.corretorOrtografico === "boolean" ? { corretorOrtografico: u.corretorOrtografico } : {}),
+      ...(typeof u.notificacaoSom === "boolean" ? { notificacaoSom: u.notificacaoSom } : {}),
       ...(typeof u.aceleracaoHardware === "boolean" ? { aceleracaoHardware: u.aceleracaoHardware } : {}),
       ...(typeof u.abaFixa === "string" ? { abaFixa: u.abaFixa as NonNullable<SettingsUpdate["abaFixa"]> } : {}),
       ...(typeof u.contextBudgetTokens === "number" ? { contextBudgetTokens: u.contextBudgetTokens } : {}),

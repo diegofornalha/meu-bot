@@ -27,6 +27,10 @@ const updateMoveBtn = $<HTMLButtonElement>("update-move-btn");
 export const atualizarOciosoInput = $<HTMLInputElement>("atualizar-ocioso");
 export const corretorInput = $<HTMLInputElement>("corretor-ortografico");
 export const aceleracaoInput = $<HTMLInputElement>("aceleracao-hardware");
+export const notificacoesInput = $<HTMLInputElement>("notificacoes-ligadas");
+export const notificacaoSomInput = $<HTMLInputElement>("notificacao-som");
+const notificacaoTestarBtn = $<HTMLButtonElement>("notificacao-testar");
+const notificacaoTesteLinha = $<HTMLElement>("notificacao-teste-linha");
 const updateBlocker = $<HTMLElement>("update-blocker");
 const updateBlockerTitle = $<HTMLElement>("update-blocker-title");
 const updateBlockerMsg = $<HTMLElement>("update-blocker-text");
@@ -178,6 +182,14 @@ export function ligarAtualizacao(): void {
   // Corretor e aceleração: o interruptor volta sozinho se o main recusar, para a tela nunca mostrar o que não valeu.
   ligarInterruptor(corretorInput, (v) => ({ corretorOrtografico: v }));
   ligarInterruptor(aceleracaoInput, (v) => ({ aceleracaoHardware: v }));
+  ligarInterruptor(notificacoesInput, (v) => ({ notifications: v }));
+  ligarInterruptor(notificacaoSomInput, (v) => ({ notificacaoSom: v }));
+  // O teste sai mesmo com os avisos desligados (é para ouvir e ver o que o macOS mostra), com o som como estiver marcado.
+  notificacaoTestarBtn.addEventListener("click", () => {
+    notificacaoTesteLinha.textContent = "";
+    void window.meuBot.notifyTest().then(() => { notificacaoTesteLinha.textContent = notificacaoSomInput.checked ? "Aviso enviado, com som." : "Aviso enviado, em silêncio."; })
+      .catch((err: unknown) => { notificacaoTesteLinha.textContent = `Não saiu: ${ipcErrorText(err)}`; });
+  });
   window.meuBot.on("update:state", paintUpdateState);
   updateSoltarBtn.addEventListener("click", () => {
     updateSoltarBtn.disabled = true;

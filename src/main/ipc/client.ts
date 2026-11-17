@@ -44,7 +44,7 @@ async function rememberClaudeSession(conv: { id: string; host: string; claude?: 
   if (ref !== null && (conv.claude === undefined || conv.claude.sessionId !== ref.sessionId)) { conv.claude = ref; persistConversations(); }
   return ref ?? conv.claude ?? null;
 }
-import { getHostNames, isBackendModel } from "../app/settings";
+import { getHostNames, getNotificacaoSom, isBackendModel } from "../app/settings";
 import { objectiveInfo, resetObjective, saveObjectiveSkill, setObjective } from "../agente/objetivo";
 import { crmInfo, crmTest, resetCrm, setCrm } from "../crm/crm";
 import { toggleQuickEntry } from "../app/quickEntry";
@@ -746,7 +746,7 @@ export function registerClientIpc(): void {
   handleClient("ui:notify-test", (event) => {
     const h = hostFromEvent(event);
     if (h === null || !Notification.isSupported()) throw new Error("este sistema não mostra notificações");
-    const n = new Notification({ title: "meu-bot", body: "As notificações estão funcionando. Até logo!", silent: false });
+    const n = new Notification({ title: "meu-bot", body: "As notificações estão funcionando. Até logo!", silent: !getNotificacaoSom() });
     n.on("click", () => { notificacaoClicada(); h.win.show(); h.win.focus(); });
     n.show();
   });
@@ -773,7 +773,7 @@ export function registerClientIpc(): void {
     const n = new Notification({
       title: typeof p.title === "string" ? p.title.slice(0, 80) : "meu-bot",
       body: typeof p.body === "string" ? p.body.slice(0, 200) : "",
-      silent: false,
+      silent: !getNotificacaoSom(),
     });
     liveNotifications.add(n);
     const done = (): void => { liveNotifications.delete(n); };
