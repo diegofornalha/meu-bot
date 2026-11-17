@@ -112,6 +112,12 @@ export function faltasParaPublicar({ produtos, existe, notas }) {
   if (temAdmin && !existe("build/suporte/admins.json") && !existe("build/suporte/suporte.json")) {
     erros.push("falta build/suporte/ (o meu-bot-admin sairia sem o suporte.json): copie do checkout principal ou rode scripts/suporte-setup.mjs");
   }
+  // Produto que sai para Windows precisa do .ico ao lado do .icns: sem ele o empacotamento falharia no meio da release.
+  for (const p of produtos) {
+    if (p.windows !== true) continue;
+    const ico = p.icone.replace(/\.icns$/, ".ico");
+    if (!existe(ico)) erros.push(`falta ${ico} (o instalador Windows do ${p.nome}): rode npm run icons`);
+  }
   if (notas === null) avisos.push('docs/CHANGELOG.md sem "Ainda não lançado" com conteúdo: a release sairia com a lista de commits do GitHub');
   return { erros, avisos };
 }

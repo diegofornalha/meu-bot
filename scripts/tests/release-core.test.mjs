@@ -76,6 +76,15 @@ test("instalador .dmg: só o app das pessoas, nos dois canais (nem admin nem fin
   assert.deepEqual(PRODUTOS.filter((p) => p.instalador).map((p) => p.variant).sort(), ["client", "client-staging"]);
 });
 
+test("faltasParaPublicar: produto que sai para Windows sem o .ico para a release; com ele, ou sem Windows, segue", () => {
+  const win = { nome: "meu-bot-staging", icone: "assets/icon-staging.icns", windows: true, caps: {} };
+  const semIco = faltasParaPublicar({ produtos: [win], existe: () => false, notas: "- x" });
+  assert.equal(semIco.erros.length, 1);
+  assert.match(semIco.erros[0], /assets\/icon-staging\.ico/);
+  assert.deepEqual(faltasParaPublicar({ produtos: [win], existe: (c) => c === "assets/icon-staging.ico", notas: "- x" }).erros, []);
+  assert.deepEqual(faltasParaPublicar({ produtos: [{ ...win, windows: false }], existe: () => false, notas: "- x" }).erros, []);
+});
+
 test("faltasParaPublicar (--conferir): admin sem build/suporte para; notas vazias só avisam", () => {
   const admin = { nome: "meu-bot-admin-gestao", caps: { supportAdmin: true } };
   const app = { nome: "meu-bot", caps: { supportAdmin: false } };

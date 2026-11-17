@@ -9,8 +9,10 @@ const { configDoInstalador, nomeDoInstalador } = await import("../instalador-win
 const { montarIco } = await import("../icon.mjs");
 const staging = PRODUTOS.find((p) => p.variant === "client-staging");
 
-test("instalador: nome com app, versão e arquitetura", () => {
+test("instalador: nome com app, versão e arquitetura, o mesmo que o atualizador do Windows procura", () => {
   assert.equal(nomeDoInstalador("meu-bot-staging", "0.84.0-staging.3"), "meu-bot-staging-0.84.0-staging.3-x64-setup.exe");
+  const { assetName } = createRequire(import.meta.url)("../../dist/main/atualizacao/updater-core.js");
+  for (const [app, v] of [["meu-bot-staging", "0.84.0-staging.3"], ["meu-bot", "1.2.3"]]) assert.equal(nomeDoInstalador(app, v), assetName(app, v, "x64", "win32"));
 });
 
 test("instalador: por usuário, x64, com a versão pedida e sem regravar o executável", () => {
