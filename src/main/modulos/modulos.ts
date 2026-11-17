@@ -20,7 +20,7 @@ import { runSsh } from "../whatsapp/whatsapp";
 import { WA_MOTOR_SH } from "../whatsapp/whatsapp-capacidades";
 import { lerValoresPlanilha } from "../google/planilha";
 import { idDaPlanilha } from "../google/planilha-core";
-import { lerRespostaPlanilha, origemForward, paginaStatusSh, parsePaginaStatus, particaoModulo, tokenSh, urlPagina } from "./modulos-pagina-core";
+import { fraseSemRespostaDoModulo, lerRespostaPlanilha, origemForward, paginaStatusSh, parsePaginaStatus, particaoModulo, tokenSh, urlPagina } from "./modulos-pagina-core";
 import { ensureForwardExtra } from "../maquina/tunnel";
 import { LOCAL_HOST } from "../maquina/localBackend";
 import { MODULOS_DIR, ambienteSh, credenciaisSh, desatualizado, estadoSh, lerTeste, mesclarOpcoes, opcoesSh, parseEstado, parseManifesto } from "./modulos-core";
@@ -355,7 +355,7 @@ export async function planilhaParaModulo(host: string, id: string, p: { link: st
   const valores = await lerValoresPlanilha(host, planilha, aba);
   // `redirect: "error"`: o token da instalação vai só ao serviço do módulo, nunca atrás de um 3xx para outro destino.
   // Sem resposta HTTP (o serviço parou, o túnel caiu, passou de 60 s, ou veio um redirecionamento), o fetch lança em
-  // inglês: a pessoa recebe a frase do que fazer.
+  // inglês: a pessoa recebe a frase do que houve (fraseSemRespostaDoModulo).
   let r: Response;
   try {
     r = await fetch(`${reg.origem}/__meu-bot/planilha`, {
@@ -365,7 +365,7 @@ export async function planilhaParaModulo(host: string, id: string, p: { link: st
       body: JSON.stringify({ valores, fonte: `sheets:${planilha}${aba ? `:${aba}` : ""}`, tipo: p.tipo, simular: p.simular }),
       signal: AbortSignal.timeout(60_000),
     });
-  } catch { throw new Error("o módulo não respondeu (o serviço parou ou o túnel caiu); abra a página do módulo de novo"); }
+  } catch (e) { throw new Error(fraseSemRespostaDoModulo(e)); }
   const j = (await r.json().catch(() => null)) as { error?: { message?: string } } | null;
   if (!r.ok) throw new Error(j?.error?.message ?? `o módulo respondeu ${r.status}`);
   const out = lerRespostaPlanilha(j);

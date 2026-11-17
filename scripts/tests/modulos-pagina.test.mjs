@@ -100,3 +100,18 @@ test("auditoria: a prévia da planilha e a importação têm cada uma o seu text
   assert.equal(textoDaLinha({ acao: "modulo.planilha-previa", alvo: "financas", detalhe: "" }), "leu uma planilha do Google para a prévia do módulo financas");
   assert.equal(textoDaLinha({ acao: "modulo.planilha", alvo: "financas", detalhe: "" }), "importou uma planilha do Google no módulo financas");
 });
+
+test("fraseSemRespostaDoModulo: tempo esgotado, redirecionamento barrado e sem conexão dizem coisas diferentes (com o fetch de verdade)", async () => {
+  const http = require("node:http");
+  const srv = http.createServer((req, res) => { if (req.url === "/redir") { res.writeHead(302, { location: "http://127.0.0.1:1/x" }); res.end(); } /* /lento nunca responde */ });
+  const porta = await new Promise((ok) => srv.listen(0, "127.0.0.1", () => ok(srv.address().port)));
+  const erroDe = async (url, ms) => { try { await fetch(url, { method: "POST", redirect: "error", signal: AbortSignal.timeout(ms) }); return null; } catch (e) { return e; } };
+  try {
+    assert.match(P.fraseSemRespostaDoModulo(await erroDe(`http://127.0.0.1:${porta}/redir`, 2000)), /tentou redirecionar/);
+    assert.match(P.fraseSemRespostaDoModulo(await erroDe(`http://127.0.0.1:${porta}/lento`, 200)), /demorou mais de 60 s/);
+  } finally { srv.closeAllConnections(); await new Promise((ok) => srv.close(ok)); }
+  // Sem conexão: o erro é montado à mão (é o que o fetch lança com a porta fechada). Conectar de verdade numa porta
+  // recém-liberada falharia de vez em quando: o sistema pode entregá-la a outro teste que roda ao mesmo tempo.
+  assert.match(P.fraseSemRespostaDoModulo(new TypeError("fetch failed", { cause: Object.assign(new Error("connect ECONNREFUSED 127.0.0.1:9"), { code: "ECONNREFUSED" }) })), /não respondeu \(o serviço parou ou o túnel caiu\)/);
+  assert.match(P.fraseSemRespostaDoModulo("qualquer coisa"), /não respondeu/);
+});
