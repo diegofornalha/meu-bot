@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync } from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
+import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, readdirSync, symlinkSync, unlinkSync } from "node:fs";
+import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -20,10 +21,28 @@ test("instalador antigo do financeiro: com o módulo Finanças ligado (marcador 
   assert.equal(existsSync(join(HOME, ".claude/skills/finance-api/SKILL.md")), false, "a skill antiga não é instalada");
 });
 
-test("backend: com o marcador, /v1/finance responde 409 finance_modulo antes de abrir o db, e as pontes com o CRM param", () => {
-  const s = readFileSync(join(RAIZ, "server.js"), "utf8");
-  const rota = s.indexOf("financeEhModulo()) return json(res, 409");
-  const api = s.indexOf("financeApi().handle(req, res, url)");
-  assert.ok(rota > 0 && rota < api, "a recusa vem antes da API do financeiro");
-  assert.equal((s.match(/!licenca\.crmOk\(lic\) \|\| financeEhModulo\(\)\) return;/g) ?? []).length, 2, "as duas pontes com o CRM conferem o marcador");
+test("backend de verdade: com o marcador, /v1/finance responde 409 finance_modulo sem abrir o db; sem ele, volta ao normal", async () => {
+  // O server.js lê o .env da própria pasta: uma pasta temporária com links para os fontes e um .env com porta livre.
+  const dir = mkdtempSync(join(tmpdir(), "fin-srv-"));
+  for (const f of readdirSync(RAIZ)) if (/\.(js|mjs|json|py)$/.test(f)) symlinkSync(join(RAIZ, f), join(dir, f));
+  const porta = await new Promise((r) => { const s = createServer().listen(0, "127.0.0.1", () => { const p = s.address().port; s.close(() => r(p)); }); });
+  writeFileSync(join(dir, ".env"), `PORT=${porta}\nHOST=127.0.0.1\nOPENAI_COMPAT_KEY=chave-teste\n`);
+  const HOME = mkdtempSync(join(tmpdir(), "fin-home-"));
+  const fin = join(HOME, ".local/share/meu-bot/finance");
+  mkdirSync(fin, { recursive: true });
+  writeFileSync(join(fin, "MODULO"), "financas\n");
+  const srv = spawn(process.execPath, ["--preserve-symlinks", "--preserve-symlinks-main", join(dir, "server.js")], { env: { ...process.env, HOME }, stdio: ["ignore", "pipe", "pipe"] });
+  try {
+    await new Promise((ok, falha) => { const t = setTimeout(() => falha(new Error("o server.js não subiu")), 15_000); srv.stdout.on("data", (d) => { if (String(d).includes("ouvindo em")) { clearTimeout(t); ok(); } }); });
+    const get = async () => { const r = await fetch(`http://127.0.0.1:${porta}/v1/finance/estado`, { headers: { authorization: "Bearer chave-teste" } }); return { status: r.status, j: await r.json() }; };
+    const com = await get();
+    assert.equal(com.status, 409);
+    assert.equal(com.j.error.code, "finance_modulo");
+    assert.match(com.j.error.message, /módulo Finanças/);
+    assert.equal(existsSync(join(fin, "db")), false, "a API antiga não abriu o db");
+    unlinkSync(join(fin, "MODULO"));
+    const sem = await get();
+    assert.notEqual(sem.status, 409, "sem o marcador, a API antiga volta (aqui sem licença: 403)");
+    assert.equal(sem.j.error.code, "finance_license");
+  } finally { srv.kill(); }
 });

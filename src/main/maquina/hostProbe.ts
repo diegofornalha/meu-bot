@@ -589,6 +589,8 @@ export async function installFinance(host: string, onLine?: (line: string) => vo
   if (scp2.code !== 0) return { ok: false, log: [...lines, `scp falhou: ${lastLine(scp2.stderr)}`] };
   say("rodando o instalador…");
   const inst = await run("ssh", [...sshBase(host), "--", host, `bash ${stageDe("financeiro")}/install-finance.sh 2>&1`], 4 * 60_000, say);
+  // 4 = a máquina usa o módulo Finanças (marcador finance/MODULO): o instalador antigo não mexe, e isso não é defeito.
+  if (inst.code === 4) return { ok: false, log: [...lines, "o Financeiro desta máquina é o módulo Finanças: ligue, atualize ou desligue pela página Módulos"] };
   if (inst.code !== 0) return { ok: false, log: [...lines, `instalador saiu com código ${inst.code ?? "timeout"}`] };
   return { ok: true, log: lines };
 }
