@@ -5,7 +5,7 @@
  * O release publica `meu-bot-<versão>-arm64.zip` (scripts/release.mjs); o site não sabe a versão, pergunta à API do
  * GitHub (cache de 10 min no edge: o limite anônimo é 60 pedidos/hora por IP) e manda a pessoa direto ao asset.
  */
-export interface DownloadMac { versao: string; url: string; tamanho: number; publicadoEm: string; nome: string }
+export interface DownloadMac { versao: string; url: string; tamanho: number; publicadoEm: string; nome: string; /** SHA-256 do arquivo (o `digest` do GitHub), quando informado. */ sha256?: string }
 
 export const REPO = "diegofornalha/meu-bot";
 export type CanalSite = "producao" | "staging";
@@ -78,10 +78,13 @@ export function escolherWindows(releases: unknown): DownloadMac | null {
     if (!Array.isArray(assets)) continue;
     for (const a of assets) {
       if (a === null || typeof a !== "object") continue;
-      const x = a as { name?: unknown; browser_download_url?: unknown; size?: unknown };
+      const x = a as { name?: unknown; browser_download_url?: unknown; size?: unknown; digest?: unknown };
       if (typeof x.name !== "string" || typeof x.browser_download_url !== "string") continue;
       const m = WINDOWS_RE.exec(x.name);
-      if (m !== null) return { versao: m[1]!, url: x.browser_download_url, tamanho: typeof x.size === "number" ? x.size : 0, publicadoEm: typeof published_at === "string" ? published_at : "", nome: x.name };
+      if (m === null) continue;
+      // O GitHub informa o hash do arquivo em `digest` ("sha256:<64 hex>"): a página o mostra para a pessoa conferir o download.
+      const hash = typeof x.digest === "string" ? /^sha256:([0-9a-f]{64})$/.exec(x.digest)?.[1] : undefined;
+      return { versao: m[1]!, url: x.browser_download_url, tamanho: typeof x.size === "number" ? x.size : 0, publicadoEm: typeof published_at === "string" ? published_at : "", nome: x.name, ...(hash === undefined ? {} : { sha256: hash }) };
     }
   }
   return null;

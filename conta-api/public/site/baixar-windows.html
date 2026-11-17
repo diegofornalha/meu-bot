@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Baixar o meu-bot para Windows (versão de teste)</title>
-  <meta name="description" content="Versão de teste do meu-bot para Windows de 64 bits: o app conecta numa máquina remota por SSH. Instalador ainda sem assinatura da Microsoft.">
+  <title>Versão de teste para Windows (cliente de VPS) · meu-bot</title>
+  <meta name="description" content="Versão de teste do meu-bot para Windows 10 e 11 de 64 bits: cliente de uma máquina remota (VPS) por SSH. Não roda o agente no próprio computador. Instalador ainda sem assinatura da Microsoft.">
   <meta name="robots" content="noindex, nofollow">
   <link rel="icon" href="/site/icone.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/site/site.css">
@@ -23,8 +23,9 @@
 
   <main class="legal">
     <p class="meta"><a href="/">Início</a> › Baixar o meu-bot para Windows</p>
-    <h1>Baixar o meu-bot para Windows</h1>
-    <p>Esta é a <strong>versão de teste</strong> do meu-bot para Windows. Ela sai junto com cada versão de teste do Mac e ainda não tem tudo o que o app do Mac tem: no Windows o meu-bot conecta numa máquina remota (uma VPS, por exemplo) por SSH e conversa com o agente que roda lá.</p>
+    <h1>Versão de teste para Windows (cliente de VPS)</h1>
+    <p>Esta é a <strong>versão de teste</strong> do meu-bot para Windows 10 e 11 de 64 bits. No Windows o app é o <strong>cliente de uma máquina remota</strong> (uma VPS, por exemplo): ele conecta por SSH e você conversa com o agente que roda lá.</p>
+    <p><strong>O que ela não faz:</strong> não roda o agente no seu próprio computador e não tem o Navegador, o Gmail nem o painel Computador do app do Mac. Se você quer instalar e usar no próprio computador, hoje isso existe só no <a href="/baixar">Mac</a>.</p>
 
     <p class="acao"><a class="btn btn-primary" href="/download/windows" data-ev="baixar_windows" data-origem="baixar-windows">Baixar para Windows</a></p>
     <p class="meta"><span id="versao-windows"></span></p>
@@ -37,10 +38,16 @@
 
     <h2>Como instalar</h2>
     <ol>
-      <li><strong>Abra o arquivo baixado.</strong> O instalador ainda não tem assinatura da Microsoft, então o Windows mostra o aviso "O Windows protegeu o computador". Clique em <strong>Mais informações</strong> e depois em <strong>Executar assim mesmo</strong>.</li>
+      <li><strong>Abra o arquivo baixado.</strong> O instalador ainda não tem assinatura da Microsoft. Por isso o Windows mostra o aviso "O Windows protegeu o computador", com "Editor desconhecido". Clique em <strong>Mais informações</strong> e depois em <strong>Executar assim mesmo</strong>. O app é feito pela Coflow e o código é aberto.</li>
       <li><strong>Espere a instalação.</strong> Ela é só para a sua conta do Windows e não pede senha de administrador. O meu-bot-staging abre sozinho no fim.</li>
       <li><strong>Escolha a máquina.</strong> O app lista as máquinas do seu <code>.ssh\config</code>; escolha uma e entre com a sua conta.</li>
     </ol>
+
+    <div id="bloco-hash-windows" hidden>
+      <h2>Como conferir o arquivo</h2>
+      <p>O arquivo certo tem este SHA-256. No PowerShell, rode <code>Get-FileHash</code> seguido do caminho do arquivo baixado e compare:</p>
+      <p><code id="hash-windows"></code></p>
+    </div>
 
     <h2>O que ainda não tem no Windows</h2>
     <ul>
@@ -52,6 +59,7 @@
     <p>O app baixa a versão nova sozinho, confere a assinatura do meu-bot e pede para reiniciar. Todas as versões ficam no <a href="https://github.com/diegofornalha/meu-bot/releases" rel="noopener">GitHub</a>.</p>
 
     <p>Procurando a versão para Mac? Ela está em <a href="/baixar">Baixar o meu-bot</a>.</p>
+    <p class="acao"><a class="btn btn-ghost" href="https://wa.me/5521923670743?text=Ol%C3%A1!%20Vim%20pela%20p%C3%A1gina%20do%20Windows%20em%20agentesgrok.com%20e%20tenho%20uma%20d%C3%BAvida." target="_blank" rel="noopener" data-ev="falar_whatsapp" data-origem="baixar-windows">Falar no WhatsApp</a></p>
   </main>
 
   <footer class="rodape">

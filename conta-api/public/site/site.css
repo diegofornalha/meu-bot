@@ -86,3 +86,4 @@ h2 { font-size: 20px; margin: 0 0 12px; }
 .lista-aviso { font-size: 13px; color: var(--sub); margin-top: 8px; }
 .lista-aviso.ok { color: #12824a; }
 .lista-aviso.ruim { color: #b3261e; }
+#hash-windows { word-break: break-all; font-size: 13px; }
