@@ -122,7 +122,7 @@ export interface PickerInit {
   /** Máquinas com o botão "aliviar <host>.app" na área de trabalho. */
   reliefShortcuts: string[];
   /** O que o seletor esconde por capacidade (Capabilities): sem `atalhosMesa`, o botão de atalho de cada linha e o do alívio na mesa. */
-  caps: Pick<Capabilities, "atalhosMesa">;
+  caps: Pick<Capabilities, "atalhosMesa" | "semaforoNaBarra">;
   /** Caixinha "abrir direto": marcada = sem a abertura animada. */
   /** Apelidos das máquinas (host → nome mostrado). */
   names: Record<string, string>;

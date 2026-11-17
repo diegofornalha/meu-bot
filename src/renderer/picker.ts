@@ -92,6 +92,8 @@ const plans = new Map<string, PlanName>((() => {
 })());
 const guardarPlans = (): void => { try { localStorage.setItem(PLANS_KEY, JSON.stringify(Object.fromEntries(plans))); } catch { /* opcional */ } };
 const personOf = (host: string): SupportPerson | undefined => support?.people.find((p) => p.alias === host);
+/** O que a lista diz quando não há máquina nenhuma para escolher. */
+const SEM_MAQUINAS_TEXT = "Nenhuma máquina ainda. Este app conecta numa máquina remota por SSH: adicione a sua ao arquivo config da pasta .ssh do seu usuário e abra o meu-bot de novo.";
 /** Nome na lista: a pessoa (admin) ou a máquina. */
 const rowLabel = (host: string): string => personOf(host)?.name ?? hostLabel(host);
 let openHosts = new Set<string>();
@@ -599,6 +601,7 @@ function init(payload: PickerInit, keepSelected: string | null = null): void {
   shortcuts = new Map(payload.shortcuts.map((s) => [s.host, s.emoji]));
   reliefShortcuts = new Set(payload.reliefShortcuts);
   atalhosMesa = payload.caps.atalhosMesa;
+  document.body.classList.toggle("sem-semaforo", !payload.caps.semaforoNaBarra);
   pods = new Set(payload.pods);
   // Interruptores "Intro" e "Onboarding": ligado = tem. O settings.json guarda o contrário (openDirect, onboarding done).
   directCheck.checked = !payload.openDirect;
@@ -610,6 +613,8 @@ function init(payload: PickerInit, keepSelected: string | null = null): void {
   void window.picker.locais().then((ls) => { let mudou = false; for (const h of ls) if (!locais.has(h)) { locais.add(h); mudou = true; } if (mudou) { pintarTipos(); applyFilter(); } }).catch(() => { /* sem a lista: fica pela sondagem */ });
   // "este Mac" está sempre na lista do admin: sem nenhuma pessoa, o texto de como trazer pessoas vem logo abaixo dele.
   if (support !== null && hosts.every((h) => h === "local")) listEl.append(adminChrome.emptyRow());
+  // Lista vazia de verdade: só acontece onde "este computador" não é oferecido (Windows) e não há máquina no ssh.
+  if (support === null && hosts.length === 0) { const li = document.createElement("li"); li.className = "row empty"; li.textContent = SEM_MAQUINAS_TEXT; listEl.append(li); }
   const wanted = keepSelected !== null && hosts.includes(keepSelected) ? keepSelected : payload.preselect;
   select(wanted !== null && hosts.includes(wanted) ? wanted : (hosts[0] ?? null));
   // A conta acabou de ser preparada: a sondagem guardada dela é de antes (dizia "sem backend, sem login"); vai de novo.

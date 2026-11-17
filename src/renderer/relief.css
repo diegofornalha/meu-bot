@@ -10,6 +10,8 @@ html, body { margin: 0; height: 100%; }
 body { font: 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--fg); display: flex; flex-direction: column; -webkit-app-region: drag; }
 button { -webkit-app-region: no-drag; }
 .head { display: flex; gap: 14px; align-items: center; padding: 44px 24px 10px; }
+/* Fora do macOS a moldura do sistema já ocupa o topo: sem a folga da barra de título escondida. */
+.sem-semaforo .head { padding-top: 16px; }
 .badge { width: 48px; height: 48px; border-radius: 12px; background: hsl(4 75% 48%); display: flex; align-items: center; justify-content: center; font-size: 26px; flex: none; }
 h1 { margin: 0; font-size: 18px; }
 .sub { margin: 2px 0 0; color: var(--muted); font-size: 12px; }

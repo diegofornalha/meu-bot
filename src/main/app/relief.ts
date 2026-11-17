@@ -3,6 +3,8 @@
  * etapas e números de antes/depois, e no fim abre a janela principal da máquina e se fecha. É o que
  * o botão "aliviar grokbot-1.app" da mesa chama, via `--alivio=<host>` (second-instance).
  */
+import { molduraDaJanela } from "./moldura-core";
+import { caps } from "./variant";
 import { app, BrowserWindow, ipcMain, shell } from "electron";
 import { spawn } from "node:child_process";
 import fs from "node:fs";
@@ -130,7 +132,7 @@ export function showRelief(host: string): void {
   if (reliefWin !== null && !reliefWin.isDestroyed()) { reliefWin.show(); reliefWin.focus(); return; }
   const win = new BrowserWindow({
     width: 560, height: 520, resizable: false, minimizable: true, title: `aliviar ${host}`,
-    titleBarStyle: "hiddenInset", backgroundColor: backgroundColor(),
+    ...molduraDaJanela(caps().semaforoNaBarra), backgroundColor: backgroundColor(),
     webPreferences: {
       preload: path.join(__dirname, "..", "..", "preload", "relief-preload.js"),
       contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true, spellcheck: false,
@@ -145,7 +147,7 @@ export function showRelief(host: string): void {
   win.on("closed", () => { if (reliefWin === win) reliefWin = null; });
   win.webContents.once("did-finish-load", () => {
     if (win.isDestroyed()) return;
-    win.webContents.send("relief:event", { kind: "init", host } satisfies ReliefEvent);
+    win.webContents.send("relief:event", { kind: "init", host, semaforoNaBarra: caps().semaforoNaBarra } satisfies ReliefEvent);
     if (!running) void runRelief(host);
   });
   void win.loadFile(path.join(__dirname, "..", "..", "renderer", "relief.html"));

@@ -7,6 +7,7 @@
  */
 import { byId as $ } from "../lib/dom.js";
 import { textoResultado, ATALHOS } from "../lib/busca-core.js";
+import { rotuloTeclas } from "../lib/teclas-core.js";
 
 /** O `<webview>` do Navegador quando ele é quem está em foco; null = a busca é da janela. */
 export type AlvoWebview = {
@@ -81,6 +82,10 @@ export function pararBusca(esconder = true): void {
 
 export const buscaAberta = (): boolean => !barra.hidden;
 
+/** A tecla dos atalhos nesta plataforma (caps.teclaCmd, que o renderer informa ao receber a janela): a folha escreve ⌘ ou Ctrl. */
+let teclaCmd = true;
+export const usarTeclaCmd = (cmd: boolean): void => { teclaCmd = cmd; };
+
 /** A folha de atalhos (Cmd+/). Desenhada uma vez: a lista é fixa. */
 export function abrirAtalhos(): void {
   if (folha.open) { folha.close(); return; }
@@ -90,7 +95,7 @@ export function abrirAtalhos(): void {
       const h = document.createElement("h3"); h.textContent = g.titulo; sec.append(h);
       const dl = document.createElement("dl");
       for (const a of g.atalhos) {
-        const dt = document.createElement("dt"); dt.textContent = a.teclas;
+        const dt = document.createElement("dt"); dt.textContent = rotuloTeclas(a.teclas, teclaCmd);
         const dd = document.createElement("dd"); dd.textContent = a.o_que;
         dl.append(dt, dd);
       }

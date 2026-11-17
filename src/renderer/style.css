@@ -77,6 +77,9 @@ body.dragging webview, body.dragging .term-box, body.dragging iframe { pointer-e
   padding: 10px 14px 10px calc(86px / var(--zoom-factor, 1)); min-height: calc(40px / var(--zoom-factor, 1));
   border-bottom: 1px solid var(--line); background: var(--card); position: relative;
 }
+/* Fora do macOS (caps.semaforoNaBarra falso) a janela usa a moldura do sistema: a barra não guarda a folga dos semáforos. */
+.sem-semaforo .topbar { padding-left: 14px; }
+.sem-semaforo .topbar-mini { padding-left: 10px; }
 /* Barra estreita (em CSS px, então o zoom já entra na conta): primeiro somem os avisos, depois o ⌘K. */
 @media (max-width: 700px) { .topbar #update-check-dot, .topbar #plan-badge, .topbar #dep-badge, .topbar #app-version { display: none !important; } }
 @media (max-width: 560px) { .topbar #btn-palette { display: none !important; } }

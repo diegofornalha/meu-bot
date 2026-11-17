@@ -5,6 +5,7 @@
  * ~/.ssh/config, com instalar o backend, sincronizar o ~/.ssh/config, renomear e remover; no meu-bot-admin
  * (admin/picker-source.ts) a lista são as pessoas do suporte. Os handlers comuns ficam em initPicker.
  */
+import { molduraDaJanela } from "../app/moldura-core";
 import { caps } from "../app/variant";
 import type { MainEventChannel, MainEvents } from "../../shared/ipc";
 import { contaEntrada } from "../conta/conta";
@@ -256,7 +257,7 @@ function initPayload(): PickerInit {
     shortcuts: caps().atalhosMesa ? hosts.filter(hasShortcut).map((h) => ({ host: h, emoji: shortcutEmoji(h) })) : [],
     pods: hosts.filter(isPodHost),
     reliefShortcuts: caps().atalhosMesa ? hosts.filter(hasReliefShortcut) : [],
-    caps: { atalhosMesa: caps().atalhosMesa },
+    caps: { atalhosMesa: caps().atalhosMesa, semaforoNaBarra: caps().semaforoNaBarra },
     openDirect: getOpenDirect(),
     names: getHostNames(),
     onboardingDone: isOnboardingDone(),
@@ -537,7 +538,7 @@ export function showPicker(opts: { error?: string; preselect?: string } = {}): v
     ...posicaoNoCanto(area, MIN_WINDOW_WIDTH),
     minWidth: 460, minHeight: 420, resizable: true,
     title: current().title,
-    titleBarStyle: "hiddenInset",
+    ...molduraDaJanela(caps().semaforoNaBarra),
     backgroundColor: backgroundColor(),
     webPreferences: {
       preload: path.join(__dirname, "..", "..", "preload", "picker-preload.js"),

@@ -5,6 +5,7 @@ import type { PageTab } from "../lib/pages-types.js";
 import { hostLabel } from "../lib/probe-text.js";
 import { xtermTheme, shellBlockToPaste } from "../lib/terminal.js";
 import { ctx } from "../app/ctx.js";
+import { temTeclaDoApp } from "../lib/teclas-core.js";
 
 /* ---------- Terminal: abas com xterm.js; o PTY roda na máquina da janela (pty-broker.py por ssh) ---------- */
 export type XTermCtor = typeof import("@xterm/xterm").Terminal;
@@ -73,8 +74,9 @@ function renderTerminal(t: TermTab): void {
     term.open(t.box);
     try { const gl = new window.WebglAddon.WebglAddon(); gl.onContextLoss(() => gl.dispose()); term.loadAddon(gl); } catch { /* fica no renderer DOM */ }
     // Cmd+K/N/B/W/J/F e o zoom da janela (Cmd+=/-/0) são do app; o resto (inclusive Ctrl+*) é do shell. Cmd+C sem seleção vira ^C.
+    // Sem a ⌘ (caps.teclaCmd falso), os do app aqui dentro são Ctrl+Shift+tecla (teclas-core.ts).
     term.attachCustomKeyEventHandler((ev) => {
-      if (ev.metaKey && ["k", "n", "b", "w", "j", "f", "=", "+", "-", "0"].includes(ev.key.toLowerCase())) { if (ev.key.toLowerCase() === "f" && ev.type === "keydown") { ev.preventDefault(); termSearch(t); } return false; }
+      if (temTeclaDoApp(ev, ctx.caps.teclaCmd, true) && ["k", "n", "b", "w", "j", "f", "=", "+", "-", "0"].includes(ev.key.toLowerCase())) { if (ev.key.toLowerCase() === "f" && ev.type === "keydown") { ev.preventDefault(); termSearch(t); } return false; }
       return true;
     });
     term.onData((d) => { if (t.id !== null) window.meuBot.termInput(t.id, d); });
