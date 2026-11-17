@@ -156,7 +156,7 @@ let waGuidePairNote: string | null = null;
 function runGuideAction(target: GuideTarget, t: Tutorial): void {
   if (target === "none") return;
   if (target === "chat") {
-    if (t.id === "navegador") { if (!ctx.navAgent.on) void window.meuBot.browserAgent(true).then((st) => { ctx.navAgent = st; ctx.paintNav(); }); void ctx.goToChatFromGuide("Abra o site https://google.com no meu navegador e me diga o título da página.", "O agente vai abrir a página na aba Navegador e cada ação aparece aqui com 🌐; quando ele responder, o tutorial se conclui sozinho."); return; }
+    if (t.id === "navegador") { if (ctx.caps.agenteNavegador && !ctx.navAgent.on) void window.meuBot.browserAgent(true).then((st) => { ctx.navAgent = st; ctx.paintNav(); }); void ctx.goToChatFromGuide("Abra o site https://google.com no meu navegador e me diga o título da página.", "O agente vai abrir a página na aba Navegador e cada ação aparece aqui com 🌐; quando ele responder, o tutorial se conclui sozinho."); return; }
     if (t.id === "xai-login") {
       // O passo 3 só aparece com o Grok preparado e a xAI logada, mas a promessa do grok-4 não sai sem os dois (sem o proxy o backend nem conhece o grok-4).
       const x = ctx.guideCtx().xai;

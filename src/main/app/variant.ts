@@ -24,7 +24,7 @@ export function appVariant(): AppVariant {
 
 export const appTitle = (): string => titleFor(appVariant());
 export const userDataName = (): string | null => userDataNameFor(appVariant());
-export const caps = (): Capabilities => capsFor(appVariant(), app.getVersion());
+export const caps = (): Capabilities => capsFor(appVariant(), app.getVersion(), process.platform);
 export const produto = (): Produto => produtoDe(appVariant());
 
 /** Commit e branch de onde este build saiu (`scripts/package.mjs` grava Resources/build.json); em dev, "dev". */

@@ -27,7 +27,7 @@ import { limparSessaoAntiga, pararInspector } from "./inspector/inspector";
 import { getBackendPort, getControleRemoto, guardarAntesDeVoltar } from "./app/settings";
 import { installAppMenu, refreshAppMenu } from "./app/menu";
 import { changeWindowZoom } from "./app/zoom";
-import { clientPickerSource, initPicker, seletorPodeAbrirAgora, showPicker } from "./maquina/picker";
+import { clientPickerSource, hostPadraoAtual, initPicker, seletorPodeAbrirAgora, showPicker } from "./maquina/picker";
 import { registerUsuariosMacIpc, showUsuariosMac } from "./usuarios-mac/usuarios-mac-janela";
 import { hostFromArgv, reliefHostFromArgv } from "./app/shortcuts";
 import { initRelief, showRelief } from "./app/relief";
@@ -78,7 +78,7 @@ function openFromArgs(argv: readonly string[]): void {
   if (host === null) { showPicker(); return; }
   // Portão da conta: sem sessão neste Mac, o atalho da mesa cai no seletor (que abre no cartão de login).
   if (!contaEntrada()) { showPicker({ preselect: host }); return; }
-  if (host !== LOCAL_HOST && !listSshHosts().includes(host)) { showPicker({ error: `A máquina "${host}" do atalho não está no ~/.ssh/config.`, preselect: host }); return; }
+  if ((host !== LOCAL_HOST || !caps().hostLocal) && !listSshHosts().includes(host)) { showPicker({ error: `A máquina "${host}" do atalho não está no ~/.ssh/config.`, preselect: host }); return; }
   setLastHost(host);
   openMainWindow(host, "shortcut");
 }
@@ -136,10 +136,10 @@ app.whenReady().then(() => {
   // caíram e refaz a checagem de atualização se ela falhou por rede.
   initNet();
   installBrowserHooks();
-  void startTermApi().catch((e: unknown) => { log(`[terminal] controle local não subiu: ${e instanceof Error ? e.message : String(e)}`); });
+  if (caps().controleRemoto) void startTermApi().catch((e: unknown) => { log(`[terminal] controle local não subiu: ${e instanceof Error ? e.message : String(e)}`); });
   // Controle remoto (MCP): só se a pessoa ligou em Configurações; porta ocupada fica como erro no estado, não derruba nada.
   if (caps().inspector) limparSessaoAntiga(); // execução anterior que caiu: a chave do MCP não fica no disco
-  if (getControleRemoto().ligado) void startControleRemoto().catch((e: unknown) => { log(`[mcp] não subiu: ${e instanceof Error ? e.message : String(e)}`); });
+  if (caps().controleRemoto && getControleRemoto().ligado) void startControleRemoto().catch((e: unknown) => { log(`[mcp] não subiu: ${e instanceof Error ? e.message : String(e)}`); });
   onBackOnline(() => {
     markSuspect(); void revalidate();
     const hosts = new Set(allMainWindows().map((w) => hostOfWindow(w)).filter((h): h is string => h !== undefined && h !== LOCAL_HOST));
@@ -152,7 +152,8 @@ app.whenReady().then(() => {
   if (caps().chat) {
     setQuickEntryStatusProvider(quickEntryStatus);
     initQuickEntry({
-      mainWindow: () => lastFocusedWindow() ?? openMainWindow(getLastFocusedHost() ?? getLastHost() ?? LOCAL_HOST, "quick"),
+      // Sem janela e sem máquina nenhuma (só onde o host "local" não é oferecido): o seletor abre no lugar.
+      mainWindow: () => { const w = lastFocusedWindow(); if (w !== null) return w; const host = getLastFocusedHost() ?? getLastHost() ?? hostPadraoAtual(); if (host === null) { showPicker(); return null; } return openMainWindow(host, "quick"); },
       hostLabel: (win) => { const h = hostOfWindow(win) ?? "?"; return h === LOCAL_HOST ? "este Mac" : h; },
     });
     const qe = getQuickEntry();

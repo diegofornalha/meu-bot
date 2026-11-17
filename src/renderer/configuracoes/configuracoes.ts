@@ -8,7 +8,7 @@ import { aoMudarConta, blocoConta, contaAtual } from "../conta/conta.js";
 
 function openSettings(): void {
   if (ctx.dialog.open) return;
-  ctx.paintSupport(); void ctx.refreshSupportState(); void loadAlertPrefs(); paintEspaco(ctx.account?.cota); carregarControleRemoto();
+  ctx.paintSupport(); void ctx.refreshSupportState(); void loadAlertPrefs(); paintEspaco(ctx.account?.cota); if (ctx.caps.controleRemoto) carregarControleRemoto();
   void window.meuBot.updateState().then(ctx.paintUpdateState).catch(() => undefined);
   ctx.settingsError.hidden = true;
   for (const g of ctx.settingsGroups) g.open = false;

@@ -4,8 +4,9 @@
  * meu-bot-crm: `caps.chat`) os de admin recusam. O mesmo canal registrado duas vezes acusa na subida, em vez do erro opaco do Electron.
  */
 import { ipcMain } from "electron";
-import { ADMIN_READONLY_MSG, NOT_ADMIN_MSG, type AdminChannel, type ClientChannel, type MacChannel, type SharedChannel } from "./ipc-policy";
+import { ADMIN_READONLY_MSG, NOT_ADMIN_MSG, SEM_CAPACIDADE_MSG, type AdminChannel, type ClientChannel, type MacChannel, type SharedChannel } from "./ipc-policy";
 import { caps } from "../app/variant";
+import type { CapDePlataforma } from "../app/variant-core";
 
 export type InvokeHandler = (event: Electron.IpcMainInvokeEvent, payload: unknown) => unknown;
 export type EventHandler = (event: Electron.IpcMainEvent, payload: unknown) => void;
@@ -26,6 +27,8 @@ export const handleAdmin = (channel: AdminChannel, fn: InvokeHandler): void =>
 /** Contas deste Mac: só no meu-bot-admin-mac. */
 export const handleMac = (channel: MacChannel, fn: InvokeHandler): void =>
   register(channel, caps().usuariosMac ? fn : refusing(NOT_ADMIN_MSG));
+/** Handler que só vale com a capacidade de plataforma (caps().atalhosMesa, controleRemoto…); sem ela recusa, como os de variante: botão escondido não é portão. */
+export const exigeCap = (cap: CapDePlataforma, fn: InvokeHandler): InvokeHandler => (caps()[cap] ? fn : refusing(SEM_CAPACIDADE_MSG));
 /** `ipcMain.on` (sem resposta), só para canais comuns. */
 export const onShared = (channel: SharedChannel, fn: EventHandler): void => { ipcMain.on(channel, fn); };
 /** `ipcMain.on` (sem resposta) só no app da pessoa; no admin o evento é ignorado. */

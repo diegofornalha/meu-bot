@@ -14,6 +14,7 @@ import { isGmailAgentHost, setGmailAgentHost } from "../app/settings";
 import { registrarAcao } from "../app/depuracao";
 import { sendToHost } from "../app/windows";
 import { assertAcesso } from "../licenca/acesso";
+import { caps } from "../app/variant";
 import { log, onReverseState, onTunnelState, reversePort, setReverseWanted } from "../maquina/tunnel";
 import { DONO_LEGADO, parseDono, type Dono } from "../navegador/nav-donos-core";
 import type { GmailAgenteState } from "../../shared/ipc";
@@ -127,7 +128,7 @@ export const gmailAgenteInfo = (host: string): GmailAgenteState => agentState.ge
 export const gmailAgentePort = (host: string): number | null => (agentOn.has(host) ? reversePort(host, CHAVE) : null);
 /** Religa sozinho: chave lembrada + conta conectada. A página chama ao abrir; o túnel chama ao ficar pronto. */
 export async function gmailAgenteReligar(host: string): Promise<void> {
-  if (!isGmailAgentHost(host) || agentOn.has(host) || !contaStatus(host).conectado) return;
+  if (!caps().agenteNavegador || !isGmailAgentHost(host) || agentOn.has(host) || !contaStatus(host).conectado) return;
   // Mesmo portão do botão: sem o Pro na máquina a ponte não sobe sozinha (o botão explica, a página mostra o bloqueio).
   try { await assertAcesso(host); } catch { return; }
   if (agentOn.has(host)) return;

@@ -28,7 +28,7 @@ import { controlDir } from "../app/control-dir";
 import { allMainWindows, broadcast, hostOfWindow, lastFocusedWindow, openMainWindow, sendWhenLoaded, windowForHost } from "../app/windows";
 import { setLastHost, settingsView, updateSettings } from "../app/settings";
 import { isTheme } from "../app/settings-normalize";
-import { appTitle, produto } from "../app/variant";
+import { appTitle, caps, produto } from "../app/variant";
 import { LOCAL_HOST } from "../maquina/localBackend";
 import { listSshHosts } from "../maquina/sshConfig";
 import { PAGINAS_APP } from "../controle-remoto/controle-remoto-core";
@@ -141,11 +141,11 @@ async function act(route: string, b: Req, dono: Dono): Promise<unknown> {
     // O app em si (as mesmas ações do Remote Control do Rambox: estado, janela, página, tema, print).
     case "/app": {
       const foco = lastFocusedWindow();
-      return { app: appTitle().replace(/\s.*$/, ""), variante: produto().variant, versao: app.getVersion(), tema: settingsView().theme, janelas: allMainWindows().map((w) => ({ maquina: hostOfWindow(w), foco: w === foco })), maquinas: [LOCAL_HOST, ...listSshHosts()] };
+      return { app: appTitle().replace(/\s.*$/, ""), variante: produto().variant, versao: app.getVersion(), tema: settingsView().theme, janelas: allMainWindows().map((w) => ({ maquina: hostOfWindow(w), foco: w === foco })), maquinas: [...(caps().hostLocal ? [LOCAL_HOST] : []), ...listSshHosts()] };
     }
     case "/janela": {
       const host = typeof b.maquina === "string" ? b.maquina : "";
-      if (host !== LOCAL_HOST && !listSshHosts().includes(host)) throw new Error(`a máquina "${host}" não está no ~/.ssh/config (use "local" para este Mac); veja /app`);
+      if ((host !== LOCAL_HOST || !caps().hostLocal) && !listSshHosts().includes(host)) throw new Error(`a máquina "${host}" não está no ~/.ssh/config (use "local" para este Mac); veja /app`);
       setLastHost(host);
       const existia = windowForHost(host) !== undefined;
       openMainWindow(host, "menu");

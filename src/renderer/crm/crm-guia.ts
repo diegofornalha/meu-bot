@@ -171,7 +171,7 @@ export function renderCrmConfig(container: HTMLElement): void {
     const btn = el("button", "btn btn-ghost btn-small", "Pedir ao agente para gerar a chave"); btn.type = "button"; btn.disabled = crmBusy || navInstState !== true;
     btn.title = navInstState === true ? "Abre a conversa com o Navegador ligado para o agente: ele cria a chave no Streak e guarda na máquina, sem mostrar" : "Antes, conclua o tutorial do Navegador (o agente precisa dele)";
     btn.addEventListener("click", () => {
-      if (!ctx.navAgent.on) void window.meuBot.browserAgent(true).then((s) => { ctx.navAgent = s; ctx.paintNav(); });
+      if (ctx.caps.agenteNavegador && !ctx.navAgent.on) void window.meuBot.browserAgent(true).then((s) => { ctx.navAgent = s; ctx.paintNav(); });
       void ctx.goToChatFromGuide(CRM_KEY_PROMPT, "O agente abre o Gmail na aba Navegador, cria a chave no Streak e guarda na máquina; quando o `chave-set` responder, o passo se conclui aqui sozinho.");
     });
     ag.append(btn, el("span", "hint", "precisa da conta do Google logada na aba Navegador"));

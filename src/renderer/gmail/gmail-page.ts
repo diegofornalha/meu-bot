@@ -33,6 +33,8 @@ export interface GmailDeps {
   licenseKnown: () => boolean;
   planoExigido: PlanName;
   produto: string;
+  /** caps.agenteNavegador: sem ela o cartão "Agente do chat" não aparece e a página não pergunta pela ponte. */
+  agente: boolean;
   api: Pick<MeuBotApi, "browserRequestPro" | "googleContaStatus" | "googleContaConectar" | "gmailListar" | "gmailLer" | "gmailApagar" | "gmailRestaurar" | "gmailAgente" | "gmailInstalado" | "instalarGmail" | "openExternal" | "on">;
 }
 
@@ -63,8 +65,8 @@ export function mountGmail(deps: GmailDeps): { open: () => void; refresh: () => 
     render();
     if (status?.conectado && !status.precisaReconectar) {
       // A chave do agente: perguntar liga sozinha (padrão ligado, salvo se a pessoa desligou); e se a máquina já tem o MCP (uma vez).
-      void deps.api.gmailAgente().then((a) => { agente = a; render(); }).catch(() => undefined);
-      if (instalado === "?") void deps.api.gmailInstalado().then((i) => { instalado = i; render(); }).catch(() => { instalado = false; render(); });
+      if (deps.agente) void deps.api.gmailAgente().then((a) => { agente = a; render(); }).catch(() => undefined);
+      if (deps.agente && instalado === "?") void deps.api.gmailInstalado().then((i) => { instalado = i; render(); }).catch(() => { instalado = false; render(); });
       if (lista === null) await carregarLista();
     }
   }
@@ -190,7 +192,7 @@ export function mountGmail(deps: GmailDeps): { open: () => void; refresh: () => 
       if (lista.proxima !== null) { const pr = lista.proxima; bc.append(btn("Mais mensagens", "btn-ghost", () => { void carregarLista(pr); })); }
     }
     panel.append(bc);
-    panel.append(cartaoAgente());
+    if (deps.agente) panel.append(cartaoAgente());
   }
 
   /** "O agente do chat pode ler seus e-mails": a chave da ponte, o estado do túnel e, se faltar, o instalador na máquina. */

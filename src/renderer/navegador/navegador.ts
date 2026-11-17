@@ -537,8 +537,8 @@ export async function openNavTab(url?: string, frente = true, rotulo?: string): 
     const ext = el("button", "mini-btn nav-ext-btn", "🧩"); ext.type = "button"; ext.title = "Gerenciar extensões";
     const open = el("button", "mini-btn", "↗"); open.type = "button"; open.title = "Abrir esta página no navegador do Mac";
     const menu = el("div", "nav-menu"); menu.hidden = true;
-    const agent = el("button", "mini-btn nav-agent", "🤖"); agent.type = "button";
-    const wa = el("button", "mini-btn nav-agent nav-wa", "📱"); wa.type = "button";
+    const agent = el("button", "mini-btn nav-agent", "🤖"); agent.type = "button"; agent.hidden = !ctx.caps.agenteNavegador;
+    const wa = el("button", "mini-btn nav-agent nav-wa", "📱"); wa.type = "button"; wa.hidden = !ctx.caps.agenteNavegador;
     wa.addEventListener("click", () => {
       const ligar = navWa?.on !== true;
       // Desligar pergunta (fica lembrado nesta máquina); ligar é o padrão e não pergunta.
@@ -561,7 +561,7 @@ export async function openNavTab(url?: string, frente = true, rotulo?: string): 
       bar.classList.toggle("compacta", compacta);
       if (!compacta) { bar.classList.remove("aberta"); mais.classList.remove("on"); mais.setAttribute("aria-expanded", "false"); }
     }).observe(bar);
-    refreshNavWa();
+    if (ctx.caps.agenteNavegador) refreshNavWa();
     star.addEventListener("click", () => toggleFavCurrent());
     agent.addEventListener("click", () => {
       navAgentBusy = true; paintNav();

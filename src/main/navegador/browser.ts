@@ -26,6 +26,7 @@ import { gravarPortaNavegador } from "./navegador-whatsapp";
 import { spawn } from "node:child_process";
 import { sshMuxArgs } from "../maquina/tunnel";
 import { LOCAL_HOST } from "../maquina/localBackend";
+import { caps } from "../app/variant";
 
 const PART_PREFIX = "persist:navegador-";
 const sanit = (host: string): string => host.replace(/[^A-Za-z0-9_-]/g, "_");
@@ -299,7 +300,7 @@ export async function browserOpen(win: BrowserWindow, host: string, lic: Licenca
   windowHosts.set(win.id, host);
   log(`[navegador ${host}] aberto na janela ${win.id}`);
   // O interruptor do agente vem ligado por padrão e desligar é lembrado por máquina: ao abrir, liga (o -R sobe com o túnel).
-  if (isNavAgentHost(host) && !agentOn.has(host)) browserAgent(host, true);
+  if (caps().agenteNavegador && isNavAgentHost(host) && !agentOn.has(host)) browserAgent(host, true);
   return { partition: partitionOf(host), extensions: extensionsOf(ses, host), agent: browserAgentInfo(host), favoritos: navFavoritos(host), espacos: navEspacos(host) };
 }
 /**

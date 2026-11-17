@@ -65,8 +65,8 @@ function persist(): void {
 }
 
 export const getLastHost = (): string | null => file.lastHost;
-export function setLastHost(host: string): void {
-  if (!isValidHost(host) || file.lastHost === host) return;
+export function setLastHost(host: string | null): void {
+  if ((host !== null && !isValidHost(host)) || file.lastHost === host) return;
   file.lastHost = host;
   persist();
 }

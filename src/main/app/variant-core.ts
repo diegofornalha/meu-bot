@@ -44,8 +44,14 @@ export interface Produto {
   instalador: boolean;
   /** Página que fica na frente quando a janela abre (de PAGINAS_INICIAIS); null = as abas de conversa, como sempre. */
   abreEm: PaginaInicial | null;
-  caps: Omit<Capabilities, "variant" | "produto" | "canal" | "nome" | "titulo" | "addon" | "abreEm" | "addons">;
+  caps: Omit<Capabilities, "variant" | "produto" | "canal" | "nome" | "titulo" | "addon" | "abreEm" | "addons" | CapDePlataforma>;
 }
+/**
+ * Capacidades que saem da plataforma por cima das do produto (capsFor): o que hoje só existe no macOS (backend local,
+ * sockets unix, AppleScript). No Windows o app é só cliente de uma máquina remota por SSH e nenhuma delas é oferecida.
+ */
+export const CAPS_DE_PLATAFORMA = ["hostLocal", "terminalLocal", "atalhosMesa", "agenteNavegador", "controleRemoto", "telaComputador"] as const;
+export type CapDePlataforma = (typeof CAPS_DE_PLATAFORMA)[number];
 
 /**
  * Módulos pagos à parte (add-ons): acumulativos por cima do plano, com ou sem o Pro, liberados por máquina na licença
@@ -164,8 +170,14 @@ export function resolveVariant(i: VariantInput): AppVariant {
 export const titleFor = (v: AppVariant, versao?: string): string => { const p = produtoDe(v); return p.canal === "staging" && versao !== undefined && versao !== "" ? `${p.nome} ${versao}` : p.nome; };
 export const userDataNameFor = (v: AppVariant): string | null => produtoDe(v).userData;
 
-/** O admin só lê e faz as ações de suporte; os outros produtos fazem tudo o mais (ver a tabela). */
-export function capsFor(variant: AppVariant, versao?: string): Capabilities {
+/**
+ * O admin só lê e faz as ações de suporte; os outros produtos fazem tudo o mais (ver a tabela). As de CAPS_DE_PLATAFORMA
+ * saem daqui: fora do Windows valem onde o produto já permitia (o agente no Navegador pede `navegador`, o Computador
+ * pede `chat`; as outras quatro são de todos os apps, como os canais IPC comuns delas); no Windows, nenhuma.
+ */
+export function capsFor(variant: AppVariant, versao?: string, plataforma: NodeJS.Platform = "darwin"): Capabilities {
   const p = produtoDe(variant);
-  return { variant, produto: p.licenca, canal: p.canal, nome: p.nome, titulo: titleFor(variant, versao), addon: p.addon, abreEm: p.abreEm, addons: ADDONS.map((a) => ({ nome: a.nome, rotulo: a.rotulo, modulos: a.modulos })), ...p.caps };
+  const tem = plataforma !== "win32";
+  return { variant, produto: p.licenca, canal: p.canal, nome: p.nome, titulo: titleFor(variant, versao), addon: p.addon, abreEm: p.abreEm, addons: ADDONS.map((a) => ({ nome: a.nome, rotulo: a.rotulo, modulos: a.modulos })), ...p.caps,
+    hostLocal: tem, terminalLocal: tem, atalhosMesa: tem, agenteNavegador: tem && p.caps.navegador, controleRemoto: tem, telaComputador: tem && p.caps.chat };
 }
