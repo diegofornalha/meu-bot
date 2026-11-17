@@ -17,7 +17,8 @@ test("bundle da extensão: manifesto MV3 com key, host 127.0.0.1, pageWorld.js e
 });
 
 const distAut = new URL("../../build/extensao-autenticador/", import.meta.url);
-test("bundle do Autenticador: MV3 com key própria (id ≠ do CRM), popup e ícones; nada web-acessível", { skip: !existsSync(new URL("popup.js", distAut)) }, async () => {
+// Compara o id com o do CRM: sem o bundle do CRM compilado, não há com o que comparar.
+test("bundle do Autenticador: MV3 com key própria (id ≠ do CRM), popup e ícones; nada web-acessível", { skip: !existsSync(new URL("popup.js", distAut)) || !tem }, async () => {
   const { idDaChave } = await import("../../extensao-crm/scripts/id-da-extensao.mjs");
   const m = JSON.parse(readFileSync(new URL("manifest.json", distAut), "utf8"));
   const crm = JSON.parse(readFileSync(new URL("manifest.json", dist), "utf8"));
