@@ -949,6 +949,13 @@ export function visibleTutorials(ctx: GuideContext, finished: (t: Tutorial) => b
  * que apareceu depois da última vez que a pessoa abriu Tutoriais). A novidade não obedece ao interruptor:
  * com o aviso desligado, o selo mostra só as novidades, pulsando, até a pessoa abrir Tutoriais. null = nada.
  */
+/** Onde o tour entra na contagem: feito ou pulado vai para Arquivados (pulado conta também em "pulados"); só o tour
+ *  ainda por fazer soma no número da lateral. A página já arquivava o tour pulado; a contagem precisa dizer o mesmo. */
+export function contagemDoTour(onboarding: string | undefined): { todo: number; archived: number; pulados: number } {
+  if (onboarding === "done") return { todo: 0, archived: 1, pulados: 0 };
+  if (onboarding === "skipped") return { todo: 0, archived: 1, pulados: 1 };
+  return { todo: 1, archived: 0, pulados: 0 };
+}
 export function sidebarBadge(c: { todo: number; novos: number; avisar: boolean }): { text: string; pulse: boolean } | null {
   if (c.avisar) return c.todo > 0 ? { text: String(c.todo), pulse: c.novos > 0 } : null;
   return c.novos > 0 ? { text: String(c.novos), pulse: true } : null;

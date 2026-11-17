@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { TUTORIAIS, emptyContext, emptyFlags, guideTabTitle, guideView, parseTutMemory, parseTutPulados, sidebarBadge, tutorialKnown, tutorialState, GUIDE_SOURCES, tutorialBadge, tutorialNumber, visibleTutorials } from "../../dist/renderer/lib/tutoriais.js";
+import { TUTORIAIS, contagemDoTour, emptyContext, emptyFlags, guideTabTitle, guideView, parseTutMemory, parseTutPulados, sidebarBadge, tutorialKnown, tutorialState, GUIDE_SOURCES, tutorialBadge, tutorialNumber, visibleTutorials } from "../../dist/renderer/lib/tutoriais.js";
 import { quemEscolhido } from "../../dist/renderer/lib/whatsapp-grupos.js";
 
 const wa = (over = {}) => ({ present: true, gateway: "openclaw", agent: "OpenClaw", ready: false, missing: null, connected: false, state: "", number: null, loggedOut: false, detail: "", dmPolicy: null, channelConfig: null, audioIn: false, audioOut: null, ...over });
@@ -125,6 +125,12 @@ test("selo da lateral: número = pendências (interruptor desliga); pulso = novi
   assert.equal(sidebarBadge({ todo: 3, novos: 0, avisar: false }), null);
   assert.deepEqual(sidebarBadge({ todo: 3, novos: 2, avisar: false }), { text: "2", pulse: true });
   assert.equal(sidebarBadge({ todo: 0, novos: 0, avisar: true }), null);
+});
+
+test("tour na contagem: pulado não soma no número da lateral (a página já o mostra em Arquivados)", () => {
+  assert.deepEqual(contagemDoTour(undefined), { todo: 1, archived: 0, pulados: 0 });
+  assert.deepEqual(contagemDoTour("skipped"), { todo: 0, archived: 1, pulados: 1 });
+  assert.deepEqual(contagemDoTour("done"), { todo: 0, archived: 1, pulados: 0 });
 });
 
 test("guia do WhatsApp: o estado real marca os passos; QR já lido pula direto para a escolha", () => {

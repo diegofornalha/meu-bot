@@ -1,7 +1,7 @@
 import { byId as $, el } from "../lib/dom.js";
 import { ipcErrorText } from "../lib/ipc-error.js";
 import type { PageTab } from "../lib/pages-types.js";
-import { parseTutMemory, type TutorialState, TUTORIAIS, tutorialKnown, type Tutorial, tutorialState, visibleTutorials, parseTutPulados, sidebarBadge, type GuideFlags, emptyFlags, type GuideFlagName, type GuideTarget, guideView, guideTabTitle, GUIDE_ACTION_LABEL, type GuideContext } from "../lib/tutoriais.js";
+import { contagemDoTour, parseTutMemory, type TutorialState, TUTORIAIS, tutorialKnown, type Tutorial, tutorialState, visibleTutorials, parseTutPulados, sidebarBadge, type GuideFlags, emptyFlags, type GuideFlagName, type GuideTarget, guideView, guideTabTitle, GUIDE_ACTION_LABEL, type GuideContext } from "../lib/tutoriais.js";
 import { grupoAlvo } from "../lib/whatsapp-grupos.js";
 import { ctx } from "../app/ctx.js";
 import { renderPasso } from "./passos.js";
@@ -72,9 +72,10 @@ export function tutCounts(): { todo: number; archived: number; pulados: number; 
   const pulados = loadTutPulados();
   const abertos = all.filter((t) => t.comingSoon !== true && states.get(t.id) === "todo");
   const pending = abertos.filter((t) => !pulados.has(t.id));
-  const todo = (tourDone() ? 0 : 1) + pending.length;
-  const archived = (tourDone() ? 1 : 0) + done + (abertos.length - pending.length);
-  return { todo, archived, pulados: abertos.length - pending.length, soon, checking, total: todo + archived + checking, novos: pending.filter((t) => !seen.has(t.id)).length, next: pending[0] ?? null };
+  const tour = contagemDoTour(ctx.settings?.onboarding);
+  const todo = tour.todo + pending.length;
+  const archived = tour.archived + done + (abertos.length - pending.length);
+  return { todo, archived, pulados: tour.pulados + abertos.length - pending.length, soon, checking, total: todo + archived + checking, novos: pending.filter((t) => !seen.has(t.id)).length, next: pending[0] ?? null };
 }
 /** Aviso na lateral (número ao lado de "Tutoriais"): a pessoa desliga em Tutoriais › "avisar na lateral"; a novidade pulsa mesmo assim. */
 const tutBadgeEl = $<HTMLInputElement>("tut-badge");
