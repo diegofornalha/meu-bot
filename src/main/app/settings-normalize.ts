@@ -3,6 +3,7 @@
  * migração `sshHost` (v2, host padrão global) → `lastHost` (v3, só pré-seleção do seletor).
  * Sem Electron: testável com node --test.
  */
+import { repoValido } from "../modulos/modulos-fonte-core";
 import type { AbaFixa, BackendModel, NavService, NavWorkspace, NavWorkspaces, Theme } from "../../shared/ipc";
 import { parseAccelerator } from "./accelerator";
 import { isZoomLevel } from "./zoom-core";
@@ -79,8 +80,10 @@ export interface SettingsFile {
   mcpPorta: number | null;
   /** Bearer token do controle externo (64 hex); "" = nenhum (gerado ao ligar; fica gravado ao desligar, "Gerar outro" troca). */
   mcpToken: string;
+  /** URL do repositório de módulos escolhida em Configurações; "" = a padrão do produto (modulos-fonte-core.ts). */
+  modulosRepo: string;
 }
-export const ABAS_FIXAVEIS: readonly AbaFixa[] = ["padrao", "conversa", "tutoriais", "acervo", "conta-google", "gmail", "computador", "financas", "inspector", "navegador", "usuarios"];
+export const ABAS_FIXAVEIS: readonly AbaFixa[] = ["padrao", "conversa", "tutoriais", "acervo", "conta-google", "gmail", "computador", "financas", "inspector", "modulos", "navegador", "usuarios"];
 export const isAbaFixa = (v: unknown): v is AbaFixa => typeof v === "string" && (ABAS_FIXAVEIS as readonly string[]).includes(v);
 export const MAX_ESPACOS = 20;
 export const MAX_SERVICOS = 30;
@@ -172,7 +175,7 @@ export const defaultSettings = (): SettingsFile => ({
   theme: "system", notifications: true, contextBudgetTokens: DEFAULT_BUDGET, memoryEveryTurns: DEFAULT_MEMORY_EVERY,
   quickEntryEnabled: true, dadosNoDrive: true, quickEntryShortcut: DEFAULT_SHORTCUT, podHosts: [], navAgentHosts: [], navAgentDesligados: [], gmailAgentDesligados: [], navFavoritos: {}, onboarding: "pending", openDirect: true, hostNames: {}, navEspacos: {}, atualizarOcioso: true, corretorOrtografico: true, aceleracaoHardware: true, depuracao: null, abaFixa: "padrao",
   // "Executar comandos e código" vem ligado (7 nov): o controle externo só existe com mcpLigado, e quem o liga quer o cliente agindo.
-  mcpLigado: false, mcpExecucao: true, mcpPorta: null, mcpToken: "",
+  mcpLigado: false, mcpExecucao: true, mcpPorta: null, mcpToken: "", modulosRepo: "",
 });
 
 /** Aceita qualquer JSON (inclusive o formato v2 com `sshHost`) e devolve um SettingsFile válido. */
@@ -223,6 +226,7 @@ export function normalizeSettings(input: unknown): SettingsFile {
     mcpExecucao: typeof p["mcpExecucao"] === "boolean" ? p["mcpExecucao"] : true,
     mcpPorta: isPortaMcp(p["mcpPorta"]) ? p["mcpPorta"] : null,
     mcpToken: isToken(p["mcpToken"]) ? p["mcpToken"] : "",
+    modulosRepo: repoValido(p["modulosRepo"]) ? p["modulosRepo"] : "",
   };
 }
 

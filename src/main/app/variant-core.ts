@@ -55,22 +55,23 @@ export interface Produto {
 export interface Addon { nome: string; rotulo: string; descricao: string }
 export const ADDONS: readonly Addon[] = [
   { nome: "meu-bot-finance", rotulo: "Financeiro", descricao: "O agente vira o financeiro da pessoa no WhatsApp e no chat; página Finanças e Curva ABC." },
+  { nome: "meu-bot-diego", rotulo: "Módulos do Diego", descricao: "Os módulos do produto meu-bot-diego (Salvy, Sendfy…), baixados do repositório dele e ligados um a um na página Módulos, cada um com o seu tutorial." },
 ];
 /** Nomes na licença que não são add-on: o admin, e o meu-bot-crm (o CRM entrou no Pro em 22 out). */
 export const NAO_ADDON: readonly string[] = ["meu-bot-admin", "meu-bot-crm"];
 /** O plano "personalizado" (removido em 22 out) liberava o Pro e estes add-ons; quem o tinha vira Pro com eles. */
 export const ADDONS_DO_PERSONALIZADO: readonly string[] = ["meu-bot-finance"];
 /** Páginas que um produto pode pôr na frente ao abrir (Produto.abreEm); o renderer sabe abrir cada uma. */
-export const PAGINAS_INICIAIS = ["financas", "inspector"] as const;
+export const PAGINAS_INICIAIS = ["financas", "inspector", "modulos"] as const;
 export type PaginaInicial = (typeof PAGINAS_INICIAIS)[number];
 
 const PESSOA: Produto["caps"] = {
   chat: true, pair: true, login: true, manageWa: true, tunnel: true, install: true, supportClient: true, supportAdmin: false,
-  navegador: true, planoExigido: "free", usuariosMac: false, inspector: false,
+  navegador: true, planoExigido: "free", usuariosMac: false, inspector: false, modulos: null,
 };
 const ADMIN: Produto["caps"] = {
   chat: false, pair: false, login: false, manageWa: false, tunnel: false, install: false, supportClient: false, supportAdmin: true,
-  navegador: false, planoExigido: "free", usuariosMac: false, inspector: false,
+  navegador: false, planoExigido: "free", usuariosMac: false, inspector: false, modulos: null,
 };
 
 // meu-bot: o app da pessoa. Traz as duas extensões; o CRM próprio no Gmail abre pela licença da máquina (Pro ou superior,
@@ -105,6 +106,12 @@ export const PRODUTOS: readonly Produto[] = [
   // finance-staging: nome, ícone, dados e portas próprios; nasce como cópia dos dados do meu-bot-staging. Só staging.
   { ...staging(CLIENT, "inspector-staging", 8793, 7835), nome: "meu-bot-inspector-staging", bundleId: "local.meu-bot-inspector.staging", icone: "assets/icon-inspector-staging.icns", userData: "meu-bot-inspector-staging", herdaDe: "meu-bot-staging", fundeDe: null, addon: null, instalador: false, abreEm: "inspector", caps: { ...PESSOA, inspector: true },
     descricao: "O meu-bot em teste com o MCP Inspector na frente (abre na página Inspector): a interface oficial do Inspector ligada ao controle externo (MCP) do próprio app." },
+  // meu-bot-diego-staging: o meu-bot em teste com a página Módulos na frente. O app não leva módulo nenhum: baixa-os
+  // com git do repositório do produto (diegofornalha/meu-bot-diego, src/main/modulos/modulos-fonte-core.ts) e cada
+  // módulo traz o MCP, as regras e o tutorial dele. Liberado pelo add-on meu-bot-diego na licença. Fica fora da release
+  // automática (release-core.mjs, `caps.modulos`): empacota-se à mão (docs/guia/meu-bot-diego.md).
+  { ...staging(CLIENT, "diego-staging", 8794, 7836), nome: "meu-bot-diego-staging", bundleId: "local.meu-bot-diego.staging", icone: "assets/icon-diego-staging.icns", userData: "meu-bot-diego-staging", herdaDe: "meu-bot-staging", fundeDe: null, addon: "meu-bot-diego", instalador: false, abreEm: "modulos", caps: { ...PESSOA, modulos: "meu-bot-diego" },
+    descricao: "O meu-bot em teste com os módulos do Diego na frente (abre na página Módulos): os módulos vêm do repositório meu-bot-diego, baixados pelo app, com MCP e tutorial." },
 ];
 
 /**

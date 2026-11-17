@@ -11,6 +11,7 @@ import type { CrmDiag, CrmInfo, CrmLocal } from "./crm";
 import type { FinanceAbc, FinanceAbcLado, FinanceAbcPor, FinanceCategoria, FinanceConfig, FinanceConta, FinanceImportacao, FinanceInfo, FinanceLancamento, FinanceLancarInput, FinanceMoeda, FinanceTipoLinha } from "./financeiro";
 import type { AgendaEvento, BackupCopiasView, BackupDadosProgresso, BackupDadosView, BackupRestauroPedido, BackupRestauroProgresso, BackupRestauroResultado, GmailAgenteState, GmailApagado, GmailDetalhe, GmailLista, GoogleContaStatus, PlanilhaLeitura } from "./google";
 import type { LicensePatch, LicenseView } from "./licenca";
+import type { FonteModulos, ModuloResultado, ModuloTeste, ModulosLista } from "./modulos";
 import type { BackendStatusEvent, InstallBackendResult, TailscaleSshResult } from "./maquina";
 import type { BrowserAgentState, BrowserExtensionInfo, BrowserOpenInfo, NavFavorito, NavWorkspaces } from "./navegador";
 import type { MotorNovoUsuario, AdminAction, AdminHealth, AuditoriaVisao, UsuariosVisao, PrepararId, PrepararVisao, BackupIndiceView, BackupRestauracao, BotChat, BotMenuAction, BotMessage, ProdutoMvp, SupportInfo, SupportProgress, SupportShare, CgEstado, LpEstado, LpAviso } from "./suporte";
@@ -66,6 +67,8 @@ export interface MainEvents {
   "crm:progress": { line: string };
   /** Instalação do financeiro na máquina, linha a linha (tutorial 12). */
   "finance:progress": { line: string };
+  /** Módulos de produto (meu-bot-diego): uma linha do instalador do módulo `id`. */
+  "modulos:progress": { id: string; line: string };
   /** meu-bot-admin, backup e mudança de máquina: bytes recebidos ou uma linha da restauração. */
   "admin:backup-progress": { bytes?: number; line?: string };
   /** Uma linha do job de criar/preparar usuário (onboarding), para o log ao vivo da aba Usuários. */
@@ -102,7 +105,7 @@ export interface MainEvents {
   /** Terminal: o controle local (term-api.ts) pede uma aba nova de terminal nesta janela. */
   "term:ask": { kind: "new" };
   /** Controle remoto (MCP), ferramenta `pagina_abrir`: põe esta página na frente da janela. */
-  "ui:abrir-pagina": { pagina: "tutoriais" | "acervo" | "financas" | "inspector" | "conta-google" | "gmail" | "computador" | "navegador" };
+  "ui:abrir-pagina": { pagina: "tutoriais" | "acervo" | "financas" | "inspector" | "modulos" | "conta-google" | "gmail" | "computador" | "navegador" };
   /** Controle remoto (MCP) ligou/desligou, trocou de porta ou de token: a seção das Configurações repinta em todas as janelas. */
   "controle-remoto:changed": ControleRemotoView;
   /** Controle local (term-api.ts): mais uma coluna com a página à direita; juntar tira uma (id/pagina) ou todas. */
@@ -448,6 +451,18 @@ export interface MeuBotClientApi {
   /** Lê uma planilha do Google Sheets (link) com a Conta Google do app e importa as linhas no financeiro da máquina. */
   financeImportarPlanilha(p: { link: string; aba?: string; tipo: FinanceAbcLado; simular: boolean }): Promise<FinanceImportacao>;
   installFinance(): Promise<InstallBackendResult>;
+  /** Módulos de produto (só nos apps com `caps.modulos`): o manifesto com o estado de cada um nesta máquina. */
+  /** Baixa (clone) ou atualiza (pull) o repositório de módulos do produto neste Mac; nunca lança por rede ou acesso. */
+  modulosAtualizarFonte(): Promise<FonteModulos>;
+  /** Testa a conexão do módulo na máquina (o testar.sh dele) e guarda o resultado no Mac. */
+  modulosTestar(id: string): Promise<ModuloTeste>;
+  modulosListar(): Promise<ModulosLista>;
+  modulosLigar(id: string): Promise<ModuloResultado>;
+  modulosDesligar(id: string): Promise<ModuloResultado>;
+  /** Grava credenciais (valor vazio apaga); nunca devolve valores, só o estado. */
+  modulosCredenciais(id: string, patch: Record<string, string>): Promise<ModulosLista>;
+  /** Grava opções; com o módulo ligado, reinstala para valerem. */
+  modulosOpcoes(id: string, patch: Record<string, string | number | boolean>): Promise<ModuloResultado>;
   /** Pede ao admin para liberar o meu-bot-finance (fica no registro de auditoria). */
   financePedir(): Promise<void>;
   installCrm(): Promise<InstallBackendResult>;

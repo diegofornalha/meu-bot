@@ -1081,6 +1081,11 @@ body.topbar-hidden .topbar { display: none; }
 /* Com a tela dividida, as zonas de soltar seguem a divisória (esquerda = conversa). */
 .content.split:not(.split-collapsed) .split-drop { grid-template-columns: var(--split, 55%) 1fr; }
 
+/* Módulos (apps com módulos de produto, como o meu-bot-diego): um cartão por módulo, campos no padrão de Finanças. */
+.modulos-panel .admin-card { gap: 10px; margin-bottom: 12px; }
+.modulos-panel .admin-field input:not([type="checkbox"]) { font: inherit; font-size: 13px; height: 34px; box-sizing: border-box; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); min-width: 220px; }
+.modulo-log { margin: 0; padding: 8px 10px; border-radius: 8px; background: var(--bg); font-size: 12px; white-space: pre-wrap; max-height: 160px; overflow: auto; }
+
 /* Finanças (produto meu-bot-finance): linhas de lançamento e de conta, números do mês e barras por categoria. */
 .finance-panel .admin-card { gap: 10px; }
 .finance-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 6px 0; border-top: 1px solid var(--line); font-size: 13px; }
@@ -1236,3 +1241,47 @@ table.fin-abc tr.fin-abc-C td.fin-abc-tag { color: #757575; }
 .releases-lista .rel-selo.bad { color: var(--bad); }
 .releases-lista .rel-aviso { flex-basis: 100%; margin: 0; color: var(--warn); }
 
+/* Página Módulos: lista em cartões e a ficha de cada módulo (cabeçalho, pedidos, abas, coluna Detalhes). */
+.modulo-cartoes { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-top: 12px; }
+.modulo-cartao { display: flex; flex-direction: column; gap: 6px; text-align: left; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: inherit; cursor: pointer; }
+.modulo-cartao:hover { border-color: var(--accent); }
+.modulo-cartao-topo { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.modulo-cartao-desc { margin: 0; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.modulo-avatar { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); font-weight: 700; font-size: 18px; }
+.modulo-ficha { display: flex; flex-direction: column; gap: 14px; padding: 4px 4px 24px; }
+.modulo-voltar { align-self: flex-start; }
+.modulo-cabecalho { display: flex; align-items: flex-start; gap: 14px; }
+.modulo-titulo { flex: 1; min-width: 0; }
+.modulo-titulo p { margin: 4px 0 0; }
+.modulo-nome { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.modulo-nome h2 { margin: 0; }
+.modulo-exemplos { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.modulo-chip { border-radius: 999px; }
+.modulo-abas { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 12px; }
+.modulo-aba { background: none; border: none; border-bottom: 2px solid transparent; padding: 8px 12px; color: var(--muted); cursor: pointer; font: inherit; }
+.modulo-aba.ativa { color: inherit; border-bottom-color: currentColor; }
+.modulo-grade { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 18px; align-items: start; }
+@media (max-width: 900px) { .modulo-grade { grid-template-columns: 1fr; } }
+.modulo-secao { padding: 12px 0; border-bottom: 1px solid var(--line); }
+.modulo-secao h3 { margin: 0 0 8px; font-size: 14px; }
+.modulo-secao h4 { margin: 10px 0 4px; }
+.modulo-caixa { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--card); }
+.modulo-caixa-linha { display: flex; align-items: center; gap: 10px; }
+.modulo-direita { margin-left: auto; }
+.modulo-ponto { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+.modulo-ponto.ok { background: var(--ok); }
+.modulo-ponto.bad { background: var(--bad); }
+.modulo-lista { margin: 4px 0; padding-left: 18px; }
+.modulo-ferramentas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.modulo-ferramentas li { display: flex; flex-direction: column; gap: 2px; }
+.modulo-detalhes h3 { margin: 0 0 8px; font-size: 14px; }
+.modulo-dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 0; }
+.modulo-dl dt { color: var(--muted); }
+.modulo-dl dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
+.modulo-passos { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.modulo-passo { display: flex; gap: 12px; opacity: .6; }
+.modulo-passo.atual, .modulo-passo.feito { opacity: 1; }
+.modulo-passo-n { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--line); font-size: 12px; }
+.modulo-passo.feito .modulo-passo-n { color: var(--ok); border-color: var(--ok); }
+.modulo-passo-corpo p { margin: 4px 0; }
+.modulo-ajuda { display: block; font-size: 11px; }

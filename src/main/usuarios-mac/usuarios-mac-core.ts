@@ -113,7 +113,7 @@ export function oauthContaNovaSh(nome: string, arquivos: readonly { nome: OauthG
   return `${passos.join("\n")}\necho "OAUTH=ok"`;
 }
 
-/** De onde a conta nova clona o meu-bot para a mesa (o repositório público). */
+/** De onde a conta nova clona o meu-bot para a mesa (o repositório público; o submódulo privado do Diego não vem). */
 export const REPO_MEU_BOT = `https://github.com/${UPDATE_REPO}.git`;
 
 /**

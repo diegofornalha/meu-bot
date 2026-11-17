@@ -34,6 +34,7 @@ import { updateBlockerText, updateStateText } from "./lib/update-text.js";
 import { offlineBarText } from "./lib/offline-text.js";
 import { browserAccess, displayUrl, planoLiberaPro, proBlockText, tabLabel, type ProAccess, crmProprioOk, financeOk } from "./lib/pro.js";
 import { mountFinancePage } from "./finance/finance-page.js";
+import { mountModulosPage } from "./modulos/modulos-page.js";
 import { mountContaGoogle } from "./conta-google/conta-google-page.js";
 import { mountGmail } from "./gmail/gmail-page.js";
 import { gmailGuiaFato, ligarGmailGuia, refreshGmailGuia } from "./gmail/gmail-guia.js";
@@ -372,7 +373,7 @@ let usuariosAdmin: { open: () => void } | null = null;
 let appVersion = "";
 /** Build deste app (`WindowInfo.build`): o cache só devolve o que este mesmo build gravou. */
 let appBuild = "";
-let caps: Capabilities = { variant: "client", produto: "meu-bot", canal: "estavel", nome: "meu-bot", titulo: "meu-bot", chat: true, pair: true, login: true, manageWa: true, tunnel: true, install: true, supportClient: true, supportAdmin: false, navegador: true, planoExigido: "free", usuariosMac: false, inspector: false, addon: null, abreEm: null, addons: [] };
+let caps: Capabilities = { variant: "client", produto: "meu-bot", canal: "estavel", nome: "meu-bot", titulo: "meu-bot", chat: true, pair: true, login: true, manageWa: true, tunnel: true, install: true, supportClient: true, supportAdmin: false, navegador: true, planoExigido: "free", usuariosMac: false, inspector: false, modulos: null, addon: null, abreEm: null, addons: [] };
 const lastHostEl = $<HTMLParagraphElement>("last-host");
 const settingsError = $<HTMLParagraphElement>("settings-error");
 const cancelBtn = $<HTMLButtonElement>("btn-cancel");
@@ -1824,6 +1825,7 @@ let contaGooglePage: ReturnType<typeof mountContaGoogle> | null = null;
 let computadorPage: ReturnType<typeof mountComputador> | null = null;
 /** Só existe no produto com a capacidade `inspector` (meu-bot-inspector-staging). */
 let inspectorPage: ReturnType<typeof mountInspector> | null = null;
+let modulosPage: ReturnType<typeof mountModulosPage> | null = null;
 let financeState: FinanceInfo | null = null;
 ligarNavegador();
 ligarTerminal();
@@ -1846,6 +1848,7 @@ window.meuBot.on("ui:abrir-pagina", ({ pagina }) => {
   else if (pagina === "acervo") openPage(acervoPage);
   else if (pagina === "financas") financePage?.open();
   else if (pagina === "inspector") inspectorPage?.open();
+  else if (pagina === "modulos") modulosPage?.open();
   else if (pagina === "conta-google") contaGooglePage?.open();
   else if (pagina === "gmail") gmailPage?.open();
   else if (pagina === "computador") computadorPage?.open();
@@ -1978,6 +1981,13 @@ void (async () => {
     goToChat: goToChatFromGuide, onInfo: (i) => { financeState = i; paintFinanceLine(); paintGuide(); },
   });
   $<HTMLButtonElement>("financas-line").addEventListener("click", () => financePage?.open());
+  // Módulos de produto (meu-bot-diego): só nos apps que trazem o repositório de módulos.
+  if (caps.modulos !== null) {
+    const rotulo = caps.addons.find((a) => a.nome === caps.addon)?.rotulo ?? caps.nome;
+    modulosPage = mountModulosPage({ panelsEl, definePage, openPage, armConfirm, api: window.meuBot, rotulo, host: () => windowHost, goToChat: goToChatFromGuide });
+    const linha = $<HTMLButtonElement>("modulos-line"); linha.hidden = false;
+    linha.addEventListener("click", () => modulosPage?.open());
+  }
   // O app cujo add-on é o financeiro mostra o botão sempre (sem licença, a página diz como liberar).
   if (caps.addon === "meu-bot-finance") paintFinanceLine();
   // Inspector: por capacidade (só o meu-bot-inspector-staging); nos outros produtos o botão fica escondido e a página nem é montada.
@@ -2019,6 +2029,7 @@ void (async () => {
   else if (fixa === "acervo") openPage(acervoPage);
   else if (fixa === "financas") financePage?.open();
   else if (fixa === "inspector") inspectorPage?.open();
+  else if (fixa === "modulos") modulosPage?.open();
   else if (fixa === "conta-google") contaGoogle.open();
   else if (fixa === "gmail") gmail.open();
   else if (fixa === "computador") computador.open();

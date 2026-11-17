@@ -20,6 +20,12 @@ test("cada canal publica os seus produtos (o admin só no estável)", () => {
   assert.deepEqual(produtosDoCanal(P, "estavel").map((p) => p.nome), ["meu-bot", "meu-bot-admin"]);
 });
 
+test("app com módulos de repositório privado (meu-bot-diego) não vai para a release pública", () => {
+  const P = [{ nome: "meu-bot", canal: "estavel", caps: { modulos: null } }, { nome: "meu-bot-diego", canal: "estavel", caps: { modulos: "meu-bot-diego" } }, { nome: "meu-bot-diego-staging", canal: "staging", caps: { modulos: "meu-bot-diego" } }];
+  assert.deepEqual(produtosDoCanal(P, "estavel").map((p) => p.nome), ["meu-bot"]);
+  assert.deepEqual(produtosDoCanal(P, "staging").map((p) => p.nome), []);
+});
+
 test("componentesSemVersao: componente que mudou exige versão nova; o que não mudou passa", () => {
   const C = [
     { nome: "backend", arquivos: ["backend-colima/server.js", "backend-colima/finance-api.js"], versao: "backend-colima/VERSION" },

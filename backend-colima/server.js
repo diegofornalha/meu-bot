@@ -32,6 +32,7 @@ const GMAIL_MCP = path.join(os.homedir(), '.local/share/meu-bot/gmail-mcp.mjs');
 const BROWSER_MAX_TURNS = 100;
 const providers = require('./providers');
 const nivel = require('./nivel-ferramentas');
+const modulos = require('./modulos');
 const { readClaudeStatus, refreshRateLimits } = require('./account-status');
 const contasClaude = require('./contas-claude');
 const licenca = require('./licenca');
@@ -48,6 +49,8 @@ const ENV = loadEnv(path.join(ROOT, '.env'));
 const KEY = ENV.OPENAI_COMPAT_KEY || process.env.OPENAI_COMPAT_KEY || '';
 /** Chave própria do agente do WhatsApp (CRM_AGENT_KEY): identifica quem chama; o CRM recusa exclusão vinda dela. */
 const AGENT_KEY = ENV.CRM_AGENT_KEY || process.env.CRM_AGENT_KEY || '';
+/** Chave dos módulos de produto (MODULOS_KEY): só abre a rota /v1/meu-bot/avisar (modulos.js). */
+const MODULOS_KEY = ENV.MODULOS_KEY || process.env.MODULOS_KEY || '';
 const HOST = ENV.HOST || '127.0.0.1';
 const PORT = Number(ENV.PORT || 8080);
 const CLAUDE_BIN = ENV.CLAUDE_BIN || path.join(os.homedir(), '.local', 'bin', 'claude');
@@ -358,7 +361,8 @@ function json(res, status, body, extraHeaders = {}) {
 }
 
 /**
- * Quem está chamando, pela chave que usou: 'app' (OPENAI_COMPAT_KEY) ou 'agente' (CRM_AGENT_KEY). null = inválida.
+ * Quem está chamando, pela chave que usou: 'app' (OPENAI_COMPAT_KEY), 'agente' (CRM_AGENT_KEY) ou 'modulo'
+ * (MODULOS_KEY, só a rota de aviso). null = inválida.
  * É o servidor que carimba a identidade; nenhum cabeçalho do cliente eleva ninguém.
  */
 function papelDe(req) {
@@ -368,6 +372,7 @@ function papelDe(req) {
   const bate = (k) => k !== '' && token.length === k.length && crypto.timingSafeEqual(Buffer.from(token), Buffer.from(k));
   if (bate(KEY)) return 'app';
   if (bate(AGENT_KEY)) return 'agente';
+  if (bate(MODULOS_KEY)) return 'modulo';
   return null;
 }
 function authOk(req) { return papelDe(req) !== null; }
@@ -442,7 +447,7 @@ function currentModelLabel(conta) {
   return MODEL_LABELS[k] || (m || null);
 }
 
-function runClaude({ prompt, system, cwd, maxTurns, bypass, resume, signal, onDelta, onTool, browser, gmail, model, conta, bloqueadas }) {
+function runClaude({ prompt, system, cwd, maxTurns, bypass, resume, signal, onDelta, onTool, browser, gmail, model, conta, bloqueadas, mcpModulos }) {
   return new Promise((resolve, reject) => {
     const contaId = conta ? conta.id : 'padrao';
     // Limite forçado (teste): a conta parece esgotada antes de a CLI subir.
@@ -451,6 +456,8 @@ function runClaude({ prompt, system, cwd, maxTurns, bypass, resume, signal, onDe
     args.push(...(bypass ? ['--dangerously-skip-permissions'] : ['--permission-mode', 'default']));
     // Pontes do app ligadas neste turno (Navegador, Gmail): os MCPs entram pela porta do túnel reverso de cada um (pontes.js).
     args.push(...pontes.pontesCliArgs({ browser, gmail, nodeBin: process.execPath, navegadorMcp: NAVEGADOR_MCP, gmailMcp: GMAIL_MCP, snapshotOff: navegador.cliSupportsSnapshotOff(CLAUDE_VERSION) }));
+    // Módulos de produto ligados para este perfil (modulos.js): os MCPs deles vêm de um arquivo 0600 do turno.
+    if (mcpModulos) args.push('--mcp-config', mcpModulos);
     if (Array.isArray(bloqueadas) && bloqueadas.length > 0) args.push('--disallowedTools', bloqueadas.join(','));
     if (system) args.push('--append-system-prompt', system);
     if (resume) args.push('--resume', resume);
@@ -693,7 +700,14 @@ async function chatCompletions(req, res) {
       const bloqueadas = profile.nivel ? nivel.ferramentasBloqueadas(nivelTurno) : [];
       const avisoNivel = profile.nivel ? nivel.avisoDoNivel(nivelTurno) : '';
       // O modelo sabe quem é (a pergunta "qual modelo é você?" não depende do que ele acha de si).
-      const identity = `Você responde dentro do meu-bot pelo Claude Code, perfil "${name}" (Anthropic). Se perguntarem qual modelo ou IA você é, diga exatamente isso.${browser ? `\n\n${navegador.BROWSER_RULE}` : ''}${gmail ? `\n\n${gmailPonte.GMAIL_RULE}` : ''}${avisoNivel ? `\n\n${avisoNivel}` : ''}`;
+      // Módulos de produto (meu-bot-diego…) ligados para este perfil e liberados pela licença: regras, MCPs e o ajuste
+      // de "ação" (mensagem que pede uma tarefa ganha mais passos e um adendo). Sem módulos, tudo como antes.
+      let doModulo = { mcp: {}, regras: [], acoes: [], ids: [] };
+      try { const lic = licenseView().license; doModulo = modulos.paraPerfil(name, (produto) => licenca.produtoOk(lic, produto)); } catch (e) { log(`módulos: ${e.message}`); }
+      const ultimaFala = [...messages].reverse().find((m) => m.role === 'user');
+      const acao = modulos.ajusteDaAcao(doModulo.acoes, ultimaFala ? messageText(ultimaFala) : '');
+      const regrasModulos = [...doModulo.regras, ...(acao && acao.adendo ? [acao.adendo] : [])].join('\n\n');
+      const identity = `Você responde dentro do meu-bot pelo Claude Code, perfil "${name}" (Anthropic). Se perguntarem qual modelo ou IA você é, diga exatamente isso.${browser ? `\n\n${navegador.BROWSER_RULE}` : ''}${gmail ? `\n\n${gmailPonte.GMAIL_RULE}` : ''}${avisoNivel ? `\n\n${avisoNivel}` : ''}${regrasModulos ? `\n\n${regrasModulos}` : ''}`;
       plan = { ...plan, system: plan.system ? `${identity}\n\n${plan.system}` : identity };
       resumed = Boolean(plan.resume);
       // A melhor conta agora (uma em aviso só se não há outra). Sem nenhuma: erro com a hora em que a próxima volta;
@@ -710,9 +724,13 @@ async function chatCompletions(req, res) {
       // No reserva, o modelo sabe que é ele (a identidade padrão não diz o modelo).
       const withModel = (p) => (model ? { ...p, system: `${p.system}\n\nNeste turno o modelo é o ${MODEL_FALLBACK_LABEL} (${MODEL_FALLBACK}): o modelo padrão da conta bateu o limite de uso.` } : p);
       // Com o Navegador, cada clique, leitura e print é um passo: 30 acabava no meio de um formulário (Cloudflare, 22 out).
-      const maxTurns = browser ? Math.max(profile.maxTurns, BROWSER_MAX_TURNS) : profile.maxTurns;
-      const call = () => runClaude({ ...withModel(plan), cwd: profile.cwd, maxTurns, bypass: profile.bypass, signal: abort.signal, onDelta, onTool, browser, gmail, model, conta, bloqueadas });
+      const maxTurns = Math.max(browser ? Math.max(profile.maxTurns, BROWSER_MAX_TURNS) : profile.maxTurns, acao && acao.maxTurns ? acao.maxTurns : 0);
+      let mcpModulos = null;
+      if (Object.keys(doModulo.mcp).length > 0) { try { mcpModulos = modulos.arquivoMcp(doModulo.mcp); } catch (e) { log(`módulos: MCP do turno não gravado (${e.message})`); } }
+      if (doModulo.ids.length > 0) log(`módulos no turno ${name}: ${doModulo.ids.join(', ')}${acao ? ' (ação)' : ''}`);
+      const call = () => runClaude({ ...withModel(plan), cwd: profile.cwd, maxTurns, bypass: profile.bypass, signal: abort.signal, onDelta, onTool, browser, gmail, model, conta, bloqueadas, mcpModulos });
       let out;
+      try {
       for (let tries = 0; ; tries++) {
         try { out = await call(); break; }
         catch (e) {
@@ -761,6 +779,7 @@ async function chatCompletions(req, res) {
           throw e;
         }
       }
+      } finally { if (mcpModulos) fs.rm(mcpModulos, { force: true }, () => {}); }
       usedKey = key; usedProfile = profile; contaUsada = conta;
       return out;
     };
@@ -839,6 +858,21 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   if (url.pathname === '/health' && req.method === 'GET') return json(res, 200, { ok: true, models: listedModels().map((m) => m.id), ativos: chatsAtivos, appMinima: appMinima(), ...(vigia.ultima ? { maquina: vigia.ultima } : {}), ...(vigiaCota.ultima ? { cota: vigiaCota.ultima } : {}) });
   if (!authOk(req)) return json(res, 401, { error: { message: 'chave inválida', type: 'authentication_error', code: 'invalid_api_key' } });
+  // Módulos de produto (MODULOS_KEY): só a rota de aviso. Manda texto (e um arquivo) pelo WhatsApp da máquina ao dono
+  // ou a um número; quem decide o destino é a opção do módulo, gravada pela pessoa no app.
+  if (papelDe(req) === 'modulo') {
+    if (url.pathname !== '/v1/meu-bot/avisar' || req.method !== 'POST') return json(res, 403, { error: { message: 'a chave dos módulos só abre /v1/meu-bot/avisar', type: 'permission_error' } });
+    let b; try { b = JSON.parse(await readBody(req, 64 * 1024)); } catch (_) { return json(res, 400, { error: { message: 'JSON inválido', type: 'invalid_request_error' } }); }
+    const texto = typeof b.texto === 'string' ? b.texto.trim().slice(0, 4000) : '';
+    const para = typeof b.para === 'string' ? b.para.replace(/\D/g, '') : '';
+    const midia = typeof b.midia === 'string' ? b.midia : '';
+    if (texto === '' && midia === '') return json(res, 400, { error: { message: 'texto ou midia', type: 'invalid_request_error' } });
+    if (para !== '' && !/^\d{10,15}$/.test(para)) return json(res, 400, { error: { message: 'para: número com DDI e DDD', type: 'invalid_request_error' } });
+    if (midia !== '' && !(path.isAbsolute(midia) && path.normalize(midia).startsWith(`${os.homedir()}/`) && fs.existsSync(midia))) return json(res, 400, { error: { message: 'midia: arquivo dentro do HOME', type: 'invalid_request_error' } });
+    const ok = await sendWhatsapp({ texto, para: para || null, midia: midia || null });
+    log(`aviso de módulo ${ok ? 'enviado' : 'falhou'}${para ? ` para +${para.slice(0, 4)}…` : ' ao dono'}${midia ? ' com arquivo' : ''}`);
+    return json(res, ok ? 200 : 502, { ok });
+  }
   // Status line do app: conta e limites do Claude Code desta máquina. O cache de limites é renovado aqui
   // quando está velho (o claude -p não roda a status line); o motivo de não renovar vai ao log quando muda.
   if (url.pathname === '/v1/meu-bot/status' && req.method === 'GET') {
@@ -1049,6 +1083,9 @@ function lerCota({ forcar = false } = {}) {
   })().catch((e) => { log(`cota: não li a cota: ${e.message}`); return vigiaCota.ultima; }).finally(() => { lendoCota = null; });
   return lendoCota;
 }
+// Módulos de produto: onde está este backend e a chave da rota de aviso (0600, como o .env), para os serviços dos
+// módulos (automações, vídeos) mandarem WhatsApp sem conhecer a pasta do backend.
+if (MODULOS_KEY) { try { fs.mkdirSync(modulos.BASE, { recursive: true, mode: 0o700 }); fs.writeFileSync(path.join(modulos.BASE, 'backend.json'), JSON.stringify({ url: `http://127.0.0.1:${PORT}`, chave: MODULOS_KEY }), { mode: 0o600 }); } catch (e) { log(`módulos: backend.json não gravado (${e.message})`); } }
 setTimeout(lerSaude, 5000).unref();
 setInterval(lerSaude, 30_000).unref();
 setTimeout(() => { void lerCota(); }, 20_000).unref();

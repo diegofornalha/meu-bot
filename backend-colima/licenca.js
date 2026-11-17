@@ -154,7 +154,7 @@ const crmOk = proOk;
  * Add-ons que este backend conhece (cópia de ADDONS em src/main/app/variant-core.ts; o teste produtos-alinhados confere).
  * O backend roda na máquina, sem acesso ao código do app: por isso a cópia.
  */
-const ADDONS = ['meu-bot-finance'];
+const ADDONS = ['meu-bot-finance', 'meu-bot-diego'];
 /** O financeiro: o add-on meu-bot-finance contratado (o Pro sozinho não libera). */
 const financeOk = (license, now = Date.now()) => produtoOk(license, 'meu-bot-finance', now);
 
