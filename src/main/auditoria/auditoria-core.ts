@@ -11,7 +11,7 @@ import { createHash } from "node:crypto";
 
 export type QuemTipo = "dono" | "admin" | "agente" | "sistema" | "legado";
 export interface Quem { tipo: QuemTipo; nome: string }
-export const APPS = ["meu-bot", "meu-bot-crm", "meu-bot-admin-gestao", "meu-bot-admin", "meu-bot-admin-mac", "meu-bot-staging", "meu-bot-crm-staging", "meu-bot-finance-staging", "meu-bot-inspector-staging", "backend", "plugin", "legado"] as const;
+export const APPS = ["meu-bot", "meu-bot-crm", "meu-bot-admin-gestao", "meu-bot-admin", "meu-bot-admin-mac", "meu-bot-staging", "meu-bot-crm-staging", "meu-bot-finance-staging", "meu-bot-inspector-staging", "meu-bot-diego-staging", "backend", "plugin", "legado"] as const;
 export type AuditoriaApp = (typeof APPS)[number];
 export const isApp = (v: string): v is AuditoriaApp => (APPS as readonly string[]).includes(v);
 export interface AuditoriaLinha { v: number; em: string; maquina: string; quem: Quem; app: string; acao: string; alvo: string; detalhe: string; prev: string; hash: string }
@@ -72,6 +72,10 @@ export const ACOES = {
   "crm.guardar-conversa": (a: string) => `guardou no CRM a conversa do WhatsApp de ${a}`,
   "crm.instalar": () => "instalou o CRM pelo WhatsApp",
   "finance.instalar": () => "instalou o financeiro (WhatsApp e chat)",
+  "modulo.ligar": (a: string) => `ligou o módulo ${a}`,
+  "modulo.desligar": (a: string) => `desligou o módulo ${a}`,
+  "modulo.credenciais": (a: string) => `trocou as chaves do módulo ${a}`,
+  "modulo.opcoes": (a: string) => `mudou as opções do módulo ${a}`,
   "finance.lancar": (a: string) => `lançou ${a} no financeiro pelo app`,
   "finance.linha": (a: string) => `mudou a DRE prevista do financeiro (${a})`,
   "finance.corrigir": (a: string) => `corrigiu um lançamento do financeiro (${a})`,

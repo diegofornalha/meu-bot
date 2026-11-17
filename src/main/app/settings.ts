@@ -1,4 +1,5 @@
 import { app } from "electron";
+import { repoValido } from "../modulos/modulos-fonte-core";
 import fs from "node:fs";
 import path from "node:path";
 import type { BackendModel, NavWorkspaces, QuickEntryStatus, SettingsUpdate, SettingsView, Theme } from "../../shared/ipc";
@@ -100,6 +101,8 @@ export const getQuickEntry = (): { enabled: boolean; shortcut: string } => ({ en
 export const getDadosNoDrive = (): boolean => file.dadosNoDrive;
 export function setDadosNoDrive(ligado: boolean): void { if (file.dadosNoDrive === ligado) return; file.dadosNoDrive = ligado; persist(); }
 /** Controle externo (MCP): ligado, execução (comandos/código) liberada, porta gravada (null = padrão da variante) e token; quem sobe o servidor é controle-remoto.ts. */
+/** URL do repositório de módulos escolhida em Configurações; "" = a padrão do produto. */
+export const getModulosRepo = (): string => file.modulosRepo;
 export const getControleRemoto = (): { ligado: boolean; execucao: boolean; porta: number | null; token: string } => ({ ligado: file.mcpLigado, execucao: file.mcpExecucao, porta: file.mcpPorta, token: file.mcpToken });
 export function setControleRemoto(patch: { ligado?: boolean; execucao?: boolean; porta?: number | null; token?: string }): void {
   if (patch.ligado !== undefined) file.mcpLigado = patch.ligado;
@@ -242,6 +245,7 @@ export const settingsView = (host?: string): SettingsView => ({
   aceleracaoHardware: file.aceleracaoHardware,
   depuracao: file.depuracao,
   abaFixa: file.abaFixa,
+  modulosRepo: file.modulosRepo,
 });
 /**
  * "Atualizar sozinho quando o Mac estiver ocioso" (o updater consulta a cada minuto com uma versão pronta).
@@ -301,6 +305,11 @@ export function updateSettings(update: SettingsUpdate, host?: string): SettingsV
   if (update.atualizarOcioso !== undefined) file.atualizarOcioso = update.atualizarOcioso === true;
   if (update.corretorOrtografico !== undefined) file.corretorOrtografico = update.corretorOrtografico === true;
   if (update.aceleracaoHardware !== undefined) file.aceleracaoHardware = update.aceleracaoHardware === true;
+  if (update.modulosRepo !== undefined) {
+    const url = typeof update.modulosRepo === "string" ? update.modulosRepo.trim() : "";
+    if (url !== "" && !repoValido(url)) throw new Error("Endereço do repositório inválido: use https://…, ssh://… ou git@servidor:dono/nome.git.");
+    file.modulosRepo = url;
+  }
   if (update.abaFixa !== undefined) {
     if (!isAbaFixa(update.abaFixa)) throw new Error("Aba fixada inválida.");
     file.abaFixa = update.abaFixa;

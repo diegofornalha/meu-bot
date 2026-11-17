@@ -448,7 +448,7 @@ Os avisos (Mac novo, vigia, cota) vão só pelo WhatsApp da pessoa: o e-mail pel
 
 - Motivo: havia quatro regras para decidir se a máquina atende pelo Hermes, OpenClaw ou PicoClaw, e elas divergiam: o
   status da janela (`WA_ESCOLHA_SH`: Hermes vence sem escolha), a sondagem do seletor (`hostProbe.ts`: OpenClaw vence e
-  o arquivo de escolha era ignorado), os módulos de produto (`modulos.ts`, removidos em 3 nov: sem PicoClaw) e o backend (`server.js`, cópia em JS).
+  o arquivo de escolha era ignorado), os módulos (`modulos.ts`: sem PicoClaw) e o backend (`server.js`, cópia em JS).
   Numa máquina com os dois motores, o seletor dizia OpenClaw e a janela, Hermes.
 - `WA_MOTOR_SH` (`src/main/whatsapp/whatsapp-capacidades.ts`) é a regra: deixa `$ESC` (a escolha gravada em
   `~/.local/share/meu-bot/whatsapp-agente`, que agora aceita `picoclaw`), `$MOTOR` e `usa_hermes`. Precedência: escolha

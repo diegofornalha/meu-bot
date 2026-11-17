@@ -58,6 +58,7 @@ import { handleClient, onClient } from "./registry";
 import { setObservadorStatus } from "./shared";
 import { browserAgent, browserAgentInfo, browserExtensions, browserOpen, browserRemoveExtension, browserSetActive, browserSincronizarCrm, browserFavoriteAdd, browserFavoriteRemove, browserWorkspacesSet } from "../navegador/browser";
 import { registrar } from "../auditoria/auditoria";
+import { atualizarFonte, desligarModulo, ligarModulo, listarModulos, salvarCredenciais, salvarOpcoes, testarModulo } from "../modulos/modulos";
 
 /**
  * Padrão do app: máquina cujo agente transcreve áudio (capacidade `audio`) entende áudios sem a pessoa fazer nada. Liga
@@ -308,6 +309,32 @@ export function registerClientIpc(): void {
   handleClient("finance:mes", async (event, payload: unknown) => { const p = (payload ?? {}) as Record<string, unknown>; return financeMes(await fin(event), mesOk(p.mes), { ...(p.metaDireto === null || typeof p.metaDireto === "string" ? { metaDireto: p.metaDireto as string | null } : {}), ...(p.metaIndireto === null || typeof p.metaIndireto === "string" ? { metaIndireto: p.metaIndireto as string | null } : {}), ...(typeof p.metaNotas === "string" ? { metaNotas: p.metaNotas.slice(0, 500) } : {}), ...(p.orcamento === null || typeof p.orcamento === "string" ? { orcamento: p.orcamento as string | null } : {}), ...(p.rendaPrevista === null || typeof p.rendaPrevista === "string" ? { rendaPrevista: p.rendaPrevista as string | null } : {}), ...(typeof p.dinheiroInformado === "boolean" ? { dinheiroInformado: p.dinheiroInformado } : {}) }); });
   handleClient("finance:fechar-mes", async (event, payload: unknown) => { const host = await fin(event); const mes = mesOk((payload as { mes?: unknown } | null)?.mes); await financeFecharMes(host, mes); void registrar(host, "finance.fechar-mes", mes); });
   handleClient("finance:install", async (event) => { const h = ctxOf(event); await assertFinance(h.host); const r = await installFinance(h.host, (line) => { if (!h.win.isDestroyed()) (h.win.webContents.send("finance:progress", { line }), eventoHook("finance:progress", line)); }); if (r.ok) void registrar(h.host, "finance.instalar"); return r; });
+  // Módulos de produto (meu-bot-diego): só nos apps com caps().modulos; a licença (add-on do produto) é conferida no
+  // main a cada ação e de novo pelo backend da máquina a cada turno.
+  const modId = (p: unknown): string => { const id = p !== null && typeof p === "object" ? (p as { id?: unknown }).id : undefined; if (typeof id !== "string" || !/^[a-z][a-z0-9-]{1,40}$/.test(id) || caps().modulos === null) throw new Error("módulo inválido"); return id; };
+  const progressoModulo = (h: ReturnType<typeof ctxOf>, id: string) => (line: string): void => { if (!h.win.isDestroyed()) h.win.webContents.send("modulos:progress", { id, line }); };
+  // Os módulos vêm do repositório do produto, baixado com git neste Mac (atualizarFonte).
+  handleClient("modulos:atualizar-fonte", async () => { if (caps().modulos === null) throw new Error("este app não tem módulos"); return atualizarFonte(); });
+  handleClient("modulos:testar", async (event, p: unknown) => { const h = ctxOf(event); const id = modId(p); return testarModulo(h.host, id, progressoModulo(h, id)); });
+  handleClient("modulos:listar", async (event) => { if (caps().modulos === null) throw new Error("este app não tem módulos"); return listarModulos(ctxOf(event).host); });
+  handleClient("modulos:ligar", async (event, p: unknown) => { const h = ctxOf(event); const id = modId(p); const r = await ligarModulo(h.host, id, progressoModulo(h, id)); if (r.ok) void registrar(h.host, "modulo.ligar", id); return r; });
+  handleClient("modulos:desligar", async (event, p: unknown) => { const h = ctxOf(event); const id = modId(p); const r = await desligarModulo(h.host, id, progressoModulo(h, id)); if (r.ok) void registrar(h.host, "modulo.desligar", id); return r; });
+  handleClient("modulos:credenciais", async (event, p: unknown) => {
+    const h = ctxOf(event); const id = modId(p);
+    const patch = (p as { patch?: unknown }).patch;
+    if (patch === null || typeof patch !== "object" || Array.isArray(patch) || !Object.values(patch).every((v) => typeof v === "string")) throw new Error("credenciais inválidas");
+    await salvarCredenciais(h.host, id, patch as Record<string, string>);
+    void registrar(h.host, "modulo.credenciais", `${id} (${Object.keys(patch).join(", ")})`);
+    return listarModulos(h.host);
+  });
+  handleClient("modulos:opcoes", async (event, p: unknown) => {
+    const h = ctxOf(event); const id = modId(p);
+    const patch = (p as { patch?: unknown }).patch;
+    if (patch === null || typeof patch !== "object" || Array.isArray(patch)) throw new Error("opções inválidas");
+    const r = await salvarOpcoes(h.host, id, patch as Record<string, unknown>, progressoModulo(h, id));
+    void registrar(h.host, "modulo.opcoes", id);
+    return r;
+  });
   // Computador (módulo Pro): a tela do bot ao vivo. O plano é conferido aqui de novo, não só na tela.
   const comp = async (event: Electron.IpcMainInvokeEvent): Promise<string> => { const h = ctxOf(event); await assertAcesso(h.host); return h.host; };
   handleClient("computador:status", async (event) => telaStatus(await comp(event)));

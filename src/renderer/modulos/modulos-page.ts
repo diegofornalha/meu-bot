@@ -1,0 +1,332 @@
+/**
+ * Página "Módulos" (apps com caps.modulos, como o meu-bot-diego-staging). Duas vistas:
+ * - a lista: de onde os módulos vieram (o repositório do produto, baixado com git) e um cartão por módulo;
+ * - a ficha de um módulo: cabeçalho com o estado e "Testar conexão", "O que dá para pedir" (vai ao chat), as abas
+ *   Visão geral (configurar, ligar, conexão e o guia em resumo), Ferramentas (do último teste), Guia e Primeiros
+ *   passos, e a coluna Detalhes.
+ * Tudo o que a ficha mostra vem do modulos.json do repositório (modulos-core.ts): é texto puro, desenhado com `el`,
+ * nunca HTML. O estado mora na máquina (main › modulos/modulos.ts); aqui só se mostra e se pede.
+ */
+import type { FonteModulos, MeuBotApi, ModuloPasso, ModuloVista, ModulosLista } from "../../shared/ipc";
+import { el } from "../lib/dom.js";
+import { carregando } from "../lib/carregando.js";
+import type { PageTab } from "../lib/pages-types.js";
+import { ipcErrorText } from "../lib/ipc-error.js";
+import { passoFeito, situacao, tempoDesde } from "./modulos-ficha.js";
+
+export interface ModulosPageDeps {
+  panelsEl: HTMLElement;
+  definePage(id: string, title: string, panel: HTMLElement, render: () => void): PageTab;
+  openPage(page: PageTab): void;
+  armConfirm(btn: HTMLButtonElement, label: string, run: () => void): void;
+  api: Pick<MeuBotApi, "modulosAtualizarFonte" | "modulosListar" | "modulosLigar" | "modulosDesligar" | "modulosTestar" | "modulosCredenciais" | "modulosOpcoes" | "openExternal" | "on">;
+  /** Leva uma pergunta pronta ao chat do agente (o mesmo caminho dos tutoriais). */
+  goToChat(message: string, hint: string): Promise<void>;
+  /** Rótulo do add-on (de caps.addons) para os textos. */
+  rotulo: string;
+  /** Máquina desta janela (as marcações dos primeiros passos são por máquina); lida na hora, não na montagem. */
+  host(): string;
+}
+
+type Aba = "geral" | "ferramentas" | "guia" | "passos";
+const MSG_LICENCA = (rotulo: string): string => `Os módulos ainda não estão liberados nesta máquina: peça ao admin para incluir o add-on "${rotulo}" na licença (Configurações › Suporte).`;
+
+export function mountModulosPage(deps: ModulosPageDeps): { open: () => void } {
+  const panel = el("section", "acervo-panel modulos-panel"); panel.hidden = true;
+  deps.panelsEl.append(panel);
+  let page: PageTab | null = null;
+  let lista: ModulosLista | null = null;
+  let fonte: FonteModulos | null = null;
+  let erro: string | null = null;
+  let lendo = false;
+  let baixando = false;
+  /** Ficha aberta (id do módulo) e a aba dela; null = a lista. */
+  let aberto: string | null = null;
+  let aba: Aba = "geral";
+  /** Módulo com ação em andamento (só um por vez) e o que cada um disse por último. */
+  let ocupado: string | null = null;
+  const logs = new Map<string, { linhas: string[]; ruim: boolean }>();
+  const rascunhoCred = new Map<string, Record<string, string>>();
+  const rascunhoOpc = new Map<string, Record<string, string | number | boolean>>();
+
+  deps.api.on("modulos:progress", ({ id, line }) => {
+    const l = logs.get(id) ?? { linhas: [], ruim: false };
+    logs.set(id, { linhas: [...l.linhas, line].slice(-8), ruim: false });
+    if (!panel.hidden) render();
+  });
+
+  /* ---------- marcações à mão dos primeiros passos (por máquina, neste Mac) ---------- */
+  const chaveMarcas = (m: ModuloVista): string => `modulos:passos:${lista?.produto ?? ""}:${deps.host()}:${m.id}`;
+  const marcas = (m: ModuloVista): string[] => { try { const v = JSON.parse(localStorage.getItem(chaveMarcas(m)) ?? "[]") as unknown; return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []; } catch { return []; } };
+  const marcar = (m: ModuloVista, passo: string, feito: boolean): void => {
+    const s = new Set(marcas(m)); if (feito) s.add(passo); else s.delete(passo);
+    try { localStorage.setItem(chaveMarcas(m), JSON.stringify([...s])); } catch { /* opcional */ }
+  };
+
+  /* ---------- dados ---------- */
+  async function ler(): Promise<void> {
+    lendo = true; erro = null; render();
+    try { lista = await deps.api.modulosListar(); fonte = lista.fonte; } catch (e) { erro = ipcErrorText(e); }
+    lendo = false; render();
+  }
+  /** Confere o repositório (clone na primeira vez, pull depois) e relê a máquina; sem módulos à vista, a lista some. */
+  async function atualizar(): Promise<void> {
+    if (baixando) return;
+    baixando = true; erro = null; render();
+    try { fonte = await deps.api.modulosAtualizarFonte(); } catch (e) { erro = ipcErrorText(e); }
+    baixando = false;
+    if (fonte?.visiveis === true) await ler(); else { lista = null; render(); }
+  }
+  async function acao(id: string, rodar: () => Promise<{ ok: boolean; log: string[] }>): Promise<void> {
+    ocupado = id; logs.set(id, { linhas: [], ruim: false }); render();
+    try {
+      const r = await rodar();
+      const antes = logs.get(id)?.linhas ?? [];
+      logs.set(id, { linhas: [...antes, ...r.log.filter((l) => !antes.includes(l))].slice(-8), ruim: !r.ok });
+    } catch (e) { logs.set(id, { linhas: [ipcErrorText(e)], ruim: true }); }
+    ocupado = null;
+    await ler();
+  }
+  async function testar(m: ModuloVista): Promise<void> {
+    await acao(m.id, async () => { const t = await deps.api.modulosTestar(m.id); return { ok: t.ok, log: [t.ok ? `✓ conexão ok · ${t.ferramentas.length} ferramenta(s)` : `✗ ${t.erro ?? "o teste falhou"}`] }; });
+  }
+
+  /* ---------- peças ---------- */
+  const btn = (label: string, cls: string, run: () => void, desligado = false): HTMLButtonElement => { const b = el("button", `btn ${cls} btn-small`, label); b.type = "button"; b.disabled = desligado || ocupado !== null; b.addEventListener("click", run); return b; };
+  const field = (label: string, ctl: HTMLElement, ajuda: string): HTMLElement => { const w = el("label", "admin-field"); w.append(el("span", "hint", label), ctl); if (ajuda) w.append(el("span", "hint modulo-ajuda", ajuda)); return w; };
+  const avatar = (m: ModuloVista): HTMLElement => el("span", "modulo-avatar", (m.rotulo.trim()[0] ?? "?").toUpperCase());
+  const selo = (m: ModuloVista): HTMLElement => { const s = situacao(m); return el("span", `pill modulo-selo ${s.classe}`, s.texto); };
+  const secao = (titulo: string, ...filhos: HTMLElement[]): HTMLElement => { const s = el("section", "modulo-secao"); s.append(el("h3", "", titulo), ...filhos); return s; };
+  const perguntar = (m: ModuloVista, texto: string): void => { void deps.goToChat(texto, `Pergunta do módulo ${m.rotulo}`); };
+
+  function cartaoDaLista(m: ModuloVista): HTMLElement {
+    const c = el("button", "modulo-cartao"); c.type = "button";
+    const topo = el("div", "modulo-cartao-topo"); topo.append(avatar(m), selo(m));
+    c.append(topo, el("strong", "", m.rotulo));
+    if (m.categoria) c.append(el("span", "hint", m.categoria));
+    if (m.descricao) c.append(el("p", "hint modulo-cartao-desc", m.descricao));
+    c.addEventListener("click", () => { aberto = m.id; aba = "geral"; render(); });
+    return c;
+  }
+
+  /* ---------- Visão geral ---------- */
+  function configuracao(m: ModuloVista, l: ModulosLista): HTMLElement {
+    const box = el("div", "modulo-config");
+    const gwOk = m.gateways.length === 0 || (l.gateway !== null && m.gateways.includes(l.gateway));
+    const avisos: string[] = [...m.requisitos];
+    if (!gwOk) avisos.unshift(`Precisa do WhatsApp pelo ${m.gateways.join(" ou ")}; esta máquina usa ${l.gateway ?? "nenhum"}.`);
+    if (avisos.length > 0) { const ul = el("ul", "admin-health"); for (const a of avisos) ul.append(el("li", "", a)); box.append(ul); }
+    // Chaves: campo de senha; o que já tem valor aparece como "preenchida" (o valor nunca volta da máquina).
+    if (m.credenciais.length > 0) {
+      const rc = rascunhoCred.get(m.id) ?? {};
+      const f = el("div", "admin-actions modulo-campos");
+      for (const cr of m.credenciais) {
+        const i = el("input"); i.type = "password"; i.autocomplete = "off"; i.maxLength = 4000;
+        i.placeholder = m.estado.preenchidas.includes(cr.chave) ? "preenchida ✓ (cole para trocar)" : "cole aqui";
+        i.value = rc[cr.chave] ?? ""; i.disabled = ocupado !== null;
+        i.addEventListener("input", () => { rascunhoCred.set(m.id, { ...(rascunhoCred.get(m.id) ?? {}), [cr.chave]: i.value }); });
+        f.append(field(cr.rotulo, i, cr.ajuda));
+      }
+      f.append(btn("Salvar chaves", "btn-ghost", () => {
+        const patch = Object.fromEntries(Object.entries(rascunhoCred.get(m.id) ?? {}).filter(([, v]) => v.trim() !== ""));
+        if (Object.keys(patch).length === 0) return;
+        void acao(m.id, async () => { lista = await deps.api.modulosCredenciais(m.id, patch); rascunhoCred.delete(m.id); return { ok: true, log: ["chaves salvas na máquina"] }; });
+      }, !l.liberado || l.erroMaquina !== null));
+      box.append(f);
+    }
+    if (m.opcoes.length > 0) {
+      const ro = rascunhoOpc.get(m.id) ?? {};
+      const f = el("div", "admin-actions modulo-campos");
+      for (const o of m.opcoes) {
+        const atual = ro[o.chave] ?? m.estado.opcoes[o.chave] ?? o.padrao;
+        const set = (v: string | number | boolean): void => { rascunhoOpc.set(m.id, { ...(rascunhoOpc.get(m.id) ?? {}), [o.chave]: v }); };
+        const ctl = el("input");
+        if (o.tipo === "booleano") { ctl.type = "checkbox"; ctl.checked = atual === true; ctl.addEventListener("change", () => set(ctl.checked)); }
+        else { ctl.type = o.tipo === "numero" ? "number" : "text"; ctl.value = String(atual); ctl.maxLength = 2000; ctl.addEventListener("input", () => set(o.tipo === "numero" ? Number(ctl.value) : ctl.value)); }
+        ctl.disabled = ocupado !== null;
+        f.append(field(o.rotulo, ctl, o.ajuda));
+      }
+      f.append(btn("Salvar opções", "btn-ghost", () => {
+        const patch = rascunhoOpc.get(m.id) ?? {};
+        if (Object.keys(patch).length === 0) return;
+        void acao(m.id, async () => { const r = await deps.api.modulosOpcoes(m.id, patch); if (r.ok) rascunhoOpc.delete(m.id); return r; });
+      }, !l.liberado || l.erroMaquina !== null));
+      box.append(f);
+    }
+    const a = el("div", "admin-actions");
+    if (ocupado === m.id) a.append(carregando(m.estado.ligado ? "Trabalhando na máquina…" : "Ligando na máquina…"));
+    else if (m.estado.ligado) {
+      if (m.desatualizado) a.append(btn("Atualizar", "btn-primary", () => { void acao(m.id, () => deps.api.modulosLigar(m.id)); }, !l.liberado || l.erroMaquina !== null));
+      const d = btn("Desligar", "btn-ghost", () => { /* armConfirm abaixo */ }, l.erroMaquina !== null);
+      deps.armConfirm(d, "Confirmar desligar?", () => { void acao(m.id, () => deps.api.modulosDesligar(m.id)); });
+      a.append(d);
+    } else {
+      const faltam = m.credenciais.filter((cr) => !m.estado.preenchidas.includes(cr.chave));
+      a.append(btn("Ligar", "btn-primary", () => { void acao(m.id, () => deps.api.modulosLigar(m.id)); }, !l.liberado || l.erroMaquina !== null || !gwOk || faltam.length > 0));
+      if (faltam.length > 0) a.append(el("span", "hint", `Falta: ${faltam.map((x) => x.rotulo).join(", ")}`));
+    }
+    box.append(a);
+    const lg = logs.get(m.id);
+    if (lg !== undefined && lg.linhas.length > 0) { const pre = el("pre", lg.ruim ? "modulo-log bad-hint" : "modulo-log hint"); pre.textContent = lg.linhas.join("\n"); box.append(pre); }
+    return box;
+  }
+  function conexao(m: ModuloVista): HTMLElement {
+    const box = el("div", "modulo-caixa");
+    const linha = el("div", "modulo-caixa-linha");
+    const t = m.teste;
+    if (m.testar === null) linha.append(el("span", "hint", "Este módulo não traz teste de conexão."));
+    else if (t === null) linha.append(el("span", "modulo-ponto"), el("span", "", "A conexão ainda não foi testada."), el("span", "hint modulo-direita", "Nunca testada"));
+    else linha.append(el("span", `modulo-ponto ${t.ok ? "ok" : "bad"}`), el("span", "", t.ok ? `Conexão ok · ${t.ferramentas.length} ferramenta(s)` : `Falhou: ${t.erro ?? "sem motivo"}`), el("span", "hint modulo-direita", `Testada ${tempoDesde(t.em, Date.now())}`));
+    box.append(linha);
+    return box;
+  }
+  function guiaResumo(m: ModuloVista): HTMLElement[] {
+    const out: HTMLElement[] = [];
+    if (m.guia.paraQue) out.push(el("h4", "", "Para que serve"), el("p", "", m.guia.paraQue));
+    if (m.guia.cuidados.length > 0) { out.push(el("h4", "", "Cuidados")); const ul = el("ul", "modulo-lista"); for (const c of m.guia.cuidados) ul.append(el("li", "", c)); out.push(ul); }
+    return out;
+  }
+  function linkGuia(m: ModuloVista): HTMLElement | null {
+    if (m.guia.completo === null) return null;
+    const url = m.guia.completo;
+    return btn("Ler guia completo →", "btn-ghost", () => { void deps.api.openExternal(url); });
+  }
+
+  /* ---------- abas ---------- */
+  function abaGeral(m: ModuloVista, l: ModulosLista): HTMLElement[] {
+    const out = [secao(m.estado.ligado ? "Configuração" : "Ligar nesta máquina", configuracao(m, l)), secao("Conexão", conexao(m))];
+    const resumo = guiaResumo(m); const link = linkGuia(m);
+    if (resumo.length > 0 || link !== null) out.push(secao("Guia", ...resumo, ...(link === null ? [] : [link])));
+    return out;
+  }
+  function abaFerramentas(m: ModuloVista): HTMLElement[] {
+    const t = m.teste;
+    if (t === null || t.ferramentas.length === 0) return [el("p", "hint", m.testar === null ? "Este módulo não lista as ferramentas." : "Teste a conexão para ver as ferramentas que o agente ganha com este módulo.")];
+    const ul = el("ul", "modulo-ferramentas");
+    for (const f of t.ferramentas) { const li = el("li"); li.append(el("code", "", f.nome)); if (f.descricao) li.append(el("span", "hint", f.descricao)); ul.append(li); }
+    return [el("p", "hint", `${t.ferramentas.length} ferramenta(s), do teste ${tempoDesde(t.em, Date.now())}.`), ul];
+  }
+  function abaGuia(m: ModuloVista): HTMLElement[] {
+    const out = guiaResumo(m);
+    for (const p of m.guia.texto) out.push(el("p", "", p));
+    const link = linkGuia(m); if (link !== null) out.push(link);
+    return out.length > 0 ? out : [el("p", "hint", "Este módulo não traz guia.")];
+  }
+  function abaPassos(m: ModuloVista): HTMLElement[] {
+    const feitas = marcas(m);
+    const ol = el("ol", "modulo-passos");
+    let anteriorFeito = true;
+    m.passos.forEach((p: ModuloPasso, i) => {
+      const feito = anteriorFeito && passoFeito(p, m, feitas);
+      const li = el("li", `modulo-passo${feito ? " feito" : anteriorFeito ? " atual" : ""}`);
+      li.append(el("span", "modulo-passo-n", feito ? "✓" : String(i + 1)));
+      const corpo = el("div", "modulo-passo-corpo");
+      corpo.append(el("strong", "", p.titulo));
+      if (p.texto) corpo.append(el("p", "hint", p.texto));
+      const acoes = el("div", "admin-actions");
+      if (anteriorFeito && !feito) {
+        if (p.pergunta) acoes.append(btn("Perguntar no chat", "btn-ghost", () => perguntar(m, p.pergunta)));
+        if (p.conclui === "manual") acoes.append(btn(p.botao, "btn-primary", () => { marcar(m, p.id, true); render(); }));
+        else if (p.conclui === "testado" && m.testar !== null && m.estado.ligado) acoes.append(btn("Testar conexão", "btn-primary", () => { void testar(m); }));
+        else if (p.conclui !== "manual") acoes.append(el("span", "hint", "Conclui sozinho quando acontecer (veja Visão geral)."));
+      }
+      if (acoes.childElementCount > 0) corpo.append(acoes);
+      li.append(corpo); ol.append(li);
+      anteriorFeito = feito;
+    });
+    const refazer = btn("Refazer as marcações", "btn-ghost", () => { for (const p of m.passos) marcar(m, p.id, false); render(); });
+    return [ol, refazer];
+  }
+
+  function detalhes(m: ModuloVista, l: ModulosLista): HTMLElement {
+    const col = el("aside", "modulo-detalhes");
+    const dl = el("dl", "modulo-dl");
+    const linha = (k: string, v: string | HTMLElement): void => { dl.append(el("dt", "", k)); const dd = el("dd"); if (typeof v === "string") dd.textContent = v; else dd.append(v); dl.append(dd); };
+    linha("Situação", situacao(m).texto);
+    if (m.categoria) linha("Categoria", m.categoria);
+    linha("Versão", m.estado.ligado && m.estado.versao !== null && m.estado.versao !== m.versao ? `${m.estado.versao} (há ${m.versao})` : m.versao);
+    linha("Acesso", m.credenciais.length > 0 ? `Chave guardada na máquina (${m.credenciais.map((c) => c.rotulo).join(", ")})` : "Sem chave no app (o módulo cuida do login)");
+    linha("Onde roda", `Agente da máquina ${deps.host()}`);
+    const id = el("code", "", m.id); linha("Identificador", id);
+    linha("Origem", l.fonte.repositorio);
+    const box = el("div", "modulo-caixa"); box.append(dl);
+    col.append(el("h3", "", "Detalhes"), box);
+    return col;
+  }
+
+  function ficha(m: ModuloVista, l: ModulosLista): HTMLElement {
+    const f = el("div", "modulo-ficha");
+    const voltar = el("button", "btn btn-ghost btn-small modulo-voltar", "← Módulos"); voltar.type = "button";
+    voltar.addEventListener("click", () => { aberto = null; render(); });
+    const cab = el("header", "modulo-cabecalho");
+    const tit = el("div", "modulo-titulo");
+    const linhaNome = el("div", "modulo-nome"); linhaNome.append(el("h2", "", m.rotulo), selo(m));
+    tit.append(linhaNome);
+    if (m.descricao) tit.append(el("p", "hint", m.descricao));
+    cab.append(avatar(m), tit);
+    if (m.testar !== null) cab.append(btn(ocupado === m.id ? "Testando…" : "↻ Testar conexão", "btn-ghost modulo-testar", () => { void testar(m); }, !m.estado.ligado || l.erroMaquina !== null));
+    f.append(voltar, cab);
+    if (m.exemplos.length > 0) {
+      const ex = el("div", "modulo-exemplos"); ex.append(el("span", "hint", "O que dá para pedir"));
+      for (const e of m.exemplos) { const b = btn(e, "btn-ghost modulo-chip", () => perguntar(m, e), !m.estado.ligado); if (!m.estado.ligado) b.title = "Ligue o módulo para o agente conseguir responder"; ex.append(b); }
+      f.append(ex);
+    }
+    const abas: [Aba, string][] = [["geral", "Visão geral"], ["ferramentas", "Ferramentas"], ["guia", "Guia"], ...(m.passos.length > 0 ? [["passos", "Primeiros passos"] as [Aba, string]] : [])];
+    if (!abas.some(([a]) => a === aba)) aba = "geral";
+    const barra = el("nav", "modulo-abas");
+    for (const [a, rot] of abas) { const b = el("button", `modulo-aba${a === aba ? " ativa" : ""}`, rot); b.type = "button"; b.addEventListener("click", () => { aba = a; render(); }); barra.append(b); }
+    const grade = el("div", "modulo-grade");
+    const principal = el("div", "modulo-principal");
+    principal.append(barra, ...(aba === "geral" ? abaGeral(m, l) : aba === "ferramentas" ? abaFerramentas(m) : aba === "guia" ? abaGuia(m) : abaPassos(m)));
+    grade.append(principal, detalhes(m, l));
+    f.append(grade);
+    return f;
+  }
+
+  function render(): void {
+    if (page === null) return;
+    panel.replaceChildren();
+    const m = aberto === null || lista === null ? undefined : lista.modulos.find((x) => x.id === aberto);
+    if (m !== undefined && lista !== null) {
+      if (erro !== null) panel.append(el("p", "hint bad-hint", erro));
+      if (lista.erroMaquina !== null) panel.append(el("p", "hint bad-hint", lista.erroMaquina));
+      panel.append(ficha(m, lista));
+      return;
+    }
+    aberto = null;
+    const head = el("div", "guide-head");
+    const body = el("div", "tut-body");
+    body.append(el("span", "tut-badge", `módulos · ${deps.rotulo}`), el("h2", "", "Módulos"), el("p", "", "Cada módulo é uma peça à parte: ligue só o que for usar. As chaves ficam na máquina, só com você."));
+    // Origem: de qual repositório os módulos vieram, em que commit e há quanto tempo (o app não leva módulo nenhum dentro).
+    if (fonte !== null) body.append(el("p", "hint modulos-origem", fonte.linha));
+    const b = el("button", "btn btn-ghost btn-small", "Atualizar módulos"); b.type = "button";
+    b.disabled = baixando || lendo || ocupado !== null;
+    b.title = "Confere o repositório dos módulos (git pull) e relê o estado na máquina";
+    b.addEventListener("click", () => { void atualizar(); });
+    body.append(b);
+    head.append(body);
+    panel.append(head);
+    const box = el("div", "auditoria-detalhe");
+    if (baixando) box.append(carregando(fonte?.baixados === true ? "Conferindo o repositório dos módulos…" : "Baixando os módulos…"));
+    // Aviso da fonte: sem acesso (a página fica só nisso), sem rede ou sem git (com os já baixados embaixo), erro do git.
+    else if (fonte !== null && fonte.mensagem !== "" && fonte.estado !== "atualizado" && fonte.estado !== "em-dia") box.append(el("p", `hint ${fonte.estado === "sem-rede" && fonte.baixados ? "guide-pair-note" : "bad-hint"}`, fonte.mensagem));
+    if (fonte !== null && !fonte.visiveis) { panel.append(box); return; }
+    if (erro !== null) box.append(el("p", "hint bad-hint", erro));
+    if (lista === null) { if (lendo) box.append(carregando("Lendo os módulos da máquina…")); }
+    else {
+      if (!lista.liberado) box.append(el("p", "hint guide-pair-note", MSG_LICENCA(deps.rotulo)));
+      if (lista.erroMaquina !== null) box.append(el("p", "hint bad-hint", lista.erroMaquina));
+      const grade = el("div", "modulo-cartoes");
+      for (const x of lista.modulos) grade.append(cartaoDaLista(x));
+      box.append(grade);
+    }
+    panel.append(box);
+  }
+
+  return {
+    open: () => {
+      if (page === null) { page = deps.definePage("modulos", "Módulos", panel, render); void atualizar(); }
+      deps.openPage(page);
+    },
+  };
+}

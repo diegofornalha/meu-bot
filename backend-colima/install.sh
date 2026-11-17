@@ -106,13 +106,14 @@ copiar_backend "$HERE" "$DEST"
 [ -f "$DEST/providers.json" ] || { cp "$HERE/providers.json" "$DEST/providers.json"; echo "providers.json criado (agente → grok-4; grok-4 precisa de XAI_API_KEY no .env ou base_url local)"; }
 if [ ! -f "$DEST/.env" ]; then
   # umask só para o .env (num subshell): vazando para o resto, a unidade de sistema nascia 600 e ilegível.
-  ( umask 077; printf 'OPENAI_COMPAT_KEY=%s\nCRM_AGENT_KEY=%s\nPORT=%s\nHOST=127.0.0.1\nCLAUDE_BIN=%s\n' "$(openssl rand -hex 32)" "$(openssl rand -hex 32)" "$PORT" "$CLAUDE" > "$DEST/.env" ); echo ".env criado"
+  ( umask 077; printf 'OPENAI_COMPAT_KEY=%s\nCRM_AGENT_KEY=%s\nMODULOS_KEY=%s\nPORT=%s\nHOST=127.0.0.1\nCLAUDE_BIN=%s\n' "$(openssl rand -hex 32)" "$(openssl rand -hex 32)" "$(openssl rand -hex 32)" "$PORT" "$CLAUDE" > "$DEST/.env" ); echo ".env criado"
 else
   grep -q '^CLAUDE_BIN=' "$DEST/.env" || printf 'CLAUDE_BIN=%s\n' "$CLAUDE" >> "$DEST/.env"
   # CLAUDE_BIN apontando para o porteiro (instalação feita com ele no PATH): corrige para o real.
   cur=$(grep '^CLAUDE_BIN=' "$DEST/.env" | head -1 | cut -d= -f2-); if [ -n "$cur" ] && { [ ! -x "$cur" ] || e_porteiro "$cur"; }; then sed -i "s#^CLAUDE_BIN=.*#CLAUDE_BIN=$CLAUDE#" "$DEST/.env"; echo "CLAUDE_BIN do .env corrigido para $CLAUDE"; fi
   # Chave própria do agente (CRM): aditiva e idempotente; sem ela o agente cai na chave do app e perde a separação.
   grep -q '^CRM_AGENT_KEY=' "$DEST/.env" || { ( umask 077; printf 'CRM_AGENT_KEY=%s\n' "$(openssl rand -hex 32)" >> "$DEST/.env" ); echo "CRM_AGENT_KEY acrescentada ao .env"; }
+  grep -q '^MODULOS_KEY=' "$DEST/.env" || { ( umask 077; printf 'MODULOS_KEY=%s\n' "$(openssl rand -hex 32)" >> "$DEST/.env" ); echo "MODULOS_KEY acrescentada ao .env"; }
 fi
 chmod 600 "$DEST/.env"
 

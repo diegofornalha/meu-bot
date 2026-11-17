@@ -277,6 +277,26 @@ function probeLocal(port: number): HostProbe {
 }
 
 /** Pasta com server.js, session-map.js, a unidade systemd e install.sh (Resources/ no .app; raiz no dev). */
+/**
+ * Módulos de produto (src/main/modulos/modulos.ts): manda a pasta local de um módulo para o stage da máquina
+ * (`~/.meu-bot-install/modulo-<id>/`) e roda `comando` lá dentro (o instalador ou o desinstalador), com o progresso
+ * linha a linha. Mesmo molde de installFinance; o stage do módulo é limpo antes.
+ */
+export async function enviarModulo(host: string, id: string, pastaLocal: string, comando: string, onLine?: (line: string) => void): Promise<InstallBackendResult> {
+  if (host === LOCAL_HOST) return { ok: false, log: ["os módulos moram numa máquina por SSH"] };
+  if (!/^[a-z][a-z0-9-]{1,40}$/.test(id)) return { ok: false, log: ["módulo inválido"] };
+  const lines: string[] = [];
+  const say = (l: string): void => { lines.push(l); onLine?.(l); };
+  const stage = stageDe(`modulo-${id}`);
+  const mk = await run("ssh", [...sshBase(host), "--", host, `rm -rf ${stage} && mkdir -p ${stage}`], 20_000);
+  if (mk.code !== 0) return { ok: false, log: [...lines, `falha ao preparar a pasta remota: ${lastLine(mk.stderr)}`] };
+  const scp = await run("scp", ["-q", "-r", ...sshBase(host), "--", `${pastaLocal}/.`, `${host}:${stage}/`], 120_000);
+  if (scp.code !== 0) return { ok: false, log: [...lines, `scp falhou: ${lastLine(scp.stderr)}`] };
+  const r = await run("ssh", [...sshBase(host), "--", host, `cd ${stage} && ${comando} 2>&1`], 15 * 60_000, say);
+  if (r.code !== 0) return { ok: false, log: [...lines, r.code === null ? "o instalador do módulo não terminou em 15 min" : `o instalador do módulo saiu com código ${r.code}`] };
+  return { ok: true, log: lines };
+}
+
 export function backendBundleDir(): string {
   return app.isPackaged ? path.join(process.resourcesPath, "backend-colima") : path.join(app.getAppPath(), "backend-colima");
 }
