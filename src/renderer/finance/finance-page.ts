@@ -25,6 +25,8 @@ export interface FinancePageDeps {
   goToChat(message: string, hint: string, model?: BackendModel): Promise<void>;
   /** Avisa a janela (tutorial 12, contador da lateral) quando o estado muda. */
   onInfo(info: FinanceInfo | null): void;
+  /** Abre a página Módulos (com o módulo Finanças ligado, o financeiro mora lá); null no app sem a página. */
+  abrirModulos: (() => void) | null;
 }
 
 const ORIGEM: Record<string, string> = { whatsapp: "WhatsApp", foto: "foto", chat: "chat", app: "app", agente: "agente", planilha: "planilha" };
@@ -99,7 +101,7 @@ export function mountFinancePage(deps: FinancePageDeps): { open: () => void; ref
         const [l, p, c] = await Promise.all([deps.api.financeLancamentos({ limite: 15 }), deps.api.financeLancamentos({ status: "pendente", limite: 100 }), categorias.length > 0 ? Promise.resolve(categorias) : deps.api.financeCategorias()]);
         ultimos = l.lancamentos; pendentes = p.lancamentos; categorias = c;
       }
-    } catch (e) { info = { modulo: null, estado: null, erro: ipcErrorText(e) }; }
+    } catch (e) { info = { modulo: null, estado: null, erro: ipcErrorText(e), virouModulo: false }; }
     deps.onInfo(info);
     render();
   }
@@ -231,6 +233,12 @@ export function mountFinancePage(deps: FinancePageDeps): { open: () => void; ref
     panel.append(topo);
     if (msg) panel.append(el("p", `hint ${msg.bad ? "bad-hint" : "audio-ok"}`, msg.text));
     if (info === null) { panel.append(carregando("Consultando o financeiro desta máquina…")); return; }
+    if (info.virouModulo) {
+      const c = card("O Financeiro agora é o módulo Finanças");
+      c.append(el("p", "", "Nesta máquina, os lançamentos, a Curva ABC e as planilhas ficam na página do módulo Finanças. Para voltar a esta página com os mesmos dados, desligue o módulo."));
+      if (deps.abrirModulos !== null) { const abrir = deps.abrirModulos; c.append(btn("Abrir Módulos", "btn-primary", () => abrir())); }
+      panel.append(c); return;
+    }
     if (info.modulo === false || (info.modulo === null && e === null)) {
       const c = card("Ativar o financeiro nesta máquina");
       c.append(el("p", "", "Instala na máquina a ferramenta do agente e o financeiro do WhatsApp. Seus dados ficam só nela."));

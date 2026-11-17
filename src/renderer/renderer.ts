@@ -2000,6 +2000,7 @@ void (async () => {
   financePage = mountFinancePage({
     panelsEl, definePage, openPage, armConfirm, api: window.meuBot, host: () => windowHost, license: () => license, licenseKnown: () => navLicenseAsked,
     goToChat: goToChatFromGuide, onInfo: (i) => { financeState = i; paintFinanceLine(); paintGuide(); },
+    abrirModulos: caps.modulos !== null || caps.addons.some((a) => a.modulos) ? () => modulosPage?.open() : null,
   });
   $<HTMLButtonElement>("financas-line").addEventListener("click", () => financePage?.open());
   // Módulos de produto: o fixo do app (caps.modulos, como no meu-bot-diego-staging) e os add-ons com módulos na licença
