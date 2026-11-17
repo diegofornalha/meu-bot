@@ -26,6 +26,9 @@ export async function refreshNavInst(): Promise<void> {
 /** Tutorial 9, passo 2: instalar o lado da máquina (MCP + regra). */
 export function renderNavInstall(container: HTMLElement): void {
   const box = el("div", "audio-controls");
+  // Este Mac: o lado da máquina (MCP + regra) só existe nas máquinas por SSH, e a consulta não tem o que responder.
+  // Sem isto o passo ficava em "Consultando a máquina…" para sempre, com o Preparar desligado.
+  if (!ehRemoto()) { box.append(el("p", "audio-ok", "✓ Neste Mac não há o que preparar: esta etapa é só das máquinas por SSH.")); container.append(box); return; }
   const row = el("div", "audio-row");
   if (navInstState === true && !navInstBusy) row.append(el("span", "audio-ok", "✓ pronto nesta máquina"));
   const b = el("button", `btn ${navInstState === true ? "btn-ghost" : "btn-primary"} btn-small`, navInstBusy ? "Preparando…" : navInstState === true ? "Reinstalar" : "Preparar");
@@ -87,7 +90,7 @@ export function renderNavOpen(container: HTMLElement, url?: string): void {
 export function ligarNavegadorGuia(): void {
   registrarFonte("navegador", () => ({
     known: ctx.navLicenseAsked && (navInstState !== null || !ehRemoto()),
-    dados: { navegador: { access: !ctx.navLicenseAsked ? null : browserAccess(ctx.license, ctx.windowHost, ctx.caps.planoExigido, ctx.caps.produto), installed: navInstState, tabs: ctx.navTabs.filter((t) => t.url !== "" && !t.url.startsWith("about:")).length, extensions: ctx.navExtensions.length, agentOn: ctx.navAgent.on && ctx.navAgent.state === "up", servicos: ctx.navServicosCount(), extensaoEmbutida: ctx.navExtensions.some((x) => x.embutida === true) } },
+    dados: { navegador: { access: !ctx.navLicenseAsked ? null : browserAccess(ctx.license, ctx.windowHost, ctx.caps.planoExigido, ctx.caps.produto), installed: ehRemoto() ? navInstState : true, tabs: ctx.navTabs.filter((t) => t.url !== "" && !t.url.startsWith("about:")).length, extensions: ctx.navExtensions.length, agentOn: ctx.navAgent.on && ctx.navAgent.state === "up", servicos: ctx.navServicosCount(), extensaoEmbutida: ctx.navExtensions.some((x) => x.embutida === true) } },
   }));
   registrarPassos({
     "navegador-pro": (txt) => renderNavPro(txt),
