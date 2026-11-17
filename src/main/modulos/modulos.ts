@@ -33,6 +33,11 @@ const lerGravada = (nome: string) => { try { return parseFonteGravada(fs.readFil
 /** A URL de Configurações (modulosRepo) só vale para o produto fixo do app; os add-ons da licença usam a padrão. */
 const urlDe = (produto: string): string => (produto === caps().modulos ? repoEfetivo(getModulosRepo(), produto) : repoPadrao(produto));
 
+/** Os módulos do produto dispensam a licença (a trava é o acesso git ao repositório privado: `Addon.semLicenca`)? */
+const semLicenca = (produto: string): boolean => caps().addons.some((a) => a.nome === produto && a.semLicenca);
+/** O produto está liberado nesta máquina: sem licença por desenho, ou o add-on na licença em dia. */
+const produtoLiberado = (lic: LicenseView | null, host: string, produto: string): boolean => semLicenca(produto) || acessoAddon(lic, host, produto) === "ok";
+
 /** O app pode ter módulos em alguma máquina (produto fixo ou add-on com módulos no catálogo)? */
 export const temModulos = (): boolean => appTemModulos(caps().modulos, caps().addons);
 /**
@@ -179,7 +184,7 @@ export async function listarModulos(host: string): Promise<ModulosLista[]> {
   return partes.map(({ produto, modulos, avisos }) => ({
     produto,
     rotulo: caps().addons.find((a) => a.nome === produto)?.rotulo ?? produto,
-    liberado: acessoAddon(lic, host, produto) === "ok",
+    liberado: produtoLiberado(lic, host, produto),
     gateway: gatewayDe(r.stdout),
     fonte: fonteAtual(produto),
     erroMaquina,
@@ -232,6 +237,7 @@ export async function testarModulo(host: string, id: string, onLine?: (l: string
 async function liberado(host: string, id: string): Promise<{ produto: string; m: Modulo; pasta: string }> {
   const lic = await lerLicenca(host);
   const achado = localizar(host, id, lic);
+  if (semLicenca(achado.produto)) return achado;
   const a = acessoAddon(lic, host, achado.produto);
   if (a === "ausente" || a === "expirada") throw new Error(`MODULOS_REQUIRED:${achado.produto}`);
   return achado;
