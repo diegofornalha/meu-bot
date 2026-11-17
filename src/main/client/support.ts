@@ -103,9 +103,9 @@ const D = SUPPORT_DIR;
 /** Como o Mac dela chega na máquina (o que o ssh dela resolve para o alias), para o admin chegar igual. */
 function resolveSsh(host: string): Promise<{ hostname: string; user: string; port: number }> {
   return new Promise((resolve, reject) => {
-    execFile("ssh", ["-G", "--", host], { timeout: 10_000 }, (err, stdout) => {
+    execFile("ssh", ["-G", "--", host], { timeout: 10_000, windowsHide: true }, (err, stdout) => {
       if (err) { reject(new Error(`não consegui ler o endereço de ${host}`)); return; }
-      const kv = new Map(stdout.split("\n").map((l) => { const i = l.indexOf(" "); return [l.slice(0, i), l.slice(i + 1).trim()] as const; }));
+      const kv = new Map(stdout.split(/\r?\n/).map((l) => { const i = l.indexOf(" "); return [l.slice(0, i), l.slice(i + 1).trim()] as const; }));
       // Endereço local (VM do Colima, por exemplo) vale: só um admin neste mesmo Mac a alcança, e o admin
       // vê isso ao lado do endereço. Serve para testar o suporte sem outra máquina.
       const hostname = kv.get("hostname") ?? "";
@@ -287,7 +287,7 @@ function deliverFromMac(b: SupportBundle, id: string, codeText: string): Promise
   return new Promise((resolve, reject) => {
     const child = execFile("ssh", ["-i", tmp, "-o", "IdentitiesOnly=yes", "-o", "IdentityAgent=none", "-o", "BatchMode=yes", "-o", "ConnectTimeout=20",
       "-o", "HostKeyAlias=meu-bot-caixa", "-o", `UserKnownHostsFile=${b.knownHostsPath}`, "-o", "StrictHostKeyChecking=yes",
-      "-p", String(b.inbox.port), `${b.inbox.user}@${b.inbox.hostname}`], { timeout: 30_000 }, (err) => (err ? reject(err) : resolve()));
+      "-p", String(b.inbox.port), `${b.inbox.user}@${b.inbox.hostname}`], { timeout: 30_000, windowsHide: true }, (err) => (err ? reject(err) : resolve()));
     child.stdin?.end(`${id}\n${codeText}\n`);
   });
 }

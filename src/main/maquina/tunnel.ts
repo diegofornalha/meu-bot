@@ -2,6 +2,7 @@
  * Túneis SSH para os backends, um por host, no padrão do Hermes Desktop: um ControlMaster
  * autenticado uma vez por host, clientes leves (chave, forward, checagens) pendurados nele,
  * máquina de estados por host e revalidação após o Mac acordar. Nada aqui é logado com segredo.
+ * No Windows não há master (ssh-opcoes-core.ts): cada cliente é uma conexão própria e o resto fica igual.
  *
  * Cada conversa pertence a um host; conversas em hosts diferentes convivem com túneis
  * independentes. Trocar o host padrão nas Configurações não mexe em túnel nenhum.
@@ -10,6 +11,7 @@ import { controlDir } from "../app/control-dir";
 import { app } from "electron";
 import { spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
+import http from "node:http";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
@@ -28,6 +30,7 @@ export interface TunnelInfo {
 /** Onde o backend guarda a chave do endpoint OpenAI-compatível, na VM. */
 import { BACKEND_DIR_CANONICAL, BACKEND_DIR_SH } from "./backend-dir-core";
 import { pendenteUnico } from "./pendente-core";
+import { compartilhaConexao, opcoesDoTunel } from "./ssh-opcoes-core";
 const BACKEND_KEY_NAME = "OPENAI_COMPAT_KEY";
 const CONTROL_PERSIST_S = 600;
 const FORWARD_RESTART_BUDGET = 5;
@@ -102,23 +105,16 @@ export function onTunnelState(cb: (host: string, s: TunnelState, detail: string)
 }
 
 
-const muxOpts = (host: string): string[] => [
-  "-o", `ControlPath=${path.join(controlDir(), "cm-%C")}`,
-  "-o", "BatchMode=yes",
-  "-o", "ConnectTimeout=15",
-  "-o", "StrictHostKeyChecking=accept-new",
-  "-o", "ServerAliveInterval=15",
-  "-o", "ServerAliveCountMax=3",
-  "-o", "TCPKeepAlive=yes",
-  "--", host,
-];
+/** Com master (macOS, Linux) ou cada `ssh` com a sua conexão (Windows). */
+const COMPARTILHA = compartilhaConexao(process.platform);
+const muxOpts = (host: string): string[] => opcoesDoTunel(host, COMPARTILHA ? path.join(controlDir(), "cm-%C") : null);
 
 interface RunResult { code: number | null; stdout: string; stderr: string }
 
 function runSsh(args: string[], timeoutMs: number): Promise<RunResult> {
   return new Promise((resolve) => {
     marcar(`ssh: ${args.filter((a) => !a.startsWith("-")).slice(-2).join(" ").slice(0, 80)}`);
-    const child = spawn("ssh", args, { stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn("ssh", args, { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     let done = false;
@@ -147,12 +143,14 @@ async function startMaster(host: string): Promise<void> {
 }
 
 async function exitMaster(host: string): Promise<void> {
+  if (!COMPARTILHA) return;
   const r = await runSsh(["-O", "exit", ...muxOpts(host)], 5000);
   log(`[${host}] master exit rc=${r.code}`);
 }
 
 /** Garante um master vivo; reusa o existente quando `-O check` passa. */
 async function ensureMaster(host: string): Promise<void> {
+  if (!COMPARTILHA) return;
   if (await masterAlive(host)) { log(`[${host}] master reused (-O check ok)`); return; }
   await startMaster(host);
   if (!(await masterAlive(host))) throw new Error("Master SSH subiu mas não responde ao -O check.");
@@ -193,6 +191,19 @@ function freePort(): Promise<number> {
   });
 }
 
+/**
+ * O backend responde pela porta local? Qualquer resposta HTTP prova o caminho inteiro (forward, conexão e backend).
+ * Sem master, é a checagem que vale: a porta local aceita conexão mesmo com a conexão SSH do forward morta (depois de
+ * o computador dormir, por exemplo), e um `ssh` novo provaria só que a máquina está no ar, não que este forward serve.
+ */
+function backendResponde(port: number, timeoutMs: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const req = http.get({ host: "127.0.0.1", port, path: "/health", timeout: timeoutMs }, (res) => { res.resume(); resolve(true); });
+    req.on("timeout", () => { req.destroy(); resolve(false); });
+    req.on("error", () => resolve(false));
+  });
+}
+
 function portOpen(port: number): Promise<boolean> {
   return new Promise((resolve) => {
     const sock = net.connect({ port, host: "127.0.0.1" });
@@ -217,7 +228,7 @@ function spawnForward(host: string, localPort: number, remotePort: number, after
     const child = spawn(
       "ssh",
       ["-N", "-v", "-o", "ControlMaster=no", "-o", "ExitOnForwardFailure=yes", "-L", `127.0.0.1:${localPort}:127.0.0.1:${remotePort}`, ...muxOpts(host)],
-      { stdio: ["pipe", "ignore", "pipe"] },
+      { windowsHide: true, stdio: ["pipe", "ignore", "pipe"] },
     );
     child.stdin?.on("error", () => { /* fechou antes; o exit cuida */ });
     let err = "";
@@ -323,6 +334,11 @@ export async function checkTunnel(host: string): Promise<boolean> {
   if (host === LOCAL_HOST) return checkLocalBackend();
   const h = hosts.get(host);
   if (h === undefined || h.live === undefined || h.live.forward.exitCode !== null) return false;
+  if (!COMPARTILHA) {
+    const ok = await backendResponde(h.live.localPort, 8000);
+    if (!ok) log(`[${host}] check: o backend não respondeu pelo forward`);
+    return ok;
+  }
   if (!(await masterAlive(host))) { log(`[${host}] check: master não responde`); return false; }
   const r = await execViaMux(host, "true", 10_000);
   if (r.code !== 0) { log(`[${host}] check: exec pelo mux falhou (${r.code ?? "timeout"})`); return false; }
@@ -414,6 +430,8 @@ export const reversePort = (host: string, chave = "nav"): number | null => hosts
 export function setReverseWanted(host: string, localSocket: string | null, opts: { chave?: string; sonda?: string } = {}): void {
   const h = entry(host);
   const chave = opts.chave ?? "nav";
+  // Sem master não há `-R` para socket Unix (nem socket Unix): o pedido fica sem efeito, e quem pediu vê "down".
+  if (!COMPARTILHA) { if (localSocket !== null) { log(`[${host}] reverso ${chave}: não existe nesta plataforma`); tellReverse(host, chave, "down", null); } return; }
   if (localSocket === null) h.reverseWanted.delete(chave);
   else { h.reverseWanted.set(chave, { localSocket, sonda: opts.sonda ?? "/abas" }); startReverseKeeper(); }
   void reconcileReverse(h);
@@ -479,7 +497,7 @@ function startReverse(h: HostTunnel, chave: string, q: ReverseWanted, restarts: 
     void (async () => {
       const remotePort = await remoteFreePort(host, chave);
       marcar(`ssh -R ${host} (${chave}): ${remotePort}`);
-      const child = spawn("ssh", ["-N", "-o", "ControlMaster=no", "-o", "ExitOnForwardFailure=yes", "-R", `127.0.0.1:${remotePort}:${localSocket}`, ...muxOpts(host)], { stdio: ["pipe", "ignore", "pipe"] });
+      const child = spawn("ssh", ["-N", "-o", "ControlMaster=no", "-o", "ExitOnForwardFailure=yes", "-R", `127.0.0.1:${remotePort}:${localSocket}`, ...muxOpts(host)], { windowsHide: true, stdio: ["pipe", "ignore", "pipe"] });
       child.stdin?.on("error", () => { /* fechou antes */ });
       let err = ""; let done = false; const t0 = Date.now();
       child.stderr?.on("data", (d: Buffer) => { err += d.toString("utf8"); });
@@ -527,7 +545,7 @@ async function stopReverse(host: string, l: Live, chave: string): Promise<void> 
   const r = l.reverses.get(chave); if (r === undefined) return;
   l.reverses.delete(chave);
   r.child.stdin?.end(); r.child.kill();
-  await runSsh(["-O", "cancel", "-R", `127.0.0.1:${r.remotePort}:${r.localSocket}`, ...muxOpts(host)], 5000);
+  if (COMPARTILHA) await runSsh(["-O", "cancel", "-R", `127.0.0.1:${r.remotePort}:${r.localSocket}`, ...muxOpts(host)], 5000);
   log(`[${host}] reverso ${chave} cancelado (127.0.0.1:${r.remotePort})`);
 }
 
@@ -535,7 +553,7 @@ async function stopReverse(host: string, l: Live, chave: string): Promise<void> 
 async function stopForward(host: string, l: Live): Promise<void> {
   l.forward.stdin?.end();
   l.forward.kill();
-  await runSsh(["-O", "cancel", "-L", `127.0.0.1:${l.localPort}:127.0.0.1:${l.remotePort}`, ...muxOpts(host)], 5000);
+  if (COMPARTILHA) await runSsh(["-O", "cancel", "-L", `127.0.0.1:${l.localPort}:127.0.0.1:${l.remotePort}`, ...muxOpts(host)], 5000);
 }
 
 async function teardown(h: HostTunnel, exitMasterToo: boolean): Promise<void> {

@@ -42,9 +42,11 @@ const sshBase = (host: string): string[] => [
 
 interface RunResult { code: number | null; stdout: string; stderr: string }
 
-function run(cmd: string, args: string[], timeoutMs: number, onLine?: (line: string) => void): Promise<RunResult> {
+/** `stdin`: texto entregue ao comando pela entrada (um script para `bash -s`, que não cabe na linha de comando do Windows). */
+function run(cmd: string, args: string[], timeoutMs: number, onLine?: (line: string) => void, stdin?: string): Promise<RunResult> {
   return new Promise((resolve) => {
-    const child = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(cmd, args, { windowsHide: true, stdio: [stdin === undefined ? "ignore" : "pipe", "pipe", "pipe"] });
+    if (stdin !== undefined) { child.stdin?.on("error", () => { /* o ssh caiu antes de ler */ }); child.stdin?.end(stdin); }
     let stdout = ""; let stderr = ""; let done = false; let pending = "";
     const feed = (d: Buffer): void => {
       const s = d.toString("utf8"); stdout += s;
@@ -53,8 +55,8 @@ function run(cmd: string, args: string[], timeoutMs: number, onLine?: (line: str
       let i: number;
       while ((i = pending.indexOf("\n")) >= 0) { onLine(pending.slice(0, i)); pending = pending.slice(i + 1); }
     };
-    child.stdout.on("data", feed);
-    child.stderr.on("data", (d: Buffer) => { stderr += d.toString("utf8"); });
+    child.stdout?.on("data", feed);
+    child.stderr?.on("data", (d: Buffer) => { stderr += d.toString("utf8"); });
     const timer = setTimeout(() => { if (!done) child.kill("SIGKILL"); }, timeoutMs);
     child.on("error", (e) => { if (!done) { done = true; clearTimeout(timer); resolve({ code: null, stdout, stderr: `${stderr}\n${e.message}` }); } });
     child.on("close", (code) => { if (!done) { done = true; clearTimeout(timer); if (pending !== "" && onLine) onLine(pending); resolve({ code, stdout, stderr }); } });
@@ -77,7 +79,7 @@ export const hostKeyChanged = (stderr: string): boolean => HOST_KEY_CHANGED_RE.t
  */
 export function approveTailscaleCheck(host: string): Promise<{ ok: boolean; detail: string }> {
   return new Promise((resolve) => {
-    const child = spawn("ssh", ["-o", "BatchMode=yes", "-o", "ConnectTimeout=240", "-o", "ControlMaster=no", "-o", "ControlPath=none", "-o", "StrictHostKeyChecking=accept-new", "--", host, "echo ok"], { stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn("ssh", ["-o", "BatchMode=yes", "-o", "ConnectTimeout=240", "-o", "ControlMaster=no", "-o", "ControlPath=none", "-o", "StrictHostKeyChecking=accept-new", "--", host, "echo ok"], { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
     let stderr = ""; let stdout = ""; let opened = false; let done = false;
     const timer = setTimeout(() => { if (!done) child.kill("SIGKILL"); }, 250_000);
     child.stderr.on("data", (d: Buffer) => {
@@ -489,7 +491,8 @@ export async function installHermesPausa(host: string, onLine?: (line: string) =
   const lines: string[] = [];
   const say = (l: string): void => { lines.push(l); onLine?.(l); };
   say(`instalando a pausa por contato (plugin ${fonte.versao}) no Hermes de ${host}…`);
-  const r = await run("ssh", [...sshBase(host), "--", host, hermesPausaPluginSh(fonte, fusoDesteMac())], 3 * 60_000, say);
+  // O script leva o plugin em base64 (~32 KB): pela entrada, como o runSsh do WhatsApp, e não como argumento.
+  const r = await run("ssh", [...sshBase(host), "--", host, "bash -s"], 3 * 60_000, say, hermesPausaPluginSh(fonte, fusoDesteMac()));
   const s = lerPausaPlugin(r.stdout);
   if (r.code !== 0 || !s.ok) return { ok: false, log: [...lines, `plugin=${s.plugin} enabled=${s.enabled}${r.stderr.trim() !== "" ? `: ${lastLine(r.stderr)}` : ""}`] };
   say(s.plugin === "nada" ? "plugin já estava no lugar" : `plugin ${s.plugin}; gateway: ${s.restart}`);

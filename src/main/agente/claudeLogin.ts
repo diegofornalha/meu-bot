@@ -35,7 +35,7 @@ function spawnFor(host: string, remoteCmd: string, localArgs: string[], configDi
     return spawn(claude, localArgs, { stdio: ["pipe", "pipe", "pipe"], env: { ...process.env, ...(configDir === undefined ? {} : { CLAUDE_CONFIG_DIR: configDir, ANTHROPIC_API_KEY: "", ANTHROPIC_AUTH_TOKEN: "" }) } });
   }
   const exporta = configDir === undefined ? "" : `export CLAUDE_CONFIG_DIR='${configDir}'; `;
-  return spawn("ssh", [...SSH_OPTS, "--", host, `${REMOTE_PATH}; ${exporta}${remoteCmd}`], { stdio: ["pipe", "pipe", "pipe"] });
+  return spawn("ssh", [...SSH_OPTS, "--", host, `${REMOTE_PATH}; ${exporta}${remoteCmd}`], { windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
 }
 
 /** `claude auth status` → logado? (null se não deu para consultar) */
@@ -70,7 +70,7 @@ export function claudeAuthInfo(host: string): Promise<ClaudeAuthInfo | null> {
   return new Promise((resolve) => {
     const child = host === LOCAL_HOST
       ? spawn("bash", ["-c", `${findClaude() === null ? "echo '{}'" : `'${findClaude()}' auth status 2>/dev/null`}; echo __EMAIL__; ${emailCmd}`], { stdio: ["ignore", "pipe", "pipe"] })
-      : spawn("ssh", [...SSH_OPTS, "--", host, `${REMOTE_PATH}; claude auth status 2>/dev/null; echo __EMAIL__; ${emailCmd}; echo __GLOBAL__; ${GLOBAL_CMD}`], { stdio: ["ignore", "pipe", "pipe"] });
+      : spawn("ssh", [...SSH_OPTS, "--", host, `${REMOTE_PATH}; claude auth status 2>/dev/null; echo __EMAIL__; ${emailCmd}; echo __GLOBAL__; ${GLOBAL_CMD}`], { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
     let out = "";
     const timer = setTimeout(() => child.kill("SIGKILL"), 30_000);
     child.stdout.on("data", (d: Buffer) => { out += d.toString("utf8"); });

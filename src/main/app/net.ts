@@ -90,9 +90,9 @@ export function hostIsLocalAddr(host: string): Promise<boolean> {
   let p = localAddrCache.get(host);
   if (p === undefined) {
     p = new Promise<boolean>((resolve) => {
-      execFile("ssh", ["-G", host], { timeout: 5_000 }, (err, stdout) => {
+      execFile("ssh", ["-G", host], { timeout: 5_000, windowsHide: true }, (err, stdout) => {
         if (err) { resolve(false); return; }
-        const m = /^hostname (.+)$/m.exec(stdout);
+        const m = /^hostname (.+?)\r?$/m.exec(stdout);
         resolve(m !== null && isLocalAddr(m[1] ?? ""));
       });
     });
