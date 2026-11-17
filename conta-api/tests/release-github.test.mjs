@@ -1,7 +1,7 @@
 // Home: o asset do app da pessoa na release mais nova (meu-bot-<v>-arm64.zip), nunca o admin nem o .sig.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { escolherAsset, escolherStaging } from "../dist/release-github.js";
+import { escolherAsset, escolherStaging, escolherWindows } from "../dist/release-github.js";
 
 test("escolherAsset: pega meu-bot-<v>-arm64.zip e ignora admin, .sig e json", () => {
   const rel = { tag_name: "v0.78.4", published_at: "2026-11-05T01:05:09Z", assets: [
@@ -42,4 +42,22 @@ test("escolherAsset: o instalador .dmg vem antes do .zip; sem .dmg, o .zip (rele
   assert.equal(escolherStaging(st).versao, "0.80.0-staging.1");
   // O site de produção nunca pega o instalador do staging.
   assert.equal(escolherAsset(st[0]), null);
+});
+
+test("escolherWindows: o instalador x64 do meu-bot-staging na release de staging mais nova que o tiver", () => {
+  const z = (name, size = 10) => ({ name, browser_download_url: "https://github.com/x/" + name, size });
+  const exe = "meu-bot-staging-0.85.0-staging.2-x64-setup.exe";
+  const rels = [
+    { draft: true, published_at: "d", assets: [z("meu-bot-staging-0.86.0-staging.1-x64-setup.exe")] },
+    { tag_name: "v0.85.0-staging.3", published_at: "c", assets: [z("meu-bot-staging-0.85.0-staging.3-arm64.zip")] },
+    { tag_name: "v0.85.0-staging.2", published_at: "2026-11-18T10:00:00Z", assets: [z(exe + ".sig"), z("meu-bot-staging-0.85.0-staging.2-arm64.zip"), z(exe, 113000000)] },
+    { tag_name: "v0.85.0-staging.1", published_at: "a", assets: [z("meu-bot-staging-0.85.0-staging.1-x64-setup.exe")] },
+  ];
+  assert.deepEqual(escolherWindows(rels), { versao: "0.85.0-staging.2", url: "https://github.com/x/" + exe, tamanho: 113000000, publicadoEm: "2026-11-18T10:00:00Z", nome: exe });
+  // Só o instalador do app de teste: nem o .sig, nem outro produto, nem um estável.
+  assert.equal(escolherWindows([{ assets: [z(exe + ".sig"), z("meu-bot-finance-staging-0.85.0-staging.2-x64-setup.exe"), z("meu-bot-0.85.0-x64-setup.exe")] }]), null);
+  assert.equal(escolherWindows([]), null);
+  assert.equal(escolherWindows(null), null);
+  // As escolhas do Mac não pegam o instalador do Windows.
+  assert.equal(escolherStaging([{ assets: [z(exe)] }]), null);
 });

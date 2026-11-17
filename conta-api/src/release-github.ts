@@ -62,3 +62,34 @@ export async function downloadMac(buscar: typeof fetch = fetch, canal: CanalSite
     return escolherAsset(await r.json());
   } catch { return null; }
 }
+
+/**
+ * O instalador do Windows (x64) do meu-bot-staging: `meu-bot-staging-<v>-staging.<n>-x64-setup.exe`, publicado pela
+ * release de staging (scripts/release.mjs) ao lado do .zip do Mac. Só existe no canal de teste: ainda não tem
+ * assinatura da Microsoft, então o site de produção não o oferece e não há estável de reserva.
+ */
+const WINDOWS_RE = /^meu-bot-staging-(\d+\.\d+\.\d+-staging\.\d+)-x64-setup\.exe$/;
+/** Numa resposta de /releases (mais nova primeiro), o instalador Windows da primeira release que o tiver; rascunho fica fora. */
+export function escolherWindows(releases: unknown): DownloadMac | null {
+  if (!Array.isArray(releases)) return null;
+  for (const r of releases) {
+    if (r === null || typeof r !== "object" || (r as { draft?: unknown }).draft === true) continue;
+    const { assets, published_at } = r as { assets?: unknown; published_at?: unknown };
+    if (!Array.isArray(assets)) continue;
+    for (const a of assets) {
+      if (a === null || typeof a !== "object") continue;
+      const x = a as { name?: unknown; browser_download_url?: unknown; size?: unknown };
+      if (typeof x.name !== "string" || typeof x.browser_download_url !== "string") continue;
+      const m = WINDOWS_RE.exec(x.name);
+      if (m !== null) return { versao: m[1]!, url: x.browser_download_url, tamanho: typeof x.size === "number" ? x.size : 0, publicadoEm: typeof published_at === "string" ? published_at : "", nome: x.name };
+    }
+  }
+  return null;
+}
+/** Busca o instalador Windows mais novo. null = GitHub fora, ou nenhuma release de staging o trouxe ainda. */
+export async function downloadWindows(buscar: typeof fetch = fetch): Promise<DownloadMac | null> {
+  try {
+    const r = await buscar(`https://api.github.com/repos/${REPO}/releases?per_page=30`, GH);
+    return r.ok ? escolherWindows(await r.json()) : null;
+  } catch { return null; }
+}

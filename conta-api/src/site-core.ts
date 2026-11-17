@@ -57,6 +57,6 @@ export function llmsPorPagamentos(texto: string, ligados: boolean): string {
 }
 
 /** Arquivos do site que só o staging serve (rascunhos em revisão); em produção respondem a 404 do site. */
-export const SO_NO_STAGING: readonly string[] = ["/site/suporte.html"];
+export const SO_NO_STAGING: readonly string[] = ["/site/suporte.html", "/site/baixar-windows.html"];
 /** O arquivo pedido é um rascunho que este canal não serve? (produção + rascunho = true) */
 export const rascunhoForaDoCanal = (arquivo: string, canal: string | undefined): boolean => canal !== "staging" && SO_NO_STAGING.includes(arquivo);

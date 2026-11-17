@@ -51,4 +51,12 @@
       if (ld) { try { const j = JSON.parse(ld.textContent); j.softwareVersion = d.versao; if (d.publicadoEm) j.datePublished = d.publicadoEm.slice(0, 10); if (d.tamanho > 0) j.fileSize = mb(d.tamanho); ld.textContent = JSON.stringify(j); } catch { /* fica como está */ } }
     })
     .catch(() => linhaVersao(""));
+  // /baixar-windows (só no site de staging): a versão de teste mais nova que trouxe o instalador.
+  const vw = $("versao-windows");
+  if (vw) {
+    fetch("/download/windows.json", { headers: { accept: "application/json" } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { vw.textContent = d && typeof d.versao === "string" ? ["Versão " + d.versao, data(d.publicadoEm), mb(d.tamanho)].filter(Boolean).join(" · ") : "O instalador do Windows ainda não saiu em nenhuma versão de teste."; })
+      .catch(() => { vw.textContent = ""; });
+  }
 })();

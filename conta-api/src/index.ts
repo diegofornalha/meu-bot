@@ -19,7 +19,7 @@ import { postToken } from "./rotas/token.js";
 import { deleteConta, getConta, patchConta, postSenha } from "./rotas/conta.js";
 import { getSuporteResumos, postSuporteResumo } from "./rotas/suporte.js";
 import { deleteDevice, deletePerfil, getAdminFirebase, getAdminVisao, patchLicenca, postAdminSenha, postAtenderPedido, postEncerrarAddon, postLiberarDevice, putAdminSenha, putPerfil } from "./rotas/admin.js";
-import { downloadMac, REPO } from "./release-github.js";
+import { downloadMac, downloadWindows, REPO } from "./release-github.js";
 import { GUIAS, lerReleases, novidadesHtml, sitemapXml } from "./novidades-core.js";
 import { CSP_ADS, CSP_GA, gaIds } from "./analytics-core.js";
 import { caminhoCanonico, llmsPorPagamentos, redirecionamentoInicial, rascunhoForaDoCanal } from "./site-core.js";
@@ -201,6 +201,13 @@ async function sitePagina(req: Request, env: Env, url: URL): Promise<Response> {
     if (url.pathname.endsWith(".json")) return comCabecalhos(json(d ?? { erro: "release não encontrada" }, d === null ? 503 : 200, { "cache-control": "public, max-age=300" }), {});
     return comCabecalhos(Response.redirect(d?.url ?? `https://github.com/${REPO}/releases/latest`, 302), { "cache-control": "no-store" });
   }
+  // Windows: só o site de staging entrega (o instalador ainda não tem assinatura da Microsoft); em produção o caminho
+  // segue adiante e cai na 404 do site.
+  if (env.CANAL === "staging" && (url.pathname === "/download/windows" || url.pathname === "/download/windows.json")) {
+    const d = await downloadWindows();
+    if (url.pathname.endsWith(".json")) return comCabecalhos(json(d ?? { erro: "nenhuma versão de teste trouxe o instalador do Windows ainda" }, d === null ? 503 : 200, { "cache-control": "public, max-age=300" }), {});
+    return comCabecalhos(Response.redirect(d?.url ?? `https://github.com/${REPO}/releases`, 302), { "cache-control": "no-store" });
+  }
   // /sitemap.xml é montado aqui: a home, /baixar e /novidades levam a data da release mais nova; as outras, a de REVISAO_PAGINAS.
   if (url.pathname === "/sitemap.xml") {
     const d = await downloadMac();
@@ -221,6 +228,8 @@ async function sitePagina(req: Request, env: Env, url: URL): Promise<Response> {
   // Guias: só os da lista GUIAS (o resto cai na 404 do site).
   // Rascunho da página de planos: só o staging a serve em /suporte (em produção o caminho cai na 404 do site).
   if (env.CANAL === "staging") raiz["/suporte"] = "/site/suporte.html";
+  // A página do Windows também: a versão de teste, sem assinatura, não é oferecida em agentesgrok.com.
+  if (env.CANAL === "staging") raiz["/baixar-windows"] = "/site/baixar-windows.html";
   const guia = /^\/guias\/([a-z0-9-]+)$/.exec(url.pathname)?.[1];
   if (guia && (GUIAS as readonly string[]).includes(guia)) raiz[url.pathname] = `/site/guias/${guia}.html`;
   const caminho = url.pathname === "/" ? "/site/index.html" : url.pathname === "/obrigado" ? "/site/obrigado.html" : raiz[url.pathname] ?? url.pathname;
