@@ -13,11 +13,6 @@ const avisoEl = $<HTMLElement>("conexoes-aviso");
 const SUM_PADRAO = "ferramentas de outros serviços no seu Claude Code";
 
 let view: ConexoesView | null = null;
-const ouvintes: (() => void)[] = [];
-/** A visão de agora (null até a primeira leitura): o tutorial do Salvy lê daqui, sem IPC próprio. */
-export const conexoesAtual = (): ConexoesView | null => view;
-/** Avisa a cada repintura (leitura, Conectar, Desconectar). */
-export function aoMudarConexoes(cb: () => void): void { ouvintes.push(cb); }
 let ocupado: string | null = null;
 let avisoTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -39,7 +34,6 @@ export function textoDaLinha(c: ConexaoView): { estado: string; classe: "ok" | "
 
 function pintar(v: ConexoesView): void {
   view = v;
-  for (const cb of ouvintes) cb();
   listaEl.replaceChildren();
   for (const c of v.itens) {
     const t = textoDaLinha(c);
@@ -80,13 +74,7 @@ export function carregarConexoes(): void {
   void window.meuBot.conexoesStatus().then(pintar).catch((err: unknown) => avisar(`Não consegui ler as conexões: ${ipcErrorText(err)}`, false));
 }
 
-/** Conectar a partir de outro lugar (o tutorial): o mesmo IPC e a mesma repintura que o botão daqui. */
-export async function conectarConexao(id: string): Promise<void> {
-  pintar(await window.meuBot.conexoesConectar(id));
-}
-
-/** Liga eventos uma vez e já lê o estado (o tutorial precisa dele sem a pessoa abrir as Configurações). */
+/** Liga eventos uma vez. */
 export function ligarConexoes(): void {
-  carregarConexoes();
   window.addEventListener("focus", () => { if (view !== null && ocupado === null) carregarConexoes(); });
 }
