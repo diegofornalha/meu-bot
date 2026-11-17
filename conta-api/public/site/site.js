@@ -40,6 +40,7 @@
       else if (a.dataset.ev === "lista_windows") ga.evento("lista_windows", { origem: a.dataset.origem || "home", via: "whatsapp" });
       else if (a.dataset.ev === "plano_interesse") ga.evento("plano_interesse", { plano: a.dataset.plano || "chip-coflow" });
       else if (a.dataset.ev === "falar_whatsapp") ga.evento("falar_whatsapp", { origem: a.dataset.origem || "home" });
+      else if (a.dataset.ev === "baixar_windows") ga.evento("baixar_windows", { origem: a.dataset.origem || "baixar-windows" });
       else ga.evento("baixar_mac", { origem: a.dataset.origem || "home" });
     });
   }
