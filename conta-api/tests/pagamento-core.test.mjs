@@ -1,7 +1,7 @@
 // Assinatura do Pro pela AbacatePay: conferência do webhook, leitura do evento, decisão, prazo e a compra do GA4.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CHAVE_HMAC_ABACATEPAY, clientIdDeReserva, clientIdValido, compraGa4, decidir, hmacBase64, iguais, lerAddons, lerEvento, licencaComAddons, metodosSemPix, precoExigido, refValida, sessionIdValido, validoAte, webhookConfere, umaPorContaEProduto } from "../dist/pagamento-core.js";
+import { assinaturaIdValido, resultadoCancelamento, CHAVE_HMAC_ABACATEPAY, clientIdDeReserva, clientIdValido, compraGa4, decidir, hmacBase64, iguais, lerAddons, lerEvento, licencaComAddons, metodosSemPix, precoExigido, refValida, sessionIdValido, validoAte, webhookConfere, umaPorContaEProduto } from "../dist/pagamento-core.js";
 
 const SECRET = "s".repeat(40);
 const REF = "mb_123e4567-e89b-12d3-a456-426614174000";
@@ -181,4 +181,21 @@ test("umaPorContaEProduto: duas assinaturas ativas do mesmo produto na mesma con
   const r = umaPorContaEProduto(lista).map((x) => x.id).sort();
   assert.deepEqual(r, ["s2", "s3", "s4"]);
   assert.deepEqual(umaPorContaEProduto([]), []);
+});
+
+test("resultadoCancelamento: confirmado, já cancelada lá, chave sem escopo e erro qualquer", () => {
+  assert.equal(resultadoCancelamento(200, { success: true, error: null, data: { id: "subs_1", status: "CANCELLED" } }), "cancelada");
+  // 200 sem o status CANCELLED não conta como cancelada: nada muda aqui.
+  assert.equal(resultadoCancelamento(200, { success: true, data: { status: "ACTIVE" } }), "erro");
+  assert.equal(resultadoCancelamento(404, { success: false, error: "Subscription not found" }), "ja-cancelada");
+  assert.equal(resultadoCancelamento(400, { success: false, error: "Subscription doesn't exists or not active." }), "ja-cancelada");
+  assert.equal(resultadoCancelamento(401, { error: "Unauthorized" }), "sem-permissao");
+  assert.equal(resultadoCancelamento(403, null), "sem-permissao");
+  assert.equal(resultadoCancelamento(500, null), "erro");
+  assert.equal(resultadoCancelamento(400, { error: { message: "outro" } }), "erro");
+});
+
+test("assinaturaIdValido: só subs_… curto, sem espaço nem barra", () => {
+  assert.equal(assinaturaIdValido("subs_abc123XYZ"), true);
+  for (const x of ["", "bill_1", "subs_", "subs_a b", "subs_a/b", `subs_${"a".repeat(91)}`, 5, null, undefined]) assert.equal(assinaturaIdValido(x), false, String(x));
 });

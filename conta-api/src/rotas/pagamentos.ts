@@ -2,6 +2,8 @@
  * Assinatura do Pro e dos add-ons (apps vendidos à parte, ABACATEPAY_ADDONS) pela AbacatePay:
  * - `POST /conta/assinatura` (logado): cria o checkout de assinatura e devolve a `url` da página de pagamento; com
  *   `{produto: "meu-bot-finance"}` no corpo o checkout é do add-on, sem ele é do Pro;
+ * - `POST /conta/assinatura/cancelar` (logado, `{id: "subs_…"}`): cancela na AbacatePay a assinatura da própria conta;
+ *   o acesso continua até o fim do período já pago;
  * - `POST /pagamentos/abacatepay` (webhook, sem login): confere secret e assinatura, grava o evento uma vez só, libera o
  *   Pro na cobrança paga e manda a compra ao GA4 (Measurement Protocol) com o client_id guardado no checkout.
  * Liga só com ABACATEPAY_KEY, ABACATEPAY_WEBHOOK_SECRET e ABACATEPAY_PRODUTO; sem eles, as duas rotas respondem 503.
@@ -11,7 +13,7 @@ import { addonsPagos, auditar, contaPorId, contarLimite, licencaDaConta, licenca
 import { agoraIso, janelaMinuto, uuid } from "../sessao-core.js";
 import { json, lerJson, type Autenticado } from "../http.js";
 import { gaIds } from "../analytics-core.js";
-import { clientIdDeReserva, clientIdValido, compraGa4, decidir, lerAddons, lerEvento, metodosSemPix, precoExigido, refValida, sessionIdValido, validoAte, webhookConfere, type Decisao, type OfertaAddon } from "../pagamento-core.js";
+import { assinaturaIdValido, clientIdDeReserva, clientIdValido, compraGa4, decidir, lerAddons, lerEvento, metodosSemPix, precoExigido, refValida, resultadoCancelamento, sessionIdValido, validoAte, webhookConfere, type Decisao, type OfertaAddon } from "../pagamento-core.js";
 
 const API = "https://api.abacatepay.com/v2";
 export const pagamentosLigados = (env: Env): boolean => Boolean(env.ABACATEPAY_KEY && env.ABACATEPAY_WEBHOOK_SECRET && env.ABACATEPAY_PRODUTO);
@@ -77,6 +79,32 @@ export async function postAssinatura(auth: Autenticado, env: Env, req: Request):
   await env.DB.prepare("UPDATE pagamento_checkouts SET checkout_id = ?1 WHERE ref = ?2").bind(bill, ref).run();
   await auditar(env.DB, auth.conta.email, "assinatura.checkout", auth.conta.id, addon === null ? bill : `${addon.nome} · ${bill ?? "-"}`);
   return json({ url });
+}
+
+/**
+ * Cancelar pela própria pessoa (console › Suas assinaturas). Só a assinatura ACTIVE desta conta; a AbacatePay para de
+ * cobrar e aqui só a assinatura muda: o Pro (ou o add-on) continua até o `expires_at` já pago, como no webhook
+ * `subscription.cancelled`, que pode chegar depois e não muda mais nada.
+ */
+export async function postCancelarAssinatura(auth: Autenticado, env: Env, req: Request): Promise<Response> {
+  if (!pagamentosLigados(env)) return json({ erro: "a assinatura pelo site ainda não está ligada; fale com o suporte" }, 503);
+  if (await contarLimite(env.DB, `cancelar:${auth.conta.id}`, janelaMinuto()) > LIMITE_POR_MIN) return json({ erro: "muitas tentativas; espere um minuto" }, 429);
+  const corpo = (await lerJson(req)) as Record<string, unknown> | null;
+  const id = corpo?.id;
+  if (!assinaturaIdValido(id)) return json({ erro: "assinatura inválida" }, 400);
+  const linha = await env.DB.prepare("SELECT id, produto FROM assinaturas WHERE id = ?1 AND conta_id = ?2 AND status = 'ACTIVE'").bind(id, auth.conta.id).first<{ id: string; produto: string | null }>();
+  if (linha === null) return json({ erro: "não achei essa assinatura ativa na sua conta" }, 404);
+  let r: Response; let resp: unknown;
+  try {
+    r = await fetch(`${API}/subscriptions/cancel`, { method: "POST", headers: { authorization: `Bearer ${env.ABACATEPAY_KEY}`, "content-type": "application/json" }, body: JSON.stringify({ id }) });
+    resp = await r.json().catch(() => null);
+  } catch (e) { console.log(`[pagamento] AbacatePay fora (cancelar): ${e instanceof Error ? e.message : String(e)}`); return json({ erro: "o pagamento não respondeu; tente de novo" }, 502); }
+  const res = resultadoCancelamento(r.status, resp);
+  if (res === "sem-permissao") { console.log(`[pagamento] cancelar recusado: HTTP ${r.status} (a chave precisa do escopo SUBSCRIPTION:DELETE)`); return json({ erro: "o cancelamento por aqui ainda não está ligado; fale com o suporte, que cancela para você" }, 502); }
+  if (res === "erro") { console.log(`[pagamento] cancelar recusado: HTTP ${r.status} ${JSON.stringify((resp as { error?: unknown } | null)?.error ?? null).slice(0, 200)}`); return json({ erro: "não deu para cancelar agora; tente de novo" }, 502); }
+  const mudou = await env.DB.prepare("UPDATE assinaturas SET status = 'CANCELLED', atualizada_em = ?1 WHERE id = ?2 AND conta_id = ?3 AND status = 'ACTIVE'").bind(agoraIso(), id, auth.conta.id).run();
+  if ((mudou.meta.changes ?? 0) > 0) await auditar(env.DB, auth.conta.email, "assinatura.cancelada", auth.conta.id, `${id} · ${linha.produto ?? "Pro"} · pelo console${res === "ja-cancelada" ? " (já estava cancelada na AbacatePay)" : ""}`);
+  return json({ ok: true });
 }
 
 /** O webhook: 401 sem secret e assinatura válidos (a AbacatePay não tenta de novo um 401); 200 para tudo que foi gravado. */

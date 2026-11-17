@@ -8,7 +8,8 @@
  * - conta.agentesgrok.com: a API (POST /sessao, POST /token, POST /sessao/sair, GET|PATCH|DELETE /conta, POST /conta/senha,
  *   GET /health; organizações GET|POST /orgs, GET /orgs/:slug/publico (sem login), GET|PATCH|DELETE /orgs/:slug, POST /orgs/:slug/membros, PATCH|DELETE /orgs/:slug/membros/:email;
  *   para admins GET /admin/visao, POST /admin/suporte (o admin-gestao envia o resumo de uma janela de suporte), GET /admin/suporte (só super: console /support-window), PATCH /admin/contas/:id/licenca, POST /admin/contas/:id/devices/:device/liberar, DELETE /admin/contas/:id/devices/:device, POST|PUT /admin/contas/:id/senha, POST /admin/pedidos/:id/atender, PUT|DELETE /admin/perfis/:email, PATCH /admin/orgs/:slug).
- * Assinatura do Pro pela AbacatePay: POST /conta/assinatura (logado, devolve a url do pagamento) e o webhook
+ * Assinatura do Pro pela AbacatePay: POST /conta/assinatura (logado, devolve a url do pagamento), POST
+ * /conta/assinatura/cancelar (logado, cancela a própria) e o webhook
  * POST /pagamentos/abacatepay (src/rotas/pagamentos.ts); desligados sem os secrets ABACATEPAY_*.
  * Em staging, *-staging. com D1 próprio. Tudo que chega é dado: as rotas validam campo a campo.
  */
@@ -23,7 +24,7 @@ import { downloadMac, downloadWindows, REPO } from "./release-github.js";
 import { GUIAS, lerReleases, novidadesHtml, sitemapXml } from "./novidades-core.js";
 import { CSP_ADS, CSP_GA, gaIds } from "./analytics-core.js";
 import { caminhoCanonico, llmsPorPagamentos, redirecionamentoInicial, rascunhoForaDoCanal } from "./site-core.js";
-import { addonsAVenda, pagamentosLigados, postAssinatura, postWebhookAbacate } from "./rotas/pagamentos.js";
+import { addonsAVenda, pagamentosLigados, postAssinatura, postCancelarAssinatura, postWebhookAbacate } from "./rotas/pagamentos.js";
 import { deleteMembro, deleteOrg, getOrg, getOrgPublico, getOrgs, patchAdminOrg, patchMembro, patchOrg, postMembro, postOrg } from "./rotas/orgs.js";
 
 const SEGURANCA: Record<string, string> = {
@@ -117,7 +118,7 @@ async function api(req: Request, env: Env, url: URL, espera: (p: Promise<unknown
   else if (rota === "POST /token") res = await postToken(req, env);
   // Webhook da AbacatePay: sem login (prova a origem pelo secret e o corpo pela assinatura) e sem CORS.
   else if (rota === "POST /pagamentos/abacatepay") return comCabecalhos(await postWebhookAbacate(req, env, url, espera), {});
-  else if (rota === "POST /sessao/sair" || rota === "POST /sessao/console" || rota === "GET /conta" || rota === "PATCH /conta" || rota === "DELETE /conta" || rota === "POST /conta/senha" || rota === "POST /conta/assinatura" || /^(GET|POST|PATCH|DELETE) \/orgs(\/|$)/.test(rota) || rota.startsWith("GET /admin/") || rota.startsWith("POST /admin/") || rota.startsWith("PATCH /admin/") || rota.startsWith("PUT /admin/") || rota.startsWith("DELETE /admin/")) {
+  else if (rota === "POST /sessao/sair" || rota === "POST /sessao/console" || rota === "GET /conta" || rota === "PATCH /conta" || rota === "DELETE /conta" || rota === "POST /conta/senha" || rota === "POST /conta/assinatura" || rota === "POST /conta/assinatura/cancelar" || /^(GET|POST|PATCH|DELETE) \/orgs(\/|$)/.test(rota) || rota.startsWith("GET /admin/") || rota.startsWith("POST /admin/") || rota.startsWith("PATCH /admin/") || rota.startsWith("PUT /admin/") || rota.startsWith("DELETE /admin/")) {
     const auth = await autenticar(req, env);
     const atender = /^POST \/admin\/pedidos\/([A-Za-z0-9-]{1,40})\/atender$/.exec(rota);
     const licenca = /^PATCH \/admin\/contas\/([A-Za-z0-9-]{1,40})\/licenca$/.exec(rota);
@@ -143,6 +144,7 @@ async function api(req: Request, env: Env, url: URL, espera: (p: Promise<unknown
     else if (rota === "DELETE /conta") res = await deleteConta(auth, env);
     else if (rota === "POST /conta/senha") res = await postSenha(auth, env);
     else if (rota === "POST /conta/assinatura") res = await postAssinatura(auth, env, req);
+    else if (rota === "POST /conta/assinatura/cancelar") res = await postCancelarAssinatura(auth, env, req);
     else if (rota === "POST /sessao/sair") res = await postSair(auth, env);
     else if (rota === "POST /sessao/console") res = await postSessaoConsole(auth, env, req);
     else if (rota === "GET /admin/visao") res = await getAdminVisao(auth, env, url);

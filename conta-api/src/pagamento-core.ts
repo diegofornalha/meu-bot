@@ -195,6 +195,25 @@ export function metodosSemPix(metodos: readonly string[], ok: boolean, erro: unk
   return resto.length > 0 ? resto : null;
 }
 
+/** Id de assinatura da AbacatePay (`subs_…`), como chega do console. */
+export const assinaturaIdValido = (x: unknown): x is string => typeof x === "string" && /^subs_[A-Za-z0-9_-]{1,90}$/.test(x);
+
+/**
+ * Lê a resposta de `POST /subscriptions/cancel`:
+ * - `cancelada`: a AbacatePay confirmou (`success` e `data.status` CANCELLED);
+ * - `ja-cancelada`: 404, ou o erro "doesn't exists or not active": lá ela já não cobra, basta marcar aqui;
+ * - `sem-permissao`: 401/403, a chave não tem o escopo SUBSCRIPTION:DELETE;
+ * - `erro`: qualquer outra coisa (nada muda aqui; a pessoa tenta de novo).
+ */
+export function resultadoCancelamento(status: number, corpo: unknown): "cancelada" | "ja-cancelada" | "sem-permissao" | "erro" {
+  const c = corpo !== null && typeof corpo === "object" ? (corpo as { success?: unknown; error?: unknown; data?: { status?: unknown } | null }) : null;
+  if (status >= 200 && status < 300 && c?.success === true && c.data?.status === "CANCELLED") return "cancelada";
+  if (status === 401 || status === 403) return "sem-permissao";
+  const erro = typeof c?.error === "string" ? c.error : JSON.stringify(c?.error ?? "");
+  if (status === 404 || /not found|doesn'?t exists? or not active/i.test(erro)) return "ja-cancelada";
+  return "erro";
+}
+
 /**
  * Para os totais do admin: uma assinatura por conta e produto, a mais nova. Uma conta com duas assinaturas ativas do
  * mesmo produto (a antiga nunca cancelada na AbacatePay e uma nova) contaria duas vezes na receita.
