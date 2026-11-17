@@ -1,1 +1,1 @@
-{"name": "meu-bot-finance", "version": "1.4.0", "private": true, "type": "module", "openclaw": {"extensions": ["./index.js"]}}
+{"name": "meu-bot-finance", "version": "1.4.1", "private": true, "type": "module", "openclaw": {"extensions": ["./index.js"]}}
