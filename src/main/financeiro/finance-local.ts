@@ -7,8 +7,7 @@ import type { FinanceImportacao, FinanceAbc, FinanceAbcLado, FinanceAbcPor, Fina
 import { ensureTunnel } from "../maquina/tunnel";
 import { getBackendPort } from "../app/settings";
 import { runSsh } from "../whatsapp/whatsapp";
-import { planilhaLer } from "../google/apis";
-import { contaStatus } from "../google/conta-google";
+import { idDaPlanilha, lerValoresPlanilha } from "../google/planilha";
 
 type Metodo = "GET" | "POST" | "PUT";
 async function api<T>(host: string, method: Metodo, rota: string, body?: unknown): Promise<T> {
@@ -73,13 +72,6 @@ export const financeConfigLer = async (host: string): Promise<FinanceConfig> => 
 export const financeConfig = async (host: string, patch: { taxas?: Record<string, number>; moedaExibicao?: string }): Promise<FinanceConfig> => (await api<{ config: FinanceConfig }>(host, "PUT", "/config", patch)).config;
 export const financeMes = async (host: string, mes: string, patch: { metaDireto?: string | null; metaIndireto?: string | null; metaNotas?: string; orcamento?: string | null; rendaPrevista?: string | null; dinheiroInformado?: boolean }): Promise<void> => { await api(host, "PUT", `/meses/${encodeURIComponent(mes)}`, patch); };
 export const financeFecharMes = async (host: string, mes: string): Promise<void> => { await api(host, "POST", "/fechamento", { mes }); };
-/** Id da planilha a partir do link do Google Sheets (ou o próprio id colado). null = não parece uma planilha. */
-export function idDaPlanilha(link: string): string | null {
-  const s = link.trim();
-  const m = /\/spreadsheets\/d\/([A-Za-z0-9_-]{20,})/.exec(s);
-  if (m !== null) return m[1]!;
-  return /^[A-Za-z0-9_-]{25,}$/.test(s) ? s : null;
-}
 /**
  * Importa uma planilha do Google Sheets no financeiro da máquina: o Mac lê as células com a Conta Google do app
  * (escopo de planilhas; a planilha precisa estar compartilhada com essa conta) e a máquina interpreta e grava
@@ -89,16 +81,7 @@ export async function financeImportarPlanilha(host: string, p: { link: string; a
   const id = idDaPlanilha(p.link);
   if (id === null) throw new Error("cole o link da planilha do Google Sheets (docs.google.com/spreadsheets/d/…)");
   const aba = (p.aba ?? "").trim().slice(0, 100);
-  const st = contaStatus(host);
-  if (!st.conectado) throw new Error("conecte a Conta Google desta máquina na aba Conta Google: é por ela que o app lê a planilha");
-  let valores: string[][];
-  try { valores = (await planilhaLer(host, id, aba ? `'${aba.replace(/'/g, "''")}'!A1:Z5000` : "A1:Z5000")).valores; }
-  catch (e) {
-    const m = e instanceof Error ? e.message : String(e);
-    if (/permission|not have|403|404|not found|Requested entity/i.test(m)) throw new Error(`não consegui abrir a planilha: compartilhe-a com ${st.perfil?.email ?? "a conta Google conectada no app"} (leitura basta)${aba ? ` e confira o nome da aba "${aba}"` : ""}`);
-    throw new Error(`não consegui ler a planilha: ${m}`);
-  }
-  if (valores.length === 0) throw new Error("a planilha está vazia");
+  const valores = await lerValoresPlanilha(host, id, aba);
   const r = await api<Omit<FinanceImportacao, "planilha">>(host, "POST", "/importar", { valores, fonte: `sheets:${id}${aba ? `:${aba}` : ""}`, tipo: p.tipo === "venda" ? "renda" : "gasto", simular: p.simular });
   return { ...r, planilha: id };
 }

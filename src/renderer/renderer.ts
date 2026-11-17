@@ -2004,7 +2004,11 @@ void (async () => {
     modulosPage = mountModulosPage({ panelsEl, definePage, openPage, armConfirm, api: window.meuBot, host: () => windowHost, goToChat: goToChatFromGuide });
     $<HTMLButtonElement>("modulos-line").addEventListener("click", () => modulosPage?.open());
     // A página de um módulo pediu para levar um texto ao chat: só preenche; quem envia é a pessoa.
-    window.meuBot.on("modulos:acao", (a) => { if (a.acao === "chat") void preencherChat(a.texto, `Sugerido pela página ${a.rotulo}: revise e envie quando quiser.`); });
+    // Planilha: só um cartão de confirmação acima da página do módulo (nada é lido sem a pessoa clicar).
+    window.meuBot.on("modulos:acao", (a) => {
+      if (a.acao === "chat") void preencherChat(a.texto, `Sugerido pela página ${a.rotulo}: revise e envie quando quiser.`);
+      else if (a.acao === "planilha") modulosPage?.pedirPlanilha(a);
+    });
     paintModulosLine();
   }
   // O app cujo add-on é o financeiro mostra o botão sempre (sem licença, a página diz como liberar).

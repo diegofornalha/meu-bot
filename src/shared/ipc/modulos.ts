@@ -43,6 +43,8 @@ export interface Modulo {
 export interface ModuloPagina { rotulo: string; porta: number; caminho: string }
 /** Para o <webview>: o endereço pelo forward local (com o token) e a partição que o main aceita. */
 export interface ModuloPaginaAberta { url: string; particao: string }
+/** O que o módulo respondeu sobre a planilha (a prévia ou o resultado), em texto puro. */
+export interface ModuloPlanilhaResultado { mensagem: string; linhas: string[]; podeImportar: boolean }
 
 /** O guia da ficha: para que serve, os cuidados, parágrafos a mais e o link do guia completo (só https). */
 export interface ModuloGuia { paraQue: string; cuidados: string[]; texto: string[]; completo: string | null }
