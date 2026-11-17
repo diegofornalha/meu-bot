@@ -16,8 +16,13 @@
  *   "atualizarOcioso") ou, calada, ao sair do app. A versão anterior fica guardada (<app>.antigo) até a nova ficar
  *   30 s de pé; se a nova não passar das primeiras aberturas, volta sozinha; se reabrir na antiga, a troca não
  *   pegou e o app registra e prepara de novo. Só no app empacotado; MEU_BOT_NO_UPDATE=1 desliga.
+ *
+ * No Windows a verificação, o download e a assinatura Ed25519 são os mesmos; o que se baixa é o instalador
+ * (`<app>-<versão>-x64-setup.exe`) e a troca é rodá-lo em silêncio e sair (`aplicarNoWindows`). Quem troca os arquivos
+ * é o instalador, então não há `<app>.antigo` nem volta automática: a abertura seguinte só registra se pegou.
  */
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -34,7 +39,7 @@ import { noteNetworkError } from "../app/net";
 import { evento } from "../app/depuracao";
 import { offlineMessage } from "../app/net-core";
 import {
-  abaixoDaMinima, alvosParaTrocar, candidataDe, decideAplicacaoEscolhida, decideInstalarListada, deveVerificarSozinho, listarReleases, parseFixada, podeTrocarComFixada, decideIdentidade, requisitoDeveloperId, assetName, CHECK_EVERY_MS, classificarRespostaFeed, compareVersions, decideAlvoAplicacao, decideFimDaEspera, CONFIRMA_FEED_MS, decideDescarte, decideReaproveitar, decideReconfirmacao, decideReinicioOcioso, decideRollback, escolherRelease, motivoManterTexto, motivoReleaseTexto, OCIOSO_SEG, parsePendente, parsePreparada, parseVersaoMinima,
+  abaixoDaMinima, alvosParaTrocar, argsDoInstalador, candidataDe, decideAplicacaoEscolhida, decideInstalarListada, deveVerificarSozinho, listarReleases, parseFixada, podeTrocarComFixada, decideIdentidade, requisitoDeveloperId, assetName, CHECK_EVERY_MS, classificarRespostaFeed, compareVersions, decideAlvoAplicacao, decideFimDaEspera, CONFIRMA_FEED_MS, decideDescarte, decideReaproveitar, decideReconfirmacao, decideReinicioOcioso, decideRollback, escolherRelease, motivoManterTexto, motivoReleaseTexto, OCIOSO_SEG, parsePendente, parsePreparada, parseVersaoMinima,
   destinoDaTroca, pastaSoLeitura, proximaVerificacaoMs, releasesUrl, repararTroca, TENTATIVAS_ATE_VOLTAR, TRAVA_VELHA_MS, travaAbandonada, verificaAssinatura,
   type EscolhaRelease, type EstadoSistema, type ReleaseListada, type UpdateFixada, type UpdateCandidate, type UpdateGatilho, type UpdatePendente, type UpdatePreparada,
 } from "./updater-core";
@@ -88,6 +93,10 @@ const registrar = (rota: string, ok: boolean, resumo: string, detalhe?: unknown)
 const erroTexto = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
 const arch = (): "arm64" | "x64" => (process.arch === "arm64" ? "arm64" : "x64");
+/** No Windows não há .app: o que se baixa é o instalador e quem troca os arquivos é ele. */
+const WIN = process.platform === "win32";
+/** O asset desta plataforma numa versão (o .zip do .app, ou o instalador do Windows). */
+const nomeDoAsset = (versao: string): string => assetName(appTitle(), versao, arch(), process.platform);
 const updateDir = (): string => path.join(app.getPath("userData"), "update");
 const preparadaFile = (): string => path.join(updateDir(), "preparada.json");
 /** Fora de updateDir (a troca apaga a pasta): o registro da troca que ainda precisa provar que abre. */
@@ -112,7 +121,9 @@ const requisito = async (bundle: string): Promise<string | null> => {
  * sessão; esta entende os dois e segue ligada (a fixação dela vem do arquivo).
  */
 const desligadoPorAmbiente = (): boolean => process.env.MEU_BOT_NO_UPDATE === "1" && process.env.MEU_BOT_NO_UPDATE_MOTIVO !== "fixada";
-const ativo = (): boolean => app.isPackaged && !desligadoPorAmbiente() && runningBundle() !== null;
+/** Há uma instalação que o atualizador sabe trocar: um .app no macOS; no Windows, o app empacotado. */
+const instalado = (): boolean => WIN || runningBundle() !== null;
+const ativo = (): boolean => app.isPackaged && !desligadoPorAmbiente() && instalado();
 
 /* ---------- versão fixada (super admin) ---------- */
 
@@ -135,8 +146,8 @@ function soltarArquivoFixada(): void { fixada = null; try { fs.rmSync(fixadaFile
 
 /** Liga as verificações (só empacotado) e, antes, confirma ou desfaz a troca da abertura anterior e reaproveita a versão preparada. */
 export function initUpdater(): void {
-  if (!app.isPackaged || runningBundle() === null) return;
-  conferirPendente();
+  if (!app.isPackaged || !instalado()) return;
+  if (WIN) conferirPendenteNoWindows(); else conferirPendente();
   if (desligadoPorAmbiente()) return;
   // Vieram da troca para a versão fixada: não passam adiante para os próximos reinícios.
   if (process.env.MEU_BOT_NO_UPDATE_MOTIVO === "fixada") { delete process.env.MEU_BOT_NO_UPDATE; delete process.env.MEU_BOT_NO_UPDATE_MOTIVO; }
@@ -208,7 +219,7 @@ export async function releasesPublicadas(forcar = false): Promise<ReleaseListada
   const r = classificarRespostaFeed(res.status, res.headers.get("x-ratelimit-remaining"), res.headers.get("x-ratelimit-reset"));
   if (r.tipo === "falha") throw new Error(r.msg);
   const corpo: unknown = r.tipo === "sem-release" ? [] : await res.json();
-  const itens = listarReleases(corpo, { app: appTitle(), arch: arch(), current: state.current, canal: caps().canal, minima: state.minima });
+  const itens = listarReleases(corpo, { app: appTitle(), arch: arch(), current: state.current, canal: caps().canal, minima: state.minima, plataforma: process.platform });
   listaCache = { em: Date.now(), itens };
   return itens;
 }
@@ -329,7 +340,7 @@ async function consultarFeed(signal: AbortSignal): Promise<EscolhaRelease> {
   let corpo: unknown;
   // Corpo que não é JSON (portal de rede cativa, página de erro do proxy) não é falha de conexão: dizer o que é.
   try { corpo = await res.json(); } catch { throw new UpdateFalha("release", "o servidor de atualização respondeu algo que não consegui entender"); }
-  return escolherRelease(corpo, { app: appTitle(), arch: arch(), current: state.current, canal: caps().canal });
+  return escolherRelease(corpo, { app: appTitle(), arch: arch(), current: state.current, canal: caps().canal, plataforma: process.platform });
 }
 
 /** Sem internet, a culpa não é do GitHub nem do app: a frase diz isso (e a volta da rede refaz a checagem). */
@@ -386,17 +397,12 @@ async function preparar(cand: UpdateCandidate, signal: AbortSignal): Promise<voi
   if (retomadas > 0) log(`[atualização] download retomado ${retomadas}x`);
   setPhase("verifying");
   const stageDir = path.join(dir, "app");
-  const bundle = path.join(stageDir, `${appTitle()}.app`);
+  // No Windows o que fica preparado é o próprio instalador: nada a extrair nem identidade de assinatura a comparar.
+  const bundle = WIN ? zip : path.join(stageDir, `${appTitle()}.app`);
   try {
     // Ed25519 do Node não é por hash: o zip entra em memória uma vez, aqui, e é liberado em seguida.
     if (!verificaAssinatura(fs.readFileSync(zip), sig)) throw new UpdateFalha("assinatura", "a assinatura da atualização não confere: descartada");
-    fs.rmSync(stageDir, { recursive: true, force: true });
-    fs.mkdirSync(stageDir);
-    await run("ditto", ["-x", "-k", zip, stageDir], { timeoutMs: 300_000 });
-    if (!fs.existsSync(path.join(bundle, "Contents", "Info.plist"))) throw new UpdateFalha("assinatura", "o .zip não traz o app esperado");
-    const v = await plist(bundle, "CFBundleShortVersionString");
-    if (v !== cand.version) throw new UpdateFalha("assinatura", `o app baixado diz ${v ?? "?"}, a release diz ${cand.version}`);
-    await conferirBundle(bundle);
+    if (!WIN) await extrairEConferir(zip, stageDir, bundle, cand.version);
   } catch (e) {
     // Zip ou app inválidos: não adianta insistir no mesmo arquivo; a próxima verificação baixa de novo.
     if (e instanceof UpdateFalha) fs.rmSync(dir, { recursive: true, force: true });
@@ -412,6 +418,17 @@ async function preparar(cand: UpdateCandidate, signal: AbortSignal): Promise<voi
   state.ready = cand.version;
   log(`[atualização] ${cand.version} pronta em ${bundle}`);
   registrar("preparar", true, `${cand.version} pronta`, { sha256, retomadas });
+}
+
+/** macOS: extrai o zip já conferido e só aceita o .app desta variante, desta versão e com a mesma identidade (senão lança). */
+async function extrairEConferir(zip: string, stageDir: string, bundle: string, versao: string): Promise<void> {
+  fs.rmSync(stageDir, { recursive: true, force: true });
+  fs.mkdirSync(stageDir);
+  await run("ditto", ["-x", "-k", zip, stageDir], { timeoutMs: 300_000 });
+  if (!fs.existsSync(path.join(bundle, "Contents", "Info.plist"))) throw new UpdateFalha("assinatura", "o .zip não traz o app esperado");
+  const v = await plist(bundle, "CFBundleShortVersionString");
+  if (v !== versao) throw new UpdateFalha("assinatura", `o app baixado diz ${v ?? "?"}, a release diz ${versao}`);
+  await conferirBundle(bundle);
 }
 
 /** O .app extraído é desta variante, íntegro e assinado pela mesma identidade do app em execução (senão lança). */
@@ -433,12 +450,12 @@ async function conferirBundle(bundle: string): Promise<void> {
 async function reaproveitarPreparada(): Promise<void> {
   let lido: unknown;
   try { lido = JSON.parse(fs.readFileSync(preparadaFile(), "utf8")); } catch { return; } // nada preparado: o normal
-  const uso = decideReaproveitar(parsePreparada(lido), state.current, (b) => fs.existsSync(path.join(b, "Contents", "Info.plist")), versaoFixada());
+  const uso = decideReaproveitar(parsePreparada(lido), state.current, (b) => fs.existsSync(WIN ? b : path.join(b, "Contents", "Info.plist")), versaoFixada());
   if (uso.tipo === "descartar") { log(`[atualização] descartei o que estava preparado: ${motivoPreparadaTexto(uso.motivo)}`); limparPreparada(); return; }
   const p = uso.preparada;
   try {
     await conferirConteudo(p);
-    await conferirBundle(p.bundle);
+    if (!WIN) await conferirBundle(p.bundle);
     preparada = p; state.ready = p.para; state.available = p.para;
     log(`[atualização] ${p.para} já estava preparada: pronta para instalar`);
     registrar("reaproveitar", true, `${p.para} preparada e reconferida`);
@@ -455,7 +472,7 @@ async function reaproveitarPreparada(): Promise<void> {
  * manifesto. O zip some junto com a pasta na troca, então "sumiu" quer dizer que alguém mexeu ali: baixar de novo.
  */
 async function conferirConteudo(p: UpdatePreparada): Promise<void> {
-  const zip = path.join(updateDir(), assetName(appTitle(), p.para, arch()));
+  const zip = path.join(updateDir(), nomeDoAsset(p.para));
   if (!fs.existsSync(zip)) throw new UpdateFalha("assinatura", "o arquivo de onde o app foi extraído não está mais lá");
   const { sha256 } = await sha256De(zip);
   if (sha256 !== p.sha256) throw new UpdateFalha("assinatura", "o arquivo baixado não bate com o que foi conferido na hora do download");
@@ -515,6 +532,17 @@ export async function applyUpdate(expectedVersion: string, gatilho: Exclude<Upda
     }
     if (forcar) log("[atualização] a pessoa escolheu parar o trabalho em andamento para atualizar");
     publish();
+  }
+  if (WIN) {
+    try { aplicarNoWindows(gatilho); } catch (e) {
+      setPhase(preparada !== null ? "ready" : "idle");
+      registrar("trocar", false, erroTexto(e), { versao: expectedVersao, gatilho });
+      throw e;
+    }
+    registrar("trocar", true, `instalador da ${expectedVersao} iniciado`, { gatilho, forcado: forcar });
+    try { antesDeRelancar?.(); } catch (e) { log(`[atualização] limpeza antes de reiniciar falhou: ${erroTexto(e)}`); }
+    app.exit(0);
+    return;
   }
   let mine: string;
   try { mine = swapBundles(gatilho); } catch (e) {
@@ -701,7 +729,50 @@ function desfazerTroca(antigos: readonly string[]): void {
 /** Ao sair do app com uma atualização pronta, troca calado: a próxima abertura já é a nova. */
 export function applyStagedOnQuit(): void {
   if (preparada === null || !podeTrocarComFixada(versaoFixada(), preparada.para)) return;
-  try { swapBundles("saida"); } catch (e) { log(`[atualização] ao sair: ${erroTexto(e)}`); }
+  try { if (WIN) aplicarNoWindows("saida"); else swapBundles("saida"); } catch (e) { log(`[atualização] ao sair: ${erroTexto(e)}`); }
+}
+
+/* ---------- Windows: a troca é o instalador ---------- */
+
+/**
+ * Roda o instalador preparado em silêncio, solto do app, e deixa o registro da troca para a próxima abertura conferir.
+ * Quem chama sai do app em seguida: o instalador espera o app fechar, troca os arquivos e, fora da saída, reabre.
+ * O instalador é reconferido contra o sha256 do download (o que a assinatura Ed25519 cobriu) imediatamente antes de
+ * rodar: ele ficou em disco entre o download e agora. Síncrono, como a troca do macOS: acontece antes de o app sair.
+ */
+function aplicarNoWindows(gatilho: UpdateGatilho): void {
+  if (preparada === null) throw new Error("não há atualização pronta");
+  const { bundle: instalador, para, sha256 } = preparada;
+  let confere = false;
+  try { confere = crypto.createHash("sha256").update(fs.readFileSync(instalador)).digest("hex") === sha256; } catch { /* sumiu ou não deu para ler: não confere */ }
+  if (!confere) { limparPreparada(); throw new Error("o instalador baixado não bate mais com o que foi conferido no download: descartei, e a próxima verificação baixa de novo."); }
+  gravarJson(pendenteFile(), { de: state.current, para, antigos: [], tentativas: 0, gatilho, pedidoEm: new Date().toISOString(), fase: "trocada" } satisfies UpdatePendente);
+  const filho = spawn(instalador, argsDoInstalador(gatilho), { detached: true, stdio: "ignore" });
+  filho.on("error", (e) => { log(`[atualização] o instalador não iniciou: ${e.message}`); });
+  filho.unref();
+  log(`[atualização] instalador da ${para} iniciado (${gatilho})`);
+}
+
+/**
+ * Windows, na abertura depois de rodar o instalador: abriu na versão pedida = confirmada; abriu na de antes = o
+ * instalador não trocou (a preparada continua em disco e é oferecida de novo); outra versão = instalada por fora.
+ * Sem contagem de tentativas nem volta: não há cópia anterior guardada.
+ */
+function conferirPendenteNoWindows(): void {
+  let p: UpdatePendente | null = null;
+  try { p = parsePendente(JSON.parse(fs.readFileSync(pendenteFile(), "utf8"))); } catch { return; }
+  fs.rmSync(pendenteFile(), { force: true });
+  if (p === null) return;
+  const decisao = decideRollback(p, state.current);
+  if (decisao === "nao-pegou") {
+    log(`[atualização] reabriu na ${p.de} depois de rodar o instalador da ${p.para} (${p.gatilho ?? "?"}): a troca não pegou`);
+    registrar("abertura", false, `a troca para a ${p.para} não pegou: reabriu na ${p.de}`, { gatilho: p.gatilho });
+  } else if (decisao === "descartar") {
+    registrar("abertura", true, `abriu na ${state.current}, fora da troca pedida (${p.de} → ${p.para}): só limpei o registro`);
+  } else {
+    log(`[atualização] ${p.para} confirmada (instalador; ${p.gatilho ?? "?"})`);
+    registrar("abertura", true, `${p.para} confirmada`, { gatilho: p.gatilho });
+  }
 }
 
 /* ---------- reinício ocioso ---------- */

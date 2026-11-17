@@ -58,8 +58,18 @@ export function decideIdentidade(dele: string | null, meu: string | null, deleEh
   return deleEhDeveloperId ? "developer-id" : "recusa";
 }
 
-/** Nome do asset de um app numa release: `meu-bot-0.2.0-arm64.zip` (o .app zipado com ditto). */
-export const assetName = (app: string, version: string, arch: string): string => `${app}-${version}-${arch}.zip`;
+/**
+ * Nome do asset de um app numa release: no macOS `meu-bot-0.2.0-arm64.zip` (o .app zipado com ditto); no Windows
+ * `meu-bot-0.2.0-x64-setup.exe` (o instalador de scripts/instalador-win.mjs, sempre x64). `plataforma` = process.platform.
+ */
+export const assetName = (app: string, version: string, arch: string, plataforma = "darwin"): string =>
+  plataforma === "win32" ? `${app}-${version}-x64-setup.exe` : `${app}-${version}-${arch}.zip`;
+
+/**
+ * Argumentos do instalador do Windows na atualização: `--updated /S` instala em silêncio por cima da versão em uso;
+ * `--force-run` reabre o app no fim (o clique e o reinício ocioso). Ao sair do app, não reabre.
+ */
+export const argsDoInstalador = (gatilho: UpdateGatilho): string[] => (gatilho === "saida" ? ["--updated", "/S"] : ["--updated", "/S", "--force-run"]);
 
 /**
  * Compara versões na ordem do semver; negativo = `a` é mais antiga: 0.2.0-staging.3 < 0.2.0-staging.10 < 0.2.0.
@@ -154,7 +164,7 @@ export function motivoReleaseTexto(versao: string | null, motivo: MotivoRelease)
  * Uma release que não dá para usar nunca vira "nada-novo": o app precisa dizer o que houve em vez de se declarar
  * atualizado. No staging, uma candidata utilizável ganha de qualquer problema em outra entrada da lista.
  */
-export function escolherRelease(raw: unknown, want: { app: string; arch: string; current: string; canal?: "estavel" | "staging" }): EscolhaRelease {
+export function escolherRelease(raw: unknown, want: { app: string; arch: string; current: string; canal?: "estavel" | "staging"; plataforma?: string }): EscolhaRelease {
   if (want.canal !== "staging") return avaliarRelease(raw, want, false);
   if (!Array.isArray(raw)) return inutilizavel(null, "corpo-inesperado");
   let melhor: UpdateCandidate | null = null;
@@ -172,7 +182,7 @@ export function escolherRelease(raw: unknown, want: { app: string; arch: string;
 }
 
 /** `comparar` = false (a lista do super admin): a release vale mesmo sendo a atual ou mais velha. */
-function avaliarRelease(raw: unknown, want: { app: string; arch: string; current: string }, staging: boolean, comparar = true): EscolhaRelease {
+function avaliarRelease(raw: unknown, want: { app: string; arch: string; current: string; plataforma?: string }, staging: boolean, comparar = true): EscolhaRelease {
   if (raw === null || typeof raw !== "object") return inutilizavel(null, "corpo-inesperado");
   const r = raw as { tag_name?: unknown; draft?: unknown; prerelease?: unknown; assets?: unknown };
   if (typeof r.tag_name !== "string") return inutilizavel(null, "corpo-inesperado");
@@ -185,7 +195,7 @@ function avaliarRelease(raw: unknown, want: { app: string; arch: string; current
   if (comparar && compareVersions(version, want.current) <= 0) return NADA_NOVO;
   // Uma entrada estragada no meio da lista do staging é ruído; na /releases/latest é a resposta inteira.
   if (!Array.isArray(r.assets)) return staging ? NADA_NOVO : inutilizavel(version, "corpo-inesperado");
-  const name = assetName(want.app, version, want.arch);
+  const name = assetName(want.app, version, want.arch, want.plataforma);
   const achar = (n: string): ReleaseAsset | null => {
     for (const a of r.assets as unknown[]) {
       if (a === null || typeof a !== "object") continue;
@@ -223,7 +233,7 @@ export interface ReleaseListada {
  * As mesmas regras do feed (canal pelo `prerelease`, tag, asset desta arquitetura, `.sig` ao lado), sem a regra de
  * "só mais nova": é o único caminho para trás, e por isso só o super admin chega aqui.
  */
-export function listarReleases(raw: unknown, want: { app: string; arch: string; current: string; canal: "estavel" | "staging"; minima: string | null }): ReleaseListada[] {
+export function listarReleases(raw: unknown, want: { app: string; arch: string; current: string; canal: "estavel" | "staging"; minima: string | null; plataforma?: string }): ReleaseListada[] {
   if (!Array.isArray(raw)) return [];
   const staging = want.canal === "staging";
   const vistas = new Map<string, ReleaseListada>();
@@ -400,13 +410,14 @@ export function destinoDaTroca(o: { pastaGravavel: boolean; emAplicativos: boole
 
 /**
  * Versão já baixada, verificada e extraída, guardada em disco (`userData/update/preparada.json`) para a próxima
- * abertura não baixar de novo: `bundle` = caminho do .app extraído; `sha256` = do zip de onde ele veio.
+ * abertura não baixar de novo: `bundle` = caminho do .app extraído; `sha256` = do zip de onde ele veio. No Windows
+ * não há extração: `bundle` é o próprio instalador .exe baixado e `sha256` é o dele.
  */
 export interface UpdatePreparada { versao: 1; para: string; bundle: string; sha256: string; em: string }
 export function parsePreparada(raw: unknown): UpdatePreparada | null {
   if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return null;
   const o = raw as Record<string, unknown>;
-  if (o.versao !== 1 || typeof o.para !== "string" || !VERSAO_RE.test(o.para) || typeof o.bundle !== "string" || !o.bundle.endsWith(".app")) return null;
+  if (o.versao !== 1 || typeof o.para !== "string" || !VERSAO_RE.test(o.para) || typeof o.bundle !== "string" || !(o.bundle.endsWith(".app") || o.bundle.endsWith("-setup.exe"))) return null;
   if (typeof o.sha256 !== "string" || !/^[0-9a-f]{64}$/.test(o.sha256) || typeof o.em !== "string" || Number.isNaN(Date.parse(o.em))) return null;
   return { versao: 1, para: o.para, bundle: o.bundle, sha256: o.sha256, em: o.em };
 }
