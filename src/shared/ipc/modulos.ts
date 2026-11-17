@@ -35,7 +35,14 @@ export interface Modulo {
   /** Script de teste na pasta do módulo (`testar.sh`); null = o módulo não sabe se testar. */
   testar: string | null;
   passos: ModuloPasso[];
+  /** Página própria do módulo (um serviço web dele na máquina, aberto num <webview> isolado); null = não tem. */
+  pagina: ModuloPagina | null;
 }
+
+/** A página do módulo: o rótulo da aba, a porta do serviço na máquina (só 127.0.0.1) e o caminho de entrada. */
+export interface ModuloPagina { rotulo: string; porta: number; caminho: string }
+/** Para o <webview>: o endereço pelo forward local (com o token) e a partição que o main aceita. */
+export interface ModuloPaginaAberta { url: string; particao: string }
 
 /** O guia da ficha: para que serve, os cuidados, parágrafos a mais e o link do guia completo (só https). */
 export interface ModuloGuia { paraQue: string; cuidados: string[]; texto: string[]; completo: string | null }

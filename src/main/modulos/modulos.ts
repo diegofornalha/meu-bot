@@ -10,7 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { app } from "electron";
-import type { EstadoFonte, FonteModulos, LicenseView, Modulo, ModuloEstado, ModuloGateway, ModuloResultado, ModuloTeste, ModulosLista } from "../../shared/ipc";
+import type { EstadoFonte, FonteModulos, LicenseView, Modulo, ModuloEstado, ModuloGateway, ModuloPaginaAberta, ModuloResultado, ModuloTeste, ModulosLista } from "../../shared/ipc";
 import { caps } from "../app/variant";
 import { getModulosRepo } from "../app/settings";
 import { lerLicenca } from "../licenca/licenca-maquina";
@@ -18,6 +18,9 @@ import { acessoAddon } from "../licenca/licenca";
 import { enviarModulo } from "../maquina/hostProbe";
 import { runSsh } from "../whatsapp/whatsapp";
 import { WA_MOTOR_SH } from "../whatsapp/whatsapp-capacidades";
+import { origemForward, paginaStatusSh, parsePaginaStatus, particaoModulo, tokenSh, urlPagina } from "./modulos-pagina-core";
+import { ensureForwardExtra } from "../maquina/tunnel";
+import { LOCAL_HOST } from "../maquina/localBackend";
 import { MODULOS_DIR, ambienteSh, credenciaisSh, desatualizado, estadoSh, lerTeste, mesclarOpcoes, opcoesSh, parseEstado, parseManifesto } from "./modulos-core";
 import { type SaidaGit, ambienteGit, appTemModulos, cloneArgs, commitArgs, estadoDepois, lerResultado, montarFonte, parseFonteGravada, produtosDeModulos, pullArgs, repoEfetivo, repoPadrao } from "./modulos-fonte-core";
 
@@ -249,7 +252,7 @@ export async function ligarModulo(host: string, id: string, onLine?: (l: string)
   if (faltam.length > 0) return { ok: false, log: [`preencha antes: ${faltam.map((c) => c.rotulo).join(", ")}`] };
   const opcoes = mesclarOpcoes(m, v?.estado.opcoes ?? {}, {});
   if (!fs.existsSync(path.join(pasta, m.instalar))) return { ok: false, log: [`o repositório dos módulos não trouxe ${m.pasta}/${m.instalar}`] };
-  const cmd = `${opcoesSh(id, opcoes)} >/dev/null && ${ambienteSh(id, produto, m.versao)} && bash ./${m.instalar} && printf '%s\\n' '${m.versao}' > "${MODULOS_DIR}/${id}/VERSION" && touch "${MODULOS_DIR}/${id}/ligado" && echo "✓ ${m.rotulo} ligado (${m.versao})"`;
+  const cmd = `${opcoesSh(id, opcoes)} >/dev/null && ${m.pagina === null ? "true" : tokenSh(id)} && ${ambienteSh(id, produto, m.versao)} && bash ./${m.instalar} && printf '%s\\n' '${m.versao}' > "${MODULOS_DIR}/${id}/VERSION" && touch "${MODULOS_DIR}/${id}/ligado" && echo "✓ ${m.rotulo} ligado (${m.versao})"`;
   return enviarModulo(host, id, pasta, cmd, onLine);
 }
 
@@ -300,4 +303,30 @@ export async function atualizarModulos(host: string, log: (l: string) => void): 
       log(`[modulos] ${host}: ${m.id} ${r.ok ? "atualizado" : `falhou: ${r.log.at(-1) ?? "?"}`}`);
     }
   }
+}
+
+/** Partições de página de módulo abertas nesta sessão: a máquina e a origem do forward que cada uma pode carregar. */
+const paginas = new Map<string, { host: string; origem: string }>();
+/** O que o windows.ts confere ao anexar o <webview> e a cada navegação; null = partição que o app não abriu. */
+export const paginaRegistrada = (particao: string): { host: string; origem: string } | null => paginas.get(particao) ?? null;
+/** As partições de página abertas para uma máquina (o windows.ts acha a do <webview> anexado pela sessão). */
+export const particoesDaMaquina = (host: string): string[] => [...paginas].filter(([, r]) => r.host === host).map(([p]) => p);
+
+/**
+ * Abre a página própria do módulo: confere a licença, lê na máquina o token e se o serviço responde, abre o forward
+ * até a porta dele e registra a partição com a origem do forward (o windows.ts só deixa o <webview> carregar dali).
+ */
+export async function abrirPaginaModulo(host: string, id: string): Promise<ModuloPaginaAberta> {
+  if (host === LOCAL_HOST) throw new Error("a página do módulo mora numa máquina por SSH");
+  const { m } = await liberado(host, id);
+  if (m.pagina === null) throw new Error(`${m.rotulo} não tem página própria`);
+  const r = await runSsh(host, `${paginaStatusSh(id, m.pagina.porta)}\n`, 30_000);
+  const st = r.code === 0 ? parsePaginaStatus(r.stdout) : null;
+  if (st === null) throw new Error(`não consegui ler a página de ${m.rotulo} na máquina: ${r.stderr.trim().split("\n").pop() || "ssh falhou"}`);
+  if (st.token === null) throw new Error(`ligue ${m.rotulo} de novo nesta versão do app: a página ainda não tem a chave de acesso desta instalação`);
+  if (!st.rodando) throw new Error(`a página de ${m.rotulo} não respondeu na máquina (o serviço do módulo parou). Desligue e ligue o módulo de novo.`);
+  const local = await ensureForwardExtra(host, m.pagina.porta);
+  const particao = particaoModulo(id, host);
+  paginas.set(particao, { host, origem: origemForward(local) });
+  return { url: urlPagina(local, m.pagina.caminho, st.token), particao };
 }
