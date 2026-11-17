@@ -32,7 +32,7 @@ import { conversationReferenceText, grupoReferenceText, waReferenceText } from "
 import { providerLabel } from "./lib/provider-label.js";
 import { updateBlockerText, updateStateText } from "./lib/update-text.js";
 import { offlineBarText } from "./lib/offline-text.js";
-import { browserAccess, displayUrl, planoLiberaPro, proBlockText, tabLabel, type ProAccess, crmProprioOk, financeOk } from "./lib/pro.js";
+import { browserAccess, displayUrl, planoLiberaPro, proBlockText, tabLabel, type ProAccess, crmProprioOk, financeOk, modulosNaLicenca } from "./lib/pro.js";
 import { mountFinancePage } from "./finance/finance-page.js";
 import { mountModulosPage } from "./modulos/modulos-page.js";
 import { mountContaGoogle } from "./conta-google/conta-google-page.js";
@@ -209,6 +209,7 @@ const ctxImpl = {
   get paintAcervoCount() { return paintAcervoCount; },
   get paintContext() { return paintContext; },
   get paintFinanceLine() { return paintFinanceLine; },
+  get paintModulosLine() { return paintModulosLine; },
   get paintGuide() { return paintGuide; },
   get paintGuideTargets() { return paintGuideTargets; },
   get paintListMode() { return paintListMode; },
@@ -1826,6 +1827,11 @@ let computadorPage: ReturnType<typeof mountComputador> | null = null;
 /** Só existe no produto com a capacidade `inspector` (meu-bot-inspector-staging). */
 let inspectorPage: ReturnType<typeof mountInspector> | null = null;
 let modulosPage: ReturnType<typeof mountModulosPage> | null = null;
+/** Botão "Módulos" da lateral: sempre no app com produto fixo; nos outros, com um add-on de módulos na licença da máquina. */
+function paintModulosLine(): void {
+  if (modulosPage === null) return;
+  $<HTMLButtonElement>("modulos-line").hidden = caps.modulos === null && !modulosNaLicenca(license, windowHost, caps.addons);
+}
 let financeState: FinanceInfo | null = null;
 ligarNavegador();
 ligarTerminal();
@@ -1981,12 +1987,12 @@ void (async () => {
     goToChat: goToChatFromGuide, onInfo: (i) => { financeState = i; paintFinanceLine(); paintGuide(); },
   });
   $<HTMLButtonElement>("financas-line").addEventListener("click", () => financePage?.open());
-  // Módulos de produto (meu-bot-diego): só nos apps que trazem o repositório de módulos.
-  if (caps.modulos !== null) {
-    const rotulo = caps.addons.find((a) => a.nome === caps.addon)?.rotulo ?? caps.nome;
-    modulosPage = mountModulosPage({ panelsEl, definePage, openPage, armConfirm, api: window.meuBot, rotulo, host: () => windowHost, goToChat: goToChatFromGuide });
-    const linha = $<HTMLButtonElement>("modulos-line"); linha.hidden = false;
-    linha.addEventListener("click", () => modulosPage?.open());
+  // Módulos de produto: o fixo do app (caps.modulos, como no meu-bot-diego-staging) e os add-ons com módulos na licença
+  // da máquina. A página só é montada no app que pode ter módulos; o botão segue a licença (paintModulosLine).
+  if (caps.modulos !== null || caps.addons.some((a) => a.modulos)) {
+    modulosPage = mountModulosPage({ panelsEl, definePage, openPage, armConfirm, api: window.meuBot, host: () => windowHost, goToChat: goToChatFromGuide });
+    $<HTMLButtonElement>("modulos-line").addEventListener("click", () => modulosPage?.open());
+    paintModulosLine();
   }
   // O app cujo add-on é o financeiro mostra o botão sempre (sem licença, a página diz como liberar).
   if (caps.addon === "meu-bot-finance") paintFinanceLine();

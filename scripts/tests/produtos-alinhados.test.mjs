@@ -55,7 +55,7 @@ test("a janela recebe o catálogo: caps leva addon, abreEm e os rótulos dos add
   for (const p of PRODUTOS) {
     const c = capsFor(p.variant, "1.0.0");
     assert.equal(c.addon, p.addon); assert.equal(c.abreEm, p.abreEm);
-    assert.deepEqual(c.addons, ADDONS.map((a) => ({ nome: a.nome, rotulo: a.rotulo })));
+    assert.deepEqual(c.addons, ADDONS.map((a) => ({ nome: a.nome, rotulo: a.rotulo, modulos: a.modulos })));
   }
 });
 

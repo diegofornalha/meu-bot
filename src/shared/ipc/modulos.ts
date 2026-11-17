@@ -1,5 +1,6 @@
 /**
- * Módulos de produto (o app meu-bot-diego-staging e os próximos): o repositório do produto, que o app baixa com git
+ * Módulos de produto (o add-on fixo de um app, como o meu-bot-diego no meu-bot-diego-staging, e os add-ons com módulos
+ * na licença da máquina): o repositório do produto, que o app baixa com git
  * (src/main/modulos/modulos-fonte-core.ts), traz um modulos.json; o meu-bot só conhece este contrato. Ver
  * src/main/modulos/modulos-core.ts.
  */
@@ -59,9 +60,12 @@ export interface ModuloEstado {
 
 export interface ModuloVista extends Modulo { estado: ModuloEstado; desatualizado: boolean; /** null = nunca testado nesta máquina. */ teste: ModuloTeste | null }
 
+/** Os módulos de um produto (o app tem o fixo dele e os add-ons com módulos na licença da máquina: uma lista por produto). */
 export interface ModulosLista {
   /** Nome do produto dono dos módulos (o add-on na licença). */
   produto: string;
+  /** Rótulo do add-on no catálogo ("Módulos do Diego"). */
+  rotulo: string;
   modulos: ModuloVista[];
   /** O add-on está liberado na licença desta máquina. */
   liberado: boolean;
@@ -71,6 +75,8 @@ export interface ModulosLista {
   fonte: FonteModulos;
   /** Não deu para ler a máquina (SSH caiu): a lista vem assim mesmo, sem ligar nem desligar. */
   erroMaquina: string | null;
+  /** O que deu errado no manifesto deste produto (inválido, id repetido de outro produto); vazio = nada. */
+  avisos: string[];
 }
 
 /** A última tentativa de baixar o repositório dos módulos (nunca, atualizado, em dia, ou o motivo de não ter dado). */

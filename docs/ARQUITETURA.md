@@ -70,6 +70,10 @@ Regras do renderer:
   do assunto dela; `docs/guia/historia.md` é o começo (REA do Grok Bot, 13–14 out) e não recebe coisa nova.
 
 ## Como criar um MVP (produto novo derivado do meu-bot)
+> **Direção desde 17/11 (issue #312):** add-on novo chega como **módulos em repositório próprio** (página Módulos, no
+> molde do `meu-bot-diego`; add-on com `modulos: true` em `ADDONS`), não como app e código neste repositório. O roteiro
+> abaixo é o modelo antigo, que vale enquanto o Finanças migra (`docs/planos/financas-modulo.md`).
+
 Exemplo de referência: o financeiro (add-on `meu-bot-finance`, app `meu-bot-finance-staging`). Nome do exemplo
 abaixo: `meu-bot-fit`.
 

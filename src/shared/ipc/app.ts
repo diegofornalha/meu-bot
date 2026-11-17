@@ -163,8 +163,9 @@ export interface Capabilities {
   /** meu-bot-inspector-staging: botão e página Inspector (o MCP Inspector oficial ligado ao controle externo deste app). */
   inspector: boolean;
   /**
-   * Pasta do repositório de módulos que veio com este app (submódulo produtos/<nome>, em Resources/ empacotado):
-   * página "Módulos" e src/main/modulos/. null = app sem módulos (o meu-bot de todo mundo).
+   * Produto de módulos fixo deste app (o add-on cujo repositório o app baixa sempre, como o meu-bot-diego no
+   * meu-bot-diego-staging): a página "Módulos" fica sempre. null = sem produto fixo; os add-ons com `modulos` na licença
+   * da máquina ainda trazem a página (src/main/modulos/modulos-fonte-core.ts, `produtosDeModulos`).
    */
   modulos: string | null;
   /**
@@ -188,7 +189,8 @@ export interface Capabilities {
   /** Página que fica na frente quando a janela abre ("financas", "inspector"); null = as abas de conversa. */
   abreEm: string | null;
   /** Catálogo de add-ons (nome e rótulo para ler), para as telas não escreverem nomes à mão. */
-  addons: { nome: string; rotulo: string }[];
+  /** `modulos`: o add-on chega como módulos (página Módulos) quando está na licença da máquina. */
+  addons: { nome: string; rotulo: string; modulos: boolean }[];
 }
 
 /** O que a janela principal recebe ao nascer: a máquina a que está presa. */

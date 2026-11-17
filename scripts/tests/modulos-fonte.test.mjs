@@ -36,3 +36,16 @@ test("fonte dos módulos: a cópia só vale para a URL de onde veio; linha de or
   assert.equal(outra.baixados, false); assert.equal(outra.visiveis, false);
   assert.equal(F.parseFonteGravada("{lixo"), null); assert.equal(F.parseFonteGravada(JSON.stringify({ url: "ext::x", em: "2026" })), null);
 });
+
+test("produtos de módulos da máquina: o fixo do app sempre, depois os add-ons com módulos liberados, sem repetir", () => {
+  const addons = [{ nome: "meu-bot-finance", modulos: true }, { nome: "meu-bot-diego", modulos: true }, { nome: "meu-bot-x", modulos: false }];
+  const todos = () => true;
+  assert.deepEqual(F.produtosDeModulos(null, addons, (n) => n === "meu-bot-finance"), ["meu-bot-finance"]);
+  assert.deepEqual(F.produtosDeModulos("meu-bot-diego", addons, () => false), ["meu-bot-diego"], "o fixo aparece sem licença (a página diz como liberar)");
+  assert.deepEqual(F.produtosDeModulos("meu-bot-diego", addons, todos), ["meu-bot-diego", "meu-bot-finance"], "o fixo primeiro e sem repetir");
+  assert.deepEqual(F.produtosDeModulos(null, addons, todos).includes("meu-bot-x"), false, "add-on sem módulos nunca");
+  assert.deepEqual(F.produtosDeModulos(null, [], todos), []);
+  assert.equal(F.appTemModulos(null, [{ modulos: false }]), false);
+  assert.equal(F.appTemModulos(null, [{ modulos: true }]), true);
+  assert.equal(F.appTemModulos("meu-bot-diego", []), true);
+});

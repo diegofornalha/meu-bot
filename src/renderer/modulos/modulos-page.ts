@@ -1,13 +1,14 @@
 /**
- * Página "Módulos" (apps com caps.modulos, como o meu-bot-diego-staging). Duas vistas:
- * - a lista: de onde os módulos vieram (o repositório do produto, baixado com git) e um cartão por módulo;
+ * Página "Módulos": o produto fixo do app (caps.modulos, como no meu-bot-diego-staging) e os add-ons com módulos na
+ * licença da máquina. Duas vistas:
+ * - a lista: um bloco por produto, com de onde os módulos vieram (o repositório dele, baixado com git) e um cartão por módulo;
  * - a ficha de um módulo: cabeçalho com o estado e "Testar conexão", "O que dá para pedir" (vai ao chat), as abas
  *   Visão geral (configurar, ligar, conexão e o guia em resumo), Ferramentas (do último teste), Guia e Primeiros
  *   passos, e a coluna Detalhes.
  * Tudo o que a ficha mostra vem do modulos.json do repositório (modulos-core.ts): é texto puro, desenhado com `el`,
  * nunca HTML. O estado mora na máquina (main › modulos/modulos.ts); aqui só se mostra e se pede.
  */
-import type { FonteModulos, MeuBotApi, ModuloPasso, ModuloVista, ModulosLista } from "../../shared/ipc";
+import type { MeuBotApi, ModuloPasso, ModuloVista, ModulosLista } from "../../shared/ipc";
 import { el } from "../lib/dom.js";
 import { carregando } from "../lib/carregando.js";
 import type { PageTab } from "../lib/pages-types.js";
@@ -22,8 +23,6 @@ export interface ModulosPageDeps {
   api: Pick<MeuBotApi, "modulosAtualizarFonte" | "modulosListar" | "modulosLigar" | "modulosDesligar" | "modulosTestar" | "modulosCredenciais" | "modulosOpcoes" | "openExternal" | "on">;
   /** Leva uma pergunta pronta ao chat do agente (o mesmo caminho dos tutoriais). */
   goToChat(message: string, hint: string): Promise<void>;
-  /** Rótulo do add-on (de caps.addons) para os textos. */
-  rotulo: string;
   /** Máquina desta janela (as marcações dos primeiros passos são por máquina); lida na hora, não na montagem. */
   host(): string;
 }
@@ -35,8 +34,8 @@ export function mountModulosPage(deps: ModulosPageDeps): { open: () => void } {
   const panel = el("section", "acervo-panel modulos-panel"); panel.hidden = true;
   deps.panelsEl.append(panel);
   let page: PageTab | null = null;
-  let lista: ModulosLista | null = null;
-  let fonte: FonteModulos | null = null;
+  /** Uma lista por produto de módulos da máquina; null = ainda não lida. */
+  let listas: ModulosLista[] | null = null;
   let erro: string | null = null;
   let lendo = false;
   let baixando = false;
@@ -56,7 +55,9 @@ export function mountModulosPage(deps: ModulosPageDeps): { open: () => void } {
   });
 
   /* ---------- marcações à mão dos primeiros passos (por máquina, neste Mac) ---------- */
-  const chaveMarcas = (m: ModuloVista): string => `modulos:passos:${lista?.produto ?? ""}:${deps.host()}:${m.id}`;
+  /** A lista (o produto) de um módulo: os ids não se repetem entre produtos (o main ignora o repetido). */
+  const listaDo = (id: string): ModulosLista | undefined => listas?.find((l) => l.modulos.some((x) => x.id === id));
+  const chaveMarcas = (m: ModuloVista): string => `modulos:passos:${listaDo(m.id)?.produto ?? ""}:${deps.host()}:${m.id}`;
   const marcas = (m: ModuloVista): string[] => { try { const v = JSON.parse(localStorage.getItem(chaveMarcas(m)) ?? "[]") as unknown; return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []; } catch { return []; } };
   const marcar = (m: ModuloVista, passo: string, feito: boolean): void => {
     const s = new Set(marcas(m)); if (feito) s.add(passo); else s.delete(passo);
@@ -66,16 +67,15 @@ export function mountModulosPage(deps: ModulosPageDeps): { open: () => void } {
   /* ---------- dados ---------- */
   async function ler(): Promise<void> {
     lendo = true; erro = null; render();
-    try { lista = await deps.api.modulosListar(); fonte = lista.fonte; } catch (e) { erro = ipcErrorText(e); }
+    try { listas = await deps.api.modulosListar(); } catch (e) { erro = ipcErrorText(e); }
     lendo = false; render();
   }
-  /** Confere o repositório (clone na primeira vez, pull depois) e relê a máquina; sem módulos à vista, a lista some. */
+  /** Confere o repositório de cada produto (clone na primeira vez, pull depois) e relê a máquina. */
   async function atualizar(): Promise<void> {
     if (baixando) return;
     baixando = true; erro = null; render();
-    try { fonte = await deps.api.modulosAtualizarFonte(); } catch (e) { erro = ipcErrorText(e); }
-    baixando = false;
-    if (fonte?.visiveis === true) await ler(); else { lista = null; render(); }
+    try { listas = await deps.api.modulosAtualizarFonte(); } catch (e) { erro = ipcErrorText(e); }
+    baixando = false; render();
   }
   async function acao(id: string, rodar: () => Promise<{ ok: boolean; log: string[] }>): Promise<void> {
     ocupado = id; logs.set(id, { linhas: [], ruim: false }); render();
@@ -130,7 +130,7 @@ export function mountModulosPage(deps: ModulosPageDeps): { open: () => void } {
       f.append(btn("Salvar chaves", "btn-ghost", () => {
         const patch = Object.fromEntries(Object.entries(rascunhoCred.get(m.id) ?? {}).filter(([, v]) => v.trim() !== ""));
         if (Object.keys(patch).length === 0) return;
-        void acao(m.id, async () => { lista = await deps.api.modulosCredenciais(m.id, patch); rascunhoCred.delete(m.id); return { ok: true, log: ["chaves salvas na máquina"] }; });
+        void acao(m.id, async () => { listas = await deps.api.modulosCredenciais(m.id, patch); rascunhoCred.delete(m.id); return { ok: true, log: ["chaves salvas na máquina"] }; });
       }, !l.liberado || l.erroMaquina !== null));
       box.append(f);
     }
@@ -283,44 +283,54 @@ export function mountModulosPage(deps: ModulosPageDeps): { open: () => void } {
     return f;
   }
 
+  /** O bloco de um produto: de onde vieram os módulos, os avisos (fonte, licença, manifesto) e um cartão por módulo. */
+  function blocoDoProduto(l: ModulosLista, sozinho: boolean): HTMLElement {
+    const box = el("div", "auditoria-detalhe modulos-produto");
+    if (!sozinho) box.append(el("h3", "", l.rotulo));
+    // Origem: de qual repositório os módulos vieram, em que commit e há quanto tempo (o app não leva módulo nenhum dentro).
+    box.append(el("p", "hint modulos-origem", l.fonte.linha));
+    // Aviso da fonte: sem acesso (o bloco fica só nisso), sem rede ou sem git (com os já baixados embaixo), erro do git.
+    const f = l.fonte;
+    if (f.mensagem !== "" && f.estado !== "atualizado" && f.estado !== "em-dia") box.append(el("p", `hint ${f.estado === "sem-rede" && f.baixados ? "guide-pair-note" : "bad-hint"}`, f.mensagem));
+    if (!f.visiveis) return box;
+    if (!l.liberado) box.append(el("p", "hint guide-pair-note", MSG_LICENCA(l.rotulo)));
+    for (const a of l.avisos) box.append(el("p", "hint bad-hint", a));
+    const grade = el("div", "modulo-cartoes");
+    for (const x of l.modulos) grade.append(cartaoDaLista(x));
+    box.append(grade);
+    return box;
+  }
+
   function render(): void {
     if (page === null) return;
     panel.replaceChildren();
-    const m = aberto === null || lista === null ? undefined : lista.modulos.find((x) => x.id === aberto);
-    if (m !== undefined && lista !== null) {
+    const l = aberto === null ? undefined : listaDo(aberto);
+    const m = l?.modulos.find((x) => x.id === aberto);
+    if (m !== undefined && l !== undefined) {
       if (erro !== null) panel.append(el("p", "hint bad-hint", erro));
-      if (lista.erroMaquina !== null) panel.append(el("p", "hint bad-hint", lista.erroMaquina));
-      panel.append(ficha(m, lista));
+      if (l.erroMaquina !== null) panel.append(el("p", "hint bad-hint", l.erroMaquina));
+      panel.append(ficha(m, l));
       return;
     }
     aberto = null;
     const head = el("div", "guide-head");
     const body = el("div", "tut-body");
-    body.append(el("span", "tut-badge", `módulos · ${deps.rotulo}`), el("h2", "", "Módulos"), el("p", "", "Cada módulo é uma peça à parte: ligue só o que for usar. As chaves ficam na máquina, só com você."));
-    // Origem: de qual repositório os módulos vieram, em que commit e há quanto tempo (o app não leva módulo nenhum dentro).
-    if (fonte !== null) body.append(el("p", "hint modulos-origem", fonte.linha));
+    const sozinho = listas !== null && listas.length === 1 ? listas[0] : undefined;
+    body.append(el("span", "tut-badge", sozinho === undefined ? "módulos" : `módulos · ${sozinho.rotulo}`), el("h2", "", "Módulos"), el("p", "", "Cada módulo é uma peça à parte: ligue só o que for usar. As chaves ficam na máquina, só com você."));
     const b = el("button", "btn btn-ghost btn-small", "Atualizar módulos"); b.type = "button";
     b.disabled = baixando || lendo || ocupado !== null;
-    b.title = "Confere o repositório dos módulos (git pull) e relê o estado na máquina";
+    b.title = "Confere o repositório de cada produto de módulos (git pull) e relê o estado na máquina";
     b.addEventListener("click", () => { void atualizar(); });
     body.append(b);
     head.append(body);
     panel.append(head);
-    const box = el("div", "auditoria-detalhe");
-    if (baixando) box.append(carregando(fonte?.baixados === true ? "Conferindo o repositório dos módulos…" : "Baixando os módulos…"));
-    // Aviso da fonte: sem acesso (a página fica só nisso), sem rede ou sem git (com os já baixados embaixo), erro do git.
-    else if (fonte !== null && fonte.mensagem !== "" && fonte.estado !== "atualizado" && fonte.estado !== "em-dia") box.append(el("p", `hint ${fonte.estado === "sem-rede" && fonte.baixados ? "guide-pair-note" : "bad-hint"}`, fonte.mensagem));
-    if (fonte !== null && !fonte.visiveis) { panel.append(box); return; }
-    if (erro !== null) box.append(el("p", "hint bad-hint", erro));
-    if (lista === null) { if (lendo) box.append(carregando("Lendo os módulos da máquina…")); }
-    else {
-      if (!lista.liberado) box.append(el("p", "hint guide-pair-note", MSG_LICENCA(deps.rotulo)));
-      if (lista.erroMaquina !== null) box.append(el("p", "hint bad-hint", lista.erroMaquina));
-      const grade = el("div", "modulo-cartoes");
-      for (const x of lista.modulos) grade.append(cartaoDaLista(x));
-      box.append(grade);
-    }
-    panel.append(box);
+    if (baixando) panel.append(carregando("Conferindo os repositórios dos módulos…"));
+    if (erro !== null) panel.append(el("p", "hint bad-hint", erro));
+    if (listas === null) { if (lendo) panel.append(carregando("Lendo os módulos da máquina…")); return; }
+    // O SSH é um só para todos os produtos: o erro da máquina aparece uma vez, em cima.
+    const erroMaquina = listas.find((x) => x.erroMaquina !== null)?.erroMaquina ?? null;
+    if (erroMaquina !== null) panel.append(el("p", "hint bad-hint", erroMaquina));
+    for (const x of listas) panel.append(blocoDoProduto(x, sozinho !== undefined));
   }
 
   return {

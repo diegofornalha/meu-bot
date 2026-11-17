@@ -11,7 +11,7 @@ import type { CrmDiag, CrmInfo, CrmLocal } from "./crm";
 import type { FinanceAbc, FinanceAbcLado, FinanceAbcPor, FinanceCategoria, FinanceConfig, FinanceConta, FinanceImportacao, FinanceInfo, FinanceLancamento, FinanceLancarInput, FinanceMoeda, FinanceTipoLinha } from "./financeiro";
 import type { AgendaEvento, BackupCopiasView, BackupDadosProgresso, BackupDadosView, BackupRestauroPedido, BackupRestauroProgresso, BackupRestauroResultado, GmailAgenteState, GmailApagado, GmailDetalhe, GmailLista, GoogleContaStatus, PlanilhaLeitura } from "./google";
 import type { LicensePatch, LicenseView } from "./licenca";
-import type { FonteModulos, ModuloResultado, ModuloTeste, ModulosLista } from "./modulos";
+import type { ModuloResultado, ModuloTeste, ModulosLista } from "./modulos";
 import type { BackendStatusEvent, InstallBackendResult, TailscaleSshResult } from "./maquina";
 import type { BrowserAgentState, BrowserExtensionInfo, BrowserOpenInfo, NavFavorito, NavWorkspaces } from "./navegador";
 import type { MotorNovoUsuario, AdminAction, AdminHealth, AuditoriaVisao, UsuariosVisao, PrepararId, PrepararVisao, BackupIndiceView, BackupRestauracao, BotChat, BotMenuAction, BotMessage, ProdutoMvp, SupportInfo, SupportProgress, SupportShare, CgEstado, LpEstado, LpAviso } from "./suporte";
@@ -451,16 +451,19 @@ export interface MeuBotClientApi {
   /** Lê uma planilha do Google Sheets (link) com a Conta Google do app e importa as linhas no financeiro da máquina. */
   financeImportarPlanilha(p: { link: string; aba?: string; tipo: FinanceAbcLado; simular: boolean }): Promise<FinanceImportacao>;
   installFinance(): Promise<InstallBackendResult>;
-  /** Módulos de produto (só nos apps com `caps.modulos`): o manifesto com o estado de cada um nesta máquina. */
-  /** Baixa (clone) ou atualiza (pull) o repositório de módulos do produto neste Mac; nunca lança por rede ou acesso. */
-  modulosAtualizarFonte(): Promise<FonteModulos>;
+  /**
+   * Módulos de produto: o fixo do app (`caps.modulos`) e os add-ons com módulos na licença da máquina, uma lista por
+   * produto, com o estado de cada módulo nesta máquina.
+   * Atualizar: baixa (clone) ou atualiza (pull) o repositório de cada produto neste Mac e relê; nunca lança por rede ou acesso.
+   */
+  modulosAtualizarFonte(): Promise<ModulosLista[]>;
   /** Testa a conexão do módulo na máquina (o testar.sh dele) e guarda o resultado no Mac. */
   modulosTestar(id: string): Promise<ModuloTeste>;
-  modulosListar(): Promise<ModulosLista>;
+  modulosListar(): Promise<ModulosLista[]>;
   modulosLigar(id: string): Promise<ModuloResultado>;
   modulosDesligar(id: string): Promise<ModuloResultado>;
   /** Grava credenciais (valor vazio apaga); nunca devolve valores, só o estado. */
-  modulosCredenciais(id: string, patch: Record<string, string>): Promise<ModulosLista>;
+  modulosCredenciais(id: string, patch: Record<string, string>): Promise<ModulosLista[]>;
   /** Grava opções; com o módulo ligado, reinstala para valerem. */
   modulosOpcoes(id: string, patch: Record<string, string | number | boolean>): Promise<ModuloResultado>;
   /** Pede ao admin para liberar o meu-bot-finance (fica no registro de auditoria). */

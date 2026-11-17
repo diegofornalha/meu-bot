@@ -23,6 +23,7 @@ export async function refreshLicense(): Promise<LicenseView | null> {
   navLicenseAsked = true;
   setPlanBadge(license !== null && planoLiberaPro(license.license.plan));
   ctx.paintFinanceLine();
+  ctx.paintModulosLine();
   paintComputadorLine();
   // Financeiro liberado agora (ou na abertura): lê o estado para a lateral e o tutorial 12.
   if (ctx.financePage !== null && ((financeOk(license, ctx.windowHost) && ctx.financeState === null) || ctx.caps.addon === "meu-bot-finance")) void ctx.financePage.refresh();
