@@ -73,11 +73,21 @@ const MODULE_TEXT: Record<ProModule, { name: string; pitch: string; back: string
 };
 /**
  * Orientação de pagamento a mostrar junto do bloqueio: só quando pagar resolve (grátis, venceu, add-on faltando) e o
- * admin gravou uma. "unknown" (não deu para ler o plano) nunca mostra: pagar não resolve o que é técnico.
+ * admin gravou uma (sem nada gravado, o caminho padrão: assinar pelo site). "unknown" (não deu para ler o plano) nunca mostra: pagar não resolve o que é técnico.
  */
 export function pagamentoDoBloqueio(a: Exclude<ProAccess, "ok">, view: LicenseView | null): Pagamento | null {
   if (a === "unknown" || view === null) return null;
-  return view.license.pagamento ?? null;
+  return view.license.pagamento ?? pagamentoPadrao();
+}
+
+/** Página do console onde se assina (a cobrança é pela AbacatePay, no conta-api). O main monta o endereço do canal e entra logado (`contaAbrirConsole`). */
+export const CAMINHO_ASSINATURA = "/account/plan";
+/**
+ * Sem nada gravado pelo admin na licença, o aviso de plano mostra o caminho padrão: assinar pelo site. O admin só
+ * precisa preencher "Como pagar" em caso especial (Pix direto, preço combinado). Sem link: o botão abre o console.
+ */
+export function pagamentoPadrao(): Pagamento {
+  return { instrucoes: "Assine pelo site do meu-bot, com Pix ou cartão. Depois de pagar, toque em \"Já paguei\": o admin libera nesta máquina.", link: null, padrao: true };
 }
 export function proBlockText(a: Exclude<ProAccess, "ok">, view: LicenseView | null, modulo: ProModule = "navegador", produto: string = "meu-bot"): { title: string; text: string; askAdmin: boolean } {
   const m = MODULE_TEXT[modulo];

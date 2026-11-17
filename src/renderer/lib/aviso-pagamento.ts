@@ -1,16 +1,19 @@
 /**
  * Bloco "Como pagar" dos avisos de plano (Navegador, Conta Google, CRM, Finanças, Computador e erro no chat): as
- * instruções que o admin gravou na licença, com Copiar, o link e "Já paguei, avisar o admin". Quem decide se aparece
+ * instruções que o admin gravou na licença, com Copiar, o link e "Já paguei, avisar o admin"; sem nada gravado, o
+ * caminho padrão ("Como assinar", botão "Assinar pelo site"). Quem decide se aparece
  * é `pagamentoDoBloqueio` (lib/pro.ts); aqui só se desenha.
  */
 import type { Pagamento } from "../../shared/ipc";
 import { el } from "./dom.js";
+import { CAMINHO_ASSINATURA } from "./pro.js";
 
 let avisouPagamento = false;
 
 export function blocoPagamento(p: Pagamento): HTMLElement {
   const box = el("div", "plano-pagamento");
-  box.append(el("strong", "", "Como pagar"));
+  const padrao = p.padrao === true; // ninguém gravou instruções: o caminho é assinar pelo site
+  box.append(el("strong", "", padrao ? "Como assinar" : "Como pagar"));
   if (p.instrucoes !== "") box.append(el("p", "plano-pagamento-texto", p.instrucoes));
   const row = el("div", "actions");
   const botao = (texto: string, classe: string, run: (b: HTMLButtonElement) => void): HTMLButtonElement => {
@@ -19,8 +22,10 @@ export function blocoPagamento(p: Pagamento): HTMLElement {
     row.append(b);
     return b;
   };
-  if (p.instrucoes !== "") botao("Copiar", "btn-ghost", (b) => { void navigator.clipboard.writeText(p.instrucoes).then(() => { b.textContent = "Copiado ✓"; }, () => { b.textContent = "Não consegui copiar"; }); });
-  if (p.link !== null) { const link = p.link; botao("Abrir o link de pagamento", "btn-ghost", () => { void window.meuBot.openExternal(link); }); }
+  if (p.instrucoes !== "" && !padrao) botao("Copiar", "btn-ghost", (b) => { void navigator.clipboard.writeText(p.instrucoes).then(() => { b.textContent = "Copiado ✓"; }, () => { b.textContent = "Não consegui copiar"; }); });
+  // Caminho padrão: o console › Plano, pelo main (endereço do canal deste app, já com a sessão da conta).
+  if (padrao) botao("Assinar pelo site", "btn-ghost", () => { void window.meuBot.contaAbrirConsole(CAMINHO_ASSINATURA).catch(() => undefined); });
+  else if (p.link !== null) { const link = p.link; botao("Abrir o link de pagamento", "btn-ghost", () => { void window.meuBot.openExternal(link); }); }
   const nota = el("p", "hint");
   nota.hidden = true;
   const pago = botao(avisouPagamento ? "Admin avisado ✓" : "Já paguei, avisar o admin", "btn-primary", (b) => {

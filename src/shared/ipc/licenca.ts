@@ -11,6 +11,8 @@ export interface Pagamento {
   instrucoes: string;
   /** Link de pagamento (http/https) ou null. */
   link: string | null;
+  /** true = ninguém gravou nada: é o caminho padrão (assinar pelo site), montado pelo app; nunca vem da licença. */
+  padrao?: true;
 }
 export interface License {
   plan: PlanName;

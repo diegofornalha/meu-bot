@@ -77,13 +77,13 @@ test("proBlockText: Conta Google é módulo Pro, com o mesmo pedido ao admin", (
   assert.ok(proBlockText("expired", lic({ plan: "pro", status: "expired" }), "google").title.includes("venceu"));
 });
 
-test("pagamentoDoBloqueio: só mostra a orientação quando pagar resolve e o admin gravou uma", () => {
+test("pagamentoDoBloqueio: só mostra a orientação quando pagar resolve; a do admin, ou a padrão", () => {
   const pg = { instrucoes: "Pix financeiro@exemplo.com", link: null };
   assert.deepEqual(pagamentoDoBloqueio("free", lic({ pagamento: pg })), pg);
   assert.deepEqual(pagamentoDoBloqueio("expired", lic({ plan: "pro", status: "expired", pagamento: pg })), pg);
   assert.deepEqual(pagamentoDoBloqueio("assinatura", lic({ pagamento: pg })), pg);
   assert.equal(pagamentoDoBloqueio("unknown", lic({ pagamento: pg })), null, "problema técnico: pagar não resolve");
-  assert.equal(pagamentoDoBloqueio("free", lic({})), null, "licença antiga sem o campo");
+  assert.equal(pagamentoDoBloqueio("free", lic({})).padrao, true, "sem nada gravado (ou licença antiga sem o campo): o caminho padrão, assinar pelo site");
   assert.equal(pagamentoDoBloqueio("free", null), null);
 });
 
@@ -100,4 +100,21 @@ test("modulosNaLicenca: só add-on com módulos e liberado nesta máquina traz a
   assert.equal(modulosNaLicenca(lic({ produtos: ["meu-bot-finance"], expiresAt: "2020-01-01T00:00:00Z" }), "agente-box", addons), false, "vencida");
   assert.equal(modulosNaLicenca(lic({ produtos: ["meu-bot-finance"] }), "local", addons), false, "este Mac");
   assert.equal(modulosNaLicenca(null, "agente-box", addons), false, "licença ainda não lida");
+});
+
+test("pagamento padrão: sem nada gravado pelo admin, o aviso manda assinar pelo site (console › Plano)", async () => {
+  const { pagamentoPadrao, CAMINHO_ASSINATURA } = await import("../../dist/renderer/lib/pro.js");
+  assert.equal(CAMINHO_ASSINATURA, "/account/plan");
+  assert.match(CAMINHO_ASSINATURA, /^\/[A-Za-z0-9/_-]{0,80}$/, "o main (abrirConsole) só aceita caminho neste formato");
+  const p = pagamentoDoBloqueio("free", lic({}));
+  assert.deepEqual(p, pagamentoPadrao());
+  assert.equal(p.padrao, true); assert.equal(p.link, null); assert.match(p.instrucoes, /Assine pelo site/);
+  assert.equal(pagamentoDoBloqueio("expired", lic({ plan: "pro", status: "expired" })).padrao, true);
+  assert.equal(pagamentoDoBloqueio("assinatura", lic({})).padrao, true);
+  // O que o admin gravou manda mais que o padrão, e não vem marcado.
+  const pg = { instrucoes: "Pix financeiro@exemplo.com", link: null };
+  assert.deepEqual(pagamentoDoBloqueio("free", lic({ pagamento: pg })), pg);
+  // Plano ilegível continua sem orientação: pagar não resolve o que é técnico.
+  assert.equal(pagamentoDoBloqueio("unknown", lic({})), null);
+  assert.equal(pagamentoDoBloqueio("free", null), null);
 });
