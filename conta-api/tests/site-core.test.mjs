@@ -1,6 +1,8 @@
 // http → https: o Worker atende os dois esquemas, então o redirecionamento é dele (e o HSTS, em SEGURANCA).
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import vm from "node:vm";
 import { llmsPorPagamentos, caminhoCanonico, ehAliasDoSite, paraHttps, redirecionamentoInicial, semBarraFinal, rascunhoForaDoCanal } from "../dist/site-core.js";
 
 test("paraHttps: http vira https com caminho e query; https e lixo ficam null", () => {
@@ -61,4 +63,39 @@ test("rascunhoForaDoCanal: o rascunho dos planos só sai no staging, também pel
   assert.equal(rascunhoForaDoCanal("/site/perguntas.html", "producao"), false);
   // Em produção /suporte não está no mapa de páginas: o caminho segue cru e não é um arquivo do site.
   assert.equal(rascunhoForaDoCanal("/suporte", "producao"), false);
+});
+
+test("home: o preço do Finanças escrito na página é o do catálogo de produção (wrangler.toml)", () => {
+  const toml = readFileSync(new URL("../wrangler.toml", import.meta.url), "utf8");
+  const producao = toml.slice(0, toml.indexOf("[env.staging]"));
+  const m = /ABACATEPAY_ADDONS = '([^']+)'/.exec(producao);
+  assert.ok(m, "catálogo de produção no wrangler.toml");
+  const centavos = JSON.parse(m[1])["meu-bot-finance"].centavos;
+  const home = readFileSync(new URL("../public/site/index.html", import.meta.url), "utf8");
+  assert.ok(home.includes(`R$ ${(centavos / 100).toLocaleString("pt-BR")} por mês, à parte do plano do agente.`), `a home deve mostrar R$ ${centavos / 100}`);
+});
+
+test("home: o preço por dia é o do plano de R$ 97 dividido por 30", () => {
+  const toml = readFileSync(new URL("../wrangler.toml", import.meta.url), "utf8");
+  const producao = toml.slice(0, toml.indexOf("[env.staging]"));
+  const centavos = Number(/ABACATEPAY_PRECO_CENTAVOS = "(\d+)"/.exec(producao)?.[1]);
+  assert.ok(centavos > 0, "preço do plano no wrangler.toml");
+  const porDia = (centavos / 100 / 30).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const home = readFileSync(new URL("../public/site/index.html", import.meta.url), "utf8");
+  assert.ok(home.includes(`R$ ${porDia} por dia`), `a home deve dizer R$ ${porDia} por dia`);
+  assert.ok(home.includes(`São R$ ${centavos / 100} por mês`), "e o valor do mês ao lado");
+});
+
+test("carrossel da home: o próximo quadro dá a volta nas pontas e o quadro à vista sai da rolagem", () => {
+  const window = {};
+  vm.runInNewContext(readFileSync(new URL("../public/site/carrossel.js", import.meta.url), "utf8"), { window });
+  const { proximo, maisPerto } = window.MEU_BOT_CARROSSEL;
+  assert.equal(proximo(0, 5, 1), 1);
+  assert.equal(proximo(4, 5, 1), 0, "do último volta ao primeiro");
+  assert.equal(proximo(0, 5, -1), 4, "do primeiro vai ao último");
+  assert.equal(proximo(2, 0, 1), 0, "sem quadros");
+  assert.equal(maisPerto(0, 400, 5), 0);
+  assert.equal(maisPerto(790, 400, 5), 2);
+  assert.equal(maisPerto(99999, 400, 5), 4, "não passa do último");
+  assert.equal(maisPerto(100, 0, 5), 0, "largura ainda desconhecida");
 });

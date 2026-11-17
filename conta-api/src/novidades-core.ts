@@ -76,7 +76,7 @@ export const GUIAS = ["ia-para-pequena-empresa", "responder-clientes-whatsapp-fo
 export const REVISAO_PAGINAS: Readonly<Record<string, string>> = {
   "/grok-no-whatsapp": "2026-11-12",
   "/parceria-xai": "2026-11-12",
-  "/perguntas": "2026-11-12",
+  "/perguntas": "2026-11-17",
   "/grok-bot-e-meu-bot": "2026-11-12",
   "/guias": "2026-11-13",
   "/guias/ia-para-pequena-empresa": "2026-11-12",
