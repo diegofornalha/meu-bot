@@ -203,6 +203,10 @@ export interface Capabilities {
   controleRemoto: boolean;
   /** Painel "Computador": a tela da máquina ao vivo, por noVNC (src/main/maquina/tela.ts). */
   telaComputador: boolean;
+  /** Os botões da janela (os semáforos do macOS) ficam por cima da barra do app, à esquerda: a barra guarda a folga. Sem ela, a janela usa a moldura do sistema. */
+  semaforoNaBarra: boolean;
+  /** A tecla dos atalhos do app é a ⌘; sem ela é a Ctrl (e, com o terminal em foco, Ctrl+Shift: a Ctrl sozinha é do shell). */
+  teclaCmd: boolean;
 }
 
 /** O que a janela principal recebe ao nascer: a máquina a que está presa. */

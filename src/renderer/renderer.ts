@@ -80,7 +80,8 @@ import { activityPage, ligarAtividade } from "./conversa/atividade.js";
 import { ligarRede, net, paintNet, setNet } from "./app/rede.js";
 import { alternarDepuracao, faixaLigada, ligarFaixaDepuracao } from "./depuracao/faixa.js";
 import { aceleracaoInput, atualizarOciosoInput, corretorInput, lastUpdate, ligarAtualizacao, paintUpdateState } from "./atualizacao/atualizacao.js";
-import { abrirAtalhos, abrirBusca, buscaAberta, ligarAlvoWebview, ligarBusca, pararBusca, type AlvoWebview } from "./busca/busca.js";
+import { abrirAtalhos, abrirBusca, buscaAberta, ligarAlvoWebview, ligarBusca, pararBusca, usarTeclaCmd, type AlvoWebview } from "./busca/busca.js";
+import { dicaTeclas, ehDoShell, rotuloTeclas, temTeclaDoApp } from "./lib/teclas-core.js";
 import { ligarConfiguracoes, maybeAskNotificationsOnce } from "./configuracoes/configuracoes.js";
 import { ligarConta } from "./conta/conta.js";
 import { paintEspaco } from "./configuracoes/espaco.js";
@@ -374,7 +375,7 @@ let usuariosAdmin: { open: () => void } | null = null;
 let appVersion = "";
 /** Build deste app (`WindowInfo.build`): o cache só devolve o que este mesmo build gravou. */
 let appBuild = "";
-let caps: Capabilities = { variant: "client", produto: "meu-bot", canal: "estavel", nome: "meu-bot", titulo: "meu-bot", chat: true, pair: true, login: true, manageWa: true, tunnel: true, install: true, supportClient: true, supportAdmin: false, navegador: true, planoExigido: "free", usuariosMac: false, inspector: false, modulos: null, addon: null, abreEm: null, addons: [], hostLocal: true, terminalLocal: true, atalhosMesa: true, agenteNavegador: true, controleRemoto: true, telaComputador: true };
+let caps: Capabilities = { variant: "client", produto: "meu-bot", canal: "estavel", nome: "meu-bot", titulo: "meu-bot", chat: true, pair: true, login: true, manageWa: true, tunnel: true, install: true, supportClient: true, supportAdmin: false, navegador: true, planoExigido: "free", usuariosMac: false, inspector: false, modulos: null, addon: null, abreEm: null, addons: [], hostLocal: true, terminalLocal: true, atalhosMesa: true, agenteNavegador: true, controleRemoto: true, telaComputador: true, semaforoNaBarra: true, teclaCmd: true };
 const lastHostEl = $<HTMLParagraphElement>("last-host");
 const settingsError = $<HTMLParagraphElement>("settings-error");
 const cancelBtn = $<HTMLButtonElement>("btn-cancel");
@@ -1735,9 +1736,10 @@ inputEl.addEventListener("keydown", (ev) => {
 document.addEventListener("keydown", (ev) => {
   if (ev.key === "Escape" && !modeMenu.hidden) { modeMenu.hidden = true; return; }
   // Com o terminal focado, Ctrl+* é do shell (Ctrl+C, Ctrl+W, Ctrl+N…); só Cmd+* continua do app.
+  // Sem a ⌘ (caps.teclaCmd falso), a tecla do app é a Ctrl, e no terminal Ctrl+Shift (teclas-core.ts).
   const inTerm = (ev.target as HTMLElement | null)?.closest?.(".term-panel") != null;
-  if (inTerm && ev.ctrlKey && !ev.metaKey) return;
-  if (ev.metaKey && (ev.key === "j" || ev.key === "J")) { ev.preventDefault(); void openTerminalTab(ev.shiftKey ? "new" : "focus"); return; }
+  if (inTerm && ehDoShell(ev, caps.teclaCmd)) return;
+  if (temTeclaDoApp(ev, caps.teclaCmd, inTerm) && (ev.key === "j" || ev.key === "J")) { ev.preventDefault(); void openTerminalTab(ev.shiftKey ? "new" : "focus"); return; }
   const mod = ev.metaKey || ev.ctrlKey;
   // Cmd+= / Cmd++ / Cmd+- / Cmd+0: com o foco na página do Navegador (webview, barra de endereço, botões dela) é o zoom
   // do site; clicou fora (lateral, conversa, terminal, outra aba) é o zoom da janela inteira, como no Cursor.
@@ -1890,6 +1892,13 @@ void (async () => {
   windowHost = info.host;
   caps = info.caps;
   $<HTMLElement>("mcp-group").hidden = !caps.controleRemoto;
+  // Fora do macOS: a barra não guarda a folga dos semáforos, e os atalhos escritos na tela dizem Ctrl em vez de ⌘.
+  document.body.classList.toggle("sem-semaforo", !caps.semaforoNaBarra);
+  if (!caps.teclaCmd) {
+    usarTeclaCmd(false);
+    for (const e of document.querySelectorAll<HTMLElement>("[title]")) e.title = dicaTeclas(e.title, false);
+    paletteBtn.textContent = rotuloTeclas(paletteBtn.textContent ?? "", false);
+  }
   if (caps.supportAdmin) sidebarArchived.parentElement?.setAttribute("title", "Mostrar também as conversas arquivadas e, no WhatsApp, as que a pessoa excluiu (nada foi apagado)");
   appVersion = info.version;
   for (const id of ["app-version", "mini-version"]) { const v = $<HTMLElement>(id); v.textContent = `v${info.version}`; v.title = `${caps.nome} ${info.version}`; }

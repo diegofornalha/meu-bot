@@ -34,7 +34,7 @@ test("capsFor: o admin só tem supportAdmin; o cliente tem tudo menos isso (o CR
 });
 
 // De que capacidade do produto cada uma depende fora do Windows (null = de todos os apps, como os canais IPC comuns dela).
-const BASE_DA_PLATAFORMA = { hostLocal: null, terminalLocal: null, atalhosMesa: null, agenteNavegador: "navegador", controleRemoto: null, telaComputador: "chat" };
+const BASE_DA_PLATAFORMA = { hostLocal: null, terminalLocal: null, atalhosMesa: null, agenteNavegador: "navegador", controleRemoto: null, telaComputador: "chat", semaforoNaBarra: null, teclaCmd: null };
 
 test("capsFor: no macOS (e sem dizer a plataforma) as capacidades de plataforma valem onde o produto já permitia, em todos os produtos", () => {
   assert.deepEqual([...CAPS_DE_PLATAFORMA].sort(), Object.keys(BASE_DA_PLATAFORMA).sort());

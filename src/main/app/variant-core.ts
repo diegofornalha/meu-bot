@@ -52,7 +52,7 @@ export interface Produto {
  * Capacidades que saem da plataforma por cima das do produto (capsFor): o que hoje só existe no macOS (backend local,
  * sockets unix, AppleScript). No Windows o app é só cliente de uma máquina remota por SSH e nenhuma delas é oferecida.
  */
-export const CAPS_DE_PLATAFORMA = ["hostLocal", "terminalLocal", "atalhosMesa", "agenteNavegador", "controleRemoto", "telaComputador"] as const;
+export const CAPS_DE_PLATAFORMA = ["hostLocal", "terminalLocal", "atalhosMesa", "agenteNavegador", "controleRemoto", "telaComputador", "semaforoNaBarra", "teclaCmd"] as const;
 export type CapDePlataforma = (typeof CAPS_DE_PLATAFORMA)[number];
 
 /**
@@ -190,5 +190,5 @@ export function capsFor(variant: AppVariant, versao?: string, plataforma: NodeJS
   const p = produtoDe(variant);
   const tem = plataforma !== "win32";
   return { variant, produto: p.licenca, canal: p.canal, nome: p.nome, titulo: titleFor(variant, versao), addon: p.addon, abreEm: p.abreEm, addons: ADDONS.map((a) => ({ nome: a.nome, rotulo: a.rotulo, modulos: a.modulos, semLicenca: a.semLicenca })), ...p.caps,
-    hostLocal: tem, terminalLocal: tem, atalhosMesa: tem, agenteNavegador: tem && p.caps.navegador, controleRemoto: tem, telaComputador: tem && p.caps.chat };
+    hostLocal: tem, terminalLocal: tem, atalhosMesa: tem, agenteNavegador: tem && p.caps.navegador, controleRemoto: tem, telaComputador: tem && p.caps.chat, semaforoNaBarra: tem, teclaCmd: tem };
 }

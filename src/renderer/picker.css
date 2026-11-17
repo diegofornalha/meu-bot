@@ -16,6 +16,8 @@ html, body { margin: 0; height: 100%; }
 body { position: relative; z-index: 0; font: 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--fg); display: flex; flex-direction: column; -webkit-app-region: drag; }
 button, input, ul, section, pre, label.switch { -webkit-app-region: no-drag; }
 .head { padding: 44px 20px 8px; }
+/* Fora do macOS a moldura do sistema já ocupa o topo: sem a folga da barra de título escondida. */
+.sem-semaforo .head { padding-top: 16px; }
 .head-title { display: flex; align-items: center; gap: 10px; }
 .logo { width: 26px; height: 18px; flex: none; transform-origin: center; }
 h1 { margin: 0; font-size: 18px; }

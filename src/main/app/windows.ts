@@ -3,6 +3,7 @@
  * presas a um host, roteia eventos por host e desmonta o túnel de uma máquina com carência quando
  * a última janela dela fecha.
  */
+import { molduraDaJanela } from "./moldura-core";
 import { BrowserWindow, Menu, nativeTheme, screen, session, shell } from "electron";
 import path from "node:path";
 import type { MainEventChannel, MainEvents } from "../../shared/ipc";
@@ -108,7 +109,7 @@ export function openMainWindow(host: string, origin: OpenOrigin): BrowserWindow 
     minWidth: MIN_WINDOW_WIDTH,
     minHeight: 480,
     title: `${caps().titulo} · ${host}`,
-    titleBarStyle: "hiddenInset",
+    ...molduraDaJanela(caps().semaforoNaBarra),
     backgroundColor: backgroundColor(),
     webPreferences: {
       preload: path.join(__dirname, "..", "..", "preload", "preload.js"),
