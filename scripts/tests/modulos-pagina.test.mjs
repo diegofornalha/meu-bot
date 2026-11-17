@@ -110,8 +110,8 @@ test("fraseSemRespostaDoModulo: tempo esgotado, redirecionamento barrado e sem c
     assert.match(P.fraseSemRespostaDoModulo(await erroDe(`http://127.0.0.1:${porta}/redir`, 2000)), /tentou redirecionar/);
     assert.match(P.fraseSemRespostaDoModulo(await erroDe(`http://127.0.0.1:${porta}/lento`, 200)), /demorou mais de 60 s/);
   } finally { srv.closeAllConnections(); await new Promise((ok) => srv.close(ok)); }
-  // Porta fechada (o servidor acabou de sair): sem conexão.
-  assert.match(P.fraseSemRespostaDoModulo(await erroDe(`http://127.0.0.1:${porta}/x`, 2000)), /não respondeu \(o serviço parou ou o túnel caiu\)/);
+  // Sem conexão: o erro é montado à mão (é o que o fetch lança com a porta fechada). Conectar de verdade numa porta
+  // recém-liberada falharia de vez em quando: o sistema pode entregá-la a outro teste que roda ao mesmo tempo.
+  assert.match(P.fraseSemRespostaDoModulo(new TypeError("fetch failed", { cause: Object.assign(new Error("connect ECONNREFUSED 127.0.0.1:9"), { code: "ECONNREFUSED" }) })), /não respondeu \(o serviço parou ou o túnel caiu\)/);
   assert.match(P.fraseSemRespostaDoModulo("qualquer coisa"), /não respondeu/);
 });
-
