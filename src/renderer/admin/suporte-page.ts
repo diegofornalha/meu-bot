@@ -217,7 +217,7 @@ export function mountSuportePage(deps: SuportePageDeps): SuportePage {
       pagTxt.rows = 3; pagTxt.maxLength = 2000; pagTxt.placeholder = "Ex.: Pix (chave e-mail) financeiro@…; valor R$ 49/mês. Depois toque em \"Já paguei\"."; pagTxt.value = pg0?.instrucoes ?? ""; pagTxt.disabled = state.licBusy;
       const pagLink = el("input") as HTMLInputElement; pagLink.type = "url"; pagLink.placeholder = "https://… (opcional)"; pagLink.value = pg0?.link ?? "";
       const pagCtl = el("div", "admin-actions");
-      const pagWrap = el("label", "admin-field admin-field-linha"); pagWrap.append(el("span", "hint", "Como pagar (a pessoa vê no aviso de plano)"), pagTxt);
+      const pagWrap = el("label", "admin-field admin-field-linha"); pagWrap.append(el("span", "hint", "Como pagar (opcional: vazio, o aviso de plano mostra \"Assinar pelo site\")"), pagTxt);
       pagCtl.append(
         pagWrap,
         field("Link de pagamento", pagLink),

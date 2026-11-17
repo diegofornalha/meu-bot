@@ -101,3 +101,26 @@ test("modulosNaLicenca: só add-on com módulos e liberado nesta máquina traz a
   assert.equal(modulosNaLicenca(lic({ produtos: ["meu-bot-finance"] }), "local", addons), false, "este Mac");
   assert.equal(modulosNaLicenca(null, "agente-box", addons), false, "licença ainda não lida");
 });
+
+test("pagamento padrão: sem nada gravado pelo admin, o aviso manda assinar pelo site do canal do app", async () => {
+  const { pagamentoPadrao, linkDeAssinatura, usarCanalDaAssinatura } = await import("../../dist/renderer/lib/pro.js");
+  assert.equal(linkDeAssinatura("estavel"), "https://console.agentesgrok.com/account/plan");
+  assert.equal(linkDeAssinatura("staging"), "https://console-staging.agentesgrok.com/account/plan");
+  assert.equal(pagamentoPadrao(null), null);
+  const url = linkDeAssinatura("estavel");
+  // Sem canal informado (como antes desta mudança): nada gravado = nada a mostrar.
+  usarCanalDaAssinatura(null);
+  assert.equal(pagamentoDoBloqueio("free", lic({})), null);
+  // Com o canal: o caminho padrão, marcado como tal, com o link do console › Plano.
+  usarCanalDaAssinatura("estavel");
+  const p = pagamentoDoBloqueio("free", lic({}));
+  assert.equal(p.padrao, true); assert.equal(p.link, url); assert.match(p.instrucoes, /Assine pelo site/);
+  assert.equal(pagamentoDoBloqueio("expired", lic({ plan: "pro", status: "expired" })).link, url);
+  // O que o admin gravou manda mais que o padrão, e não vem marcado.
+  const pg = { instrucoes: "Pix financeiro@exemplo.com", link: null };
+  assert.deepEqual(pagamentoDoBloqueio("free", lic({ pagamento: pg })), pg);
+  // Plano ilegível continua sem orientação: pagar não resolve o que é técnico.
+  assert.equal(pagamentoDoBloqueio("unknown", lic({})), null);
+  assert.equal(pagamentoDoBloqueio("free", null), null);
+  usarCanalDaAssinatura(null);
+});

@@ -32,7 +32,7 @@ import { conversationReferenceText, grupoReferenceText, waReferenceText } from "
 import { providerLabel } from "./lib/provider-label.js";
 import { updateBlockerText, updateStateText } from "./lib/update-text.js";
 import { offlineBarText } from "./lib/offline-text.js";
-import { browserAccess, displayUrl, planoLiberaPro, proBlockText, tabLabel, type ProAccess, crmProprioOk, financeOk, modulosNaLicenca } from "./lib/pro.js";
+import { browserAccess, displayUrl, planoLiberaPro, proBlockText, tabLabel, type ProAccess, crmProprioOk, financeOk, modulosNaLicenca, usarCanalDaAssinatura } from "./lib/pro.js";
 import { mountFinancePage } from "./finance/finance-page.js";
 import { mountModulosPage } from "./modulos/modulos-page.js";
 import { mountContaGoogle } from "./conta-google/conta-google-page.js";
@@ -1891,6 +1891,7 @@ void (async () => {
   if (info === null) throw new Error("janela sem máquina registrada");
   windowHost = info.host;
   caps = info.caps;
+  usarCanalDaAssinatura(caps.canal); // avisos de plano sem "Como pagar" gravado apontam para o console deste canal
   $<HTMLElement>("mcp-group").hidden = !caps.controleRemoto;
   // Fora do macOS: a barra não guarda a folga dos semáforos, e os atalhos escritos na tela dizem Ctrl em vez de ⌘.
   document.body.classList.toggle("sem-semaforo", !caps.semaforoNaBarra);
