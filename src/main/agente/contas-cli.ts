@@ -33,7 +33,7 @@ function processo(host: string, cmd: string, tty: boolean): ChildProcess {
       ? spawn("/usr/bin/script", ["-q", "/dev/null", "/bin/bash", "-c", sh], { stdio: ["ignore", "pipe", "pipe"] })
       : spawn("/bin/bash", ["-c", sh], { stdio: ["ignore", "pipe", "pipe"] });
   }
-  return spawn("ssh", [...(tty ? ["-tt"] : []), ...SSH_OPTS, "--", host, `${REMOTE_PATH}; ${cmd}`], { stdio: [tty ? "pipe" : "ignore", "pipe", "pipe"] });
+  return spawn("ssh", [...(tty ? ["-tt"] : []), ...SSH_OPTS, "--", host, `${REMOTE_PATH}; ${cmd}`], { windowsHide: true, stdio: [tty ? "pipe" : "ignore", "pipe", "pipe"] });
 }
 
 function ssh(host: string, cmd: string, timeoutMs: number): Promise<{ code: number | null; out: string }> {

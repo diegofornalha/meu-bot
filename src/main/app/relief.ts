@@ -47,7 +47,7 @@ async function runRelief(host: string): Promise<void> {
   send({ kind: "step", step: "connect", state: "doing", text: `conectando a ${host} por SSH (até 90 s se o pod estiver no limite)` });
   // O script vai junto pelo stdin e é gravado em ~/bin do pod antes de rodar: serve para qualquer
   // computador do Grok Bot sem instalação prévia, e a cópia de lá fica sempre igual à do app.
-  const child = spawn("ssh", [...SSH_OPTS, "--", host, "mkdir -p ~/bin && cat > ~/bin/alivio-pod.sh && bash ~/bin/alivio-pod.sh --tailscale"], { stdio: ["pipe", "pipe", "pipe"] });
+  const child = spawn("ssh", [...SSH_OPTS, "--", host, "mkdir -p ~/bin && cat > ~/bin/alivio-pod.sh && bash ~/bin/alivio-pod.sh --tailscale"], { windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
   child.stdin.on("error", () => { /* o ssh caiu antes de ler o script; o close abaixo reporta */ });
   child.stdin.end(reliefScript());
   let stderr = ""; let buf = ""; let connected = false; let before: ReturnType<typeof parseStats> = null; let after: ReturnType<typeof parseStats> = null;

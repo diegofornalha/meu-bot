@@ -50,7 +50,7 @@ async function spawnBroker(host: string): Promise<ChildProcess> {
   // Pelo master do túnel quando ele responde (instantâneo); senão, uma conexão própria.
   let args: string[];
   try { args = await sshMuxArgs(host); } catch { args = [...SSH_FALLBACK, "--", host]; }
-  return spawn("ssh", [...args, `python3 -c "${brokerArg()}"`], { stdio: ["pipe", "pipe", "pipe"] });
+  return spawn("ssh", [...args, `python3 -c "${brokerArg()}"`], { windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
 }
 
 const sendTo = (winId: number, channel: string, payload: unknown): void => {
