@@ -1,7 +1,7 @@
 // http → https: o Worker atende os dois esquemas, então o redirecionamento é dele (e o HSTS, em SEGURANCA).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { llmsPorPagamentos, caminhoCanonico, ehAliasDoSite, paraHttps, redirecionamentoInicial, semBarraFinal } from "../dist/site-core.js";
+import { llmsPorPagamentos, caminhoCanonico, ehAliasDoSite, paraHttps, redirecionamentoInicial, semBarraFinal, rascunhoForaDoCanal } from "../dist/site-core.js";
 
 test("paraHttps: http vira https com caminho e query; https e lixo ficam null", () => {
   assert.equal(paraHttps("http://agentesgrok.com/"), "https://agentesgrok.com/");
@@ -52,4 +52,13 @@ test("llmsPorPagamentos: a linha marcada sai sem a marca com pagamentos ligados 
   const t = "- Plano: R$ 97.\n  Assine no console. <!--se-pagamentos-->\n- Outro";
   assert.equal(llmsPorPagamentos(t, true), "- Plano: R$ 97.\n  Assine no console.\n- Outro");
   assert.equal(llmsPorPagamentos(t, false), "- Plano: R$ 97.\n- Outro");
+});
+
+test("rascunhoForaDoCanal: o rascunho dos planos só sai no staging, também pelo caminho do arquivo", () => {
+  assert.equal(rascunhoForaDoCanal("/site/suporte.html", "producao"), true);
+  assert.equal(rascunhoForaDoCanal("/site/suporte.html", undefined), true, "sem canal vale como produção");
+  assert.equal(rascunhoForaDoCanal("/site/suporte.html", "staging"), false);
+  assert.equal(rascunhoForaDoCanal("/site/perguntas.html", "producao"), false);
+  // Em produção /suporte não está no mapa de páginas: o caminho segue cru e não é um arquivo do site.
+  assert.equal(rascunhoForaDoCanal("/suporte", "producao"), false);
 });

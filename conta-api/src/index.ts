@@ -22,7 +22,7 @@ import { deleteDevice, deletePerfil, getAdminFirebase, getAdminVisao, patchLicen
 import { downloadMac, REPO } from "./release-github.js";
 import { GUIAS, lerReleases, novidadesHtml, sitemapXml } from "./novidades-core.js";
 import { CSP_ADS, CSP_GA, gaIds } from "./analytics-core.js";
-import { caminhoCanonico, llmsPorPagamentos, redirecionamentoInicial } from "./site-core.js";
+import { caminhoCanonico, llmsPorPagamentos, redirecionamentoInicial, rascunhoForaDoCanal } from "./site-core.js";
 import { addonsAVenda, pagamentosLigados, postAssinatura, postWebhookAbacate } from "./rotas/pagamentos.js";
 import { deleteMembro, deleteOrg, getOrg, getOrgPublico, getOrgs, patchAdminOrg, patchMembro, patchOrg, postMembro, postOrg } from "./rotas/orgs.js";
 
@@ -222,9 +222,11 @@ async function sitePagina(req: Request, env: Env, url: URL): Promise<Response> {
   const guia = /^\/guias\/([a-z0-9-]+)$/.exec(url.pathname)?.[1];
   if (guia && (GUIAS as readonly string[]).includes(guia)) raiz[url.pathname] = `/site/guias/${guia}.html`;
   const caminho = url.pathname === "/" ? "/site/index.html" : url.pathname === "/obrigado" ? "/site/obrigado.html" : raiz[url.pathname] ?? url.pathname;
-  let res = await env.ASSETS.fetch(new Request(new URL(caminho, url.origin).toString(), { method: "GET", headers: req.headers }));
+  // O rascunho dos planos não sai em produção nem pelo caminho direto do arquivo.
+  const soStaging = rascunhoForaDoCanal(caminho, env.CANAL);
+  let res = soStaging ? new Response(null, { status: 404 }) : await env.ASSETS.fetch(new Request(new URL(caminho, url.origin).toString(), { method: "GET", headers: req.headers }));
   // Caminho que não existe: a página 404 do site (com status 404), em vez do corpo vazio dos assets.
-  if (res.status === 404 && !url.pathname.startsWith("/site/")) res = new Response((await env.ASSETS.fetch(new Request(new URL("/site/404.html", url.origin).toString()))).body, { status: 404, headers: { "content-type": "text/html; charset=utf-8" } });
+  if (res.status === 404 && (soStaging || !url.pathname.startsWith("/site/"))) res = new Response((await env.ASSETS.fetch(new Request(new URL("/site/404.html", url.origin).toString()))).body, { status: 404, headers: { "content-type": "text/html; charset=utf-8" } });
   // A home é um HTML só para os dois canais, mas cada host entrega só a sua parte: em produção os blocos do ensaio
   // (data-canal="staging" e a faixa) saem do HTML, porque o Google lê o que está escondido; em staging saem os de produção.
   if (caminho === "/site/index.html") res = porCanal(res, env.CANAL === "staging" ? "staging" : "producao");
