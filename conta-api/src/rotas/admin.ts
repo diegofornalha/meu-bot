@@ -5,9 +5,9 @@
  * assinada (PR 5/6 do plano). Tudo fica na auditoria.
  */
 import type { Env } from "../tipos.js";
-import { atenderPedido, auditar, contaPorId, contarSupers, gravarLicenca, gravarPerfil, gravarProvedor, removerPerfil, revogarSessoesDaConta, visaoAdmin } from "../db.js";
+import { ativarDevice, atenderPedido, auditar, contaPorId, contarSupers, devicesDaConta, gravarLicenca, licencaGravada, removerDevice, gravarPerfil, gravarProvedor, removerPerfil, revogarSessoesDaConta, visaoAdmin } from "../db.js";
 import { consultarFirebase, definirSenhaFirebase } from "../firebase-admin.js";
-import { UUID_RE, validaBusca, validaEmail, validaPapel, validaPatchLicenca, validaSenhaNova } from "../sessao-core.js";
+import { DEVICE_ID_RE, UUID_RE, decidirLiberarDevice, validaBusca, validaEmail, validaPapel, validaPatchLicenca, validaSenhaNova } from "../sessao-core.js";
 import { json, lerJson, type Autenticado } from "../http.js";
 import { enviarEmailSenha } from "./conta.js";
 
@@ -32,6 +32,35 @@ export async function patchLicenca(auth: Autenticado, env: Env, id: string, req:
   const licenca = await gravarLicenca(env.DB, conta, patch);
   await auditar(env.DB, auth.conta.email, "licenca.alterada", conta.id, JSON.stringify(patch).slice(0, 500));
   return json({ ok: true, licenca });
+}
+/**
+ * `POST /admin/contas/:id/devices/:device/liberar`: ativa um device pendente. Conta no limite responde 409 com
+ * `noLimite`; com `{subirLimite: true}` o limite sobe o bastante para caber este device, na mesma ação.
+ */
+export async function postLiberarDevice(auth: Autenticado, env: Env, id: string, deviceId: string, req: Request): Promise<Response> {
+  if (auth.claims.adm === null) return json({ erro: "só admin" }, 403);
+  if (!UUID_RE.test(id) || !DEVICE_ID_RE.test(deviceId)) return json({ erro: "id da conta ou do device fora do formato" }, 400);
+  const conta = await contaPorId(env.DB, id);
+  if (conta === null) return json({ erro: "conta não existe" }, 404);
+  const corpo = (await lerJson(req)) as Record<string, unknown> | null;
+  const [devices, licenca] = await Promise.all([devicesDaConta(env.DB, conta.id), licencaGravada(env.DB, conta)]);
+  const device = devices.find((d) => d.id === deviceId);
+  if (device === undefined) return json({ erro: "device não existe nesta conta" }, 404);
+  const d = decidirLiberarDevice(device.status, devices.filter((x) => x.status !== "pending").length, licenca.deviceLimit, corpo?.subirLimite === true);
+  if ("erro" in d) return json({ erro: d.erro, noLimite: true }, 409);
+  if (d.acao === "ja-ativo") return json({ ok: true, deviceLimit: licenca.deviceLimit });
+  if (d.novoLimite !== null) await gravarLicenca(env.DB, conta, { deviceLimit: d.novoLimite });
+  await ativarDevice(env.DB, conta.id, deviceId);
+  await auditar(env.DB, auth.conta.email, "device.liberado", conta.id, `${deviceId}${d.novoLimite !== null ? ` · limite ${licenca.deviceLimit} → ${d.novoLimite}` : ""}`);
+  return json({ ok: true, deviceLimit: d.novoLimite ?? licenca.deviceLimit });
+}
+/** `DELETE /admin/contas/:id/devices/:device`: tira o device da conta (abre a vaga) e encerra as sessões dele. */
+export async function deleteDevice(auth: Autenticado, env: Env, id: string, deviceId: string): Promise<Response> {
+  if (auth.claims.adm === null) return json({ erro: "só admin" }, 403);
+  if (!UUID_RE.test(id) || !DEVICE_ID_RE.test(deviceId)) return json({ erro: "id da conta ou do device fora do formato" }, 400);
+  if (!(await removerDevice(env.DB, id, deviceId))) return json({ erro: "device não existe nesta conta" }, 404);
+  await auditar(env.DB, auth.conta.email, "device.removido", id, deviceId);
+  return json({ ok: true });
 }
 /** `POST /admin/contas/:id/senha`: manda à pessoa o e-mail de criar/redefinir senha (o mesmo de "Esqueci a senha"). */
 export async function postAdminSenha(auth: Autenticado, env: Env, id: string): Promise<Response> {

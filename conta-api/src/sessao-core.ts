@@ -165,6 +165,20 @@ export function admitirDevice(conhecido: { status: string } | null, ativos: numb
   return ativos < limite ? "active" : "pending";
 }
 
+/** Teto do limite de devices de uma conta (o mesmo de validaPatchLicenca). */
+export const DEVICE_LIMITE_MAX = 50;
+/**
+ * O admin libera um device pendente. Com vaga, só ativa. Sem vaga, recusa (`noLimite`) a menos que o admin tenha pedido
+ * para subir o limite junto: aí o limite vira `ativos + 1`, o que cabe este device e nada além. Já ativo não muda nada.
+ */
+export function decidirLiberarDevice(status: string, ativos: number, limite: number, subirLimite: boolean): { acao: "ja-ativo" } | { acao: "liberar"; novoLimite: number | null } | { erro: string; noLimite: true } {
+  if (status !== "pending") return { acao: "ja-ativo" };
+  if (ativos < limite) return { acao: "liberar", novoLimite: null };
+  if (!subirLimite) return { erro: `a conta já usa ${ativos} de ${limite} devices; para liberar este, o limite precisa subir`, noLimite: true };
+  if (ativos + 1 > DEVICE_LIMITE_MAX) return { erro: `o limite de devices não passa de ${DEVICE_LIMITE_MAX}`, noLimite: true };
+  return { acao: "liberar", novoLimite: ativos + 1 };
+}
+
 /** O que o admin pode mudar na licença de uma conta (campos omitidos ficam como estão), como LicensePatch do app. */
 export interface PatchLicenca { plan?: "free" | "pro"; status?: "free" | "trialing" | "active" | "expired"; interval?: "month" | "year" | null; trialEnd?: string | null; expiresAt?: string | null; deviceLimit?: number; produtos?: string[]; pagamento?: { instrucoes: string; link: string | null } | null }
 const DATA_RE = /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)?$/;

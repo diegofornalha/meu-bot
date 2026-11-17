@@ -1,7 +1,7 @@
 // Sessão da conta, a parte pura: PKCE, JWT HS256, validação dos pedidos, admissão de device.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { validaPatchLicenca, validaBusca, admitirDevice, assinarJwt, b64url, deB64url, janelaMinuto, pkceConfere, segredo, sha256Hex, validaDevice, validaPedidoSessao, validaPedidoToken, verificarJwt, nomeExibicao, parseProvedores, provedoresDoLogin, unirProvedores, validaPatchPerfil } from "../dist/sessao-core.js";
+import { validaPatchLicenca, validaBusca, admitirDevice, assinarJwt, b64url, deB64url, janelaMinuto, pkceConfere, segredo, sha256Hex, validaDevice, validaPedidoSessao, validaPedidoToken, verificarJwt, nomeExibicao, parseProvedores, provedoresDoLogin, unirProvedores, validaPatchPerfil, decidirLiberarDevice } from "../dist/sessao-core.js";
 
 const CHAVE = b64url(crypto.getRandomValues(new Uint8Array(32)));
 const DEV = { id: "33333333-3333-4333-8333-333333333333", alias: "0123456789ab", name: "Mac da Ana", user: "ana", platform: "darwin", app: "meu-bot-staging", versao: "0.79.0" };
@@ -129,4 +129,14 @@ test("validaSenhaNova: 8 a 128 sem caracteres de controle", async () => {
   const { validaSenhaNova } = await import("../dist/sessao-core.js");
   assert.equal(validaSenhaNova("abcdefgh"), "abcdefgh"); assert.equal(validaSenhaNova("curta"), null);
   assert.equal(validaSenhaNova("a".repeat(129)), null); assert.equal(validaSenhaNova("abc\u0007defgh"), null); assert.equal(validaSenhaNova(8), null);
+});
+
+test("decidirLiberarDevice: com vaga ativa; no limite só com o admin pedindo para subir, e só o bastante", () => {
+  assert.deepEqual(decidirLiberarDevice("active", 1, 1, false), { acao: "ja-ativo" });
+  assert.deepEqual(decidirLiberarDevice("pending", 1, 2, false), { acao: "liberar", novoLimite: null });
+  const cheio = decidirLiberarDevice("pending", 2, 2, false);
+  assert.equal(cheio.noLimite, true); assert.match(cheio.erro, /2 de 2/);
+  assert.deepEqual(decidirLiberarDevice("pending", 2, 2, true), { acao: "liberar", novoLimite: 3 });
+  assert.deepEqual(decidirLiberarDevice("pending", 3, 1, true), { acao: "liberar", novoLimite: 4 }, "limite abaixo dos ativos: cabe este e nada além");
+  assert.equal(decidirLiberarDevice("pending", 50, 50, true).noLimite, true, "não passa do teto");
 });

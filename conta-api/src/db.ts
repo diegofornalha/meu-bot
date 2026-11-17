@@ -269,6 +269,18 @@ async function vendasAdmin(db: D1Database, lic: Map<string, LicencaLinha>, pagos
     totais: { proPago: emDia.filter((a) => a.produto === null).length, addons, mensalCentavos: emDia.reduce((s, a) => s + (a.valorCentavos ?? 0), 0), aRevisar },
   };
 }
+/** O admin ativa um device pendente; false se o device não existe nessa conta. */
+export async function ativarDevice(db: D1Database, contaId: string, deviceId: string): Promise<boolean> {
+  const r = await db.prepare("UPDATE devices SET status = 'active' WHERE conta_id = ?1 AND id = ?2").bind(contaId, deviceId).run();
+  return (r.meta.changes ?? 0) > 0;
+}
+/** O admin tira um device da conta e encerra as sessões dele (o app daquele Mac precisa entrar de novo); false se não existe. */
+export async function removerDevice(db: D1Database, contaId: string, deviceId: string, agora = agoraIso()): Promise<boolean> {
+  const r = await db.prepare("DELETE FROM devices WHERE conta_id = ?1 AND id = ?2").bind(contaId, deviceId).run();
+  if ((r.meta.changes ?? 0) === 0) return false;
+  await db.prepare("UPDATE sessoes SET revogada_em = ?3 WHERE conta_id = ?1 AND device_id = ?2 AND revogada_em IS NULL").bind(contaId, deviceId, agora).run();
+  return true;
+}
 /** Marca um pedido como atendido; false se não existe ou já estava atendido. */
 export async function atenderPedido(db: D1Database, id: string, quem: string, agora = agoraIso()): Promise<boolean> {
   const r = await db.prepare("UPDATE pedidos SET atendido_em = ?2, atendido_por = ?3 WHERE id = ?1 AND atendido_em IS NULL").bind(id, agora, quem).run();

@@ -597,7 +597,7 @@ function editorLicenca(tr, c) {
 function pintarAdminDevices(v) {
   const tb = $("ad-devices-tabela").querySelector("tbody"); tb.replaceChildren();
   const linhas = v.contas.flatMap((c) => c.devices.map((d) => ({ c, d })));
-  if (linhas.length === 0) { const tr = el("tr"); const td = el("td", "", "Nenhum device em conta nenhuma."); td.colSpan = 7; tr.append(td); tb.append(tr); }
+  if (linhas.length === 0) { const tr = el("tr"); const td = el("td", "", "Nenhum device em conta nenhuma."); td.colSpan = 8; tr.append(td); tb.append(tr); }
   for (const { c, d } of linhas) {
     const tr = el("tr");
     // Uso da conta ao lado de cada Mac: ativos/limite, com aviso quando um Mac novo já cairia em Pendente.
@@ -606,8 +606,44 @@ function pintarAdminDevices(v) {
     tr.append(contaCelula(c.email, c.nome), uso, el("td", "", `${d.name || d.id.slice(0, 8)}${d.platform ? ` · ${d.platform}` : ""}`), el("td", "", d.user || "-"), el("td", "", Object.entries(d.apps ?? {}).map(([a, x]) => `${a} ${x.version}`).join(", ") || "-"));
     const st = el("td"); st.append(selo(d.status === "pending" ? "Pendente" : "Ativo", d.status === "pending" ? "mau" : "ok")); tr.append(st);
     tr.append(el("td", "", dataHora(d.lastSeen)));
+    const acoes = el("td");
+    if (d.status === "pending") { const b = el("button", "btn btn-primary", "Liberar"); b.type = "button"; b.addEventListener("click", () => { void liberarDevice(c, d, b); }); acoes.append(b, document.createTextNode(" ")); }
+    const r = el("button", "btn btn-ghost", "Remover"); r.type = "button"; r.addEventListener("click", () => { void removerDevice(c, d, r); }); acoes.append(r);
+    tr.append(acoes);
     tb.append(tr);
   }
+}
+/** Relê a visão do admin e redesenha a seção depois de uma ação em devices. */
+async function depoisDeDevice() {
+  await carregarVisao(visaoBusca).catch((e) => mostrarErro(e?.message ?? String(e)));
+  if (conta !== null) mostrarConsole(conta);
+}
+/** "Liberar": ativa o Mac pendente. Conta no limite: o botão passa a oferecer subir o limite, e o segundo clique confirma. */
+async function liberarDevice(c, d, botao) {
+  const s = sessaoGuardada(); if (s === null) return;
+  const subir = botao.dataset.subir === "1";
+  botao.disabled = true; mostrarErro(null);
+  const r = await api("POST", `/admin/contas/${encodeURIComponent(c.id)}/devices/${encodeURIComponent(d.id)}/liberar`, subir ? { subirLimite: true } : {}, s.acesso);
+  if (r.status === 409 && r.corpo && r.corpo.noLimite === true && !subir) {
+    const ativos = c.devices.filter((x) => x.status !== "pending").length;
+    botao.disabled = false; botao.dataset.subir = "1"; botao.textContent = `Liberar e subir o limite para ${ativos + 1}`; botao.title = erroDe(r);
+    return;
+  }
+  if (r.status !== 200) { botao.disabled = false; mostrarErro(erroDe(r)); return; }
+  await depoisDeDevice();
+}
+/** "Remover": dois cliques (o segundo confirma, em até 5 s), porque o Mac perde o acesso e precisa entrar de novo. */
+async function removerDevice(c, d, botao) {
+  if (botao.dataset.confirma !== "1") {
+    botao.dataset.confirma = "1"; botao.textContent = "Confirmar remoção";
+    setTimeout(() => { if (botao.isConnected && !botao.disabled) { delete botao.dataset.confirma; botao.textContent = "Remover"; } }, 5000);
+    return;
+  }
+  const s = sessaoGuardada(); if (s === null) return;
+  botao.disabled = true; mostrarErro(null);
+  const r = await api("DELETE", `/admin/contas/${encodeURIComponent(c.id)}/devices/${encodeURIComponent(d.id)}`, undefined, s.acesso);
+  if (r.status !== 200) { botao.disabled = false; delete botao.dataset.confirma; botao.textContent = "Remover"; mostrarErro(erroDe(r)); return; }
+  await depoisDeDevice();
 }
 const TIPO_PEDIDO = { "pagamento.liberar": "Liberar na máquina", "pagamento.revisar": "Revisar pagamento", "plano.pedir": "Pro", "addon.pedir": "Add-on", "device.pedir": "Device", "importar": "Importar licença" };
 function pintarAdminPedidos(v) {
