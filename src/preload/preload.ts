@@ -28,6 +28,7 @@ const MAIN_EVENT_CHANNELS: readonly MainEventChannel[] = [
   "crm:progress",
   "finance:progress",
   "modulos:progress",
+  "modulos:acao",
   "admin:backup-progress",
   "admin:usuarios-progresso",
   "claude-login:event",

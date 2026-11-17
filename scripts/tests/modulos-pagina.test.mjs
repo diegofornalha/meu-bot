@@ -64,3 +64,11 @@ test("token na máquina: criado uma vez, 0600, exportado ao instalador; o status
   const parado = P.parsePaginaStatus(run(P.paginaStatusSh("financas", porta)).stdout);
   assert.equal(parado.rodando, false);
 });
+
+test("ações da página: só /__meu-bot/acao na origem do forward, só chat com texto; o resto é recusado", () => {
+  const o = P.origemForward(51234);
+  assert.deepEqual(P.lerAcao(`${o}/__meu-bot/acao?acao=chat&texto=quanto%20gastei%3F`, o), { acao: "chat", texto: "quanto gastei?" });
+  assert.equal(P.lerAcao(`${o}/__meu-bot/acao?acao=chat&texto=${"a".repeat(900)}`, o).texto.length, 500, "corta em 500");
+  assert.equal(P.lerAcao(`${o}/__meu-bot/acao?acao=chat&texto=a%0Ab`, o).texto, "a b", "sem quebra de linha nem controle");
+  for (const u of [`${o}/__meu-bot/acao?acao=chat&texto=`, `${o}/__meu-bot/acao?acao=enviar&texto=x`, `${o}/__meu-bot/acao?acao=planilha&link=x`, `${o}/outra?acao=chat&texto=x`, `http://127.0.0.1:9/__meu-bot/acao?acao=chat&texto=x`, `https://evil.com/__meu-bot/acao?acao=chat&texto=x`, "lixo"]) assert.equal(P.lerAcao(u, o), null, u);
+});

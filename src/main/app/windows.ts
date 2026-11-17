@@ -17,7 +17,7 @@ import { closeTerminalsOfWindow } from "../terminal/terminal";
 import { browserForget } from "../navegador/browser";
 import { PARTICAO_COMPUTADOR, particaoComputador, urlTelaPermitida } from "../maquina/tela-core";
 import { PARTICAO_INSPECTOR, mesmaOrigem, urlInspectorPermitida } from "../inspector/inspector-core";
-import { PARTICAO_MODULO, urlNaOrigem } from "../modulos/modulos-pagina-core";
+import { PARTICAO_MODULO, lerAcao, urlNaOrigem } from "../modulos/modulos-pagina-core";
 import { paginaRegistrada, particoesDaMaquina } from "../modulos/modulos";
 
 export type OpenOrigin = "startup" | "picker" | "notify" | "quick" | "menu" | "shortcut";
@@ -181,7 +181,14 @@ export function openMainWindow(host: string, origin: OpenOrigin): BrowserWindow 
     const pag = particoesDaMaquina(host).find((p) => guest.session === session.fromPartition(p));
     if (pag !== undefined) {
       guest.on("will-navigate", (e, url) => { const reg = paginaRegistrada(pag); if (reg === null || !urlNaOrigem(url, reg.origem)) e.preventDefault(); });
-      guest.setWindowOpenHandler(({ url }) => { if (/^https:\/\//.test(url)) void shell.openExternal(url); return { action: "deny" }; });
+      // A única ponte da página com o app: `/__meu-bot/acao?…` na própria origem (lista fechada em lerAcao).
+      guest.setWindowOpenHandler(({ url }) => {
+        const reg = paginaRegistrada(pag);
+        const a = reg === null ? null : lerAcao(url, reg.origem);
+        if (a !== null && reg !== null) { if (!win.isDestroyed()) win.webContents.send("modulos:acao", { id: reg.id, rotulo: reg.rotulo, ...a }); }
+        else if (/^https:\/\//.test(url)) void shell.openExternal(url);
+        return { action: "deny" };
+      });
       return;
     }
     if (guest.session !== session.fromPartition(particaoComputador(host))) return;

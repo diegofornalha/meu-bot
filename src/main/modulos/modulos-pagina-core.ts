@@ -69,3 +69,22 @@ export const urlPagina = (localPort: number, caminho: string, token: string): st
 export function urlNaOrigem(url: string, origem: string): boolean {
   try { return new URL(url).origin === origem; } catch { return false; }
 }
+
+/**
+ * Ações que a página de um módulo pode pedir ao app (a única ponte: a página não tem preload nem IPC). A página abre
+ * `/__meu-bot/acao?…` na própria origem (window.open); o main intercepta antes de abrir qualquer janela, lê com
+ * `lerAcao` e entrega à janela do app. Lista fechada; tudo o mais é recusado.
+ * - `chat`: põe um texto (até 500 caracteres) na caixa do chat do agente. Só preenche: quem envia é a pessoa.
+ */
+export type AcaoPagina = { acao: "chat"; texto: string };
+export const CAMINHO_ACAO = "/__meu-bot/acao";
+export function lerAcao(url: string, origem: string): AcaoPagina | null {
+  let u: URL;
+  try { u = new URL(url); } catch { return null; }
+  if (u.origin !== origem || u.pathname !== CAMINHO_ACAO) return null;
+  if (u.searchParams.get("acao") === "chat") {
+    const texto = (u.searchParams.get("texto") ?? "").replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 500);
+    return texto === "" ? null : { acao: "chat", texto };
+  }
+  return null;
+}

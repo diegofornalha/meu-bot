@@ -40,6 +40,7 @@ release automática: `release-core.mjs` deixa de fora os produtos com `caps.modu
 | `testar` | script de teste (`testar.sh`): imprime `ferramenta\t<nome>\t<descrição>` por ferramenta e termina com `teste=ok` ou `teste=erro <motivo>` |
 | `passos` | primeiros passos: `{ id, titulo, texto, conclui, botao, pergunta }`; `conclui` = `credenciais`, `ligado`, `testado`, `opcao:<chave>` ou `manual` |
 | `pagina` | página própria (opcional): `{ rotulo, porta, caminho }`. O instalador sobe um serviço web **só em `127.0.0.1:<porta>`** (1024–65535); o app abre um forward SSH até ela e mostra `<caminho>?token=<token>` num `<webview>` isolado (sem preload, sem IPC, só a origem do forward). Ao ligar, o app cria o token uma vez (0600) e passa o caminho do arquivo em `MODULO_PAGINA_TOKEN`; **o serviço recusa pedido sem o token** (pode guardá-lo num cookie `HttpOnly` depois do primeiro) |
+| ação da página | a página não fala com o app (sem preload nem IPC), exceto por `window.open("/__meu-bot/acao?acao=chat&texto=…")` na própria origem: o app só **preenche** a caixa do chat (até 500 caracteres) e quem envia é a pessoa. Lista fechada (`lerAcao`, `modulos-pagina-core.ts`); outra ação é recusada |
 
 Tudo da ficha é texto puro, cortado nos limites: o repositório é de fora, então a página nunca o trata como HTML.
 
