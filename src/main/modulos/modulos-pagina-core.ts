@@ -107,3 +107,14 @@ export function lerRespostaPlanilha(j: unknown): { mensagem: string; linhas: str
   const linhas = Array.isArray(o.linhas) ? o.linhas.filter((x): x is string => typeof x === "string").map((x) => x.slice(0, 200)).slice(0, 8) : [];
   return { mensagem: o.mensagem.trim().slice(0, 600), linhas, podeImportar: o.podeImportar === true };
 }
+
+/**
+ * O pedido ao serviço do módulo não teve resposta HTTP: a frase para a pessoa, pelo que o `fetch` lançou. São três
+ * causas com saídas diferentes: passou do tempo (`AbortSignal.timeout` → TimeoutError), o módulo respondeu com um
+ * redirecionamento que `redirect: "error"` barrou (a causa diz "redirect"), ou não houve conexão (serviço parado, túnel caído).
+ */
+export function fraseSemRespostaDoModulo(e: unknown): string {
+  if (e instanceof Error && e.name === "TimeoutError") return "o módulo demorou mais de 60 s para responder; tente de novo com uma planilha menor";
+  if (e instanceof TypeError && /redirect/i.test(String((e as { cause?: unknown }).cause ?? e.message))) return "o módulo tentou redirecionar o pedido; por segurança a planilha não foi enviada";
+  return "o módulo não respondeu (o serviço parou ou o túnel caiu); abra a página do módulo de novo";
+}
