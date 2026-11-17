@@ -101,7 +101,7 @@ export interface DeviceApi {
 }
 /** O que `GET /conta` e `POST /token` devolvem: a conta como o app a mostra. */
 /** Uma assinatura paga da conta, como o console › Plano a mostra: `produto` null é o Pro. */
-export interface ContaAssinatura { produto: string | null; status: "ACTIVE" | "CANCELLED"; valorCentavos: number | null; valeAte: string | null }
+export interface ContaAssinatura { id: string; produto: string | null; status: "ACTIVE" | "CANCELLED"; valorCentavos: number | null; valeAte: string | null }
 export interface ContaApi {
   id: string;
   email: string;

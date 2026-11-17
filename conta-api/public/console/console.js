@@ -817,9 +817,36 @@ function pintarAssinaturas(c) {
   const tb = $("pl-assinaturas").querySelector("tbody"); tb.replaceChildren();
   for (const a of lista) {
     const s = situacaoDe(a); const tr = el("tr"); const tdS = el("td"); tdS.append(selo(s.texto, s.tom));
-    tr.append(el("td", "", rotuloProduto(a.produto)), el("td", "", `${reais(a.valorCentavos)}/mês`), tdS, el("td", "", a.valeAte ? data(a.valeAte) : "-"));
+    const tdA = el("td");
+    if (a.status === "ACTIVE" && typeof a.id === "string") {
+      const b = el("button", "btn btn-ghost btn-small", "Cancelar"); b.type = "button";
+      b.addEventListener("click", () => { pedirCancelamento(a, tdA); });
+      tdA.append(b);
+    }
+    tr.append(el("td", "", rotuloProduto(a.produto)), el("td", "", `${reais(a.valorCentavos)}/mês`), tdS, el("td", "", a.valeAte ? data(a.valeAte) : "-"), tdA);
     tb.append(tr);
   }
+}
+/** Confirmação na própria linha (sem confirm()): diz até quando vale e só então cancela. */
+function pedirCancelamento(a, td) {
+  const nome = rotuloProduto(a.produto);
+  const aviso = $("pl-assinaturas-aviso");
+  aviso.textContent = a.valeAte ? `Cancelar o ${nome}: ele continua até ${data(a.valeAte)} e depois nada mais é cobrado.` : `Cancelar o ${nome}: nada mais é cobrado.`;
+  const sim = el("button", "btn btn-primary btn-small", "Confirmar cancelamento"); sim.type = "button";
+  const nao = el("button", "btn btn-ghost btn-small", "Manter"); nao.type = "button";
+  nao.addEventListener("click", () => { void lerConta().then((c) => { if (c) pintarPlano(c); }); });
+  sim.addEventListener("click", () => { void cancelarAssinatura(a, sim, nao, aviso); });
+  td.replaceChildren(sim, document.createTextNode(" "), nao);
+}
+async function cancelarAssinatura(a, sim, nao, aviso) {
+  const s = sessaoGuardada(); if (s === null) { void entrar(); return; }
+  sim.disabled = nao.disabled = true; sim.textContent = "Cancelando…";
+  let r;
+  try { r = await api("POST", "/conta/assinatura/cancelar", { id: a.id }, s.acesso); }
+  catch { r = { status: 0, corpo: { erro: "sem conexão; tente de novo" } }; }
+  const c = await lerConta().catch(() => null);
+  if (c) pintarPlano(c);
+  $("pl-assinaturas-aviso").textContent = r.status === 200 ? `Assinatura do ${rotuloProduto(a.produto)} cancelada.${a.valeAte ? ` O acesso continua até ${data(a.valeAte)}.` : ""}` : `Não cancelou: ${erroDe(r)}.`;
 }
 function pintarPlano(c) {
   const l = c.licenca;

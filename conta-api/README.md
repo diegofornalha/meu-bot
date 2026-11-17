@@ -150,6 +150,12 @@ O console › Plano mostra "Assinar por R$ 97/mês" quando o Worker tem `ABACATE
      (console › Suporte). Ninguém perde o Pro automaticamente.
    - Produção ignora eventos do Modo Teste (`devMode: true`), e o staging ignora eventos reais.
 
+**Cancelar pela própria pessoa.** Em console › Plano › Suas assinaturas, cada assinatura ativa tem "Cancelar", com
+confirmação na linha. `POST /conta/assinatura/cancelar` (`{id: "subs_…"}`) só aceita assinatura `ACTIVE` da conta logada,
+chama `POST /v2/subscriptions/cancel` na AbacatePay e marca `CANCELLED`; o Pro (ou o add-on) segue até o fim do período
+pago, igual ao webhook `subscription.cancelled`. **A chave `ABACATEPAY_KEY` precisa também do escopo
+`SUBSCRIPTION:DELETE`**; sem ele a rota responde "fale com o suporte" e nada muda.
+
 **Apps vendidos à parte (add-ons).** Cada app com preço próprio (o primeiro é o Finanças, `meu-bot-finance`) é uma
 assinatura mensal separada do Pro. O catálogo fica em `ABACATEPAY_ADDONS` (`wrangler.toml`, por ambiente):
 `{"meu-bot-finance":{"produto":"prod_...","centavos":99700,"rotulo":"Finanças"}}`. O console › Plano mostra um "Assinar"
@@ -166,7 +172,7 @@ Ligar num ambiente (o staging usa a loja no Modo Teste):
 
 ```bash
 npx wrangler d1 migrations apply conta-staging --env staging --remote   # 0006_pagamentos.sql
-npx wrangler secret put ABACATEPAY_KEY --env staging                     # chave com SUBSCRIPTION:CREATE
+npx wrangler secret put ABACATEPAY_KEY --env staging                     # chave com SUBSCRIPTION:CREATE e SUBSCRIPTION:DELETE
 npx wrangler secret put ABACATEPAY_WEBHOOK_SECRET --env staging          # o mesmo secret do webhook no dashboard
 npx wrangler secret put GA_MP_SECRET --env staging                       # GA4 › fluxo Web › Measurement Protocol
 ```
