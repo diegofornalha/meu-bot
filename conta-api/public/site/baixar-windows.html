@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Baixar o meu-bot para Windows (versão de teste)</title>
+  <meta name="description" content="Versão de teste do meu-bot para Windows de 64 bits: o app conecta numa máquina remota por SSH. Instalador ainda sem assinatura da Microsoft.">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="icon" href="/site/icone.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/site/site.css">
+</head>
+<body>
+  <header class="topo">
+    <a class="marca" href="/"><span class="logo" aria-hidden="true">mb</span><span>meu-bot</span></a>
+    <nav class="links">
+      <a href="/baixar">Baixar</a>
+      <a href="/grok-no-whatsapp">Grok no WhatsApp</a>
+      <a href="/perguntas">Perguntas</a>
+      <a href="/novidades">Novidades</a>
+      <a id="link-console" href="/console">Console da conta</a>
+    </nav>
+  </header>
+
+  <main class="legal">
+    <p class="meta"><a href="/">Início</a> › Baixar o meu-bot para Windows</p>
+    <h1>Baixar o meu-bot para Windows</h1>
+    <p>Esta é a <strong>versão de teste</strong> do meu-bot para Windows. Ela sai junto com cada versão de teste do Mac e ainda não tem tudo o que o app do Mac tem: no Windows o meu-bot conecta numa máquina remota (uma VPS, por exemplo) por SSH e conversa com o agente que roda lá.</p>
+
+    <p class="acao"><a class="btn btn-primary" href="/download/windows">Baixar para Windows</a></p>
+    <p class="meta"><span id="versao-windows"></span></p>
+
+    <h2>Do que você precisa</h2>
+    <ul>
+      <li>Windows 10 ou 11 de 64 bits. Em computadores com chip ARM (Snapdragon) o app roda por emulação.</li>
+      <li>Uma máquina remota com o meu-bot instalado e o acesso por SSH configurado no arquivo <code>.ssh\config</code> da sua pasta de usuário. O cliente SSH já vem no Windows.</li>
+    </ul>
+
+    <h2>Como instalar</h2>
+    <ol>
+      <li><strong>Abra o arquivo baixado.</strong> O instalador ainda não tem assinatura da Microsoft, então o Windows mostra o aviso "O Windows protegeu o computador". Clique em <strong>Mais informações</strong> e depois em <strong>Executar assim mesmo</strong>.</li>
+      <li><strong>Espere a instalação.</strong> Ela é só para a sua conta do Windows e não pede senha de administrador. O meu-bot-staging abre sozinho no fim.</li>
+      <li><strong>Escolha a máquina.</strong> O app lista as máquinas do seu <code>.ssh\config</code>; escolha uma e entre com a sua conta.</li>
+    </ol>
+
+    <h2>O que ainda não tem no Windows</h2>
+    <ul>
+      <li>Rodar o agente no próprio computador: no Windows o app é só o cliente de uma máquina remota.</li>
+      <li>O agente usando o Navegador e o Gmail do app, os atalhos na área de trabalho e o painel Computador.</li>
+    </ul>
+
+    <h2>Atualizações</h2>
+    <p>O app baixa a versão nova sozinho, confere a assinatura do meu-bot e pede para reiniciar. Todas as versões ficam no <a href="https://github.com/diegofornalha/meu-bot/releases" rel="noopener">GitHub</a>.</p>
+
+    <p>Procurando a versão para Mac? Ela está em <a href="/baixar">Baixar o meu-bot</a>.</p>
+  </main>
+
+  <footer class="rodape">
+    <span>meu-bot é um produto da Coflow · CNPJ 41.490.672/0001-00</span>
+    <span><a href="/guias">Guias</a> · <a href="/privacidade">Privacidade</a> · <a href="/termos">Termos de uso</a> · <a href="https://github.com/diegofornalha/meu-bot" rel="noopener">GitHub</a></span>
+    <span class="privacidade">Grok e xAI são marcas da xAI. WhatsApp é marca da Meta. O meu-bot é um produto independente da Coflow.</span>
+  </footer>
+  <script src="/config.js"></script>
+  <script src="/analytics.js"></script>
+  <script src="/site/site.js"></script>
+</body>
+</html>
