@@ -54,7 +54,12 @@ if (import.meta.filename === resolve(process.argv[1] ?? "")) {
   rmSync(saida, { recursive: true, force: true });
   rmSync(destino, { force: true });
   mkdirSync(saida, { recursive: true });
-  await build({ targets: Platform.WINDOWS.createTarget("nsis", Arch.x64), prepackaged: pasta, publish: "never", config: configDoInstalador(produto, versao, saida) });
+  try {
+    await build({ targets: Platform.WINDOWS.createTarget("nsis", Arch.x64), prepackaged: pasta, publish: "never", config: configDoInstalador(produto, versao, saida) });
+  } catch (e) {
+    console.error(`✗ o electron-builder não gerou o instalador: ${e instanceof Error ? e.message : String(e)}`);
+    process.exit(1);
+  }
   renameSync(join(saida, nomeDoInstalador(produto.nome, versao)), destino);
   rmSync(saida, { recursive: true, force: true });
   console.log("Instalador Windows:", destino);
