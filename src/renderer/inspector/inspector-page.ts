@@ -39,13 +39,17 @@ export function mountInspector(deps: InspectorDeps): { open: () => void } {
   function fechar(): void { geracao += 1; wv?.remove(); wv = null; pronto = false; }
   /** O <webview> só aceita zoom depois do dom-ready; a largura muda com a janela, a barra lateral e a tela dividida. */
   let pronto = false;
+  /** Zoom da janela vindo do último `window:zoom-changed`; null = ainda não mudou nesta sessão (vale o do webFrame). */
+  let fatorJanela: number | null = null;
   function ajustarZoom(): void {
     if (wv === null || !pronto || telaBox.clientWidth === 0) return;
-    try { wv.setZoomFactor(zoomDoInspector(telaBox.clientWidth, deps.api.zoomFactorNow())); } catch { /* webview saindo: o próximo dom-ready ajusta */ }
+    try { wv.setZoomFactor(zoomDoInspector(telaBox.clientWidth, fatorJanela ?? deps.api.zoomFactorNow())); } catch { /* webview saindo: o próximo dom-ready ajusta */ }
   }
-  new ResizeObserver(ajustarZoom).observe(telaBox);
-  // Cmd+= / Cmd+- na janela: a letra do Inspector acompanha (o ResizeObserver nem sempre dispara, ex.: painel já no mínimo).
-  deps.api.on("window:zoom-changed", () => { ajustarZoom(); });
+  new ResizeObserver(() => { ajustarZoom(); }).observe(telaBox);
+  // Cmd+= / Cmd+- na janela: a letra do Inspector acompanha (o ResizeObserver nem sempre dispara, ex.: painel já no
+  // mínimo). O fator vem do evento: o webFrame ainda pode devolver o antigo quando ele chega. O ajuste espera um
+  // quadro, para a largura do painel já estar medida no zoom novo.
+  deps.api.on("window:zoom-changed", (st) => { fatorJanela = st.factor; requestAnimationFrame(() => { ajustarZoom(); }); });
 
   async function subir(): Promise<void> {
     fechar();
