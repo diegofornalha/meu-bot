@@ -69,6 +69,8 @@ export const assetName = (app: string, version: string, arch: string, plataforma
  * Argumentos do instalador do Windows na atualização: `--updated /S` instala em silêncio por cima da versão em uso;
  * `--force-run` reabre o app no fim (o clique e o reinício ocioso). Ao sair do app, não reabre.
  */
+export const argsDoInstalador = (gatilho: UpdateGatilho): string[] => (gatilho === "saida" ? ["--updated", "/S"] : ["--updated", "/S", "--force-run"]);
+
 /**
  * Espera o instalador do Windows abrir de fato: resolve no `spawn` do processo e rejeita no `error` (o Windows não o
  * deixou abrir: antivírus, arquivo bloqueado), com a frase que a pessoa vê. O `error` do spawn chega depois da chamada,
@@ -80,8 +82,6 @@ export function esperarInstaladorAbrir(filho: { once(evento: "spawn", cb: () => 
     filho.once("error", (e) => falha(new Error(`Não consegui abrir o instalador da atualização (${e.message}). Tente de novo; se continuar, baixe a versão nova pelo site.`)));
   });
 }
-
-export const argsDoInstalador = (gatilho: UpdateGatilho): string[] => (gatilho === "saida" ? ["--updated", "/S"] : ["--updated", "/S", "--force-run"]);
 
 /**
  * Compara versões na ordem do semver; negativo = `a` é mais antiga: 0.2.0-staging.3 < 0.2.0-staging.10 < 0.2.0.
