@@ -7,31 +7,13 @@
  * como plano B quando o `claude` não está neste Mac.
  */
 import { shell } from "electron";
-import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { ControleRemotoView } from "../../shared/ipc";
-import { run } from "../app/proc";
-import { findClaude } from "../maquina/localBackend";
+import { CONFIG_CLAUDE_CODE, SEM_CLAUDE, claude, lerConfigClaudeCode, lerSeExiste, pastaExiste, removerLocais, rodarClaude } from "../claude-code/cli";
 import { type ClienteMcp, deeplinkCursor, entradaMcp, estadoClaudeCode as estadoClaudeCodeCore, estadoCliente } from "./controle-remoto-core";
 
-const HOME = os.homedir();
-const CONFIG_CLAUDE_CODE = path.join(HOME, ".claude.json");
-const CONFIG_CURSOR = path.join(HOME, ".cursor", "mcp.json");
-const PRAZO_CLI_MS = 30_000;
-
-const lerSeExiste = (f: string): string | null => { try { return fs.readFileSync(f, "utf8"); } catch { return null; } };
-
-/**
- * O `claude` deste Mac. O `findClaude` pode cair num zsh de login (até 8 s), e o estado é lido a cada repintura:
- * guarda o achado; o "não achei" vale 1 min (a pessoa pode instalar o Claude Code com o app aberto).
- */
-let claudeCache: { caminho: string | null; em: number } | null = null;
-function claude(): string | null {
-  if (claudeCache !== null && (claudeCache.caminho !== null || Date.now() - claudeCache.em < 60_000)) return claudeCache.caminho;
-  claudeCache = { caminho: findClaude(), em: Date.now() };
-  return claudeCache.caminho;
-}
+const CONFIG_CURSOR = path.join(os.homedir(), ".cursor", "mcp.json");
 
 export function estadoClientes(nome: string, porta: number, token: string): ControleRemotoView["clientes"] {
   return {
@@ -40,19 +22,7 @@ export function estadoClientes(nome: string, porta: number, token: string): Cont
   };
 }
 
-/** O `claude` instalado pelo npm é um script `#!/usr/bin/env node`: o PATH do app de GUI não acha o node sozinho. `cwd`: a pasta de uma entrada local. */
-function rodarClaude(cli: string, args: string[], cwd?: string): Promise<unknown> {
-  const PATH = [path.dirname(cli), "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", process.env["PATH"] ?? ""].join(":");
-  return run(cli, args, { timeoutMs: PRAZO_CLI_MS, env: { ...process.env, PATH }, ...(cwd === undefined ? {} : { cwd }) });
-}
-
-const pastaExiste = (p: string): boolean => { try { return fs.statSync(p).isDirectory(); } catch { return false; } };
-const estadoClaudeCode = (nome: string, porta: number, token: string) => estadoClaudeCodeCore(lerSeExiste(CONFIG_CLAUDE_CODE), nome, porta, token, pastaExiste);
-const SEM_CLAUDE = "não achei o Claude Code (comando claude) neste Mac; instale-o ou use \"Copiar comando\" e cole no terminal";
-/** Tira a entrada local deste app de cada pasta (o `claude` só a tira rodando dentro dela). */
-async function removerLocais(cli: string, nome: string, pastas: string[]): Promise<void> {
-  for (const pasta of pastas) await rodarClaude(cli, ["mcp", "remove", "--scope", "local", nome], pasta);
-}
+const estadoClaudeCode = (nome: string, porta: number, token: string) => estadoClaudeCodeCore(lerConfigClaudeCode(), nome, porta, token, pastaExiste);
 
 /**
  * Instala ou atualiza no escopo user e tira as entradas locais velhas (do comando antigo, sem `--scope`), que

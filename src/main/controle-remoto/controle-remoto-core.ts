@@ -9,6 +9,7 @@
  * Sem Electron: testável com node --test.
  */
 import { randomBytes } from "node:crypto";
+import { entradasLocais, lerConfig, objeto } from "../claude-code/config-core";
 import { autorizado, hostOk } from "../extensao-gmail/extensao-api-core";
 
 export const CAMINHO = "/mcp";
@@ -227,11 +228,6 @@ export const deeplinkCursor = (nome: string, porta: number, token: string): stri
  * "desatualizado", não um falso "instalado". `null` = o arquivo não existe; JSON quebrado = "ilegivel" (não mexemos).
  */
 export type EstadoClienteMcp = "ausente" | "instalado" | "desatualizado" | "ilegivel";
-const objeto = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
-function lerConfig(conteudo: string | null): Record<string, unknown> | "ilegivel" | null {
-  if (conteudo === null) return null;
-  try { const j: unknown = JSON.parse(conteudo); return objeto(j) ? j : "ilegivel"; } catch { return "ilegivel"; }
-}
 /**
  * A entrada aponta para este app agora, como o botão a grava? url, chave e o `X-Meu-Bot-Cliente` (sem ele o selo do app
  * sai "Cliente MCP (Mac)": a entrada do comando antigo, sem o cabeçalho, conta como desatualizada e Atualizar a regrava).
@@ -266,13 +262,7 @@ export function estadoClaudeCode(conteudo: string | null, nome: string, porta: n
   if (j === null) return { estado: "ausente", user: "ausente", locais: [] };
   if (j === "ilegivel") return { estado: "ilegivel", user: "ilegivel", locais: [] };
   const user = estadoDe(j["mcpServers"], nome, porta, token, "claude-code");
-  const locais: EstadoClaudeCode["locais"] = [];
-  if (objeto(j["projects"])) {
-    for (const [pasta, p] of Object.entries(j["projects"])) {
-      if (!objeto(p) || !objeto(p["mcpServers"]) || p["mcpServers"][nome] === undefined || !pastaExiste(pasta)) continue;
-      locais.push({ pasta, atual: entradaAtual(p["mcpServers"][nome], porta, token, "claude-code") });
-    }
-  }
+  const locais = entradasLocais(j, nome, pastaExiste).map((l) => ({ pasta: l.pasta, atual: entradaAtual(l.entrada, porta, token, "claude-code") }));
   const estado = user === "instalado" && locais.some((l) => !l.atual) ? "desatualizado" : user;
   return { estado, user, locais };
 }

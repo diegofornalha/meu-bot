@@ -1,7 +1,7 @@
 /** Contrato IPC · A superfície exposta às telas (window.meuBot) e os eventos do main. Só tipos (nada é emitido); reexportado por src/shared/ipc.ts. */
 import type { BatimentoDepuracao, EstadoDepuracao, EventoDepuracao } from "./depuracao";
 import type { AccountStatus, AudioSetup, ClaudeAuthInfo, ClaudeLoginEvent, ContaEstado, ContaEvento, ContaId, ContasClaudeView, LinkPublicoInfo, LinkPublicoStatus, CotaInfo, LinkPublicoLista, LinkPublicoPublicado, FreedomLevel, LimiaresClaude, ObjectiveChoice, ObjectiveInfo, StatusLineSegments, XaiKeyStatus } from "./agente";
-import type { AlertPrefs, BackendModel, ClienteMcp, ControleRemotoView, DonoInfo, NetState, SettingsUpdate, SettingsView, WindowInfo, ZoomAction, ZoomState } from "./app";
+import type { AlertPrefs, BackendModel, ClienteMcp, ConexoesView, ControleRemotoView, DonoInfo, NetState, SettingsUpdate, SettingsView, WindowInfo, ZoomAction, ZoomState } from "./app";
 import type { ReleasePublicada, UpdateState } from "./atualizacao";
 import type { ContaView } from "./conta";
 import type { TelaEndereco, TelaInstalacao, TelaStatus } from "./computador";
@@ -243,6 +243,11 @@ export interface MeuBotSharedApi {
   controleRemotoInstalar(cliente: ClienteMcp): Promise<ControleRemotoView>;
   /** Tira este app do Claude Code (`claude mcp remove --scope user`). */
   controleRemotoRemover(cliente: ClienteMcp): Promise<ControleRemotoView>;
+  /** Conexões: MCPs de terceiros (Salvy…) no Claude Code deste Mac. Conectar registra no escopo user; o login é no /mcp do Claude Code. */
+  conexoesStatus(): Promise<ConexoesView>;
+  conexoesConectar(id: string): Promise<ConexoesView>;
+  conexoesDesconectar(id: string): Promise<ConexoesView>;
+  conexoesAbrirGuia(id: string): Promise<void>;
   /** Conta Google geral deste Mac (login + Gmail + Agenda + Sheets): estado, conectar/desconectar e as APIs. */
   /** `forcar`: repete a busca do client na release agora, mesmo tendo tentado há pouco. */
   googleContaStatus(forcar?: boolean): Promise<GoogleContaStatus>;
