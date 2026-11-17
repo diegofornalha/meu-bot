@@ -1,37 +1,37 @@
+/* Páginas de texto em modo claro, sempre (17 nov 2026): a mesma paleta da home (home.css), sem seguir o tema escuro
+   do sistema de quem visita. Fundo branco, tinta azul-marinho, título em serifa do sistema e botão em pílula. */
 :root {
-  color-scheme: light dark;
-  --fundo: #f5f6f8; --cartao: #ffffff; --texto: #1b1f24; --sub: #5a6270; --borda: #dfe3e8;
-  --primario: #1f6feb; --primario-texto: #ffffff; --primario-fundo: #1f6feb; --ghost: #eef1f5;
-}
-@media (prefers-color-scheme: dark) {
-  :root { --fundo: #0f1115; --cartao: #171a20; --texto: #e8eaed; --sub: #9aa3ad; --borda: #2a2f37; --primario: #3b82f6; --primario-fundo: #2563eb; --ghost: #232833; }
+  color-scheme: light;
+  --fundo: #ffffff; --cartao: #ffffff; --texto: #0d2236; --sub: #52677a; --borda: rgba(13, 34, 54, .14);
+  --primario: #0d2236; --primario-texto: #ffffff; --primario-fundo: #0d2236; --ghost: #f5f7f9;
+  --serifa: ui-serif, "New York", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; min-height: 100%; }
-body { font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--fundo); color: var(--texto); display: flex; flex-direction: column; min-height: 100vh; }
+body { font: 16px/1.6 Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--fundo); color: var(--texto); -webkit-font-smoothing: antialiased; display: flex; flex-direction: column; min-height: 100vh; }
 a { color: inherit; }
 .topo { display: flex; align-items: center; justify-content: space-between; padding: 18px 24px; max-width: 980px; width: 100%; margin: 0 auto; }
 .marca { display: flex; align-items: center; gap: 10px; font-weight: 700; text-decoration: none; }
 .selo-canal { font-size: 11px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: #b45309; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 999px; padding: 2px 8px; margin-left: 4px; }
-.logo { width: 34px; height: 34px; border-radius: 10px; background: var(--primario-fundo); color: var(--primario-texto); display: grid; place-items: center; font-weight: 700; }
+.logo { width: 34px; height: 34px; border-radius: 9px; background: var(--primario-fundo); color: var(--primario-texto); display: grid; place-items: center; font-weight: 700; }
 .links { display: flex; gap: 18px; font-size: 14px; }
 .links a { color: var(--sub); text-decoration: none; } .links a:hover { color: var(--texto); }
 @media (max-width: 720px) { .topo { flex-wrap: wrap; gap: 10px; } .links { flex-wrap: wrap; gap: 6px 16px; } }
 .hero { text-align: center; padding: 56px 24px 32px; max-width: 760px; margin: 0 auto; }
 .selo { display: inline-block; font-size: 12px; letter-spacing: .6px; text-transform: uppercase; color: var(--sub); border: 1px solid var(--borda); border-radius: 999px; padding: 4px 12px; margin: 0 0 18px; }
-h1 { font-size: clamp(30px, 5vw, 44px); line-height: 1.15; margin: 0 0 14px; }
+h1 { font-family: var(--serifa); font-weight: 400; letter-spacing: -.03em; font-size: clamp(32px, 5vw, 50px); line-height: 1.1; margin: 0 0 14px; }
 h2 { font-size: 20px; margin: 0 0 12px; }
 .sub { color: var(--sub); margin: 0 auto; max-width: 600px; }
 .acao { margin: 28px 0 12px; }
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 14px 26px; border-radius: 12px; border: 1px solid var(--borda); background: var(--cartao); color: var(--texto); font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; }
-.btn-primary { background: var(--primario-fundo); color: var(--primario-texto); border-color: transparent; font-size: 18px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 14px 28px; border-radius: 999px; border: 1px solid var(--borda); background: var(--cartao); color: var(--texto); font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; }
+.btn-primary { background: var(--primario-fundo); color: var(--primario-texto); border-color: var(--primario-fundo); font-size: 17px; }
 .btn-ghost { background: var(--ghost); }
 .versao { margin: 0; font-size: 14px; color: var(--sub); min-height: 1.5em; }
 .requisitos { margin: 6px 0 0; font-size: 13px; color: var(--sub); }
 .passos { max-width: 680px; margin: 12px auto 40px; padding: 24px; background: var(--cartao); border: 1px solid var(--borda); border-radius: 16px; }
 .passos ol { margin: 0 0 12px; padding-left: 22px; }
 .passos li { margin: 0 0 10px; }
-.rodape { margin-top: auto; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 18px 24px; max-width: 980px; width: 100%; margin-left: auto; margin-right: auto; color: var(--sub); font-size: 13px; }
+.rodape { border-top: 1px solid var(--borda); margin-top: auto; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 18px 24px; max-width: 980px; width: 100%; margin-left: auto; margin-right: auto; color: var(--sub); font-size: 13px; }
 .rodape a { color: var(--sub); }
 .rodape .privacidade { flex-basis: 100%; font-size: 12px; opacity: .8; }
 /* Obrigado: três colunas com o símbolo do meu-bot se preenchendo a cada passo (1/3, 2/3, inteiro). */
@@ -51,8 +51,8 @@ h2 { font-size: 20px; margin: 0 0 12px; }
 
 /* Páginas de texto (privacidade, termos, novidades): coluna de leitura. */
 .legal { max-width: 760px; margin: 0 auto; padding: 32px 24px 48px; width: 100%; }
-.legal h1 { font-size: clamp(28px, 4vw, 38px); margin: 0 0 8px; }
-.legal h2 { font-size: 20px; margin: 28px 0 8px; }
+.legal h1 { font-size: clamp(30px, 4.4vw, 44px); margin: 0 0 10px; }
+.legal h2 { font-family: var(--serifa); font-weight: 400; letter-spacing: -.02em; font-size: 26px; line-height: 1.2; margin: 36px 0 10px; }
 .legal p, .legal li { color: var(--texto); line-height: 1.6; }
 .legal ul { padding-left: 22px; }
 .legal .meta { color: var(--sub); font-size: 14px; margin: 0 0 8px; }
