@@ -24,6 +24,7 @@ import { downloadMac, downloadWindows, REPO } from "./release-github.js";
 import { GUIAS, lerReleases, novidadesHtml, sitemapXml } from "./novidades-core.js";
 import { CSP_ADS, CSP_GA, gaIds } from "./analytics-core.js";
 import { caminhoCanonico, llmsPorPagamentos, redirecionamentoInicial, rascunhoForaDoCanal } from "./site-core.js";
+import { postListaEspera } from "./rotas/lista.js";
 import { addonsAVenda, pagamentosLigados, postAssinatura, postCancelarAssinatura, postWebhookAbacate } from "./rotas/pagamentos.js";
 import { deleteMembro, deleteOrg, getOrg, getOrgPublico, getOrgs, patchAdminOrg, patchMembro, patchOrg, postMembro, postOrg } from "./rotas/orgs.js";
 
@@ -196,6 +197,8 @@ async function sitePagina(req: Request, env: Env, url: URL): Promise<Response> {
   const sem = caminhoCanonico(url.pathname);
   if (sem !== null) return comCabecalhos(Response.redirect(`${env.SITE_ORIGIN}${sem}${url.search}`, 301), {});
   if (url.pathname === "/config.js") return comCabecalhos(configJs({ console: env.CONSOLE_ORIGIN, canal: env.CANAL, ga: gaDoEnv(env) }), {});
+  // Lista de espera (hoje: quem chega de Windows): o único POST do site, na mesma origem das páginas.
+  if (url.pathname === "/lista-espera") return comCabecalhos(req.method === "POST" ? await postListaEspera(req, env) : json({ erro: "use POST" }, 405), { "cache-control": "no-store" });
   // "Console da conta" e "Não tem uma conta?" na home: sem depender de JS, o site manda ao console do ambiente certo.
   if (url.pathname === "/console" || url.pathname.startsWith("/account")) return comCabecalhos(Response.redirect(`${env.CONSOLE_ORIGIN}${url.pathname.startsWith("/account") ? url.pathname : "/account/overview"}`, 302), { "cache-control": "no-store" });
   if (url.pathname === "/download/mac" || url.pathname === "/download/mac.json") {

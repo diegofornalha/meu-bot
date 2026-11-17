@@ -1,5 +1,5 @@
 /** Acesso ao D1: consultas tipadas, uma função por intenção. O que sai do banco é dado; quem decide é a rota. */
-import type { AdminAssinatura, AdminContaResumo, ContaAssinatura, AdminOrg, AdminPagamento, AdminVendas, AdminPedido, AdminPerfil, AdminVisao, CodigoLinha, ContaApi, ContaLinha, DeviceApi, DeviceLinha, License, LicencaLinha, MaquinaLinha, MembroApi, MembroLinha, OrgApi, OrgLinha, OrgResumo, PapelOrg, PerfilApi, SessaoLinha } from "./tipos.js";
+import type { AdminAssinatura, AdminContaResumo, AdminListaEspera, ContaAssinatura, AdminOrg, AdminPagamento, AdminVendas, AdminPedido, AdminPerfil, AdminVisao, CodigoLinha, ContaApi, ContaLinha, DeviceApi, DeviceLinha, License, LicencaLinha, MaquinaLinha, MembroApi, MembroLinha, OrgApi, OrgLinha, OrgResumo, PapelOrg, PerfilApi, SessaoLinha } from "./tipos.js";
 import { agoraIso, nomeExibicao, parseProvedores, provedoresDoLogin, unirProvedores, uuid, type MetodoLogin, type PatchLicenca, type PatchOrg, type PatchPerfil } from "./sessao-core.js";
 import type { UsuarioFirebase } from "./firebase.js";
 import { licencaComAddons, umaPorContaEProduto } from "./pagamento-core.js";
@@ -246,9 +246,18 @@ export async function visaoAdmin(db: D1Database, busca: string, comVendas = fals
   const totais = { contas: todas.length, pro: todas.filter((c) => c.licenca.plan === "pro").length, devicesPendentes: devices.results.filter((d) => d.status === "pending").length, pedidosAbertos: pedidos.results.length, orgs: orgs.length };
   const emails = new Set((await db.prepare("SELECT email FROM contas WHERE apagada_em IS NULL").all<{ email: string }>()).results.map((c) => c.email));
   const perfis: AdminPerfil[] = admins.results.map((a) => ({ email: a.email, papel: a.papel === "super" ? "super" : "admin", criadoEm: a.criado_em, entrou: emails.has(a.email) }));
-  return { contas: resumo, perfis, pedidos: pedidos.results.map((p): AdminPedido => ({ id: p.id, tipo: p.tipo, detalhe: p.detalhe, maquinaId: p.maquina_id, criadoEm: p.criado_em, atendidoEm: p.atendido_em, atendidoPor: p.atendido_por, conta: { id: p.conta_id, email: p.email, nome: p.nome } })), orgs, totais, vendas: comVendas ? await vendasAdmin(db, lic, pagos, pedidos.results.filter((p) => p.tipo === "pagamento.revisar").length, agora) : null };
+  return { contas: resumo, perfis, pedidos: pedidos.results.map((p): AdminPedido => ({ id: p.id, tipo: p.tipo, detalhe: p.detalhe, maquinaId: p.maquina_id, criadoEm: p.criado_em, atendidoEm: p.atendido_em, atendidoPor: p.atendido_por, conta: { id: p.conta_id, email: p.email, nome: p.nome } })), orgs, totais, vendas: comVendas ? await vendasAdmin(db, lic, pagos, pedidos.results.filter((p) => p.tipo === "pagamento.revisar").length, agora) : null, listaEspera: comVendas ? await listaEsperaAdmin(db) : null };
 }
 /** Quem paga o quê (super admin): as assinaturas com o prazo que sustentam, os últimos pagamentos e os totais em dia. */
+/** A lista de espera para o super admin: totais e os 200 contatos mais novos. */
+async function listaEsperaAdmin(db: D1Database): Promise<AdminListaEspera> {
+  const [tot, linhas] = await Promise.all([
+    db.prepare("SELECT COUNT(*) AS n, SUM(CASE WHEN avisado_em IS NULL THEN 1 ELSE 0 END) AS s FROM lista_espera").first<{ n: number; s: number | null }>(),
+    db.prepare("SELECT contato, tipo, plataforma, origem, gclid, criado_em, avisado_em FROM lista_espera ORDER BY criado_em DESC LIMIT 200").all<{ contato: string; tipo: string; plataforma: string; origem: string; gclid: string | null; criado_em: string; avisado_em: string | null }>(),
+  ]);
+  return { total: tot?.n ?? 0, semAviso: tot?.s ?? 0, contatos: linhas.results.map((l) => ({ contato: l.contato, tipo: l.tipo === "whatsapp" ? "whatsapp" : "email", plataforma: l.plataforma, origem: l.origem, viaAnuncio: l.gclid !== null, criadoEm: l.criado_em, avisadoEm: l.avisado_em })) };
+}
+
 async function vendasAdmin(db: D1Database, lic: Map<string, LicencaLinha>, pagos: Map<string, { produto: string; expiresAt: string }[]>, aRevisar: number, agora: string): Promise<AdminVendas> {
   const [ass, pgs] = await Promise.all([
     db.prepare("SELECT a.id, a.conta_id, a.produto, a.status, a.valor_centavos, a.criada_em, a.atualizada_em, c.email, c.nome, (SELECT MAX(p.pago_em) FROM pagamentos p WHERE p.assinatura_id = a.id) AS ultimo FROM assinaturas a JOIN contas c ON c.id = a.conta_id ORDER BY a.criada_em DESC LIMIT 500").all<{ id: string; conta_id: string; produto: string | null; status: string; valor_centavos: number | null; criada_em: string; atualizada_em: string; email: string; nome: string | null; ultimo: string | null }>(),

@@ -135,7 +135,9 @@ export interface AdminAssinatura { id: string; produto: string | null; status: "
 export interface AdminPagamento { id: string; produto: string | null; valorCentavos: number; primeira: boolean; pagoEm: string; noAnalytics: boolean; conta: { id: string; email: string; nome: string | null } }
 /** Quem paga o quê: só o super admin recebe (para o admin comum vem null). */
 export interface AdminVendas { assinaturas: AdminAssinatura[]; pagamentos: AdminPagamento[]; totais: { proPago: number; addons: Record<string, number>; mensalCentavos: number; aRevisar: number } }
-export interface AdminVisao { contas: AdminContaResumo[]; pedidos: AdminPedido[]; perfis: AdminPerfil[]; orgs: AdminOrg[]; vendas: AdminVendas | null; totais: { contas: number; pro: number; devicesPendentes: number; pedidosAbertos: number; orgs: number } }
+/** Lista de espera do site (só o super admin recebe): o total por plataforma e os contatos mais novos. */
+export interface AdminListaEspera { total: number; semAviso: number; contatos: { contato: string; tipo: "email" | "whatsapp"; plataforma: string; origem: string; viaAnuncio: boolean; criadoEm: string; avisadoEm: string | null }[] }
+export interface AdminVisao { contas: AdminContaResumo[]; pedidos: AdminPedido[]; perfis: AdminPerfil[]; orgs: AdminOrg[]; vendas: AdminVendas | null; listaEspera: AdminListaEspera | null; totais: { contas: number; pro: number; devicesPendentes: number; pedidosAbertos: number; orgs: number } }
 /** O que o app manda no `POST /token` para se registrar como device. */
 export interface DevicePedido { id: string; alias: string | null; name: string; user: string; platform: string; app: string; versao: string }
 /** Claims do token de acesso (HS256, 1 h). */
