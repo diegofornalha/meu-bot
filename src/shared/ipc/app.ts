@@ -232,7 +232,7 @@ export interface WindowInfo {
 
 /** Eventos da janela de alívio (aliviar <host>). */
 export type ReliefEvent =
-  | { kind: "init"; host: string }
+  | { kind: "init"; host: string; semaforoNaBarra: boolean }
   | { kind: "step"; step: "connect" | "clean" | "tailscale" | "open"; state: "doing" | "done" | "fail"; text: string }
   | { kind: "stats"; which: "before" | "after"; load: string; memMb: number | null }
   | { kind: "countdown"; seconds: number }

@@ -92,9 +92,9 @@ const plans = new Map<string, PlanName>((() => {
 })());
 const guardarPlans = (): void => { try { localStorage.setItem(PLANS_KEY, JSON.stringify(Object.fromEntries(plans))); } catch { /* opcional */ } };
 const personOf = (host: string): SupportPerson | undefined => support?.people.find((p) => p.alias === host);
-/** Nome na lista: a pessoa (admin) ou a máquina. */
 /** O que a lista diz quando não há máquina nenhuma para escolher. */
 const SEM_MAQUINAS_TEXT = "Nenhuma máquina ainda. Este app conecta numa máquina remota por SSH: adicione a sua ao arquivo config da pasta .ssh do seu usuário e abra o meu-bot de novo.";
+/** Nome na lista: a pessoa (admin) ou a máquina. */
 const rowLabel = (host: string): string => personOf(host)?.name ?? hostLabel(host);
 let openHosts = new Set<string>();
 let selected: string | null = null;

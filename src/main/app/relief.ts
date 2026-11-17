@@ -147,7 +147,7 @@ export function showRelief(host: string): void {
   win.on("closed", () => { if (reliefWin === win) reliefWin = null; });
   win.webContents.once("did-finish-load", () => {
     if (win.isDestroyed()) return;
-    win.webContents.send("relief:event", { kind: "init", host } satisfies ReliefEvent);
+    win.webContents.send("relief:event", { kind: "init", host, semaforoNaBarra: caps().semaforoNaBarra } satisfies ReliefEvent);
     if (!running) void runRelief(host);
   });
   void win.loadFile(path.join(__dirname, "..", "..", "renderer", "relief.html"));

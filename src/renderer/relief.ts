@@ -27,7 +27,7 @@ function setStats(which: "before" | "after", load: string, memMb: number | null)
 window.relief.on("relief:event", (p) => {
   const ev = p as ReliefEvent;
   switch (ev.kind) {
-    case "init": title.textContent = `Aliviando ${ev.host}…`; break;
+    case "init": title.textContent = `Aliviando ${ev.host}…`; document.body.classList.toggle("sem-semaforo", !ev.semaforoNaBarra); break;
     case "step": setStep(ev.step, ev.state, ev.text); break;
     case "stats": setStats(ev.which, ev.load, ev.memMb); break;
     case "countdown": setStep("open", "doing", `abrindo o meu-bot em ${ev.seconds} s…`); break;
