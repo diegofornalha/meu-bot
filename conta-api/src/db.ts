@@ -271,10 +271,11 @@ async function vendasAdmin(db: D1Database, lic: Map<string, LicencaLinha>, pagos
 }
 /**
  * O admin encerra agora um add-on pago (reembolso ou disputa): o prazo vira o momento atual e o add-on sai da licença
- * em vigor. A assinatura na AbacatePay não é cancelada aqui; false se a conta não tem esse add-on em dia.
+ * em vigor. A assinatura na AbacatePay não é cancelada aqui: a marca `encerrado_em` faz a cobrança seguinte ir para
+ * revisão em vez de devolver o add-on. false se a conta não tem esse add-on em dia.
  */
 export async function encerrarAddonPago(db: D1Database, contaId: string, produto: string, agora = agoraIso()): Promise<boolean> {
-  const r = await db.prepare("UPDATE addons_pagos SET expires_at = ?3, atualizado_em = ?3 WHERE conta_id = ?1 AND produto = ?2 AND expires_at > ?3").bind(contaId, produto, agora).run();
+  const r = await db.prepare("UPDATE addons_pagos SET expires_at = ?3, atualizado_em = ?3, encerrado_em = ?3 WHERE conta_id = ?1 AND produto = ?2 AND expires_at > ?3").bind(contaId, produto, agora).run();
   return (r.meta.changes ?? 0) > 0;
 }
 /** O admin ativa um device pendente; false se o device não existe nessa conta. */
