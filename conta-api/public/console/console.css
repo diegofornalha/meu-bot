@@ -1,12 +1,17 @@
+/* Tema: a pessoa escolhe Sistema, Claro ou Escuro (console › barra lateral). A escolha fica em data-tema no <html>
+   (tema.js, antes da primeira pintura); sem escolha, vale o tema do sistema. O claro é a base; o escuro entra pelo
+   sistema (se a pessoa não pediu claro) ou pela escolha. */
 :root {
   color-scheme: light dark;
   --fundo: #f5f6f8; --cartao: #ffffff; --texto: #1b1f24; --sub: #5a6270; --borda: #dfe3e8;
   --primario: #1f6feb; --primario-texto: #ffffff; --ghost: #eef1f5; --codigo: #f0f2f5;
-  --lateral: #171a20; --lateral-texto: #e8eaed; --lateral-sub: #9aa3ad; --lateral-ativo: #232833; --ok: #1a7f37; --ok-fundo: #dafbe1; --mau: #b35c00; --mau-fundo: #fff1d6;
+  --lateral: #ffffff; --lateral-texto: #1b1f24; --lateral-sub: #5a6270; --lateral-ativo: #eef1f5; --lateral-linha: #dfe3e8; --ok: #1a7f37; --ok-fundo: #dafbe1; --mau: #b35c00; --mau-fundo: #fff1d6;
 }
+:root[data-tema="claro"] { color-scheme: light; }
 @media (prefers-color-scheme: dark) {
-  :root { --fundo: #0f1115; --cartao: #171a20; --texto: #e8eaed; --sub: #9aa3ad; --borda: #2a2f37; --primario: #3b82f6; --ghost: #232833; --codigo: #0f1115; --lateral: #0b0d11; --lateral-ativo: #1b1f27; --ok: #7ee2a0; --ok-fundo: #12301d; --mau: #ffc46b; --mau-fundo: #3a2a0c; }
+  :root:not([data-tema="claro"]) { --fundo: #0f1115; --cartao: #171a20; --texto: #e8eaed; --sub: #9aa3ad; --borda: #2a2f37; --primario: #3b82f6; --ghost: #232833; --codigo: #0f1115; --lateral: #0b0d11; --lateral-texto: #e8eaed; --lateral-sub: #9aa3ad; --lateral-ativo: #1b1f27; --lateral-linha: rgba(255,255,255,.1); --ok: #7ee2a0; --ok-fundo: #12301d; --mau: #ffc46b; --mau-fundo: #3a2a0c; }
 }
+:root[data-tema="escuro"] { color-scheme: dark; --fundo: #0f1115; --cartao: #171a20; --texto: #e8eaed; --sub: #9aa3ad; --borda: #2a2f37; --primario: #3b82f6; --ghost: #232833; --codigo: #0f1115; --lateral: #0b0d11; --lateral-texto: #e8eaed; --lateral-sub: #9aa3ad; --lateral-ativo: #1b1f27; --lateral-linha: rgba(255,255,255,.1); --ok: #7ee2a0; --ok-fundo: #12301d; --mau: #ffc46b; --mau-fundo: #3a2a0c; }
 * { box-sizing: border-box; }
 html, body { margin: 0; min-height: 100%; }
 body { font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--fundo); color: var(--texto); min-height: 100vh; }
@@ -34,7 +39,7 @@ code { padding: 2px 6px; border-radius: 6px; background: var(--codigo); border: 
 
 /* console */
 .console { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
-.lateral { background: var(--lateral); color: var(--lateral-texto); display: flex; flex-direction: column; padding: 16px 12px; gap: 16px; position: sticky; top: 0; height: 100vh; }
+.lateral { background: var(--lateral); color: var(--lateral-texto); border-right: 1px solid var(--lateral-linha); display: flex; flex-direction: column; padding: 16px 12px; gap: 16px; position: sticky; top: 0; height: 100vh; }
 .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; padding: 4px 8px; }
 .logo .canal { color: var(--lateral-sub); margin-left: auto; }
 .menu { display: flex; flex-direction: column; gap: 2px; }
@@ -42,14 +47,18 @@ code { padding: 2px 6px; border-radius: 6px; background: var(--codigo); border: 
 .menu a:hover { background: var(--lateral-ativo); }
 .menu a.ativo { background: var(--lateral-ativo); border-color: var(--primario); }
 .menu .ico { width: 18px; text-align: center; color: var(--lateral-sub); }
-.quem { margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 8px; border-top: 1px solid rgba(255,255,255,.08); }
+.quem { margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 8px; border-top: 1px solid var(--lateral-linha); }
+/* Escolha do tema, acima de quem está logado. */
+.tema { margin-top: auto; display: flex; align-items: center; gap: 8px; padding: 0 8px; font-size: 13px; color: var(--lateral-sub); }
+.tema select { flex: 1; min-width: 0; font: inherit; color: var(--lateral-texto); background: var(--lateral-ativo); border: 1px solid var(--lateral-linha); border-radius: 8px; padding: 5px 8px; }
+.tema + .quem { margin-top: 0; }
 .quem img, .avatar { width: 32px; height: 32px; border-radius: 50%; flex: none; object-fit: cover; }
 .avatar { background: var(--primario); color: var(--primario-texto); display: grid; place-items: center; font-weight: 700; }
 .avatar.grande { width: 56px; height: 56px; font-size: 22px; }
 .quem-texto { display: flex; flex-direction: column; min-width: 0; font-size: 13px; }
 .quem-texto strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .quem-texto span { color: var(--lateral-sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.btn-sair { margin-left: auto; padding: 6px 10px; font-size: 13px; background: transparent; color: var(--lateral-sub); border-color: rgba(255,255,255,.15); }
+.btn-sair { margin-left: auto; padding: 6px 10px; font-size: 13px; background: transparent; color: var(--lateral-sub); border-color: var(--lateral-linha); }
 .conteudo { padding: 20px 28px 40px; max-width: 1100px; width: 100%; }
 .cabecalho { display: flex; align-items: baseline; gap: 14px; padding-bottom: 14px; border-bottom: 2px solid var(--primario); margin-bottom: 20px; }
 .cabecalho .sub { margin: 0; margin-left: auto; font-size: 12px; }
@@ -120,7 +129,7 @@ code { padding: 2px 6px; border-radius: 6px; background: var(--codigo); border: 
 .recolhido[open] > summary { margin-bottom: 10px; }
 /* Organizações (molde Rambox): grupo no menu, cabeçalho com o tenant e as abas Membros | Configurações. */
 .menu .grupo { margin: 14px 12px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: var(--lateral-sub); }
-.menu a .selo { margin-left: auto; font-size: 10px; padding: 1px 6px; background: rgba(255,255,255,.1); color: var(--lateral-sub); }
+.menu a .selo { margin-left: auto; font-size: 10px; padding: 1px 6px; background: var(--lateral-ativo); color: var(--lateral-sub); }
 .org-cabecalho { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin: 0 0 16px; }
 .org-cabecalho code { font-size: 15px; font-weight: 600; }
 .abas { display: flex; gap: 4px; border-bottom: 1px solid var(--borda); }

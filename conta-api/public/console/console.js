@@ -836,6 +836,8 @@ function pintarSuporte(c) {
 
 // ---- arranque
 $("pl-assinar-btn").addEventListener("click", () => { void assinar(); });
+// Tema: o seletor mostra a escolha guardada (tema.js já a aplicou no <html>) e troca na hora.
+if (window.MEU_BOT_TEMA) { $("tema").value = window.MEU_BOT_TEMA.atual(); $("tema").addEventListener("change", () => window.MEU_BOT_TEMA.definir($("tema").value)); }
 for (const id of ["ad-vendas-produto", "ad-vendas-situacao"]) $(id).addEventListener("change", () => { if (visao !== null) pintarAdminVendas(visao); });
 $("ad-vendas-filtro").addEventListener("submit", (ev) => ev.preventDefault());
 $("btn-entrar").addEventListener("click", () => { $("btn-entrar").disabled = true; void entrar(); });
