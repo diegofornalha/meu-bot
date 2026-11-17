@@ -6,6 +6,7 @@
   <meta name="robots" content="noindex">
   <title>Console · meu-bot</title>
   <link rel="stylesheet" href="/console/console.css">
+  <script src="/console/tema.js"></script>
 </head>
 <body>
   <!-- Sem sessão: o cartão de entrada (a página de login é a mesma do app, com esquema=web). -->
@@ -40,6 +41,7 @@
         <a href="/organizations/new" data-secao="org-nova"><span class="ico" aria-hidden="true">+</span>Criar organização</a>
         <a href="/account/organizations" data-secao="orgs" id="menu-orgs-todas" hidden><span class="ico" aria-hidden="true">▣</span>Todas as organizações</a>
       </nav>
+      <label class="tema" for="tema">Tema<select id="tema"><option value="sistema">Sistema</option><option value="claro">Claro</option><option value="escuro">Escuro</option></select></label>
       <div class="quem">
         <img id="quem-foto" alt="" hidden>
         <span class="avatar" id="quem-inicial" aria-hidden="true">?</span>
