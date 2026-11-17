@@ -65,8 +65,8 @@ export async function downloadMac(buscar: typeof fetch = fetch, canal: CanalSite
 
 /**
  * O instalador do Windows (x64) do meu-bot-staging: `meu-bot-staging-<v>-staging.<n>-x64-setup.exe`, publicado pela
- * release de staging (scripts/release.mjs) ao lado do .zip do Mac. Só existe no canal de teste: ainda não tem
- * assinatura da Microsoft, então o site de produção não o oferece e não há estável de reserva.
+ * release de staging (scripts/release.mjs) ao lado do .zip do Mac. Só existe no canal de teste e ainda não tem
+ * assinatura da Microsoft; a página /baixar-windows o oferece como versão de teste, e não há estável de reserva.
  */
 const WINDOWS_RE = /^meu-bot-staging-(\d+\.\d+\.\d+-staging\.\d+)-x64-setup\.exe$/;
 /** Numa resposta de /releases (mais nova primeiro), o instalador Windows da primeira release que o tiver; rascunho fica fora. */

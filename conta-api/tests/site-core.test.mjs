@@ -60,9 +60,8 @@ test("rascunhoForaDoCanal: o rascunho dos planos só sai no staging, também pel
   assert.equal(rascunhoForaDoCanal("/site/suporte.html", "producao"), true);
   assert.equal(rascunhoForaDoCanal("/site/suporte.html", undefined), true, "sem canal vale como produção");
   assert.equal(rascunhoForaDoCanal("/site/suporte.html", "staging"), false);
-  // A página do Windows (versão de teste, sem assinatura) segue a mesma regra.
-  assert.equal(rascunhoForaDoCanal("/site/baixar-windows.html", "producao"), true);
-  assert.equal(rascunhoForaDoCanal("/site/baixar-windows.html", "staging"), false);
+  // A página do Windows (versão de teste) sai também em produção desde 17 nov 2026.
+  assert.equal(rascunhoForaDoCanal("/site/baixar-windows.html", "producao"), false);
   assert.equal(rascunhoForaDoCanal("/site/perguntas.html", "producao"), false);
   // Em produção /suporte não está no mapa de páginas: o caminho segue cru e não é um arquivo do site.
   assert.equal(rascunhoForaDoCanal("/suporte", "producao"), false);
