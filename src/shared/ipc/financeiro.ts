@@ -20,5 +20,6 @@ export type FinanceTipoLinha = "custo" | "ganho-direto" | "ganho-indireto";
 export interface FinanceLinhaDre { key: string; nome: string; tipo: FinanceTipoLinha; previstoCent: number | null; previsto: string; realizadoCent: number; realizado: string; notas: string | null }
 export interface FinanceCategoria { key: string; nome: string; grupo: string; renda: boolean; retorno?: "direto" | "indireto" }
 /** Estado do financeiro para a janela: o módulo na máquina (CLI + plugin) e os números do backend; null = indisponível. */
-export interface FinanceInfo { modulo: boolean | null; estado: FinanceEstado | null; erro: string | null }
+/** `virouModulo`: o módulo Finanças está ligado na máquina e a API antiga não responde mais (código finance_modulo). */
+export interface FinanceInfo { modulo: boolean | null; estado: FinanceEstado | null; erro: string | null; virouModulo: boolean }
 export interface FinanceLancarInput { valor: string; favorecido: string; tipo?: "gasto" | "renda"; /** Entrada: ganho direto (padrão) ou indireto. */ retorno?: "direto" | "indireto"; categoria?: string; conta?: string; data?: string; notas?: string }

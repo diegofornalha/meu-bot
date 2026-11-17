@@ -11,6 +11,8 @@ import { lerValoresPlanilha } from "../google/planilha";
 import { idDaPlanilha } from "../google/planilha-core";
 
 type Metodo = "GET" | "POST" | "PUT";
+/** Erro da API do financeiro com o código que a máquina mandou (ex.: finance_modulo), para quem precisa decidir por ele. */
+class FinanceApiErro extends Error { constructor(message: string, readonly code: string | null) { super(message); } }
 async function api<T>(host: string, method: Metodo, rota: string, body?: unknown): Promise<T> {
   const t = await ensureTunnel(host, getBackendPort(host));
   const r = await fetch(`http://127.0.0.1:${t.localPort}/v1/finance${rota}`, {
@@ -24,7 +26,7 @@ async function api<T>(host: string, method: Metodo, rota: string, body?: unknown
     if (j?.error?.code === "finance_license") throw new Error("FINANCE_REQUIRED");
     // Backend de antes do financeiro: o server.js responde 404 sem o código do financeiro.
     if (r.status === 404 && j?.error?.code !== "nao_encontrado") throw new Error("o backend desta máquina é anterior ao financeiro: atualize-o pelo seletor (Reinstalar backend)");
-    throw new Error(j?.error?.message ?? `o financeiro respondeu ${r.status}`);
+    throw new FinanceApiErro(j?.error?.message ?? `o financeiro respondeu ${r.status}`, j?.error?.code ?? null);
   }
   return j as T;
 }
@@ -38,9 +40,10 @@ async function moduloInstalado(host: string): Promise<boolean | null> {
 export async function financeInfo(host: string): Promise<FinanceInfo> {
   const [modulo, estado] = await Promise.all([
     moduloInstalado(host).catch(() => null),
-    api<FinanceEstado>(host, "GET", "/estado").then((e) => ({ e, erro: null as string | null })).catch((err: unknown) => ({ e: null, erro: err instanceof Error ? err.message : String(err) })),
+    api<FinanceEstado>(host, "GET", "/estado").then((e) => ({ e, erro: null as string | null, virouModulo: false }))
+      .catch((err: unknown) => err instanceof FinanceApiErro && err.code === "finance_modulo" ? { e: null, erro: null, virouModulo: true } : { e: null, erro: err instanceof Error ? err.message : String(err), virouModulo: false }),
   ]);
-  return { modulo, estado: estado.e, erro: estado.erro };
+  return { modulo, estado: estado.e, erro: estado.erro, virouModulo: estado.virouModulo };
 }
 const q = (o: Record<string, string | number | undefined>): string => { const p = new URLSearchParams(); for (const [k, v] of Object.entries(o)) if (v !== undefined && v !== "") p.set(k, String(v)); const s = p.toString(); return s === "" ? "" : `?${s}`; };
 export const financeLancamentos = (host: string, f: { mes?: string; status?: string; limite?: number } = {}): Promise<{ total: number; lancamentos: FinanceLancamento[] }> =>
