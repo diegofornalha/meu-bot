@@ -206,9 +206,9 @@ async function sitePagina(req: Request, env: Env, url: URL): Promise<Response> {
     if (url.pathname.endsWith(".json")) return comCabecalhos(json(d ?? { erro: "release não encontrada" }, d === null ? 503 : 200, { "cache-control": "public, max-age=300" }), {});
     return comCabecalhos(Response.redirect(d?.url ?? `https://github.com/${REPO}/releases/latest`, 302), { "cache-control": "no-store" });
   }
-  // Windows: só o site de staging entrega (o instalador ainda não tem assinatura da Microsoft); em produção o caminho
-  // segue adiante e cai na 404 do site.
-  if (env.CANAL === "staging" && (url.pathname === "/download/windows" || url.pathname === "/download/windows.json")) {
+  // Windows: a versão de teste (instalador do meu-bot-staging, ainda sem assinatura da Microsoft) sai nos dois sites
+  // desde 17 nov 2026, a pedido do dono; a página diz que é teste e não entra no sitemap nem nos botões da home.
+  if ((url.pathname === "/download/windows" || url.pathname === "/download/windows.json")) {
     const d = await downloadWindows();
     if (url.pathname.endsWith(".json")) return comCabecalhos(json(d ?? { erro: "nenhuma versão de teste trouxe o instalador do Windows ainda" }, d === null ? 503 : 200, { "cache-control": "public, max-age=300" }), {});
     return comCabecalhos(Response.redirect(d?.url ?? `https://github.com/${REPO}/releases`, 302), { "cache-control": "no-store" });
@@ -233,8 +233,8 @@ async function sitePagina(req: Request, env: Env, url: URL): Promise<Response> {
   // Guias: só os da lista GUIAS (o resto cai na 404 do site).
   // Rascunho da página de planos: só o staging a serve em /suporte (em produção o caminho cai na 404 do site).
   if (env.CANAL === "staging") raiz["/suporte"] = "/site/suporte.html";
-  // A página do Windows também: a versão de teste, sem assinatura, não é oferecida em agentesgrok.com.
-  if (env.CANAL === "staging") raiz["/baixar-windows"] = "/site/baixar-windows.html";
+  // A página do Windows (versão de teste, noindex): nos dois sites, fora do sitemap.
+  raiz["/baixar-windows"] = "/site/baixar-windows.html";
   const guia = /^\/guias\/([a-z0-9-]+)$/.exec(url.pathname)?.[1];
   if (guia && (GUIAS as readonly string[]).includes(guia)) raiz[url.pathname] = `/site/guias/${guia}.html`;
   const caminho = url.pathname === "/" ? "/site/index.html" : url.pathname === "/obrigado" ? "/site/obrigado.html" : raiz[url.pathname] ?? url.pathname;
