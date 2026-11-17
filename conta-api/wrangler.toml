@@ -71,7 +71,7 @@ TRIAL_DIAS = "14"
 # os secrets ABACATEPAY_KEY e ABACATEPAY_WEBHOOK_SECRET também existirem neste ambiente.
 ABACATEPAY_PRODUTO = "prod_3ubFY5sxLU1nG2a5GPbj5S1Q"
 ABACATEPAY_PRECO_CENTAVOS = "9700"
-ABACATEPAY_METODOS = "CARD"
+ABACATEPAY_METODOS = "CARD,PIX"
 # Apps vendidos à parte (lerAddons, src/pagamento-core.ts): produto "meu-bot Finanças mensal" (R$ 997, mensal).
 ABACATEPAY_ADDONS = '{"meu-bot-finance":{"produto":"prod_0nZWGHEd334ZBsBbmzbpxB1y","centavos":99700,"rotulo":"Finanças"}}'
 
@@ -105,7 +105,7 @@ CANAL = "staging"
 # em [vars], acima.
 ABACATEPAY_PRODUTO = "prod_12Das4f2bcXQtaR0bs4hrXms"
 ABACATEPAY_PRECO_CENTAVOS = "9700"
-ABACATEPAY_METODOS = "CARD"
+ABACATEPAY_METODOS = "CARD,PIX"
 # Apps vendidos à parte, cada um com produto mensal e preço próprios (lerAddons, src/pagamento-core.ts). App novo: criar
 # o produto de assinatura mensal na AbacatePay e acrescentar aqui; o nome é o do add-on da licença (meu-bot-<app>).
 ABACATEPAY_ADDONS = '{"meu-bot-finance":{"produto":"prod_PLmaXSs2SJ4Zf1hY6ugwNx4H","centavos":99700,"rotulo":"Finanças"}}'

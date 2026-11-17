@@ -11,7 +11,7 @@ import { addonsPagos, auditar, contaPorId, contarLimite, licencaDaConta, licenca
 import { agoraIso, janelaMinuto, uuid } from "../sessao-core.js";
 import { json, lerJson, type Autenticado } from "../http.js";
 import { gaIds } from "../analytics-core.js";
-import { clientIdValido, compraGa4, decidir, lerAddons, lerEvento, precoExigido, refValida, sessionIdValido, validoAte, webhookConfere, type Decisao, type OfertaAddon } from "../pagamento-core.js";
+import { clientIdValido, compraGa4, decidir, lerAddons, lerEvento, metodosSemPix, precoExigido, refValida, sessionIdValido, validoAte, webhookConfere, type Decisao, type OfertaAddon } from "../pagamento-core.js";
 
 const API = "https://api.abacatepay.com/v2";
 export const pagamentosLigados = (env: Env): boolean => Boolean(env.ABACATEPAY_KEY && env.ABACATEPAY_WEBHOOK_SECRET && env.ABACATEPAY_PRODUTO);
@@ -45,22 +45,32 @@ export async function postAssinatura(auth: Autenticado, env: Env, req: Request):
   const agora = agoraIso();
   await env.DB.prepare("INSERT INTO pagamento_checkouts (ref, conta_id, checkout_id, ga_client_id, ga_session_id, criado_em, produto) VALUES (?1, ?2, NULL, ?3, ?4, ?5, ?6)")
     .bind(ref, auth.conta.id, clientIdValido(corpo?.gaClientId), sessionIdValido(corpo?.gaSessionId), agora, addon?.nome ?? null).run();
-  let r: Response;
+  // Uma tentativa por lista de métodos: com Pix pedido e o Pix Automático ainda não liberado na loja, a AbacatePay
+  // recusa a assinatura inteira; aí vale tentar de novo só com cartão, em vez de deixar o "Assinar" quebrado.
+  const criar = (methods: string[]): Promise<Response> => fetch(`${API}/subscriptions/create`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${env.ABACATEPAY_KEY}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      items: [{ id: addon?.produto ?? env.ABACATEPAY_PRODUTO, quantity: 1 }],
+      methods,
+      externalId: ref,
+      completionUrl: `${env.CONSOLE_ORIGIN}/account/plan?assinatura=paga${addon === null ? "" : `&produto=${addon.nome}`}`,
+      returnUrl: `${env.CONSOLE_ORIGIN}/account/plan`,
+      metadata: { conta: auth.conta.id, produto: addon?.nome ?? "pro" },
+    }),
+  });
+  type Resposta = { data?: { id?: unknown; url?: unknown }; error?: unknown } | null;
+  let r: Response; let resp: Resposta;
   try {
-    r = await fetch(`${API}/subscriptions/create`, {
-      method: "POST",
-      headers: { authorization: `Bearer ${env.ABACATEPAY_KEY}`, "content-type": "application/json" },
-      body: JSON.stringify({
-        items: [{ id: addon?.produto ?? env.ABACATEPAY_PRODUTO, quantity: 1 }],
-        methods: metodos(env),
-        externalId: ref,
-        completionUrl: `${env.CONSOLE_ORIGIN}/account/plan?assinatura=paga${addon === null ? "" : `&produto=${addon.nome}`}`,
-        returnUrl: `${env.CONSOLE_ORIGIN}/account/plan`,
-        metadata: { conta: auth.conta.id, produto: addon?.nome ?? "pro" },
-      }),
-    });
+    r = await criar(metodos(env));
+    resp = (await r.json().catch(() => null)) as Resposta;
+    const semPix = metodosSemPix(metodos(env), r.ok, resp?.error);
+    if (semPix !== null) {
+      console.log("[pagamento] Pix Automático não liberado na loja: assinatura criada só com cartão");
+      r = await criar(semPix);
+      resp = (await r.json().catch(() => null)) as Resposta;
+    }
   } catch (e) { console.log(`[pagamento] AbacatePay fora: ${e instanceof Error ? e.message : String(e)}`); return json({ erro: "o pagamento não respondeu; tente de novo" }, 502); }
-  const resp = (await r.json().catch(() => null)) as { data?: { id?: unknown; url?: unknown }; error?: unknown } | null;
   const url = typeof resp?.data?.url === "string" && /^https:\/\/([a-z0-9-]+\.)*abacatepay\.com\//.test(resp.data.url) ? resp.data.url : null;
   const bill = typeof resp?.data?.id === "string" && resp.data.id.length <= 100 ? resp.data.id : null;
   if (!r.ok || url === null) { console.log(`[pagamento] criar assinatura recusado: HTTP ${r.status} ${JSON.stringify(resp?.error ?? null).slice(0, 200)}`); return json({ erro: "não deu para abrir o pagamento agora; tente de novo" }, 502); }
