@@ -38,6 +38,19 @@ test("produtos: ícone .icns e o .svg de origem existem; staging herda de um app
   }
 });
 
+test("produtos que saem para Windows têm o .ico ao lado do .icns, com os tamanhos que o Windows pede", () => {
+  const doWindows = PRODUTOS.filter((p) => p.windows);
+  assert.ok(doWindows.length > 0, "nenhum produto marcado windows");
+  for (const p of doWindows) {
+    const ico = join(root, p.icone.replace(/\.icns$/, ".ico"));
+    assert.ok(existsSync(ico), `${p.nome}: falta o .ico (rode npm run icons)`);
+    const b = readFileSync(ico);
+    assert.equal(b.readUInt16LE(2), 1, `${p.nome}: não é um .ico`);
+    const tamanhos = Array.from({ length: b.readUInt16LE(4) }, (_, i) => b.readUInt8(6 + 16 * i) || 256);
+    for (const t of [16, 32, 48, 256]) assert.ok(tamanhos.includes(t), `${p.nome}: .ico sem ${t}px`);
+  }
+});
+
 test("produtos: addon está no catálogo e abreEm é uma página que as telas sabem abrir", () => {
   const nomes = ADDONS.map((a) => a.nome);
   assert.ok(unicos(nomes), "add-on repetido");
@@ -110,9 +123,11 @@ test("atalhos de build do package.json só apontam para produtos da tabela", () 
   const scripts = JSON.parse(fonte("package.json")).scripts;
   for (const [nome, cmd] of Object.entries(scripts)) {
     if (!nome.startsWith("dist")) continue;
-    assert.match(cmd, /^node scripts\/dist\.mjs( --variant [\w-]+)?$/, `${nome} não usa scripts/dist.mjs`);
+    assert.match(cmd, /^node scripts\/dist\.mjs( --variant [\w-]+)?( --plataforma win32)?$/, `${nome} não usa scripts/dist.mjs`);
     const v = / --variant ([\w-]+)/.exec(cmd)?.[1] ?? "client";
-    assert.ok(PRODUTOS.some((p) => p.variant === v), `${nome}: variant ${v} fora da tabela`);
+    const produto = PRODUTOS.find((p) => p.variant === v);
+    assert.ok(produto !== undefined, `${nome}: variant ${v} fora da tabela`);
+    if (cmd.includes("--plataforma win32")) assert.ok(produto.windows, `${nome}: ${v} não está marcado windows na tabela`);
   }
 });
 

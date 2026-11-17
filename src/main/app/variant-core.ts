@@ -42,6 +42,8 @@ export interface Produto {
   addon: string | null;
   /** A release publica também o instalador .dmg deste app (scripts/dmg.mjs) e o site entrega ele: só o app das pessoas. */
   instalador: boolean;
+  /** Sai também para Windows (x64, cliente remoto): tem ícone .ico ao lado do .icns e `--plataforma win32` empacota. */
+  windows: boolean;
   /** Página que fica na frente quando a janela abre (de PAGINAS_INICIAIS); null = as abas de conversa, como sempre. */
   abreEm: PaginaInicial | null;
   caps: Omit<Capabilities, "variant" | "produto" | "canal" | "nome" | "titulo" | "addon" | "abreEm" | "addons">;
@@ -81,7 +83,7 @@ const ADMIN: Produto["caps"] = {
 
 // meu-bot: o app da pessoa. Traz as duas extensões; o CRM próprio no Gmail abre pela licença da máquina (Pro ou superior,
 // ou o produto meu-bot-crm contratado), nunca por variante. Funde a pasta do antigo meu-bot-crm na primeira abertura.
-const CLIENT: Produto = { variant: "client", nome: "meu-bot", bundleId: "local.meu-bot", icone: "assets/icon.icns", userData: null, extensoes: ["extensao-crm", "extensao-autenticador"], canal: "estavel", licenca: "meu-bot", herdaDe: null, portaLocal: 8790, portaMcp: 7830, fundeDe: "meu-bot-crm", addon: null, instalador: true, abreEm: null, caps: PESSOA,
+const CLIENT: Produto = { variant: "client", nome: "meu-bot", bundleId: "local.meu-bot", icone: "assets/icon.icns", userData: null, extensoes: ["extensao-crm", "extensao-autenticador"], canal: "estavel", licenca: "meu-bot", herdaDe: null, portaLocal: 8790, portaMcp: 7830, fundeDe: "meu-bot-crm", addon: null, instalador: true, windows: false, abreEm: null, caps: PESSOA,
   descricao: "O app da pessoa: chat e WhatsApp no plano Free; Navegador e CRM próprio no Pro; add-ons por cima, com ou sem o Pro." };
 
 /** A cópia staging de um app estável: "<nome>-staging", ícone com a faixa, dados próprios herdados dele, porta própria. */
@@ -94,12 +96,13 @@ export const PRODUTOS: readonly Produto[] = [
   CLIENT,
   // Até 4 nov chamava-se meu-bot-admin: a pasta de dados antiga é trazida na primeira abertura (admin/user-data.ts). A licença
   // continua "meu-bot-admin" (é o nome contratado, não o do app).
-  { variant: "admin", nome: "meu-bot-admin-gestao", bundleId: "local.meu-bot-admin-gestao", icone: "assets/icon-admin.icns", userData: "meu-bot-admin-gestao", extensoes: [], canal: "estavel", licenca: "meu-bot-admin", herdaDe: null, portaLocal: 8790, portaMcp: 7833, fundeDe: null, addon: null, instalador: false, abreEm: null, caps: ADMIN,
+  { variant: "admin", nome: "meu-bot-admin-gestao", bundleId: "local.meu-bot-admin-gestao", icone: "assets/icon-admin.icns", userData: "meu-bot-admin-gestao", extensoes: [], canal: "estavel", licenca: "meu-bot-admin", herdaDe: null, portaLocal: 8790, portaMcp: 7833, fundeDe: null, addon: null, instalador: false, windows: false, abreEm: null, caps: ADMIN,
     descricao: "Este app: suporte, licenças, espelho das máquinas, auditoria e o registro de produtos (MVPs)." },
-  staging(CLIENT, "client-staging", 8791, 7831),
+  // O primeiro a sair para Windows: só no canal de teste, até o instalador ter assinatura Authenticode.
+  { ...staging(CLIENT, "client-staging", 8791, 7831), windows: true },
   // meu-bot-admin-mac: só as contas deste Mac (quem abre o meu-bot aqui; o bot de cada um roda numa VM, assunto do
   // meu-bot-admin). Sem seletor, sem chat; cria contas administrador com o meu-bot na mesa, muda o apelido e apaga.
-  { variant: "admin-mac", nome: "meu-bot-admin-mac", bundleId: "local.meu-bot-admin-mac", icone: "assets/icon-admin-mac.icns", userData: "meu-bot-admin-mac", extensoes: [], canal: "estavel", licenca: "meu-bot-admin", herdaDe: null, portaLocal: 8790, portaMcp: 7834, fundeDe: null, addon: null, instalador: false, abreEm: null, caps: { ...ADMIN, supportAdmin: false, usuariosMac: true },
+  { variant: "admin-mac", nome: "meu-bot-admin-mac", bundleId: "local.meu-bot-admin-mac", icone: "assets/icon-admin-mac.icns", userData: "meu-bot-admin-mac", extensoes: [], canal: "estavel", licenca: "meu-bot-admin", herdaDe: null, portaLocal: 8790, portaMcp: 7834, fundeDe: null, addon: null, instalador: false, windows: false, abreEm: null, caps: { ...ADMIN, supportAdmin: false, usuariosMac: true },
     descricao: "As contas deste Mac: cria (administrador, senha mostrada uma vez, meu-bot na mesa), muda o apelido e apaga. O bot de cada pessoa roda numa VM." },
   // meu-bot-finance-staging: o meu-bot em teste com o financeiro na frente (abre na página Finanças). O financeiro em si
   // é liberado pela licença da máquina (produto meu-bot-finance), como o CRM próprio; o app só tem nome, ícone, dados

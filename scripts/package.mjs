@@ -2,7 +2,7 @@ import { packager } from "@electron/packager";
 import { copyFileSync, cpSync, existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
-import { archOf, esquemaDe, produtoFromArgv, versaoFromArgv } from "./produtos.mjs";
+import { archDe, empacotado, esquemaDe, exigeWindows, icoOf, plataformaFromArgv, produtoFromArgv, versaoFromArgv } from "./produtos.mjs";
 import { avisoSemGoogle, decideGoogleConta } from "./google-client.mjs";
 
 // `--variant <id>` (ou `--admin`) empacota outro produto da tabela (src/main/app/variant-core.ts): mesmo código, outro
@@ -10,12 +10,17 @@ import { avisoSemGoogle, decideGoogleConta } from "./google-client.mjs";
 // (src/main/app/user-data.ts; o Electron nomearia a pasta pelo productName do package.json, igual em todos), então os
 // apps convivem abertos ao mesmo tempo. Produto com extensões embutidas leva build/<extensao> em Resources/.
 const produto = produtoFromArgv();
+// `--plataforma win32`: o mesmo código empacotado para Windows x64 a partir deste Mac (pasta com o .exe, sem
+// assinatura; o instalador sai de scripts/instalador-win.mjs). Sem ela, macOS.
+const plataforma = plataformaFromArgv();
+exigeWindows(produto, plataforma);
+const win = plataforma === "win32";
 // `--versao <x>`: a versão do build (o release staging passa "0.2.0-staging.N"). Vai no Info.plist (appVersion) e no
 // package.json de dentro do app (hook antes do asar), que é o que app.getVersion() lê: os dois batem.
 const versao = versaoFromArgv();
 const admin = produto.variant === "admin";
 const name = produto.nome;
-const arch = archOf();
+const arch = archDe(plataforma);
 for (const e of produto.extensoes) if (!existsSync(join("build", e, "manifest.json"))) {
   console.error(`✗ falta build/${e}/manifest.json: rode \`npm run build:extensao\` antes de empacotar o ${name}`);
   process.exit(1);
@@ -27,23 +32,30 @@ if (googleConta === "falha") { console.error(avisoSemGoogle(name)); console.erro
 if (googleConta === "aviso") console.warn(avisoSemGoogle(name));
 if (googleConta === "permitido") console.warn(`⚠ ${name} sai sem Conta Google (--sem-google)`);
 // Só a pasta desta variante: empacotar uma não apaga a outra (nem os .dmg em out/).
-rmSync(join("out", `${name}-darwin-${arch}`), { recursive: true, force: true });
+rmSync(empacotado(produto, plataforma).pasta, { recursive: true, force: true });
 const paths = await packager({
   dir: ".",
   name,
   out: "out",
-  platform: "darwin",
+  platform: plataforma,
   arch,
   asar: true,
   overwrite: true,
-  appBundleId: produto.bundleId,
-  icon: produto.icone,
-  appCategoryType: "public.app-category.productivity",
-  // Deep link do login da conta (`meu-bot://auth?…`): CFBundleURLTypes no Info.plist, um esquema por produto
-  // (src/main/app/variant-core.ts esquemaDe), para o staging não roubar o retorno do estável.
-  protocols: [{ name: name, schemes: [esquemaDe(produto)] }],
-  // Textos do aviso do macOS quando um site do Navegador pede câmera/microfone (Google, Meet…): em pt-BR.
-  extendInfo: { NSAppleEventsUsageDescription: "O meu-bot usa Apple Events para abrir o Terminal (acesso a uma VPS nova) e fechar apps ao atualizar.", NSCameraUsageDescription: "O Navegador do meu-bot usa a câmera quando um site pede e você permite (ex.: verificação do Google, videochamadas).", NSMicrophoneUsageDescription: "O Navegador do meu-bot usa o microfone quando um site pede e você permite (ex.: videochamadas, áudio)." },
+  ...(win ? {
+    // Propriedades do .exe (aba Detalhes) e o ícone; o esquema do deep link é registrado pelo app ao abrir
+    // (src/main/conta/deep-link.ts), não pelo pacote.
+    icon: icoOf(produto),
+    win32metadata: { CompanyName: "meu-bot", FileDescription: name, ProductName: name, InternalName: name, OriginalFilename: `${name}.exe` },
+  } : {
+    appBundleId: produto.bundleId,
+    icon: produto.icone,
+    appCategoryType: "public.app-category.productivity",
+    // Deep link do login da conta (`meu-bot://auth?…`): CFBundleURLTypes no Info.plist, um esquema por produto
+    // (src/main/app/variant-core.ts esquemaDe), para o staging não roubar o retorno do estável.
+    protocols: [{ name: name, schemes: [esquemaDe(produto)] }],
+    // Textos do aviso do macOS quando um site do Navegador pede câmera/microfone (Google, Meet…): em pt-BR.
+    extendInfo: { NSAppleEventsUsageDescription: "O meu-bot usa Apple Events para abrir o Terminal (acesso a uma VPS nova) e fechar apps ao atualizar.", NSCameraUsageDescription: "O Navegador do meu-bot usa a câmera quando um site pede e você permite (ex.: verificação do Google, videochamadas).", NSMicrophoneUsageDescription: "O Navegador do meu-bot usa o microfone quando um site pede e você permite (ex.: videochamadas, áudio)." },
+  }),
   ...(versao !== null ? {
     appVersion: versao,
     afterCopy: [async ({ buildPath }) => { const f = join(buildPath, "package.json"); const pkg = JSON.parse(readFileSync(f, "utf8")); pkg.version = versao; writeFileSync(f, `${JSON.stringify(pkg, null, 2)}\n`); }],
@@ -54,7 +66,7 @@ const paths = await packager({
   ignore: [/^\/hermes-agent($|\/)/, /^\/backend-colima($|\/)/, /^\/conta-api($|\/)/, /^\/backend-vm($|\/)/, /^\/docs($|\/)/, /^\/assets($|\/)/, /^\/build($|\/)/, /^\/src($|\/)/, /^\/scripts($|\/)/, /^\/config($|\/)/, /^\/tsconfig/, /^\/\.gitignore$/, /^\/\.gitmodules$/, /^\/out($|\/)/, /^\/extensao-crm($|\/)/, /^\/produtos($|\/)/],
 });
 for (const p of paths) {
-  const res = join(p, `${name}.app`, "Contents", "Resources");
+  const res = win ? join(p, "resources") : join(p, `${name}.app`, "Contents", "Resources");
   writeFileSync(join(res, "variant.json"), `${JSON.stringify({ variant: produto.variant })}\n`);
   // Build: commit e branch de onde o app saiu, para a faixa de depuração dizer qual build está aberto (vazio se o git não responde);
   // `origem` separa a release (`--versao`) do build local, que a tela de atualização não deve chamar de "versão mais recente".
