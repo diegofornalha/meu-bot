@@ -8,8 +8,8 @@ e entra aqui na seção da versão quando ela vira estável.
 > alinha a numeração com a do Grok Bot, de onde este app nasceu, para dar para comparar os dois lado a
 > lado. As quatro releases anteriores (v0.1.0 a v0.4.0-staging.3) não têm entrada própria aqui; esta
 > primeira entrada descreve o app inteiro como ele está hoje.
-> Em 17 de novembro de 2026 a base foi de 0.84.0 para 1.1.0, de novo para acompanhar o Grok Bot, que está na
-> 1.1.0. A 0.84.0 não saiu como estável: a próxima estável depois da v0.83.0 é a v1.1.0.
+> Em 17 de novembro de 2026 a base foi de 0.84.0 para 1.2.0, um passo à frente do Grok Bot, que está na
+> 1.1.0. A 0.84.0 não saiu como estável: a próxima estável depois da v0.83.0 é a v1.2.0.
 
 ---
 

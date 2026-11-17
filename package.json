@@ -1,7 +1,7 @@
 {
   "name": "meu-bot",
   "productName": "meu-bot",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "description": "Bot de mesa pessoal: chat com Claude e execução aprovada na sua VM",
   "main": "dist/main/main.js",
