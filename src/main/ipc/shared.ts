@@ -40,7 +40,6 @@ import { getControleRemoto, getDadosNoDrive, setControleRemoto, setDadosNoDrive 
 import { estadoControleRemoto, portaControleRemoto, reiniciarControleRemoto, startControleRemoto, stopControleRemoto } from "../controle-remoto/controle-remoto";
 import { type ClienteMcp, PORTA_MAX, PORTA_MIN, gerarToken, isClienteMcp, isPortaMcp } from "../controle-remoto/controle-remoto-core";
 import { instalarCliente, removerCliente } from "../controle-remoto/clientes-mcp";
-import { abrirGuia as abrirGuiaConexao, conectar as conectarConexao, desconectar as desconectarConexao, estadoConexoes } from "../conexoes/conexoes";
 import { produto } from "../app/variant";
 import { agendaCriar, agendaProximos, gmailApagar, gmailLer, gmailListar, gmailRestaurar, planilhaEscrever, planilhaLer } from "../google/apis";
 import { validaBusca, validaId, validaMax, validaPagina } from "../google/gmail-core";
@@ -612,11 +611,6 @@ export function registerSharedIpc(deps: SharedIpcDeps): void {
     if (!isClienteMcp(c)) throw new Error("Cliente MCP desconhecido.");
     return c;
   };
-  // Conexões (MCPs de terceiros no Claude Code deste Mac): o id é validado contra o catálogo no conexoes.ts.
-  handleShared("conexoes:status", () => estadoConexoes());
-  handleShared("conexoes:conectar", async (_event, payload: unknown) => { await conectarConexao((payload as { id?: unknown } | null)?.id); return estadoConexoes(); });
-  handleShared("conexoes:desconectar", async (_event, payload: unknown) => { await desconectarConexao((payload as { id?: unknown } | null)?.id); return estadoConexoes(); });
-  handleShared("conexoes:abrir-guia", async (_event, payload: unknown) => { await abrirGuiaConexao((payload as { id?: unknown } | null)?.id); });
   handleShared("controle-remoto:instalar", async (_event, payload: unknown) => {
     const v = estadoControleRemoto();
     await instalarCliente(clienteDe(payload), v.nome, v.porta, v.token);

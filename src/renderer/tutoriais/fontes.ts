@@ -11,7 +11,7 @@ export type FatiaGuia = { known: boolean; dados: Partial<DadosGuia> };
 export const CAMPOS_POR_FONTE: Record<GuideSource, readonly (keyof DadosGuia)[]> = {
   whatsapp: ["digitando"], claude: ["claude"], statusline: ["statusLine"], xai: ["xai"], fallback: ["fallback"], support: ["support"],
   objective: ["objective"], guarda: ["guarda"], navegador: ["navegador"], crm: ["crm", "produto"], grupos: ["grupos"],
-  contas: ["contas"], finance: ["finance"], linkpublico: ["linkPublico", "linkPublicoPossivel"], quickentry: ["quickEntry"], google: ["gmail"], conexoes: ["conexoes"],
+  contas: ["contas"], finance: ["finance"], linkpublico: ["linkPublico", "linkPublicoPossivel"], quickentry: ["quickEntry"], google: ["gmail"],
 };
 
 const fontes = new Map<GuideSource, () => FatiaGuia>();

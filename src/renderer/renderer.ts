@@ -66,7 +66,6 @@ import { ligarLinkPublicoGuia, refreshLinkPublico } from "./agente/link-publico-
 import { ligarContasCliGuia, refreshContas, renderConta } from "./agente/contas-cli-guia.js";
 import { guardaMsg, ligarGuardaGuia, refreshGuarda, setGuardaMsg } from "./whatsapp/guarda-guia.js";
 import { ligarDigitandoGuia } from "./whatsapp/digitando-guia.js";
-import { ligarConexoesGuia } from "./configuracoes/conexoes-guia.js";
 import { ligarEntradaRapidaGuia } from "./configuracoes/entrada-rapida-guia.js";
 import { ligarObjetivoGuia, objectiveBusy, objectiveDo, objectiveDraft, objectiveMsg, objectiveState, refreshObjective, setObjectiveDraft, setObjectiveMsg, setObjectiveState } from "./agente/objetivo-guia.js";
 import { ligarCatalogo, setTutNext, tutNext, tutoriaisPage } from "./tutoriais/catalogo.js";
@@ -1811,7 +1810,6 @@ ligarLinkPublicoGuia();
 ligarContasCliGuia();
 ligarGuardaGuia();
 ligarDigitandoGuia();
-ligarConexoesGuia();
 ligarEntradaRapidaGuia();
 ligarGmailGuia();
 ligarBackendFalta();

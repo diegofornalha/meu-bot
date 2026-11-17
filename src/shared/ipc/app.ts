@@ -230,15 +230,3 @@ export type ReliefEvent =
  */
 export interface NetState { online: boolean | null; checking: boolean; since: number | null; checkedAt: number | null }
 
-/** Configurações › Conexões: MCPs de terceiros do catálogo (conexoes-core.ts) registrados no Claude Code deste Mac. */
-export type EstadoConexao =
-  | { estado: "ausente" }
-  | { estado: "registrado"; locais: string[] }
-  | { estado: "outra-config"; atual: string; user: boolean; locais: string[] }
-  | { estado: "ilegivel" };
-export type ConexaoView = { id: string; nome: string; descricao: string; url: string; guia: string; aviso: string } & EstadoConexao;
-export interface ConexoesView {
-  /** Achou o `claude` neste Mac (sem ele, Conectar fica desligado e a tela mostra o comando). */
-  cli: boolean;
-  itens: ConexaoView[];
-}

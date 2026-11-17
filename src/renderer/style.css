@@ -1241,10 +1241,6 @@ table.fin-abc tr.fin-abc-C td.fin-abc-tag { color: #757575; }
 .releases-lista .rel-selo.bad { color: var(--bad); }
 .releases-lista .rel-aviso { flex-basis: 100%; margin: 0; color: var(--warn); }
 
-/* Configurações › Conexões: uma linha por serviço do catálogo. */
-.conexao + .conexao { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border, rgba(127,127,127,.25)); }
-.conexao .row { flex-wrap: wrap; align-items: center; gap: 8px; }
-
 /* Página Módulos: lista em cartões e a ficha de cada módulo (cabeçalho, pedidos, abas, coluna Detalhes). */
 .modulo-cartoes { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-top: 12px; }
 .modulo-cartao { display: flex; flex-direction: column; gap: 6px; text-align: left; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: inherit; cursor: pointer; }
