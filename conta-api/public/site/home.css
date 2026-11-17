@@ -49,6 +49,15 @@ h2 { font-size: clamp(30px, 3.8vw, 46px); line-height: 1.12; letter-spacing: -.0
 .msg { background: var(--suave); border: 1px solid var(--line); border-radius: 14px 14px 14px 4px; padding: 10px 14px; margin: 10px 0; max-width: 85%; }
 .msg.eu { background: var(--okbg); border-color: rgba(18, 138, 74, .2); border-radius: 14px 14px 4px 14px; margin-left: auto; }
 
+/* Painel da abertura: o que os agentes fizeram hoje (exemplo). */
+.mock .olho { margin-bottom: 10px; }
+.feito { list-style: none; margin: 0; padding: 0; }
+.feito li { padding: 11px 0; border-top: 1px solid var(--line); color: var(--mut); }
+.feito li:first-child { border-top: 0; }
+.feito strong { display: block; color: var(--tx); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 2px; }
+.feito .pede { background: var(--okbg); border: 1px solid rgba(18, 138, 74, .2); border-radius: 12px; padding: 11px 13px; margin-top: 8px; color: var(--tx); }
+.feito .pede span { display: block; margin-top: 4px; font-size: 13px; font-weight: 600; color: var(--ok); }
+
 /* Cartões: brancos, contorno fino, sem sombra pesada. */
 .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
 .grid2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
