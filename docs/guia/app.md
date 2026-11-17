@@ -229,6 +229,21 @@ cliente (um `claude mcp add` ou um trecho de `mcp.json`); o app só gera o texto
   peça de guia, `GuideContext` fatiado por fonte, tutorial do Gmail pela receita nova): seção "Como adicionar um
   tutorial" do `ARQUITETURA.md` quando as fases entrarem; até lá, o critério está nas PRs de cada fase.
 
+## Tutorial 17: Salvy no seu Claude Code (16 nov 2026)
+
+- **Por quê:** Conexões (#300) registra o MCP do Salvy no Claude Code deste Mac, mas o login acontece fora do app
+  (`/mcp` → salvy → Authenticate). O tutorial leva a pessoa até a primeira resposta.
+- **Passos:**
+  1. `conectar`: concluído pelo estado das Conexões (`conexoes.salvy === "registrado"`). O corpo `salvy-conectar` usa o
+     mesmo Conectar da tela e tem "Abrir Conexões" (`abrirConfiguracoesEm("conexoes")`, a mesma função do deep link
+     `ui:settings`).
+  2. `entrar`: marcado à mão ("Já entrei"), porque o app não vê o token do Claude Code.
+  3. `perguntar`: a fatura do mês, só leitura; marcado à mão ("Funcionou").
+- **Fonte do guia:** `conexoes` (`configuracoes/conexoes-guia.ts`), lida da visão de `configuracoes/conexoes.ts`, que
+  passou a ser carregada na subida da janela. Refazer do zero desconecta o Salvy do Claude Code.
+- **Renumeração:** o Salvy é o 17, o último da trilha visível, sem `after`. Os ocultos foram para 18 (status line) e
+  19 (CRM, nas duas versões). Quando o Salvy chegar à box, o passo 3 vira `target: "chat"`.
+
 ## Tutoriais renumerados na ordem da trilha (31 out 2026)
 
 - **Problema:** a lista de Tutoriais sai na ordem do array `TUTORIAIS`, mas os números eram fixos de quando cada um

@@ -4,7 +4,7 @@
  * estilo do onboarding: cada passo é uma ação da pessoa, o botão certo pulsa, e o passo se marca concluído
  * sozinho pelo estado real da máquina (QR já lido = concluído). Puro: as regras ficam aqui, testáveis.
  */
-import type { ContaEstado, CrmLocal, ObjectiveInfo, QuickEntryStatus, StatusLineSegments, SupportInfo, WhatsappGroups, WhatsappStatus, CrmInfo, FinanceInfo, LinkPublicoInfo } from "../../shared/ipc";
+import type { ContaEstado, EstadoConexao, CrmLocal, ObjectiveInfo, QuickEntryStatus, StatusLineSegments, SupportInfo, WhatsappGroups, WhatsappStatus, CrmInfo, FinanceInfo, LinkPublicoInfo } from "../../shared/ipc";
 import { type FallbackProvider, FALLBACK_PRIMARIES } from "./fallback.js";
 import { grupoAlvo, nomeDoGrupo, quemEscolhido, quemResumo } from "./whatsapp-grupos.js";
 
@@ -74,12 +74,14 @@ export interface GuideContext {
    * Que fontes já foram consultadas nesta janela. "Ainda não consultei" não é "não feito": um tutorial cujas fontes
    * não chegaram fica "verificando", fora da contagem e do selo, em vez de aparecer como pendente e sumir depois.
    */
+  /** Configurações › Conexões (tutorial 17): `cli` = achou o `claude` neste Mac; `salvy` = estado do Salvy no ~/.claude.json. */
+  conexoes: { cli: boolean | null; salvy: EstadoConexao["estado"] | null };
   known: Record<GuideSource, boolean>;
 }
 /** De onde vêm os fatos que concluem passos; cada tutorial declara as suas em `needs`. */
-export type GuideSource = "whatsapp" | "claude" | "statusline" | "xai" | "fallback" | "support" | "objective" | "guarda" | "navegador" | "crm" | "grupos" | "contas" | "finance" | "linkpublico" | "quickentry" | "google";
-export const GUIDE_SOURCES: readonly GuideSource[] = ["whatsapp", "claude", "statusline", "xai", "fallback", "support", "objective", "guarda", "navegador", "crm", "grupos", "contas", "finance", "linkpublico", "quickentry", "google"];
-const noneKnown = (): Record<GuideSource, boolean> => ({ whatsapp: false, claude: false, statusline: false, xai: false, fallback: false, support: false, objective: false, guarda: false, navegador: false, crm: false, grupos: false, contas: false, finance: false, linkpublico: false, quickentry: false, google: false });
+export type GuideSource = "whatsapp" | "claude" | "statusline" | "xai" | "fallback" | "support" | "objective" | "guarda" | "navegador" | "crm" | "grupos" | "contas" | "finance" | "linkpublico" | "quickentry" | "google" | "conexoes";
+export const GUIDE_SOURCES: readonly GuideSource[] = ["whatsapp", "claude", "statusline", "xai", "fallback", "support", "objective", "guarda", "navegador", "crm", "grupos", "contas", "finance", "linkpublico", "quickentry", "google", "conexoes"];
+const noneKnown = (): Record<GuideSource, boolean> => ({ whatsapp: false, claude: false, statusline: false, xai: false, fallback: false, support: false, objective: false, guarda: false, navegador: false, crm: false, grupos: false, contas: false, finance: false, linkpublico: false, quickentry: false, google: false, conexoes: false });
 export const emptyContext = (): GuideContext => ({
   support: null,
   statusLine: { installed: null, limits: false, segments: null },
@@ -99,6 +101,7 @@ export const emptyContext = (): GuideContext => ({
   finance: { access: null, info: null },
   gmail: { access: null, conectado: false, precisaReconectar: false, gmailEscreve: null, lido: false, buscou: false, lixeira: false, desfez: false },
   produto: { planoExigido: "free", crmProprio: false, crmStreak: true },
+  conexoes: { cli: null, salvy: null },
   known: noneKnown(),
 });
 
@@ -107,13 +110,13 @@ export const emptyContext = (): GuideContext => ({
 export type GuideTarget = "wa-line" | "wa-agent" | "wa-pair" | "wa-policy" | "chat" | "none";
 
 /** O que a pessoa marcou à mão (o app não tem como ver uma mensagem de teste chegar). */
-export interface GuideFlags { policyChosen: boolean; tested: boolean; statusTested: boolean; claudeSeen: boolean; grokReplied: boolean; fallbackChosen: boolean; fallbackSeen: boolean; guardaSeen: boolean; navAgentUsed: boolean; crmSeen: boolean; crmImportSeen: boolean; claudeReplied: boolean; gruposTested: boolean; githubPulado: boolean; cloudflareLogado: boolean; financeFotoPulada: boolean; contasOrdemVista: boolean; contasTrocaVista: boolean; linkNomeVisto: boolean; quickUsado: boolean; digitandoVisto: boolean; gmailLido: boolean; gmailBuscou: boolean; gmailLixeira: boolean; /** Passos `lembrar` já vistos concluídos (fato que não se desfaz: abas fechadas não reabrem o tutorial). */ feitos?: string[]; number: string | null }
-export const emptyFlags = (): GuideFlags => ({ policyChosen: false, tested: false, statusTested: false, claudeSeen: false, grokReplied: false, fallbackChosen: false, fallbackSeen: false, guardaSeen: false, navAgentUsed: false, crmSeen: false, crmImportSeen: false, claudeReplied: false, gruposTested: false, githubPulado: false, cloudflareLogado: false, financeFotoPulada: false, contasOrdemVista: false, contasTrocaVista: false, linkNomeVisto: false, quickUsado: false, digitandoVisto: false, gmailLido: false, gmailBuscou: false, gmailLixeira: false, number: null });
+export interface GuideFlags { policyChosen: boolean; tested: boolean; statusTested: boolean; claudeSeen: boolean; grokReplied: boolean; fallbackChosen: boolean; fallbackSeen: boolean; guardaSeen: boolean; navAgentUsed: boolean; crmSeen: boolean; crmImportSeen: boolean; claudeReplied: boolean; gruposTested: boolean; githubPulado: boolean; cloudflareLogado: boolean; financeFotoPulada: boolean; contasOrdemVista: boolean; contasTrocaVista: boolean; linkNomeVisto: boolean; quickUsado: boolean; digitandoVisto: boolean; gmailLido: boolean; gmailBuscou: boolean; gmailLixeira: boolean; salvyLogin: boolean; salvyTeste: boolean; /** Passos `lembrar` já vistos concluídos (fato que não se desfaz: abas fechadas não reabrem o tutorial). */ feitos?: string[]; number: string | null }
+export const emptyFlags = (): GuideFlags => ({ policyChosen: false, tested: false, statusTested: false, claudeSeen: false, grokReplied: false, fallbackChosen: false, fallbackSeen: false, guardaSeen: false, navAgentUsed: false, crmSeen: false, crmImportSeen: false, claudeReplied: false, gruposTested: false, githubPulado: false, cloudflareLogado: false, financeFotoPulada: false, contasOrdemVista: false, contasTrocaVista: false, linkNomeVisto: false, quickUsado: false, digitandoVisto: false, gmailLido: false, gmailBuscou: false, gmailLixeira: false, salvyLogin: false, salvyTeste: false, number: null });
 /**
  * Marcações que um passo pode pedir ("Testei, funcionou") ou que o app grava sozinho (`grokReplied`: resposta com
  * X-Provider grok-4; `fallbackChosen`: a pessoa escolheu o primário; `fallbackSeen`: uma resposta veio da reserva).
  */
-export type GuideFlagName = "policyChosen" | "tested" | "statusTested" | "claudeSeen" | "grokReplied" | "fallbackChosen" | "fallbackSeen" | "guardaSeen" | "navAgentUsed" | "crmSeen" | "crmImportSeen" | "claudeReplied" | "gruposTested" | "githubPulado" | "cloudflareLogado" | "financeFotoPulada" | "contasOrdemVista" | "contasTrocaVista" | "linkNomeVisto" | "quickUsado" | "digitandoVisto" | "gmailLido" | "gmailBuscou" | "gmailLixeira";
+export type GuideFlagName = "policyChosen" | "tested" | "statusTested" | "claudeSeen" | "grokReplied" | "fallbackChosen" | "fallbackSeen" | "guardaSeen" | "navAgentUsed" | "crmSeen" | "crmImportSeen" | "claudeReplied" | "gruposTested" | "githubPulado" | "cloudflareLogado" | "financeFotoPulada" | "contasOrdemVista" | "contasTrocaVista" | "linkNomeVisto" | "quickUsado" | "digitandoVisto" | "gmailLido" | "gmailBuscou" | "gmailLixeira" | "salvyLogin" | "salvyTeste";
 
 export interface GuideStep {
   id: string;
@@ -122,7 +125,7 @@ export interface GuideStep {
   text: string;
   target: GuideTarget;
   /** Corpo especial do passo no guia: cartões de quem responder, áudio, suporte ou a status line. */
-  body?: "contas-claude" | "agent-choice" | "reply-choice" | "support-name" | "support-switch" | "support-delivery" | "statusline-install" | "statusline-segments" | "statusline-test" | "claude-login" | "xai-prepare" | "xai-login" | "fallback-order" | "objective-choice" | "objective-level" | "objective-skill" | "guarda-install" | "digitando-escolher" | "navegador-pro" | "navegador-install" | "navegador-open" | "crm-pro" | "crm-install" | "crm-config" | "crm-test" | "crm-gmail" | "crm-importar" | "grupos-escolher" | "grupos-quem" | "grupos-modo" | "grupos-teste" | "crm-pipeline" | "cloudflare-entrar" | "conta-cloudflare" | "conta-github" | "finance-install" | "finance-contas" | "finance-renda" | "finance-testar" | "finance-foto" | "finance-pendencias" | "link-publico-ver" | "link-publico-testar" | "link-publico-nome" | "quick-atalho" | "quick-testar" | "gmail-pro" | "gmail-conectar" | "gmail-ler" | "gmail-buscar" | "gmail-lixeira";
+  body?: "salvy-conectar" | "contas-claude" | "agent-choice" | "reply-choice" | "support-name" | "support-switch" | "support-delivery" | "statusline-install" | "statusline-segments" | "statusline-test" | "claude-login" | "xai-prepare" | "xai-login" | "fallback-order" | "objective-choice" | "objective-level" | "objective-skill" | "guarda-install" | "digitando-escolher" | "navegador-pro" | "navegador-install" | "navegador-open" | "crm-pro" | "crm-install" | "crm-config" | "crm-test" | "crm-gmail" | "crm-importar" | "grupos-escolher" | "grupos-quem" | "grupos-modo" | "grupos-teste" | "crm-pipeline" | "cloudflare-entrar" | "conta-cloudflare" | "conta-github" | "finance-install" | "finance-contas" | "finance-renda" | "finance-testar" | "finance-foto" | "finance-pendencias" | "link-publico-ver" | "link-publico-testar" | "link-publico-nome" | "quick-atalho" | "quick-testar" | "gmail-pro" | "gmail-conectar" | "gmail-ler" | "gmail-buscar" | "gmail-lixeira";
   /** Concluído pelo estado real; `null` de status = ainda não consultado. */
   done: (status: WhatsappStatus | null, flags: GuideFlags, ctx: GuideContext) => boolean;
   /** Passo que a pessoa conclui com um botão no próprio cartão ("Testei, funcionou"). */
@@ -732,8 +735,38 @@ export const TUTORIAIS: readonly Tutorial[] = [
     ],
   },
   {
-    id: "statusline",
+    id: "salvy",
     number: 17,
+    needs: ["conexoes"],
+    title: "Salvy no seu Claude Code",
+    short: "Salvy",
+    summary: "Ligue a telefonia da empresa (linhas, faturas, centros de custo) ao Claude Code deste Mac e faça a primeira pergunta.",
+    minutes: 4,
+    icon: "target",
+    reset: { what: "tira o Salvy do Claude Code deste Mac (o login que ficou no Claude Code sai com o /mcp de lá)" },
+    steps: [
+      {
+        id: "conectar", title: "Conectar o Salvy no Claude Code", target: "none", body: "salvy-conectar",
+        text: "Conectar registra o Salvy no Claude Code deste Mac, para o seu usuário e em qualquer pasta. É o mesmo botão de Configurações › Conexões.",
+        done: (_st, _f, c) => c.conexoes.salvy === "registrado",
+      },
+      {
+        id: "entrar", title: "Entrar com a conta do Salvy", target: "none", lembrar: true,
+        text: "No terminal, abra o claude, digite /mcp, escolha salvy e clique em Authenticate. O navegador abre o login do Salvy: entre com a conta do painel (app.salvy.com.br). De volta ao Claude Code, o salvy aparece como conectado. O meu-bot não vê a sua senha nem o token.",
+        done: (_st, f) => f.salvyLogin,
+        manual: { label: "Já entrei", flag: "salvyLogin" },
+      },
+      {
+        id: "perguntar", title: "Primeira pergunta ao Salvy", target: "none", lembrar: true,
+        text: "No Claude Code, pergunte: \"Quanto está a minha fatura deste mês no Salvy?\". É só leitura e não cobra nada. O que custa dinheiro (linha nova, dados extras, troca de plano) vem com orçamento e só cobra depois que você confirma.",
+        done: (_st, f) => f.salvyTeste,
+        manual: { label: "Funcionou", flag: "salvyTeste" },
+      },
+    ],
+  },
+  {
+    id: "statusline",
+    number: 18,
     needs: ["statusline"],
     after: "claude-login",
     title: "Status line do Claude",
@@ -770,7 +803,7 @@ export const TUTORIAIS: readonly Tutorial[] = [
   },
   {
     id: "crm-gmail",
-    number: 18,
+    number: 19,
     needs: ["crm", "navegador"],
     after: "navegador",
     needsCrmProprio: true,
@@ -813,7 +846,7 @@ export const TUTORIAIS: readonly Tutorial[] = [
   },
   {
     id: "crm-whatsapp",
-    number: 18,
+    number: 19,
     needs: ["crm"],
     after: "navegador",
     needsCrmStreak: true,

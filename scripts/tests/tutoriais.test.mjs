@@ -19,16 +19,16 @@ test("tutoriais: ids únicos e cada passo com título, texto, alvo e regra de co
 test("selo: número, passos e minutos; sem número, só os dois", () => {
   assert.equal(tutorialBadge(t), "Tutorial 3 · 5 passos · 4 min");
   assert.equal(tutorialBadge({ ...t, minutes: 1, steps: [t.steps[0]] }, false), "1 passo · 1 min");
-  assert.equal(tutorialBadge(byId("statusline")), "Tutorial 17 · 4 passos · 3 min");
+  assert.equal(tutorialBadge(byId("statusline")), "Tutorial 18 · 4 passos · 3 min");
 });
 
 test("trilha numerada: números 1..N únicos na ordem; `after` aponta para um tutorial anterior; só o suporte exige o pacote", () => {
   // Renumerados em 31 out (e de novo em 3 nov, quando o "Ouvir áudios" saiu) na ordem da trilha (a lista aparece na
-  // ordem do array): os que podem entrar na lista são 1..16, sem buracos; os ocultos por decisão de produto ficam no
-  // fim (17 status line; 18 o CRM, em duas versões pela licença/motor, CRM no Gmail com o CRM próprio ou CRM pelo
+  // ordem do array): os que podem entrar na lista são 1..17, sem buracos; os ocultos por decisão de produto ficam no
+  // fim (17 Salvy, o último da trilha visível; 18 status line; 19 o CRM, em duas versões pela licença/motor, CRM no Gmail com o CRM próprio ou CRM pelo
   // Streak no resto, nunca juntas).
-  assert.deepEqual(TUTORIAIS.map((x) => x.number), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 18]);
-  assert.deepEqual(TUTORIAIS.filter((x) => x.oculto !== true).map((x) => x.number), Array.from({ length: 16 }, (_, i) => i + 1), "a lista sai 1, 2, 3… sem buraco");
+  assert.deepEqual(TUTORIAIS.map((x) => x.number), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 19]);
+  assert.deepEqual(TUTORIAIS.filter((x) => x.oculto !== true).map((x) => x.number), Array.from({ length: 17 }, (_, i) => i + 1), "a lista sai 1, 2, 3… sem buraco");
   for (let i = 1; i < TUTORIAIS.length; i++) assert.ok(TUTORIAIS[i - 1].number <= TUTORIAIS[i].number, `${TUTORIAIS[i].id} fora da ordem dos números`);
   for (const produto of [{ planoExigido: "free", crmProprio: false, crmStreak: true }, { planoExigido: "free", crmProprio: true, crmStreak: false }]) {
     const nums = visibleTutorials({ ...emptyContext(), produto }, () => true).map((x) => x.number);
@@ -37,18 +37,18 @@ test("trilha numerada: números 1..N únicos na ordem; `after` aponta para um tu
   assert.deepEqual(TUTORIAIS.slice(0, 8).map((x) => x.id), ["claude-login", "contas-claude", "whatsapp-openclaw", "xai-login", "fallback-contas", "suporte", "whatsapp-objetivo", "guarda-whatsapp"]);
   for (const x of TUTORIAIS) if (x.after !== undefined) { const prev = byId(x.after); assert.ok(prev && prev.number < x.number, `${x.id} depois de ${x.after}`); }
   assert.deepEqual(TUTORIAIS.filter((x) => x.needsSupport).map((x) => x.id), ["suporte"]);
-  assert.equal(tutorialNumber("statusline"), 17); assert.equal(tutorialNumber("nada"), null);
+  assert.equal(tutorialNumber("statusline"), 18); assert.equal(tutorialNumber("salvy"), 17); assert.equal(tutorialNumber("nada"), null);
 });
 
 test("visibleTutorials: 2 e 4 só depois do 1 concluído; 5 só depois do 4; sem pré-requisito, some em vez de ir para arquivados", () => {
   const ids = (finished) => visibleTutorials(emptyContext(), finished).map((x) => x.id);
-  assert.deepEqual(ids(() => false), ["claude-login", "whatsapp-openclaw", "whatsapp-objetivo"]);
-  assert.deepEqual(ids((x) => x.id === "claude-login"), ["claude-login", "contas-claude", "whatsapp-openclaw", "xai-login", "whatsapp-objetivo", "navegador", "contas-cli", "link-publico", "entrada-rapida", "gmail"], "o 16 (status line) está oculto: o admin instala ao criar a conta");
-  assert.ok(!ids((x) => x.id === "claude-login" || x.id === "navegador").includes("crm-whatsapp"), "o 17 (CRM pelo Streak) está oculto, mesmo depois do 9 (Navegador)");
+  assert.deepEqual(ids(() => false), ["claude-login", "whatsapp-openclaw", "whatsapp-objetivo", "salvy"], "o 17 (Salvy) não depende de outro: aparece desde o começo");
+  assert.deepEqual(ids((x) => x.id === "claude-login"), ["claude-login", "contas-claude", "whatsapp-openclaw", "xai-login", "whatsapp-objetivo", "navegador", "contas-cli", "link-publico", "entrada-rapida", "gmail", "salvy"], "a status line está oculta: o admin instala ao criar a conta");
+  assert.ok(!ids((x) => x.id === "claude-login" || x.id === "navegador").includes("crm-whatsapp"), "o 19 (CRM pelo Streak) está oculto, mesmo depois do 9 (Navegador)");
   assert.ok(!ids((x) => x.id === "claude-login" || x.id === "navegador").includes("crm-gmail"), "o CRM no Gmail só com o CRM próprio liberado pela licença");
   const crm = { ...emptyContext(), produto: { planoExigido: "free", crmProprio: true, crmStreak: false } };
   const idsCrm = visibleTutorials(crm, (x) => x.id === "claude-login" || x.id === "navegador").map((x) => x.id);
-  assert.ok(!idsCrm.includes("crm-gmail") && !idsCrm.includes("crm-whatsapp"), "o 17 (CRM no Gmail) está oculto e, com o CRM próprio, o do Streak também não entra");
+  assert.ok(!idsCrm.includes("crm-gmail") && !idsCrm.includes("crm-whatsapp"), "o 19 (CRM no Gmail) está oculto e, com o CRM próprio, o do Streak também não entra");
   assert.ok(ids((x) => x.id === "claude-login" || x.id === "xai-login").includes("fallback-contas"));
   assert.deepEqual(ids(), ids(() => false), "sem `finished`, nada da trilha destravado");
 });
@@ -201,7 +201,7 @@ test("tutorial do suporte: some sem o pacote; passos pelo estado real; conclui q
 
 test("tutorial da status line: oculto da lista (o admin instala ao criar a conta); o guia continua existindo: instalar, depois os limites no rodapé", async () => {
   const sl = TUTORIAIS.find((x) => x.id === "statusline");
-  assert.equal(sl.number, 17); assert.equal(sl.oculto, true);
+  assert.equal(sl.number, 18); assert.equal(sl.oculto, true);
   assert.ok(!visibleTutorials(emptyContext()).includes(sl), "sem o 1 concluído não aparece");
   assert.ok(!visibleTutorials(emptyContext(), (x) => x.id === "claude-login").includes(sl), "nem com o 1 concluído: saiu da lista em 30 out");
   assert.ok(!visibleTutorials(emptyContext(), () => true).includes(sl));
@@ -282,7 +282,7 @@ test("tutorial 10 (grupos): escolher, quem aciona (nunca herdado), ligar e testa
   assert.equal(quemEscolhido(info({ quemAciona: ["5511999998888"], quemAcionaHerdado: true })), false);
 });
 
-test("tutorial 18 (CRM no Gmail): passo do primeiro pipeline antes do teste; conclui pelo pipeline padrão do WhatsApp", () => {
+test("tutorial 19 (CRM no Gmail): passo do primeiro pipeline antes do teste; conclui pelo pipeline padrão do WhatsApp", () => {
   const t10 = byId("crm-gmail");
   assert.deepEqual(t10.steps.map((s) => s.id), ["instalar", "gmail", "pipeline", "importar", "testar"]);
   const base = { ...emptyContext(), crm: { access: "ok", info: { installed: true }, local: null }, navegador: { ...emptyContext().navegador, extensaoEmbutida: true, tabs: 1 } };
@@ -428,4 +428,24 @@ test("tutorial 15 · Gmail (Pro): Pro → Conta Google → ler, buscar, lixeira 
   assert.equal(tutorialState(g, null, emptyFlags(), emptyContext(), null), "unknown", "sem a fonte google, verificando");
   assert.ok(visibleTutorials(emptyContext(), (x) => x.id === "claude-login").some((x) => x.id === "gmail"), "entra na trilha depois do 1");
   assert.equal(byId("crm-gmail").steps.find((s) => s.body === "crm-gmail").title, "Abrir o Gmail web no Navegador (com a barra do CRM)");
+});
+
+test("tutorial 17 · Salvy: conectar pelo estado das Conexões, depois login e primeira pergunta marcados à mão; sequencial", () => {
+  const t = byId("salvy");
+  assert.equal(t.number, 17); assert.deepEqual(t.needs, ["conexoes"]); assert.equal(t.oculto, undefined); assert.equal(t.after, undefined);
+  assert.deepEqual(t.steps.map((s) => s.id), ["conectar", "entrar", "perguntar"]);
+  assert.equal(t.steps[0].body, "salvy-conectar");
+  const ctxCom = (salvy) => ({ ...emptyContext(), conexoes: { cli: true, salvy }, known: { ...emptyContext().known, conexoes: true } });
+  const flags = (extra = {}) => ({ ...emptyFlags(), ...extra });
+  const feitos = (c, f) => guideView(t, null, f, c).done;
+  assert.deepEqual(feitos(ctxCom("ausente"), flags()), [false, false, false]);
+  assert.deepEqual(feitos(ctxCom("outra-config"), flags()), [false, false, false], "uma entrada salvy que não é a do catálogo não conta");
+  assert.deepEqual(feitos(ctxCom("ilegivel"), flags()), [false, false, false]);
+  assert.deepEqual(feitos(ctxCom("registrado"), flags()), [true, false, false]);
+  assert.deepEqual(feitos(ctxCom("registrado"), flags({ salvyLogin: true })), [true, true, false]);
+  assert.deepEqual(feitos(ctxCom("registrado"), flags({ salvyLogin: true, salvyTeste: true })), [true, true, true]);
+  assert.deepEqual(feitos(ctxCom("ausente"), flags({ salvyLogin: true, salvyTeste: true })), [false, false, false], "sequencial: sem o Salvy conectado, as marcas de depois não contam");
+  assert.equal(tutorialKnown(t, emptyContext()), false, "até as Conexões responderem, o cartão fica \"verificando\"");
+  assert.equal(tutorialKnown(t, ctxCom(null)), true);
+  assert.equal(t.steps[1].manual.flag, "salvyLogin"); assert.equal(t.steps[2].manual.flag, "salvyTeste");
 });

@@ -1,4 +1,5 @@
 import { byId as $, el } from "../lib/dom.js";
+import { carregarConexoes } from "../configuracoes/conexoes.js";
 import { ipcErrorText } from "../lib/ipc-error.js";
 import type { PageTab } from "../lib/pages-types.js";
 import { parseTutMemory, type TutorialState, TUTORIAIS, tutorialKnown, type Tutorial, tutorialState, visibleTutorials, parseTutPulados, sidebarBadge, type GuideFlags, emptyFlags, type GuideFlagName, type GuideTarget, guideView, guideTabTitle, GUIDE_ACTION_LABEL, type GuideContext } from "../lib/tutoriais.js";
@@ -460,6 +461,9 @@ export async function resetTutorial(t: Tutorial): Promise<void> {
       await ctx.logoutClaude(false);
     } else if (t.id === "xai-login") {
       if (ctx.xaiAuth?.loggedIn === true) await ctx.logoutXai(false);
+    } else if (t.id === "salvy") {
+      await window.meuBot.conexoesDesconectar("salvy");
+      carregarConexoes();
     } else if (t.id === "whatsapp-objetivo") {
       ctx.objectiveState = await window.meuBot.resetObjective(); ctx.objectiveDraft = null; ctx.objectiveMsg = null; ctx.paintAcervoCount();
     }

@@ -42,7 +42,7 @@ test("progressLines: tour e tutoriais, com onde parou", () => {
   assert.deepEqual(l.map((x) => [x.text, x.ok, x.step]), [
     ["Tour do meu-bot: pulado", false, undefined],
     ["Ligar o suporte: concluído", true, undefined],
-    ["17 · Status line: 1 de 2", null, ' · parou em "instalar"'],
+    ["18 · Status line: 1 de 2", null, ' · parou em "instalar"'],
     ["Voz: em breve", null, undefined],
     ["WhatsApp: 0 de 4", false, undefined],
   ]);

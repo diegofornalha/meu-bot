@@ -7,6 +7,18 @@ import { carregarControleRemoto, ligarControleRemoto } from "./controle-remoto.j
 import { carregarConexoes, ligarConexoes } from "./conexoes.js";
 import { aoMudarConta, blocoConta, contaAtual } from "../conta/conta.js";
 
+/**
+ * Abre as Configurações (ou mantém abertas) e expande a seção `grupo` (o `data-group` dela); seção escondida nesta
+ * janela ou desconhecida = só as Configurações. Usado pelo deep link `ui:settings` e pelos tutoriais.
+ */
+export function abrirConfiguracoesEm(grupo: string | null): void {
+  openSettings();
+  const g = grupo === null ? undefined : ctx.settingsGroups.find((d) => d.dataset["group"] === grupo);
+  if (g === undefined || g.hidden) return;
+  for (const other of ctx.settingsGroups) other.open = other === g;
+  g.scrollIntoView({ block: "start" });
+}
+
 function openSettings(): void {
   if (ctx.dialog.open) return;
   ctx.paintSupport(); void ctx.refreshSupportState(); void loadAlertPrefs(); paintEspaco(ctx.account?.cota); carregarControleRemoto(); carregarConexoes();
@@ -88,13 +100,7 @@ export function ligarConfiguracoes(): void {
   window.meuBot.on("ui:toggle-settings", () => { if (ctx.dialog.open) ctx.dialog.close(); else openSettings(); });
   // Deep link `meu-bot://app/v1/settings?id=…`: abre (ou mantém aberto) e expande a seção; seção escondida nesta
   // janela (sem cota, sem suporte, sem licença) ou id desconhecido = só as Configurações.
-  window.meuBot.on("ui:settings", ({ grupo }) => {
-    openSettings();
-    const g = grupo === null ? undefined : ctx.settingsGroups.find((d) => d.dataset["group"] === grupo);
-    if (g === undefined || g.hidden) return;
-    for (const other of ctx.settingsGroups) other.open = other === g;
-    g.scrollIntoView({ block: "start" });
-  });
+  window.meuBot.on("ui:settings", ({ grupo }) => { abrirConfiguracoesEm(grupo); });
   window.meuBot.on("chat:notice", ({ conversationId, text }) => { const tab = ctx.tabs.get(conversationId); if (tab !== undefined) { ctx.addNotice(tab, text, "warn"); ctx.offerClaudeLogin(tab, text); } });
   window.meuBot.on("chat:account", ({ host, status }) => {
     if (host !== ctx.windowHost) return;
