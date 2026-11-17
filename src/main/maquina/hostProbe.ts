@@ -42,7 +42,14 @@ const sshBase = (host: string): string[] => [
 
 interface RunResult { code: number | null; stdout: string; stderr: string }
 
-/** `stdin`: texto entregue ao comando pela entrada (um script para `bash -s`, que não cabe na linha de comando do Windows). */
+/**
+ * Comando remoto que roda o script recebido pela entrada: lê tudo antes e só então executa, com a entrada em /dev/null.
+ * Um `bash -s` leria o script aos poucos, e um comando dele que lesse a entrada (ssh, read, python -) engoliria o resto;
+ * assim o script roda como quando ia por argumento.
+ */
+export const BASH_PELA_ENTRADA = 'S=$(cat); exec bash -c "$S" </dev/null';
+
+/** `stdin`: texto entregue ao comando pela entrada (um script para BASH_PELA_ENTRADA). */
 function run(cmd: string, args: string[], timeoutMs: number, onLine?: (line: string) => void, stdin?: string): Promise<RunResult> {
   return new Promise((resolve) => {
     const child = spawn(cmd, args, { windowsHide: true, stdio: [stdin === undefined ? "ignore" : "pipe", "pipe", "pipe"] });
@@ -491,8 +498,8 @@ export async function installHermesPausa(host: string, onLine?: (line: string) =
   const lines: string[] = [];
   const say = (l: string): void => { lines.push(l); onLine?.(l); };
   say(`instalando a pausa por contato (plugin ${fonte.versao}) no Hermes de ${host}…`);
-  // O script leva o plugin em base64 (~32 KB): pela entrada, como o runSsh do WhatsApp, e não como argumento.
-  const r = await run("ssh", [...sshBase(host), "--", host, "bash -s"], 3 * 60_000, say, hermesPausaPluginSh(fonte, fusoDesteMac()));
+  // O script leva o plugin em base64 (~32 KB): vai pela entrada, e não como argumento (não cabe na linha de comando do Windows).
+  const r = await run("ssh", [...sshBase(host), "--", host, BASH_PELA_ENTRADA], 3 * 60_000, say, hermesPausaPluginSh(fonte, fusoDesteMac()));
   const s = lerPausaPlugin(r.stdout);
   if (r.code !== 0 || !s.ok) return { ok: false, log: [...lines, `plugin=${s.plugin} enabled=${s.enabled}${r.stderr.trim() !== "" ? `: ${lastLine(r.stderr)}` : ""}`] };
   say(s.plugin === "nada" ? "plugin já estava no lugar" : `plugin ${s.plugin}; gateway: ${s.restart}`);

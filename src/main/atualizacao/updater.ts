@@ -21,7 +21,7 @@
  * (`<app>-<versão>-x64-setup.exe`) e a troca é rodá-lo em silêncio e sair (`aplicarNoWindows`). Quem troca os arquivos
  * é o instalador, então não há `<app>.antigo` nem volta automática: a abertura seguinte só registra se pegou.
  */
-import { execFileSync, spawn } from "node:child_process";
+import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
@@ -534,7 +534,13 @@ export async function applyUpdate(expectedVersion: string, gatilho: Exclude<Upda
     publish();
   }
   if (WIN) {
-    try { aplicarNoWindows(gatilho); } catch (e) {
+    try {
+      const instalador = aplicarNoWindows(gatilho);
+      // Só sai do app com o instalador de pé: se o Windows não o deixou abrir (antivírus, arquivo bloqueado), o `error`
+      // do spawn chega depois, e sem esta espera a pessoa clicaria em atualizar e o app sumiria sem dizer nada.
+      await new Promise<void>((ok, falha) => { instalador.once("spawn", () => ok()); instalador.once("error", (e) => falha(new Error(`Não consegui abrir o instalador da atualização (${e.message}). Tente de novo; se continuar, baixe a versão nova pelo site.`))); });
+    } catch (e) {
+      fs.rmSync(pendenteFile(), { force: true });
       setPhase(preparada !== null ? "ready" : "idle");
       registrar("trocar", false, erroTexto(e), { versao: expectedVersao, gatilho });
       throw e;
@@ -739,8 +745,10 @@ export function applyStagedOnQuit(): void {
  * Quem chama sai do app em seguida: o instalador espera o app fechar, troca os arquivos e, fora da saída, reabre.
  * O instalador é reconferido contra o sha256 do download (o que a assinatura Ed25519 cobriu) imediatamente antes de
  * rodar: ele ficou em disco entre o download e agora. Síncrono, como a troca do macOS: acontece antes de o app sair.
+ * Devolve o processo: o clique espera ele abrir de fato antes de sair; a saída do app não tem como esperar, e se o
+ * instalador não abrir, o registro gravado aqui vira "a troca não pegou" na próxima abertura, que é o que aconteceu.
  */
-function aplicarNoWindows(gatilho: UpdateGatilho): void {
+function aplicarNoWindows(gatilho: UpdateGatilho): ChildProcess {
   if (preparada === null) throw new Error("não há atualização pronta");
   const { bundle: instalador, para, sha256 } = preparada;
   let confere = false;
@@ -751,6 +759,7 @@ function aplicarNoWindows(gatilho: UpdateGatilho): void {
   filho.on("error", (e) => { log(`[atualização] o instalador não iniciou: ${e.message}`); });
   filho.unref();
   log(`[atualização] instalador da ${para} iniciado (${gatilho})`);
+  return filho;
 }
 
 /**
