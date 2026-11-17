@@ -58,7 +58,7 @@
 <div class="wrap">
 <header>
   <a class="marca" href="/" aria-label="meu-bot, página inicial"><span class="logo">mb</span>meu-bot</a>
-  <nav><a href="#como">Como funciona</a><a href="/grok-no-whatsapp">Grok no WhatsApp</a><a href="#precos">Planos</a><a href="/perguntas">Perguntas</a><a href="/baixar">Baixar</a></nav>
+  <nav><a href="#como">Como funciona</a><a href="/grok-no-whatsapp">Grok no WhatsApp</a><a href="#precos">Planos</a><a href="/suporte" data-canal="staging" hidden>Todos os planos</a><a href="/perguntas">Perguntas</a><a class="nav-cta" href="/baixar">Baixar para Mac</a></nav>
 </header>
 
 <!-- 1. Promessa + CTA de baixo atrito -->
@@ -89,7 +89,8 @@
 </div>
 
 <!-- 2. Problema -->
-<section>
+<section class="alt">
+  <p class="olho">O problema</p>
   <h2>Você perde venda quando demora para responder</h2>
   <p class="sub">Mensagem que fica sem resposta esfria. E responder tudo sozinho toma o dia.</p>
   <div class="grid3 mt24">
@@ -101,6 +102,7 @@
 
 <!-- 3. O que faz -->
 <section id="como">
+  <p class="olho">O que ele faz</p>
   <h2>O que o meu-bot faz por você</h2>
   <div class="grid2 mt24">
     <div class="card"><div class="ic">💬</div><h3>Atende no WhatsApp</h3><p>Responde clientes no seu número, com o seu jeito de falar, e te avisa quando a conversa precisa de você. Grupos e conversas privadas, cada um com a sua regra.</p></div>
@@ -111,7 +113,8 @@
 </section>
 
 <!-- 3b. Grok e xAI: a Coflow é parceira da xAI; o app entra com a conta Grok (login OAuth da xAI) e usa o Grok como modelo. -->
-<section id="grok">
+<section id="grok" class="alt">
+  <p class="olho">Tecnologia</p>
   <h2>Feito com o Grok, da xAI</h2>
   <p class="sub">O Grok é o cérebro do agente e o WhatsApp é o canal. A Coflow, que faz o meu-bot, é <a href="/parceria-xai">parceira da xAI</a>.</p>
   <div class="grid3 mt24">
@@ -123,6 +126,7 @@
 
 <!-- 4. Como começar -->
 <section>
+  <p class="olho">Como começar</p>
   <h2>Comece em 3 passos</h2>
   <div class="grid3 passos mt24">
     <div class="card passo"><h3>Baixe e instale</h3><p>Arraste o app para Aplicativos. Leva cerca de um minuto, e o app se atualiza sozinho depois.</p></div>
@@ -132,7 +136,8 @@
 </section>
 
 <!-- 5. Confiança -->
-<section id="seguranca">
+<section id="seguranca" class="alt">
+  <p class="olho">Segurança</p>
   <h2>Você continua no controle</h2>
   <p class="sub">O meu-bot mexe com coisas importantes: seu WhatsApp, seu e-mail, seu computador. Por isso ele funciona com limites claros.</p>
   <div class="grid2 mt24">
@@ -147,6 +152,7 @@
 <!-- 6. Planos. Produção: teste com o próprio número, R$ 97/mês com o chip do agente da Coflow, próprio chip sob cotação.
      Staging é o ensaio: grátis para beta testers. O site.js mostra a seção do canal (sem JS, fica a de produção). -->
 <section id="precos" data-canal="producao">
+  <p class="olho">Quanto custa</p>
   <h2>Planos</h2>
   <p class="sub">Teste com o seu número sem pagar. Para contratar, o agente atende num chip nosso, pronto para usar.</p>
   <div class="grid3 precos mt24">
@@ -164,6 +170,7 @@
   </div>
 </section>
 <section id="precos-beta" data-canal="staging" hidden>
+  <p class="olho">Quanto custa</p>
   <h2>Ensaio: grátis para beta testers</h2>
   <p class="sub">Esta é a versão de ensaio do meu-bot. Quem entra agora usa tudo sem pagar e, em troca, conta para a gente o que funcionou e o que não funcionou.</p>
   <div class="grid2 precos mt24">
@@ -171,10 +178,12 @@
       <ul class="ok"><li>Agente no WhatsApp, no seu número</li><li>Navegador, Gmail e CRM do agente</li><li>Mais de um Mac na mesma conta</li><li>Seu feedback direto com quem faz o produto</li></ul>
       <a class="btn soMac" href="/obrigado" data-ev="baixar_mac" data-origem="beta">Entrar no ensaio</a></div>
   </div>
+  <p class="mt24"><a href="/suporte">Ver todos os planos (rascunho) →</a></p>
 </section>
 
 <!-- 7. FAQ -->
-<section id="faq">
+<section id="faq" class="alt">
+  <p class="olho">Perguntas</p>
   <h2>Dúvidas frequentes</h2>
   <details><summary>Funciona no Windows ou em Mac Intel?</summary><p>Por enquanto, só em Mac com chip Apple (M1 ou mais novo). Se o seu Mac é Intel, <a href="https://github.com/diegofornalha/meu-bot/issues" rel="noopener">avise a gente</a> e te contamos quando houver outra versão.</p></details>
   <details><summary>Meu WhatsApp corre risco de bloqueio?</summary><p>Existe risco, e é bom saber de onde ele vem. O meu-bot conecta pelo mesmo protocolo do WhatsApp Web, não pela API oficial da Meta, e os termos do WhatsApp não preveem esse uso para automação. O risco cresce com disparo em massa, lista fria e mensagem igual para muita gente, e diminui quando o agente só responde quem escreveu primeiro. <a href="/guias/whatsapp-bloqueia-numero-com-ia">Entenda o risco de bloqueio</a>. Use com os seus clientes e não com listas compradas. A conexão pela API oficial da Meta está nos planos.</p></details>
@@ -197,7 +206,7 @@
 </div>
 
 <footer><div class="wrap">
-  <a href="/baixar">Baixar</a><a href="/perguntas">Perguntas</a><a href="/guias">Guias</a><a href="/grok-no-whatsapp">Grok no WhatsApp</a><a href="/grok-bot-e-meu-bot">Grok Bot e meu-bot</a><a href="/parceria-xai">Parceria com a xAI</a><a href="/privacidade">Privacidade</a><a href="/termos">Termos de uso</a><a href="/novidades">Novidades</a><a href="/console">Console da conta</a><a href="https://github.com/diegofornalha/meu-bot" rel="noopener">GitHub</a>
+  <a href="/suporte" data-canal="staging" hidden>Todos os planos</a><a href="/baixar">Baixar</a><a href="/perguntas">Perguntas</a><a href="/guias">Guias</a><a href="/grok-no-whatsapp">Grok no WhatsApp</a><a href="/grok-bot-e-meu-bot">Grok Bot e meu-bot</a><a href="/parceria-xai">Parceria com a xAI</a><a href="/privacidade">Privacidade</a><a href="/termos">Termos de uso</a><a href="/novidades">Novidades</a><a href="/console">Console da conta</a><a href="https://github.com/diegofornalha/meu-bot" rel="noopener">GitHub</a>
   <p>meu-bot é um produto da Coflow · CNPJ 41.490.672/0001-00 · agentesgrok.com</p>
   <p>Medimos visitas com o Google Analytics, sem remarketing e sem dados pessoais.</p>
   <p>Grok e xAI são marcas da xAI. WhatsApp é marca da Meta. O meu-bot é um produto independente da Coflow.</p>
@@ -211,4 +220,4 @@
 </body>
 </html>
 
-<!-- rev 2026-11-09b -->
+<!-- rev 2026-11-16a -->
