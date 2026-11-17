@@ -101,7 +101,15 @@ export async function postWebhookAbacate(req: Request, env: Env, url: URL, esper
   const doEvento = refValida(refEv) ? await checkoutPor(env, refEv) : null;
   const exigido = precoExigido(doEvento?.produto, preco(env), lerAddons(env.ABACATEPAY_ADDONS));
   const d = decidir(e, env.CANAL === "staging" ? "staging" : "producao", exigido);
-  const resultado = await aplicar(env, d, e.devMode, agora, espera);
+  // Se aplicar falhar no meio, o registro do evento sai: assim a nova tentativa da AbacatePay é processada, em vez
+  // de cair em "repetido" e o pagamento nunca ser aplicado.
+  let resultado: string;
+  try { resultado = await aplicar(env, d, e.devMode, agora, espera); }
+  catch (erro) {
+    await env.DB.prepare("DELETE FROM webhook_eventos WHERE id = ?1 AND resultado IS NULL").bind(e.id).run();
+    console.log(`[pagamento] evento ${e.id} falhou ao aplicar: ${erro instanceof Error ? erro.message : String(erro)}`);
+    return json({ erro: "falha ao aplicar o evento; tente de novo" }, 500);
+  }
   await env.DB.prepare("UPDATE webhook_eventos SET resultado = ?1 WHERE id = ?2").bind(resultado.slice(0, 300), e.id).run();
   return json({ ok: true });
 }
@@ -117,7 +125,7 @@ async function aplicar(env: Env, d: Decisao, devMode: boolean, agora: string, es
   const ck = await checkoutPor(env, d.ref);
   if (d.acao === "revisar") {
     // Vira um pedido aberto para o admin (aparece em console › Suporte): reembolso, disputa ou valor estranho.
-    if (ck !== null) await env.DB.prepare("INSERT INTO pedidos (id, conta_id, tipo, detalhe, maquina_id, criado_em) VALUES (?1, ?2, 'pagamento.revisar', ?3, NULL, ?4)").bind(uuid(), ck.conta_id, d.motivo.slice(0, 200), agora).run();
+    if (ck !== null) await env.DB.prepare("INSERT INTO pedidos (id, conta_id, tipo, detalhe, maquina_id, criado_em) VALUES (?1, ?2, 'pagamento.revisar', ?3, NULL, ?4)").bind(uuid(), ck.conta_id, `${d.motivo} · ${ck.produto ?? "Pro"}`.slice(0, 200), agora).run();
     await auditar(env.DB, quem, "pagamento.revisar", ck?.conta_id ?? null, d.motivo);
     console.log(`[pagamento] revisar: ${d.motivo} (ref ${d.ref ?? "-"})`);
     return `revisar: ${d.motivo}`;

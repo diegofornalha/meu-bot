@@ -5,7 +5,7 @@
  * assinada (PR 5/6 do plano). Tudo fica na auditoria.
  */
 import type { Env } from "../tipos.js";
-import { ativarDevice, atenderPedido, auditar, contaPorId, contarSupers, devicesDaConta, gravarLicenca, licencaGravada, removerDevice, gravarPerfil, gravarProvedor, removerPerfil, revogarSessoesDaConta, visaoAdmin } from "../db.js";
+import { ativarDevice, atenderPedido, encerrarAddonPago, auditar, contaPorId, contarSupers, devicesDaConta, gravarLicenca, licencaGravada, removerDevice, gravarPerfil, gravarProvedor, removerPerfil, revogarSessoesDaConta, visaoAdmin } from "../db.js";
 import { consultarFirebase, definirSenhaFirebase } from "../firebase-admin.js";
 import { DEVICE_ID_RE, UUID_RE, decidirLiberarDevice, validaBusca, validaEmail, validaPapel, validaPatchLicenca, validaSenhaNova } from "../sessao-core.js";
 import { json, lerJson, type Autenticado } from "../http.js";
@@ -54,6 +54,14 @@ export async function postLiberarDevice(auth: Autenticado, env: Env, id: string,
   if (d.novoLimite !== null) await gravarLicenca(env.DB, conta, { deviceLimit: d.novoLimite });
   await auditar(env.DB, auth.conta.email, "device.liberado", conta.id, `${deviceId}${d.novoLimite !== null ? ` · limite ${licenca.deviceLimit} → ${d.novoLimite}` : ""}`);
   return json({ ok: true, deviceLimit: d.novoLimite ?? licenca.deviceLimit });
+}
+/** `POST /admin/contas/:id/addons/:produto/encerrar`: encerra agora um add-on pago (reembolso ou disputa). */
+export async function postEncerrarAddon(auth: Autenticado, env: Env, id: string, produto: string): Promise<Response> {
+  if (auth.claims.adm === null) return json({ erro: "só admin" }, 403);
+  if (!UUID_RE.test(id) || !/^meu-bot-[a-z0-9-]{1,30}$/.test(produto)) return json({ erro: "id da conta ou nome do add-on fora do formato" }, 400);
+  if (!(await encerrarAddonPago(env.DB, id, produto))) return json({ erro: "esta conta não tem esse add-on pago em dia" }, 404);
+  await auditar(env.DB, auth.conta.email, "addon.encerrado", id, produto);
+  return json({ ok: true });
 }
 /** `DELETE /admin/contas/:id/devices/:device`: tira o device da conta (abre a vaga) e encerra as sessões dele. */
 export async function deleteDevice(auth: Autenticado, env: Env, id: string, deviceId: string): Promise<Response> {

@@ -525,7 +525,11 @@ function pintarAdminContas(v) {
     tr.append(el("td", "", l.expiresAt ? data(l.expiresAt) : l.trialEnd ? data(l.trialEnd) : "-"));
     // Add-ons: os pagos com o prazo (vencido fica marcado) e os concedidos pelo admin, que valem junto com a licença.
     const tdAd = el("td"); const pagosC = c.addonsPagos ?? [];
-    for (const a of pagosC) { const emDia = Date.parse(a.expiresAt) > Date.now(); tdAd.append(selo(`${rotuloProduto(a.produto)} · ${emDia ? "pago até" : "venceu em"} ${data(a.expiresAt)}`, emDia ? "ok" : "mau"), document.createTextNode(" ")); }
+    for (const a of pagosC) {
+      const emDia = Date.parse(a.expiresAt) > Date.now();
+      tdAd.append(selo(`${rotuloProduto(a.produto)} · ${emDia ? "pago até" : "venceu em"} ${data(a.expiresAt)}`, emDia ? "ok" : "mau"), document.createTextNode(" "));
+      if (emDia) { const b = el("button", "btn btn-ghost", "Encerrar"); b.type = "button"; b.title = "Encerra agora o acesso a este add-on pago (reembolso ou disputa). A assinatura na AbacatePay é cancelada à parte."; b.addEventListener("click", () => { void encerrarAddon(c, a, b); }); tdAd.append(b, document.createTextNode(" ")); }
+    }
     for (const p of l.produtos) tdAd.append(selo(`${rotuloProduto(p)} · concedido`), document.createTextNode(" "));
     if (pagosC.length === 0 && l.produtos.length === 0) tdAd.textContent = "-";
     tr.append(tdAd);
@@ -612,6 +616,19 @@ function pintarAdminDevices(v) {
     tr.append(acoes);
     tb.append(tr);
   }
+}
+/** "Encerrar" um add-on pago: dois cliques (o segundo confirma, em até 5 s), porque a pessoa perde o acesso na hora. */
+async function encerrarAddon(c, a, botao) {
+  if (botao.dataset.confirma !== "1") {
+    botao.dataset.confirma = "1"; botao.textContent = "Confirmar encerramento";
+    setTimeout(() => { if (botao.isConnected && !botao.disabled) { delete botao.dataset.confirma; botao.textContent = "Encerrar"; } }, 5000);
+    return;
+  }
+  const s = sessaoGuardada(); if (s === null) return;
+  botao.disabled = true; mostrarErro(null);
+  const r = await api("POST", `/admin/contas/${encodeURIComponent(c.id)}/addons/${encodeURIComponent(a.produto)}/encerrar`, {}, s.acesso);
+  if (r.status !== 200) { botao.disabled = false; delete botao.dataset.confirma; botao.textContent = "Encerrar"; mostrarErro(erroDe(r)); return; }
+  await depoisDeDevice();
 }
 /** Relê a visão do admin e redesenha a seção depois de uma ação em devices. */
 async function depoisDeDevice() {
