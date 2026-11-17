@@ -627,6 +627,7 @@ async function liberarDevice(c, d, botao) {
   if (r.status === 409 && r.corpo && r.corpo.noLimite === true && !subir) {
     const ativos = c.devices.filter((x) => x.status !== "pending").length;
     botao.disabled = false; botao.dataset.subir = "1"; botao.textContent = `Liberar e subir o limite para ${ativos + 1}`; botao.title = erroDe(r);
+    mostrarErro(erroDe(r));
     return;
   }
   if (r.status !== 200) { botao.disabled = false; mostrarErro(erroDe(r)); return; }

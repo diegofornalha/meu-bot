@@ -49,8 +49,9 @@ export async function postLiberarDevice(auth: Autenticado, env: Env, id: string,
   const d = decidirLiberarDevice(device.status, devices.filter((x) => x.status !== "pending").length, licenca.deviceLimit, corpo?.subirLimite === true);
   if ("erro" in d) return json({ erro: d.erro, noLimite: true }, 409);
   if (d.acao === "ja-ativo") return json({ ok: true, deviceLimit: licenca.deviceLimit });
+  // Ativa antes de subir o limite: se o device sumiu no meio (removido por outro admin), o limite não muda à toa.
+  if (!(await ativarDevice(env.DB, conta.id, deviceId))) return json({ erro: "device não existe nesta conta" }, 404);
   if (d.novoLimite !== null) await gravarLicenca(env.DB, conta, { deviceLimit: d.novoLimite });
-  await ativarDevice(env.DB, conta.id, deviceId);
   await auditar(env.DB, auth.conta.email, "device.liberado", conta.id, `${deviceId}${d.novoLimite !== null ? ` · limite ${licenca.deviceLimit} → ${d.novoLimite}` : ""}`);
   return json({ ok: true, deviceLimit: d.novoLimite ?? licenca.deviceLimit });
 }
