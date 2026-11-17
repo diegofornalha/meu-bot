@@ -6,14 +6,6 @@
 import { planilhaLer } from "./apis";
 import { contaStatus } from "./conta-google";
 
-/** Id da planilha a partir do link do Google Sheets (ou o próprio id colado). null = não parece uma planilha. */
-export function idDaPlanilha(link: string): string | null {
-  const s = link.trim();
-  const m = /\/spreadsheets\/d\/([A-Za-z0-9_-]{20,})/.exec(s);
-  if (m !== null) return m[1]!;
-  return /^[A-Za-z0-9_-]{25,}$/.test(s) ? s : null;
-}
-
 /** As células (até A1:Z5000) da aba pedida, ou da primeira. Lança com a frase do que fazer. */
 export async function lerValoresPlanilha(host: string, id: string, aba: string): Promise<string[][]> {
   const st = contaStatus(host);
