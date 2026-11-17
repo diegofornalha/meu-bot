@@ -3,6 +3,7 @@
 // antes. `--variant <id>` escolhe o produto; `--admin` continua valendo como alias de `--variant admin`.
 import { createRequire } from "node:module";
 import { existsSync } from "node:fs";
+import { join } from "node:path";
 
 const DIST = new URL("../dist/main/app/variant-core.js", import.meta.url);
 if (!existsSync(DIST)) { console.error("✗ falta dist/main/app/variant-core.js: rode `npm run build:main` antes"); process.exit(1); }
@@ -18,6 +19,31 @@ export function produtoFromArgv(argv = process.argv) {
   return p;
 }
 export const archOf = () => (process.arch === "arm64" ? "arm64" : "x64");
+/** `--plataforma win32` empacota para Windows a partir deste Mac; sem ela, macOS. */
+export function plataformaFromArgv(argv = process.argv) {
+  const i = argv.indexOf("--plataforma");
+  const p = i >= 0 ? argv[i + 1] : "darwin";
+  if (p !== "darwin" && p !== "win32") { console.error(`✗ plataforma desconhecida "${p}". Opções: darwin, win32`); process.exit(64); }
+  return p;
+}
+/** Arquitetura do pacote: no Windows sempre x64 (roda também nos ARM, emulado); no macOS, a deste Mac. */
+export const archDe = (plataforma) => (plataforma === "win32" ? "x64" : archOf());
+/**
+ * Onde o @electron/packager deixa o produto: `pasta` (a de saída), `app` (o que os fuses e a assinatura recebem: o
+ * .app no macOS, o .exe no Windows) e `recursos` (variant.json, config/, extensões).
+ */
+export function empacotado(p, plataforma) {
+  const pasta = join("out", `${p.nome}-${plataforma}-${archDe(plataforma)}`);
+  if (plataforma === "win32") return { pasta, app: join(pasta, `${p.nome}.exe`), recursos: join(pasta, "resources") };
+  const app = join(pasta, `${p.nome}.app`);
+  return { pasta, app, recursos: join(app, "Contents", "Resources") };
+}
+/** Produto pedido para Windows sem estar marcado `windows` na tabela sai com 64: falta ícone .ico e prova na tela. */
+export function exigeWindows(p, plataforma) {
+  if (plataforma !== "win32" || p.windows) return;
+  console.error(`✗ ${p.nome} não sai para Windows (campo \`windows\` em src/main/app/variant-core.ts). Saem: ${PRODUTOS.filter((x) => x.windows).map((x) => x.variant).join(", ")}`);
+  process.exit(64);
+}
 /** `--versao <x>` (o release staging passa "0.2.0-staging.3"); sem ela, a do package.json. */
 export function versaoFromArgv(argv = process.argv) {
   const i = argv.indexOf("--versao");
@@ -28,3 +54,5 @@ export function versaoFromArgv(argv = process.argv) {
 }
 /** Ícone .svg de origem do produto (mesmo nome do .icns). */
 export const svgOf = (p) => p.icone.replace(/\.icns$/, ".svg");
+/** Ícone .ico do produto no Windows (mesmo nome do .icns). */
+export const icoOf = (p) => p.icone.replace(/\.icns$/, ".ico");
