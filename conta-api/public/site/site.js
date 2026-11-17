@@ -93,7 +93,7 @@
   if (vw) {
     fetch("/download/windows.json", { headers: { accept: "application/json" } })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { vw.textContent = d && typeof d.versao === "string" ? ["Versão " + d.versao, data(d.publicadoEm), mb(d.tamanho)].filter(Boolean).join(" · ") : "O instalador do Windows ainda não saiu em nenhuma versão de teste."; })
+      .then((d) => { const hw = $("hash-windows"); if (hw && d && typeof d.sha256 === "string") { hw.textContent = d.sha256; const bloco = $("bloco-hash-windows"); if (bloco) bloco.hidden = false; } vw.textContent = d && typeof d.versao === "string" ? ["Versão " + d.versao, data(d.publicadoEm), mb(d.tamanho)].filter(Boolean).join(" · ") : "O instalador do Windows ainda não saiu em nenhuma versão de teste."; })
       .catch(() => { vw.textContent = ""; });
   }
 })();

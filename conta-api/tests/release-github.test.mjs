@@ -56,6 +56,11 @@ test("escolherWindows: o instalador x64 do meu-bot-staging na release de staging
   assert.deepEqual(escolherWindows(rels), { versao: "0.85.0-staging.2", url: "https://github.com/x/" + exe, tamanho: 113000000, publicadoEm: "2026-11-18T10:00:00Z", nome: exe });
   // Só o instalador do app de teste: nem o .sig, nem outro produto, nem um estável.
   assert.equal(escolherWindows([{ assets: [z(exe + ".sig"), z("meu-bot-finance-staging-0.85.0-staging.2-x64-setup.exe"), z("meu-bot-0.85.0-x64-setup.exe")] }]), null);
+  // O hash vem do `digest` do GitHub, só na forma sha256:<64 hex>.
+  const h = "a".repeat(64);
+  const comHash = (digest) => escolherWindows([{ published_at: "2026-11-18T10:00:00Z", assets: [{ name: exe, browser_download_url: "https://github.com/x/" + exe, size: 1, digest }] }]);
+  assert.equal(comHash("sha256:" + h).sha256, h);
+  assert.equal("sha256" in comHash("md5:abc"), false);
   assert.equal(escolherWindows([]), null);
   assert.equal(escolherWindows(null), null);
   // As escolhas do Mac não pegam o instalador do Windows.
