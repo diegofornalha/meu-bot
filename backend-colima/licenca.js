@@ -155,6 +155,13 @@ const crmOk = proOk;
  * O backend roda na máquina, sem acesso ao código do app: por isso a cópia.
  */
 const ADDONS = ['meu-bot-finance', 'meu-bot-diego'];
+/**
+ * Produtos de módulos que não pedem o add-on na licença: a trava é o acesso git ao repositório privado (cópia de
+ * `Addon.semLicenca` em src/main/app/variant-core.ts; o teste produtos-alinhados confere).
+ */
+const MODULOS_SEM_LICENCA = ['meu-bot-diego'];
+/** Os módulos de um produto valem nesta máquina (turno do agente): sem licença por desenho, ou o add-on liberado. */
+const moduloOk = (license, nome, now = Date.now()) => MODULOS_SEM_LICENCA.includes(nome) || produtoOk(license, nome, now);
 /** O financeiro: o add-on meu-bot-finance contratado (o Pro sozinho não libera). */
 const financeOk = (license, now = Date.now()) => produtoOk(license, 'meu-bot-finance', now);
 
@@ -254,7 +261,7 @@ function verificaLicencaAssinada(raw, opts = {}) {
 
 module.exports = {
   LICENCA_PUBLIC_KEYS, DEVICE_ID_RE, UUID_RE, verificaLicencaAssinada, parsePayloadLicenca, parseLicencaAssinada,
-  ADDONS, ADDONS_DO_PERSONALIZADO, NAO_ADDON: [...NAO_ADDON],
+  ADDONS, ADDONS_DO_PERSONALIZADO, NAO_ADDON: [...NAO_ADDON], MODULOS_SEM_LICENCA, moduloOk,
   PLANS,
   isActive,
   proOk,

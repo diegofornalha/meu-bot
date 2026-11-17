@@ -68,7 +68,7 @@ test("a janela recebe o catálogo: caps leva addon, abreEm e os rótulos dos add
   for (const p of PRODUTOS) {
     const c = capsFor(p.variant, "1.0.0");
     assert.equal(c.addon, p.addon); assert.equal(c.abreEm, p.abreEm);
-    assert.deepEqual(c.addons, ADDONS.map((a) => ({ nome: a.nome, rotulo: a.rotulo, modulos: a.modulos })));
+    assert.deepEqual(c.addons, ADDONS.map((a) => ({ nome: a.nome, rotulo: a.rotulo, modulos: a.modulos, semLicenca: a.semLicenca })));
   }
 });
 
@@ -95,6 +95,7 @@ test("backend da máquina (backend-colima/licenca.js) tem as mesmas listas de ad
   assert.deepEqual([...b.ADDONS].sort(), ADDONS.map((a) => a.nome).sort(), "ADDONS");
   assert.deepEqual([...b.ADDONS_DO_PERSONALIZADO].sort(), [...ADDONS_DO_PERSONALIZADO].sort(), "ADDONS_DO_PERSONALIZADO");
   assert.deepEqual([...b.NAO_ADDON].sort(), [...NAO_ADDON].sort(), "NAO_ADDON");
+  assert.deepEqual([...b.MODULOS_SEM_LICENCA].sort(), ADDONS.filter((a) => a.semLicenca).map((a) => a.nome).sort(), "MODULOS_SEM_LICENCA");
 });
 
 test("financeiro liberado: main, telas e backend da máquina decidem igual", async () => {

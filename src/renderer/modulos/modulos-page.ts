@@ -28,7 +28,7 @@ export interface ModulosPageDeps {
 }
 
 type Aba = "geral" | "ferramentas" | "guia" | "passos";
-const MSG_LICENCA = (rotulo: string): string => `Os módulos ainda não estão liberados nesta máquina: peça ao admin para incluir o add-on "${rotulo}" na licença (Configurações › Suporte).`;
+const MSG_LICENCA = (rotulo: string): string => `Os módulos ainda não estão liberados nesta máquina: peça ao admin para incluir o add-on "${rotulo}" na licença dela (no meu-bot-admin, Suporte › Conta e licença).`;
 
 export function mountModulosPage(deps: ModulosPageDeps): { open: () => void } {
   const panel = el("section", "acervo-panel modulos-panel"); panel.hidden = true;
