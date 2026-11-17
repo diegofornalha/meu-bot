@@ -2,7 +2,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
-const { escolherRelease, listarReleases, assetName, argsDoInstalador, parsePreparada, parsePendente, decideRollback, decideReaproveitar, UPDATE_REPO } = createRequire(import.meta.url)("../../dist/main/atualizacao/updater-core.js");
+import { EventEmitter } from "node:events";
+const { escolherRelease, listarReleases, assetName, argsDoInstalador, esperarInstaladorAbrir, parsePreparada, parsePendente, decideRollback, decideReaproveitar, UPDATE_REPO } = createRequire(import.meta.url)("../../dist/main/atualizacao/updater-core.js");
 
 const url = (n) => `https://github.com/${UPDATE_REPO}/releases/download/x/${n}`;
 const comSig = (n) => [{ name: n, browser_download_url: url(n), size: 123 }, { name: `${n}.sig`, browser_download_url: url(`${n}.sig`), size: 88 }];
@@ -63,4 +64,15 @@ test("depois do instalador: abriu na nova = confirmada; na de antes = não pegou
   const prep = { versao: 1, para: "0.85.0-staging.2", bundle: `C:\\u\\${EXE}`, sha256: "a".repeat(64), em: "2026-11-17T00:00:00.000Z" };
   assert.equal(decideReaproveitar(prep, "0.85.0-staging.1", () => true).tipo, "usar");
   assert.equal(decideReaproveitar(prep, "0.85.0-staging.2", () => true).tipo, "descartar");
+});
+
+test("esperarInstaladorAbrir: segue quando o processo abre; quando o Windows não deixa, a frase leva o motivo", async () => {
+  const abriu = new EventEmitter();
+  const p1 = esperarInstaladorAbrir(abriu);
+  abriu.emit("spawn");
+  await p1;
+  const barrado = new EventEmitter();
+  const p2 = esperarInstaladorAbrir(barrado);
+  barrado.emit("error", new Error("spawn EACCES"));
+  await assert.rejects(p2, /Não consegui abrir o instalador da atualização \(spawn EACCES\)/);
 });
