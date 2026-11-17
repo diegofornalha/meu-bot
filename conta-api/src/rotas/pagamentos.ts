@@ -11,7 +11,7 @@ import { addonsPagos, auditar, contaPorId, contarLimite, licencaDaConta, licenca
 import { agoraIso, janelaMinuto, uuid } from "../sessao-core.js";
 import { json, lerJson, type Autenticado } from "../http.js";
 import { gaIds } from "../analytics-core.js";
-import { clientIdValido, compraGa4, decidir, lerAddons, lerEvento, metodosSemPix, precoExigido, refValida, sessionIdValido, validoAte, webhookConfere, type Decisao, type OfertaAddon } from "../pagamento-core.js";
+import { clientIdDeReserva, clientIdValido, compraGa4, decidir, lerAddons, lerEvento, metodosSemPix, precoExigido, refValida, sessionIdValido, validoAte, webhookConfere, type Decisao, type OfertaAddon } from "../pagamento-core.js";
 
 const API = "https://api.abacatepay.com/v2";
 export const pagamentosLigados = (env: Env): boolean => Boolean(env.ABACATEPAY_KEY && env.ABACATEPAY_WEBHOOK_SECRET && env.ABACATEPAY_PRODUTO);
@@ -185,11 +185,14 @@ async function liberarAddon(env: Env, ck: CheckoutLinha, produto: string, d: Ext
   return `${produto} liberado até ${ate}`;
 }
 
-/** A compra no GA4 pelo Measurement Protocol, no mesmo client_id/session_id do console (a campanha do anúncio vem junto). */
+/** A compra no GA4 pelo Measurement Protocol, no mesmo client_id/session_id do console (a campanha do anúncio vem junto); sem eles, com um id de reserva. */
 async function enviarCompraGa(env: Env, ck: CheckoutLinha, pagamentoId: string, valor: number, primeira: boolean, item?: { id: string; nome: string }): Promise<void> {
   const id = gaIds(env.GA_ID)[0];
-  if (id === undefined || !env.GA_MP_SECRET || ck.ga_client_id === null) { console.log(`[pagamento] compra ${pagamentoId} fora do GA4: ${id === undefined ? "sem GA_ID" : !env.GA_MP_SECRET ? "sem GA_MP_SECRET" : "checkout sem client_id"}`); return; }
-  const body = compraGa4({ clientId: ck.ga_client_id, sessionId: ck.ga_session_id, pagamentoId, valorCentavos: valor, primeira, ambiente: env.CANAL === "staging" ? "staging" : "producao", ...(item === undefined ? {} : { item }) });
+  if (id === undefined || !env.GA_MP_SECRET) { console.log(`[pagamento] compra ${pagamentoId} fora do GA4: ${id === undefined ? "sem GA_ID" : "sem GA_MP_SECRET"}`); return; }
+  // Checkout sem client_id (o navegador de quem pagou não carregou o Analytics): a compra vai com um id de reserva, sem campanha.
+  const clientId = ck.ga_client_id ?? clientIdDeReserva(pagamentoId, Date.now());
+  if (ck.ga_client_id === null) console.log(`[pagamento] compra ${pagamentoId} vai ao GA4 sem visita (checkout sem client_id)`);
+  const body = compraGa4({ clientId, sessionId: ck.ga_client_id === null ? null : ck.ga_session_id, pagamentoId, valorCentavos: valor, primeira, ambiente: env.CANAL === "staging" ? "staging" : "producao", ...(item === undefined ? {} : { item }) });
   try {
     const r = await fetch(`https://www.google-analytics.com/mp/collect?measurement_id=${encodeURIComponent(id)}&api_secret=${encodeURIComponent(env.GA_MP_SECRET)}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
     if (r.ok) await env.DB.prepare("UPDATE pagamentos SET ga_enviado_em = ?1 WHERE id = ?2").bind(agoraIso(), pagamentoId).run();
