@@ -20,7 +20,7 @@ export const SSH_OPTS = [
  */
 export function spawnBash(host: string): ChildProcessWithoutNullStreams {
   if (host === LOCAL_WA_HOST) return spawn("/bin/bash", ["-s"], { cwd: os.homedir(), env: { ...process.env, HOME: os.homedir() }, stdio: ["pipe", "pipe", "pipe"] });
-  return spawn("ssh", [...SSH_OPTS, "--", host, "bash -s"], { stdio: ["pipe", "pipe", "pipe"] });
+  return spawn("ssh", [...SSH_OPTS, "--", host, "bash -s"], { windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
 }
 export const scriptDe = (host: string, script: string): string => (host === LOCAL_WA_HOST ? scriptLocal(script) : script);
 
@@ -49,7 +49,7 @@ export function scpPara(host: string, local: string, remoto: string, timeoutMs: 
     catch (e) { return Promise.resolve({ code: 1, stderr: e instanceof Error ? e.message : String(e) }); }
   }
   return new Promise((resolve) => {
-    const child = spawn("scp", ["-q", ...SSH_OPTS, "--", local, `${host}:${remoto}`], { stdio: ["ignore", "ignore", "pipe"] });
+    const child = spawn("scp", ["-q", ...SSH_OPTS, "--", local, `${host}:${remoto}`], { windowsHide: true, stdio: ["ignore", "ignore", "pipe"] });
     let stderr = ""; let done = false;
     const timer = setTimeout(() => { if (!done) child.kill("SIGKILL"); }, timeoutMs);
     child.stderr.on("data", (d: Buffer) => { stderr += d.toString("utf8"); });

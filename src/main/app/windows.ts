@@ -16,6 +16,8 @@ import { closeTerminalsOfWindow } from "../terminal/terminal";
 import { browserForget } from "../navegador/browser";
 import { PARTICAO_COMPUTADOR, particaoComputador, urlTelaPermitida } from "../maquina/tela-core";
 import { PARTICAO_INSPECTOR, mesmaOrigem, urlInspectorPermitida } from "../inspector/inspector-core";
+import { PARTICAO_MODULO, urlNaOrigem } from "../modulos/modulos-pagina-core";
+import { paginaRegistrada, particoesDaMaquina } from "../modulos/modulos";
 
 export type OpenOrigin = "startup" | "picker" | "notify" | "quick" | "menu" | "shortcut";
 
@@ -153,6 +155,14 @@ export function openMainWindow(host: string, origin: OpenOrigin): BrowserWindow 
       prefs.nodeIntegration = false; prefs.contextIsolation = true; prefs.sandbox = true; prefs.webSecurity = true;
       return;
     }
+    // Página de módulo: só a partição que o app abriu para esta máquina (abrirPaginaModulo) e só a origem do forward dela.
+    if (params.partition?.startsWith(PARTICAO_MODULO) === true) {
+      const reg = paginaRegistrada(params.partition);
+      if (reg === null || reg.host !== host || params.src === undefined || !urlNaOrigem(params.src, reg.origem)) { event.preventDefault(); return; }
+      delete prefs.preload;
+      prefs.nodeIntegration = false; prefs.contextIsolation = true; prefs.sandbox = true; prefs.webSecurity = true;
+      return;
+    }
     if (params.partition?.startsWith(PARTICAO_COMPUTADOR) !== true) return;
     if (params.partition !== particaoComputador(host) || params.src === undefined || !urlTelaPermitida(params.src)) { event.preventDefault(); return; }
     delete prefs.preload;
@@ -163,6 +173,13 @@ export function openMainWindow(host: string, origin: OpenOrigin): BrowserWindow 
     if (caps().inspector && guest.session === session.fromPartition(PARTICAO_INSPECTOR)) {
       const dentro = (url: string): boolean => { const atual = guest.getURL(); return atual === "" ? urlInspectorPermitida(url) : mesmaOrigem(url, atual); };
       guest.on("will-navigate", (e, url) => { if (!dentro(url)) e.preventDefault(); });
+      guest.setWindowOpenHandler(({ url }) => { if (/^https:\/\//.test(url)) void shell.openExternal(url); return { action: "deny" }; });
+      return;
+    }
+    // Página de módulo: não sai da origem do forward; links https de fora abrem no navegador do sistema.
+    const pag = particoesDaMaquina(host).find((p) => guest.session === session.fromPartition(p));
+    if (pag !== undefined) {
+      guest.on("will-navigate", (e, url) => { const reg = paginaRegistrada(pag); if (reg === null || !urlNaOrigem(url, reg.origem)) e.preventDefault(); });
       guest.setWindowOpenHandler(({ url }) => { if (/^https:\/\//.test(url)) void shell.openExternal(url); return { action: "deny" }; });
       return;
     }

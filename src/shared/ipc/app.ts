@@ -190,7 +190,7 @@ export interface Capabilities {
   abreEm: string | null;
   /** Catálogo de add-ons (nome e rótulo para ler), para as telas não escreverem nomes à mão. */
   /** `modulos`: o add-on chega como módulos (página Módulos) quando está na licença da máquina. */
-  addons: { nome: string; rotulo: string; modulos: boolean }[];
+  addons: { nome: string; rotulo: string; modulos: boolean; semLicenca: boolean }[];
   /** O host especial "local" (backend neste computador) é oferecido no seletor de máquinas. Derivada da plataforma (variant-core.ts, CAPS_DE_PLATAFORMA), como as cinco abaixo. */
   hostLocal: boolean;
   /** Terminal neste computador (e não na máquina remota). */

@@ -703,7 +703,7 @@ async function chatCompletions(req, res) {
       // Módulos de produto (meu-bot-diego…) ligados para este perfil e liberados pela licença: regras, MCPs e o ajuste
       // de "ação" (mensagem que pede uma tarefa ganha mais passos e um adendo). Sem módulos, tudo como antes.
       let doModulo = { mcp: {}, regras: [], acoes: [], ids: [] };
-      try { const lic = licenseView().license; doModulo = modulos.paraPerfil(name, (produto) => licenca.produtoOk(lic, produto)); } catch (e) { log(`módulos: ${e.message}`); }
+      try { const lic = licenseView().license; doModulo = modulos.paraPerfil(name, (produto) => licenca.moduloOk(lic, produto)); } catch (e) { log(`módulos: ${e.message}`); }
       const ultimaFala = [...messages].reverse().find((m) => m.role === 'user');
       const acao = modulos.ajusteDaAcao(doModulo.acoes, ultimaFala ? messageText(ultimaFala) : '');
       const regrasModulos = [...doModulo.regras, ...(acao && acao.adendo ? [acao.adendo] : [])].join('\n\n');

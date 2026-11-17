@@ -42,6 +42,8 @@ export interface Produto {
   addon: string | null;
   /** A release publica também o instalador .dmg deste app (scripts/dmg.mjs) e o site entrega ele: só o app das pessoas. */
   instalador: boolean;
+  /** Sai também para Windows (x64, cliente remoto): tem ícone .ico ao lado do .icns e `--plataforma win32` empacota. */
+  windows: boolean;
   /** Página que fica na frente quando a janela abre (de PAGINAS_INICIAIS); null = as abas de conversa, como sempre. */
   abreEm: PaginaInicial | null;
   caps: Omit<Capabilities, "variant" | "produto" | "canal" | "nome" | "titulo" | "addon" | "abreEm" | "addons" | CapDePlataforma>;
@@ -63,10 +65,18 @@ export type CapDePlataforma = (typeof CAPS_DE_PLATAFORMA)[number];
  * com ele na licença da máquina, a página Módulos aparece em qualquer app de cliente, com os módulos dele. É o whitelabel:
  * quem decide o que a pessoa vê é a licença, não o app. Liga-se quando o repositório existe e foi testado.
  */
-export interface Addon { nome: string; rotulo: string; descricao: string; modulos: boolean }
+export interface Addon {
+  nome: string; rotulo: string; descricao: string; modulos: boolean;
+  /**
+   * `semLicenca`: os módulos dele não pedem o add-on na licença; a trava é o acesso git ao repositório privado (quem não
+   * tem acesso nem baixa os módulos). Vale para o produto próprio de alguém (meu-bot-diego); add-on pago, de repositório
+   * público, continua na licença. A cópia no backend é `MODULOS_SEM_LICENCA` (backend-colima/licenca.js).
+   */
+  semLicenca: boolean;
+}
 export const ADDONS: readonly Addon[] = [
-  { nome: "meu-bot-finance", rotulo: "Financeiro", descricao: "O agente vira o financeiro da pessoa no WhatsApp e no chat; página Finanças e Curva ABC.", modulos: false },
-  { nome: "meu-bot-diego", rotulo: "Módulos do Diego", descricao: "Os módulos do produto meu-bot-diego (Salvy, Sendfy…), baixados do repositório dele e ligados um a um na página Módulos, cada um com o seu tutorial.", modulos: false },
+  { nome: "meu-bot-finance", rotulo: "Financeiro", descricao: "O agente vira o financeiro da pessoa no WhatsApp e no chat; página Finanças e Curva ABC.", modulos: false, semLicenca: false },
+  { nome: "meu-bot-diego", rotulo: "Módulos do Diego", descricao: "Os módulos do produto meu-bot-diego (Salvy, Sendfy…), baixados do repositório dele e ligados um a um na página Módulos, cada um com o seu tutorial.", modulos: false, semLicenca: true },
 ];
 /** Nomes na licença que não são add-on: o admin, e o meu-bot-crm (o CRM entrou no Pro em 22 out). */
 export const NAO_ADDON: readonly string[] = ["meu-bot-admin", "meu-bot-crm"];
@@ -87,7 +97,7 @@ const ADMIN: Produto["caps"] = {
 
 // meu-bot: o app da pessoa. Traz as duas extensões; o CRM próprio no Gmail abre pela licença da máquina (Pro ou superior,
 // ou o produto meu-bot-crm contratado), nunca por variante. Funde a pasta do antigo meu-bot-crm na primeira abertura.
-const CLIENT: Produto = { variant: "client", nome: "meu-bot", bundleId: "local.meu-bot", icone: "assets/icon.icns", userData: null, extensoes: ["extensao-crm", "extensao-autenticador"], canal: "estavel", licenca: "meu-bot", herdaDe: null, portaLocal: 8790, portaMcp: 7830, fundeDe: "meu-bot-crm", addon: null, instalador: true, abreEm: null, caps: PESSOA,
+const CLIENT: Produto = { variant: "client", nome: "meu-bot", bundleId: "local.meu-bot", icone: "assets/icon.icns", userData: null, extensoes: ["extensao-crm", "extensao-autenticador"], canal: "estavel", licenca: "meu-bot", herdaDe: null, portaLocal: 8790, portaMcp: 7830, fundeDe: "meu-bot-crm", addon: null, instalador: true, windows: false, abreEm: null, caps: PESSOA,
   descricao: "O app da pessoa: chat e WhatsApp no plano Free; Navegador e CRM próprio no Pro; add-ons por cima, com ou sem o Pro." };
 
 /** A cópia staging de um app estável: "<nome>-staging", ícone com a faixa, dados próprios herdados dele, porta própria. */
@@ -100,12 +110,13 @@ export const PRODUTOS: readonly Produto[] = [
   CLIENT,
   // Até 4 nov chamava-se meu-bot-admin: a pasta de dados antiga é trazida na primeira abertura (admin/user-data.ts). A licença
   // continua "meu-bot-admin" (é o nome contratado, não o do app).
-  { variant: "admin", nome: "meu-bot-admin-gestao", bundleId: "local.meu-bot-admin-gestao", icone: "assets/icon-admin.icns", userData: "meu-bot-admin-gestao", extensoes: [], canal: "estavel", licenca: "meu-bot-admin", herdaDe: null, portaLocal: 8790, portaMcp: 7833, fundeDe: null, addon: null, instalador: false, abreEm: null, caps: ADMIN,
+  { variant: "admin", nome: "meu-bot-admin-gestao", bundleId: "local.meu-bot-admin-gestao", icone: "assets/icon-admin.icns", userData: "meu-bot-admin-gestao", extensoes: [], canal: "estavel", licenca: "meu-bot-admin", herdaDe: null, portaLocal: 8790, portaMcp: 7833, fundeDe: null, addon: null, instalador: false, windows: false, abreEm: null, caps: ADMIN,
     descricao: "Este app: suporte, licenças, espelho das máquinas, auditoria e o registro de produtos (MVPs)." },
-  staging(CLIENT, "client-staging", 8791, 7831),
+  // O primeiro a sair para Windows: só no canal de teste, até o instalador ter assinatura Authenticode.
+  { ...staging(CLIENT, "client-staging", 8791, 7831), windows: true },
   // meu-bot-admin-mac: só as contas deste Mac (quem abre o meu-bot aqui; o bot de cada um roda numa VM, assunto do
   // meu-bot-admin). Sem seletor, sem chat; cria contas administrador com o meu-bot na mesa, muda o apelido e apaga.
-  { variant: "admin-mac", nome: "meu-bot-admin-mac", bundleId: "local.meu-bot-admin-mac", icone: "assets/icon-admin-mac.icns", userData: "meu-bot-admin-mac", extensoes: [], canal: "estavel", licenca: "meu-bot-admin", herdaDe: null, portaLocal: 8790, portaMcp: 7834, fundeDe: null, addon: null, instalador: false, abreEm: null, caps: { ...ADMIN, supportAdmin: false, usuariosMac: true },
+  { variant: "admin-mac", nome: "meu-bot-admin-mac", bundleId: "local.meu-bot-admin-mac", icone: "assets/icon-admin-mac.icns", userData: "meu-bot-admin-mac", extensoes: [], canal: "estavel", licenca: "meu-bot-admin", herdaDe: null, portaLocal: 8790, portaMcp: 7834, fundeDe: null, addon: null, instalador: false, windows: false, abreEm: null, caps: { ...ADMIN, supportAdmin: false, usuariosMac: true },
     descricao: "As contas deste Mac: cria (administrador, senha mostrada uma vez, meu-bot na mesa), muda o apelido e apaga. O bot de cada pessoa roda numa VM." },
   // meu-bot-finance-staging: o meu-bot em teste com o financeiro na frente (abre na página Finanças). O financeiro em si
   // é liberado pela licença da máquina (produto meu-bot-finance), como o CRM próprio; o app só tem nome, ícone, dados
@@ -178,6 +189,6 @@ export const userDataNameFor = (v: AppVariant): string | null => produtoDe(v).us
 export function capsFor(variant: AppVariant, versao?: string, plataforma: NodeJS.Platform = "darwin"): Capabilities {
   const p = produtoDe(variant);
   const tem = plataforma !== "win32";
-  return { variant, produto: p.licenca, canal: p.canal, nome: p.nome, titulo: titleFor(variant, versao), addon: p.addon, abreEm: p.abreEm, addons: ADDONS.map((a) => ({ nome: a.nome, rotulo: a.rotulo, modulos: a.modulos })), ...p.caps,
+  return { variant, produto: p.licenca, canal: p.canal, nome: p.nome, titulo: titleFor(variant, versao), addon: p.addon, abreEm: p.abreEm, addons: ADDONS.map((a) => ({ nome: a.nome, rotulo: a.rotulo, modulos: a.modulos, semLicenca: a.semLicenca })), ...p.caps,
     hostLocal: tem, terminalLocal: tem, atalhosMesa: tem, agenteNavegador: tem && p.caps.navegador, controleRemoto: tem, telaComputador: tem && p.caps.chat };
 }

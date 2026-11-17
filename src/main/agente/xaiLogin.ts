@@ -28,7 +28,7 @@ let current: { host: string; child: ChildProcess } | null = null;
 
 function ssh(host: string, cmd: string, timeoutMs: number): Promise<{ code: number | null; out: string }> {
   return new Promise((resolve) => {
-    const child = spawn("ssh", [...SSH_OPTS, "--", host, `${REMOTE_PATH}; ${cmd}`], { stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn("ssh", [...SSH_OPTS, "--", host, `${REMOTE_PATH}; ${cmd}`], { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
     let out = "";
     const timer = setTimeout(() => child.kill("SIGKILL"), timeoutMs);
     child.stdout.on("data", (d: Buffer) => { out += d.toString("utf8"); });
@@ -60,7 +60,7 @@ export function startXaiLogin(host: string, send: (ev: ClaudeLoginEvent) => void
   return new Promise((resolve) => {
     // `-tt`: sem pseudo-terminal o `hermes auth add` não imprime o link e fica parado. O stdin fica
     // aberto (o pty precisa dele) e é fechado quando o processo termina ou a pessoa cancela.
-    const child = spawn("ssh", ["-tt", ...SSH_OPTS, "--", host, `${REMOTE_PATH}; hermes auth add xai-oauth --type oauth --no-browser 2>&1`], { stdio: ["pipe", "pipe", "pipe"] });
+    const child = spawn("ssh", ["-tt", ...SSH_OPTS, "--", host, `${REMOTE_PATH}; hermes auth add xai-oauth --type oauth --no-browser 2>&1`], { windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
     child.stdin.on("error", () => { /* pty fechou */ });
     current = { host, child };
     let buf = ""; let all = ""; let urlSent = false;

@@ -20,7 +20,7 @@ export interface ModulosPageDeps {
   definePage(id: string, title: string, panel: HTMLElement, render: () => void): PageTab;
   openPage(page: PageTab): void;
   armConfirm(btn: HTMLButtonElement, label: string, run: () => void): void;
-  api: Pick<MeuBotApi, "modulosAtualizarFonte" | "modulosListar" | "modulosLigar" | "modulosDesligar" | "modulosTestar" | "modulosCredenciais" | "modulosOpcoes" | "openExternal" | "on">;
+  api: Pick<MeuBotApi, "modulosAbrirPagina" | "modulosAtualizarFonte" | "modulosListar" | "modulosLigar" | "modulosDesligar" | "modulosTestar" | "modulosCredenciais" | "modulosOpcoes" | "openExternal" | "on">;
   /** Leva uma pergunta pronta ao chat do agente (o mesmo caminho dos tutoriais). */
   goToChat(message: string, hint: string): Promise<void>;
   /** Máquina desta janela (as marcações dos primeiros passos são por máquina); lida na hora, não na montagem. */
@@ -28,7 +28,7 @@ export interface ModulosPageDeps {
 }
 
 type Aba = "geral" | "ferramentas" | "guia" | "passos";
-const MSG_LICENCA = (rotulo: string): string => `Os módulos ainda não estão liberados nesta máquina: peça ao admin para incluir o add-on "${rotulo}" na licença (Configurações › Suporte).`;
+const MSG_LICENCA = (rotulo: string): string => `Os módulos ainda não estão liberados nesta máquina: peça ao admin para incluir o add-on "${rotulo}" na licença dela (no meu-bot-admin, Suporte › Conta e licença).`;
 
 export function mountModulosPage(deps: ModulosPageDeps): { open: () => void } {
   const panel = el("section", "acervo-panel modulos-panel"); panel.hidden = true;
@@ -89,6 +89,38 @@ export function mountModulosPage(deps: ModulosPageDeps): { open: () => void } {
   }
   async function testar(m: ModuloVista): Promise<void> {
     await acao(m.id, async () => { const t = await deps.api.modulosTestar(m.id); return { ok: t.ok, log: [t.ok ? `✓ conexão ok · ${t.ferramentas.length} ferramenta(s)` : `✗ ${t.erro ?? "o teste falhou"}`] }; });
+  }
+
+  /* ---------- página própria do módulo (uma aba por módulo, com o <webview> do serviço dele) ---------- */
+  const paginas = new Map<string, { page: PageTab; caixa: HTMLElement; aviso: HTMLElement }>();
+  async function abrirPagina(m: ModuloVista): Promise<void> {
+    if (m.pagina === null) return;
+    let p = paginas.get(m.id);
+    if (p === undefined) {
+      const painel = el("section", "acervo-panel modulo-pagina-panel"); painel.hidden = true;
+      const aviso = el("div", "modulo-pagina-aviso"); const caixa = el("div", "modulo-pagina-tela");
+      painel.append(aviso, caixa); deps.panelsEl.append(painel);
+      p = { page: deps.definePage(`modulo-${m.id}`, m.pagina.rotulo, painel, () => { /* o <webview> se desenha sozinho */ }), caixa, aviso };
+      paginas.set(m.id, p);
+    }
+    const { page: aba, caixa, aviso } = p;
+    deps.openPage(aba);
+    aviso.replaceChildren(carregando(`Abrindo ${m.pagina.rotulo}…`)); caixa.replaceChildren();
+    try {
+      const r = await deps.api.modulosAbrirPagina(m.id);
+      // Sem preload, com sandbox e só a origem do forward: o main confere tudo de novo ao anexar (windows.ts).
+      const v = document.createElement("webview");
+      v.setAttribute("partition", r.particao);
+      v.setAttribute("webpreferences", "contextIsolation=yes,sandbox=yes,nodeIntegration=no");
+      v.className = "computador-webview";
+      v.setAttribute("src", r.url);
+      v.addEventListener("did-fail-load", (ev) => {
+        const e = ev as Event & { errorCode?: number; isMainFrame?: boolean };
+        if (e.isMainFrame === false || e.errorCode === -3) return;
+        aviso.replaceChildren(el("p", "hint bad-hint", `A página de ${m.rotulo} não carregou. Volte em Módulos e abra de novo.`));
+      });
+      aviso.replaceChildren(); caixa.replaceChildren(v);
+    } catch (e) { aviso.replaceChildren(el("p", "hint bad-hint", ipcErrorText(e))); }
   }
 
   /* ---------- peças ---------- */
@@ -264,6 +296,7 @@ export function mountModulosPage(deps: ModulosPageDeps): { open: () => void } {
     tit.append(linhaNome);
     if (m.descricao) tit.append(el("p", "hint", m.descricao));
     cab.append(avatar(m), tit);
+    if (m.pagina !== null) { const pg = m.pagina; const ab = btn(`Abrir ${pg.rotulo}`, "btn-primary", () => { void abrirPagina(m); }, !m.estado.ligado || l.erroMaquina !== null || !l.liberado); if (!m.estado.ligado) ab.title = "Ligue o módulo para abrir a página dele"; cab.append(ab); }
     if (m.testar !== null) cab.append(btn(ocupado === m.id ? "Testando…" : "↻ Testar conexão", "btn-ghost modulo-testar", () => { void testar(m); }, !m.estado.ligado || l.erroMaquina !== null));
     f.append(voltar, cab);
     if (m.exemplos.length > 0) {

@@ -4,13 +4,17 @@ import { execFileSync } from "node:child_process";
 import { chmodSync, copyFileSync, existsSync } from "node:fs";
 import path from "node:path";
 
-import { archOf, produtoFromArgv } from "./produtos.mjs";
+import { empacotado, exigeWindows, plataformaFromArgv, produtoFromArgv } from "./produtos.mjs";
 
 // `--variant <id>` / `--admin`: qual produto (ver scripts/package.mjs e src/main/app/variant-core.ts).
 const produto = produtoFromArgv();
 const name = produto.nome;
 const bundleId = produto.bundleId;
-const app = `out/${name}-darwin-${archOf()}/${name}.app`;
+// `--plataforma win32`: os mesmos fuses no .exe; sem assinatura (o Authenticode é de outra etapa) e sem instalar.
+const plataforma = plataformaFromArgv();
+exigeWindows(produto, plataforma);
+const win = plataforma === "win32";
+const { app, recursos } = empacotado(produto, plataforma);
 if (!existsSync(app)) {
   console.error(`App não encontrado em ${app}. Rode npm run package primeiro.`);
   process.exit(1);
@@ -19,7 +23,7 @@ if (!existsSync(app)) {
 // meu-bot-staging (licença "meu-bot"), com MEU_BOT_SUPORTE=1 (o ./instalar.sh liga quando build/suporte existe).
 // Antes da assinatura.
 if (produto.licenca === "meu-bot" && produto.caps.supportClient && process.env.MEU_BOT_SUPORTE === "1" && existsSync("build/suporte/suporte.json")) {
-  const cfg = path.join(app, "Contents", "Resources", "config");
+  const cfg = path.join(recursos, "config");
   copyFileSync("build/suporte/suporte.json", path.join(cfg, "suporte.json"));
   copyFileSync("build/suporte/known_hosts", path.join(cfg, "suporte-known_hosts"));
   copyFileSync("build/suporte/entrega", path.join(cfg, "suporte-entrega"));
@@ -28,7 +32,7 @@ if (produto.licenca === "meu-bot" && produto.caps.supportClient && process.env.M
 }
 await flipFuses(app, {
   version: FuseVersion.V1,
-  resetAdHocDarwinSignature: true,
+  resetAdHocDarwinSignature: !win,
   [FuseV1Options.RunAsNode]: false,
   [FuseV1Options.EnableCookieEncryption]: true,
   [FuseV1Options.EnableNodeOptionsEnvironmentVariable]: false,
@@ -45,6 +49,7 @@ for (const [index, value] of Object.entries(wire)) {
 }
 // Developer ID (hardened runtime, scripts/assinatura.mjs) quando está no chaveiro; senão a identidade fixa
 // "meu-bot local" (o chaveiro não pede a senha a cada build); senão ad-hoc.
+if (win) process.exit(0);
 const ident = await assinar(app);
 console.log(ident === "-" ? "Assinatura ad-hoc aplicada em" : `Assinado com "${ident}":`, app);
 

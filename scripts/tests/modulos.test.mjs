@@ -156,3 +156,22 @@ test("ficha do módulo (renderer): selo, tempo e passos pelo estado", async () =
   assert.equal(passoFeito({ id: "a", conclui: "opcao:x" }, { ...ligado, estado: { ...ligado.estado, opcoes: { x: "" } } }, []), false);
   assert.equal(passoFeito({ id: "m", conclui: "manual" }, base, ["m"]), true);
 });
+
+test("módulos sem licença: o meu-bot-diego vale sem o add-on (a trava é o repositório privado); o Financeiro continua pedindo", () => {
+  const lic = require("../../backend-colima/licenca.js");
+  const vazia = { plan: "free", status: "free", produtos: [] };
+  assert.equal(lic.moduloOk(vazia, "meu-bot-diego"), true);
+  assert.equal(lic.moduloOk(vazia, "meu-bot-finance"), false);
+  assert.equal(lic.moduloOk({ ...vazia, produtos: ["meu-bot-finance"] }, "meu-bot-finance"), true);
+  assert.equal(lic.moduloOk({ ...vazia, status: "expired", produtos: ["meu-bot-finance"] }, "meu-bot-finance"), false);
+  assert.deepEqual(ADDONS.filter((a) => a.semLicenca).map((a) => a.nome), ["meu-bot-diego"]);
+  // No turno do agente: o módulo do Diego entra sem o add-on na licença; um módulo de produto pago, não.
+  const base = mkdtempSync(join(tmpdir(), "mod-sem-lic-"));
+  for (const [id, produto] of [["sendfy-mcp", "meu-bot-diego"], ["financas", "meu-bot-finance"]]) {
+    mkdirSync(join(base, id), { recursive: true });
+    writeFileSync(join(base, id, "ligado"), "");
+    writeFileSync(join(base, id, "turno.json"), JSON.stringify({ produto, perfis: ["*"], mcp: { [id]: { type: "http", url: "https://x" } } }));
+  }
+  const r = mb.paraPerfil("agente", (p) => lic.moduloOk(vazia, p), { base, conf: base });
+  assert.deepEqual(r.ids, ["sendfy-mcp"]);
+});

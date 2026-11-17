@@ -73,6 +73,7 @@ export const ACOES = {
   "crm.instalar": () => "instalou o CRM pelo WhatsApp",
   "finance.instalar": () => "instalou o financeiro (WhatsApp e chat)",
   "modulo.ligar": (a: string) => `ligou o módulo ${a}`,
+  "modulo.pagina": (a: string) => `abriu a página do módulo ${a}`,
   "modulo.desligar": (a: string) => `desligou o módulo ${a}`,
   "modulo.credenciais": (a: string) => `trocou as chaves do módulo ${a}`,
   "modulo.opcoes": (a: string) => `mudou as opções do módulo ${a}`,

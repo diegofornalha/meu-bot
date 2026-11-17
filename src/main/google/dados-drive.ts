@@ -64,7 +64,7 @@ function gravarLocal(host: string, c: ConjuntoDados, arquivo: string, pacote: Bu
 const SEM_NADA = 3;
 async function empacotar(host: string, c: ConjuntoDados): Promise<Buffer | null> {
   // O comando é puro e testado (google-core.ts): lista só o que existe e tolera o tar 1 ("file changed as we read it").
-  const filho = spawn("ssh", [...SSH_OPTS, "--", host, comandoPacoteSh(c)], { stdio: ["ignore", "pipe", "pipe"] });
+  const filho = spawn("ssh", [...SSH_OPTS, "--", host, comandoPacoteSh(c)], { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
   const partes: Buffer[] = [];
   let bytes = 0; let estourou = false;
   filho.stdout.on("data", (d: Buffer) => {
@@ -260,7 +260,7 @@ export async function listarCopias(host: string): Promise<BackupCopiasView> {
 /** Manda o pacote claro pelo stdin do ssh para o script de restauração; exige `RESTAURADO=ok`. */
 function enviarParaRestaurar(host: string, linha: string, pacote: Buffer): Promise<string> {
   return new Promise((res, rej) => {
-    const filho = spawn("ssh", [...SSH_OPTS, "--", host, linha], { stdio: ["pipe", "pipe", "pipe"] });
+    const filho = spawn("ssh", [...SSH_OPTS, "--", host, linha], { windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
     let stdout = ""; let stderr = "";
     filho.stdout.on("data", (d: Buffer) => { stdout += d.toString("utf8"); });
     filho.stderr.on("data", (d: Buffer) => { stderr += d.toString("utf8"); });

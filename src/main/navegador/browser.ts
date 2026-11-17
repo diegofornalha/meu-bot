@@ -63,7 +63,7 @@ const portaDe = (url: string): number => { try { return Number(new URL(url).port
 function entregarNaMaquina(host: string, url: string): Promise<{ code: number; location: string | null; erro: string | null }> {
   return sshMuxArgs(host).then((args) => new Promise((resolve) => {
     const b64 = Buffer.from(url, "utf8").toString("base64");
-    const child = spawn("ssh", [...args, "bash -s"], { stdio: ["pipe", "pipe", "pipe"] });
+    const child = spawn("ssh", [...args, "bash -s"], { windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
     let out = ""; const t = setTimeout(() => child.kill("SIGKILL"), 40_000);
     child.stdout.on("data", (d: Buffer) => { out += d.toString("utf8"); });
     child.on("close", () => { clearTimeout(t); const m = /^(\d{3})\s(.*)$/m.exec(out.trim()); resolve(m ? { code: Number(m[1]), location: m[2]!.trim() || null, erro: null } : { code: 0, location: null, erro: "a máquina não respondeu (a CLI ainda está esperando o login?)" }); });

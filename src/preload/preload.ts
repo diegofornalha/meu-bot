@@ -269,6 +269,7 @@ const clientApi: MeuBotClientApi = {
   installFinance: () => ipcRenderer.invoke("finance:install", {}),
   modulosAtualizarFonte: () => ipcRenderer.invoke("modulos:atualizar-fonte", {}),
   modulosTestar: (id: string) => ipcRenderer.invoke("modulos:testar", { id }),
+  modulosAbrirPagina: (id: string) => ipcRenderer.invoke("modulos:abrir-pagina", { id }),
   modulosListar: () => ipcRenderer.invoke("modulos:listar", {}),
   modulosLigar: (id: string) => ipcRenderer.invoke("modulos:ligar", { id }),
   modulosDesligar: (id: string) => ipcRenderer.invoke("modulos:desligar", { id }),
