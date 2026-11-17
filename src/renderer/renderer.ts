@@ -374,7 +374,7 @@ let usuariosAdmin: { open: () => void } | null = null;
 let appVersion = "";
 /** Build deste app (`WindowInfo.build`): o cache só devolve o que este mesmo build gravou. */
 let appBuild = "";
-let caps: Capabilities = { variant: "client", produto: "meu-bot", canal: "estavel", nome: "meu-bot", titulo: "meu-bot", chat: true, pair: true, login: true, manageWa: true, tunnel: true, install: true, supportClient: true, supportAdmin: false, navegador: true, planoExigido: "free", usuariosMac: false, inspector: false, modulos: null, addon: null, abreEm: null, addons: [] };
+let caps: Capabilities = { variant: "client", produto: "meu-bot", canal: "estavel", nome: "meu-bot", titulo: "meu-bot", chat: true, pair: true, login: true, manageWa: true, tunnel: true, install: true, supportClient: true, supportAdmin: false, navegador: true, planoExigido: "free", usuariosMac: false, inspector: false, modulos: null, addon: null, abreEm: null, addons: [], hostLocal: true, terminalLocal: true, atalhosMesa: true, agenteNavegador: true, controleRemoto: true, telaComputador: true };
 const lastHostEl = $<HTMLParagraphElement>("last-host");
 const settingsError = $<HTMLParagraphElement>("settings-error");
 const cancelBtn = $<HTMLButtonElement>("btn-cancel");
@@ -1889,6 +1889,7 @@ void (async () => {
   if (info === null) throw new Error("janela sem máquina registrada");
   windowHost = info.host;
   caps = info.caps;
+  $<HTMLElement>("mcp-group").hidden = !caps.controleRemoto;
   if (caps.supportAdmin) sidebarArchived.parentElement?.setAttribute("title", "Mostrar também as conversas arquivadas e, no WhatsApp, as que a pessoa excluiu (nada foi apagado)");
   appVersion = info.version;
   for (const id of ["app-version", "mini-version"]) { const v = $<HTMLElement>(id); v.textContent = `v${info.version}`; v.title = `${caps.nome} ${info.version}`; }
@@ -1972,12 +1973,13 @@ void (async () => {
   const contaGoogle = mountContaGoogle({ panelsEl, definePage, openPage, openGmail: () => gmailPage?.open(), armConfirm, api: window.meuBot, host: () => windowHost, license: () => license, licenseKnown: () => navLicenseAsked, planoExigido: caps.planoExigido, produto: caps.produto });
   $<HTMLButtonElement>("conta-google-line").addEventListener("click", () => contaGoogle.open());
   contaGooglePage = contaGoogle;
-  const gmail = mountGmail({ panelsEl, definePage, openPage, openContaGoogle: () => contaGoogle.open(), aoUsar: gmailGuiaFato, api: window.meuBot, host: () => windowHost, license: () => license, licenseKnown: () => navLicenseAsked, planoExigido: caps.planoExigido, produto: caps.produto });
+  const gmail = mountGmail({ panelsEl, definePage, openPage, openContaGoogle: () => contaGoogle.open(), aoUsar: gmailGuiaFato, agente: caps.agenteNavegador, api: window.meuBot, host: () => windowHost, license: () => license, licenseKnown: () => navLicenseAsked, planoExigido: caps.planoExigido, produto: caps.produto });
   gmailPage = gmail;
   $<HTMLButtonElement>("gmail-line").addEventListener("click", () => gmail.open());
-  const computador = mountComputador({ panelsEl, definePage, openPage, api: window.meuBot, host: () => windowHost, local: () => windowHost === "local", license: () => license, licenseKnown: () => navLicenseAsked, planoExigido: caps.planoExigido, produto: caps.produto });
+  // Computador: por capacidade (caps.telaComputador); sem ela a linha fica escondida (licenca.ts) e a página nem é montada.
+  const computador = caps.telaComputador ? mountComputador({ panelsEl, definePage, openPage, api: window.meuBot, host: () => windowHost, local: () => windowHost === "local", license: () => license, licenseKnown: () => navLicenseAsked, planoExigido: caps.planoExigido, produto: caps.produto }) : null;
   computadorPage = computador;
-  $<HTMLButtonElement>("computador-line").addEventListener("click", () => computador.open());
+  $<HTMLButtonElement>("computador-line").addEventListener("click", () => computador?.open());
   // Etiqueta "Pro" na lateral, como no Navegador (só no produto free; nos apps com assinatura tudo é um pacote só).
   $<HTMLElement>("conta-google-count").textContent = caps.planoExigido === "free" ? "Pro" : "";
   $<HTMLElement>("gmail-count").textContent = caps.planoExigido === "free" ? "Pro" : "";
@@ -1997,7 +1999,7 @@ void (async () => {
   // O app cujo add-on é o financeiro mostra o botão sempre (sem licença, a página diz como liberar).
   if (caps.addon === "meu-bot-finance") paintFinanceLine();
   // Inspector: por capacidade (só o meu-bot-inspector-staging); nos outros produtos o botão fica escondido e a página nem é montada.
-  if (caps.inspector) {
+  if (caps.inspector && caps.controleRemoto) {
     inspectorPage = mountInspector({ panelsEl, definePage, openPage, api: window.meuBot });
     const linha = $<HTMLButtonElement>("inspector-line");
     linha.hidden = false;
@@ -2019,7 +2021,7 @@ void (async () => {
   void refreshContas();
   void refreshLinkPublico();
   void refreshGmailGuia();
-  void refreshLicense().then(() => { paintGuide(); contaGoogle.repintar(); gmail.repintar(); computador.repintar(); });
+  void refreshLicense().then(() => { paintGuide(); contaGoogle.repintar(); gmail.repintar(); computador?.repintar(); });
   void refreshNavInst();
   void refreshCrm();
   const intro = playIntro(); // cobre a janela enquanto as abas voltam; some sozinha
@@ -2038,7 +2040,7 @@ void (async () => {
   else if (fixa === "modulos") modulosPage?.open();
   else if (fixa === "conta-google") contaGoogle.open();
   else if (fixa === "gmail") gmail.open();
-  else if (fixa === "computador") computador.open();
+  else if (fixa === "computador") computador?.open();
   else if (fixa === "navegador") void openNavTab();
   aberturaPronta = true;
   paintContext(active());

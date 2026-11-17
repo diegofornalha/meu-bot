@@ -7,14 +7,14 @@ import type { QuickEntryStatus } from "../../shared/ipc";
 let quickWin: BrowserWindow | null = null;
 let registered: string | null = null;
 let status: QuickEntryStatus = "disabled";
-let getMainWindow: (() => BrowserWindow) | null = null;
+let getMainWindow: (() => BrowserWindow | null) | null = null;
 const pendingAcks = new Map<string, { resolve: (r: { ok: boolean; message?: string }) => void; timer: NodeJS.Timeout; senderId: number }>();
 let getHostLabel: ((win: BrowserWindow) => string) | null = null;
 let counter = 0;
 
 export const quickEntryStatus = (): QuickEntryStatus => status;
 
-export function initQuickEntry(deps: { mainWindow: () => BrowserWindow; hostLabel?: (win: BrowserWindow) => string }): void {
+export function initQuickEntry(deps: { mainWindow: () => BrowserWindow | null; hostLabel?: (win: BrowserWindow) => string }): void {
   getMainWindow = deps.mainWindow;
   getHostLabel = deps.hostLabel ?? null;
   ipcMain.handle("quick:submit", async (event, payload: unknown) => {
@@ -39,7 +39,7 @@ export function initQuickEntry(deps: { mainWindow: () => BrowserWindow; hostLabe
 /** Manda o texto para a janela principal e espera a confirmação dela (8 s). */
 async function relayToMain(text: string): Promise<{ ok: boolean; message?: string }> {
   const main = getMainWindow?.();
-  if (main === undefined) return { ok: false, message: "janela principal indisponível" };
+  if (main === undefined || main === null) return { ok: false, message: "janela principal indisponível" };
   if (main.webContents.isLoading()) await new Promise<void>((r) => main.webContents.once("did-finish-load", () => r()));
   const correlationId = `q${Date.now()}-${++counter}`;
   const result = new Promise<{ ok: boolean; message?: string }>((resolve) => {
@@ -92,7 +92,7 @@ export function toggleQuickEntry(): void {
   quickWin.focus();
   quickWin.webContents.send("quick:shown", {});
   const target = getMainWindow?.();
-  quickWin.webContents.send("quick:appearance", target !== undefined && getHostLabel !== null ? { host: getHostLabel(target) } : {});
+  quickWin.webContents.send("quick:appearance", target !== undefined && target !== null && getHostLabel !== null ? { host: getHostLabel(target) } : {});
 }
 
 /** (Re)registra o atalho conforme as configurações; devolve o status para a UI. */

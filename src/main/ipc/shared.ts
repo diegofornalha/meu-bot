@@ -60,7 +60,9 @@ function waMenuCapsOf(host: string): WaMenuCaps | null {
   return gateway === null ? null : capacidadesDe(gateway, true, true, { pausaModo: whatsappPausaModoOf(host) });
 }
 import { EXTERNAL_URL, hostFromEvent, waJid, waNumber, windowFromEvent } from "./context";
-import { handleShared, onShared } from "./registry";
+import { exigeCap, handleShared, onShared } from "./registry";
+import { SEM_CAPACIDADE_MSG } from "./ipc-policy";
+import { LOCAL_HOST } from "../maquina/localBackend";
 import { estado as estadoDepuracao, modoDepuracao, setDepuracao } from "../app/depuracao";
 
 export interface SharedIpcDeps {
@@ -459,6 +461,7 @@ export function registerSharedIpc(deps: SharedIpcDeps): void {
   handleShared("term:open", async (event, payload: unknown) => {
     const h = hostFromEvent(event);
     if (h === null) throw new Error("origem inválida");
+    if (h.host === LOCAL_HOST && !caps().terminalLocal) throw new Error(SEM_CAPACIDADE_MSG);
     const p = payload as { cols?: unknown; rows?: unknown } | null;
     const id = await openTerminal(h.win, h.host, typeof p?.cols === "number" ? p.cols : 80, typeof p?.rows === "number" ? p.rows : 24);
     if (caps().supportAdmin && isSupportAlias(h.host)) void registrar(h.host, "terminal.abrir");
@@ -582,45 +585,45 @@ export function registerSharedIpc(deps: SharedIpcDeps): void {
   // desligar derruba e mantém o token (religar não obriga a reconfigurar os clientes; "Gerar outro" é o que invalida);
   // porta e token novos reiniciam na hora. Cada mudança avisa as outras janelas.
   const mcpAvisar = (): ControleRemotoView => { const v = estadoControleRemoto(); broadcast("controle-remoto:changed", v); return v; };
-  handleShared("controle-remoto:status", () => estadoControleRemoto());
-  handleShared("controle-remoto:ligar", async (_event, payload: unknown) => {
+  handleShared("controle-remoto:status", exigeCap("controleRemoto", () => estadoControleRemoto()));
+  handleShared("controle-remoto:ligar", exigeCap("controleRemoto", async (_event, payload: unknown) => {
     const ligado = (payload as { ligado?: unknown } | null)?.ligado === true;
     if (ligado) { setControleRemoto({ ligado: true, ...(getControleRemoto().token === "" ? { token: gerarToken() } : {}) }); await startControleRemoto(); }
     else { stopControleRemoto(); setControleRemoto({ ligado: false }); }
     return mcpAvisar();
-  });
+  }));
   // Execução (terminal_digitar, nav_js) é lida a cada pedido pelo servidor: não precisa reiniciar.
-  handleShared("controle-remoto:execucao", (_event, payload: unknown) => {
+  handleShared("controle-remoto:execucao", exigeCap("controleRemoto", (_event, payload: unknown) => {
     setControleRemoto({ execucao: (payload as { ligado?: unknown } | null)?.ligado === true });
     return mcpAvisar();
-  });
-  handleShared("controle-remoto:porta", async (_event, payload: unknown) => {
+  }));
+  handleShared("controle-remoto:porta", exigeCap("controleRemoto", async (_event, payload: unknown) => {
     const porta = (payload as { porta?: unknown } | null)?.porta;
     if (!isPortaMcp(porta)) throw new Error(`Porta inválida: use um número de ${PORTA_MIN} a ${PORTA_MAX}.`);
     if (porta !== portaControleRemoto()) { setControleRemoto({ porta: porta === produto().portaMcp ? null : porta }); await reiniciarControleRemoto(); }
     return mcpAvisar();
-  });
-  handleShared("controle-remoto:regenerar", async () => {
+  }));
+  handleShared("controle-remoto:regenerar", exigeCap("controleRemoto", async () => {
     setControleRemoto({ token: gerarToken() });
     await reiniciarControleRemoto();
     return mcpAvisar();
-  });
+  }));
   // Instalar: registra este app no cliente com a porta e a chave de agora (Claude Code pelo CLI; Cursor pelo deeplink).
   const clienteDe = (payload: unknown): ClienteMcp => {
     const c = (payload as { cliente?: unknown } | null)?.cliente;
     if (!isClienteMcp(c)) throw new Error("Cliente MCP desconhecido.");
     return c;
   };
-  handleShared("controle-remoto:instalar", async (_event, payload: unknown) => {
+  handleShared("controle-remoto:instalar", exigeCap("controleRemoto", async (_event, payload: unknown) => {
     const v = estadoControleRemoto();
     await instalarCliente(clienteDe(payload), v.nome, v.porta, v.token);
     return mcpAvisar();
-  });
-  handleShared("controle-remoto:remover", async (_event, payload: unknown) => {
+  }));
+  handleShared("controle-remoto:remover", exigeCap("controleRemoto", async (_event, payload: unknown) => {
     const v = estadoControleRemoto();
     await removerCliente(clienteDe(payload), v.nome, v.porta, v.token);
     return mcpAvisar();
-  });
+  }));
 
   const memoryView = () => ({ ...getMemory(), limits: { notas: NOTAS_MAX, perfil: PERFIL_MAX } });
   handleShared("memory:get", () => memoryView());

@@ -1,5 +1,6 @@
 /** Contrato IPC · Máquinas: sondagem, backend, instalação, Tailscale, SSH. Só tipos (nada é emitido); reexportado por src/shared/ipc.ts. */
 import type { SupportPerson } from "./suporte";
+import type { Capabilities } from "./app";
 
 /** Estado do túnel/backend, enviado ao renderer. */
 export interface BackendStatusEvent {
@@ -110,8 +111,8 @@ export interface PickerInit {
   enderecos: Record<string, { hostName: string | null; user: string | null }>;
   /** meu-bot-admin: as pessoas (os hosts são os aliases delas, só as com suporte ligado). null = meu-bot normal. */
   support: { people: SupportPerson[]; adminKey: boolean } | null;
-  /** Máquina a pré-selecionar (última aberta). */
-  preselect: string;
+  /** Máquina a pré-selecionar (última aberta); null = a lista está vazia (sem o host "local" e sem máquina no ~/.ssh/config). */
+  preselect: string | null;
   /** Máquinas que já têm janela aberta. */
   open: string[];
   /** Máquinas (e "seletor") com atalho na área de trabalho, com o emoji do ícone de cada um. */
@@ -120,6 +121,8 @@ export interface PickerInit {
   pods: string[];
   /** Máquinas com o botão "aliviar <host>.app" na área de trabalho. */
   reliefShortcuts: string[];
+  /** O que o seletor esconde por capacidade (Capabilities): sem `atalhosMesa`, o botão de atalho de cada linha e o do alívio na mesa. */
+  caps: Pick<Capabilities, "atalhosMesa">;
   /** Caixinha "abrir direto": marcada = sem a abertura animada. */
   /** Apelidos das máquinas (host → nome mostrado). */
   names: Record<string, string>;

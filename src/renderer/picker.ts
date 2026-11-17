@@ -74,6 +74,8 @@ const onboardedCheck = $<HTMLInputElement>("pk-onboarded");
 interface Row { host: string; li: HTMLLIElement; badgeEl: HTMLSpanElement; shortcutBtn: HTMLButtonElement; relieveBtn: HTMLButtonElement }
 let shortcuts = new Map<string, string | null>();
 let reliefShortcuts = new Set<string>();
+/** Atalhos na mesa (caps.atalhosMesa, do main): sem ela, o botão de cada linha e o do alívio na mesa ficam escondidos. */
+let atalhosMesa = true;
 let pods = new Set<string>();
 
 let hosts: string[] = [];
@@ -144,6 +146,7 @@ function buildRows(): void {
     relieveBtn.addEventListener("click", (ev) => { ev.stopPropagation(); void relieve(host, relieveBtn); });
     const shortcutBtn = el("button", "shortcut");
     shortcutBtn.type = "button";
+    shortcutBtn.hidden = !atalhosMesa;
     shortcutBtn.addEventListener("click", (ev) => { ev.stopPropagation(); void toggleShortcut(host, shortcutBtn); });
     li.append(dot, name, badge, relieveBtn, shortcutBtn);
     li.addEventListener("click", () => select(host));
@@ -307,7 +310,7 @@ function paintDetail(): void {
   if (removePersonBtn.dataset["host"] !== selected) resetRemovePerson();
   if (renameBtn.hidden) renameForm.hidden = true;
   const isPod = pods.has(selected);
-  reliefShortcutBtn.hidden = !isPod;
+  reliefShortcutBtn.hidden = !isPod || !atalhosMesa;
   // Pod inacessível: o alívio não alcança; o que resolve é o reset pelo app do Grok Bot.
   grokbotResetBtn.hidden = !(isPod && t !== undefined && t.kind === "bad");
   tailscaleBtn.hidden = !needsCheck.has(selected);
@@ -591,10 +594,11 @@ function init(payload: PickerInit, keepSelected: string | null = null): void {
   setHostNicknames(payload.names);
   if (support !== null) { adminChrome.paint(support); adminChrome.refreshPeopleOnce(); }
   if (firstInit) { firstInit = false; arrive(payload.arrival); }
-  paintGlow(keepSelected !== null && hosts.includes(keepSelected) ? keepSelected : payload.preselect);
+  paintGlow(keepSelected !== null && hosts.includes(keepSelected) ? keepSelected : (payload.preselect ?? ""));
   openHosts = new Set(payload.open);
   shortcuts = new Map(payload.shortcuts.map((s) => [s.host, s.emoji]));
   reliefShortcuts = new Set(payload.reliefShortcuts);
+  atalhosMesa = payload.caps.atalhosMesa;
   pods = new Set(payload.pods);
   // Interruptores "Intro" e "Onboarding": ligado = tem. O settings.json guarda o contrário (openDirect, onboarding done).
   directCheck.checked = !payload.openDirect;
@@ -607,7 +611,7 @@ function init(payload: PickerInit, keepSelected: string | null = null): void {
   // "este Mac" está sempre na lista do admin: sem nenhuma pessoa, o texto de como trazer pessoas vem logo abaixo dele.
   if (support !== null && hosts.every((h) => h === "local")) listEl.append(adminChrome.emptyRow());
   const wanted = keepSelected !== null && hosts.includes(keepSelected) ? keepSelected : payload.preselect;
-  select(hosts.includes(wanted) ? wanted : (hosts[0] ?? null));
+  select(wanted !== null && hosts.includes(wanted) ? wanted : (hosts[0] ?? null));
   // A conta acabou de ser preparada: a sondagem guardada dela é de antes (dizia "sem backend, sem login"); vai de novo.
   for (const h of payload.resondar ?? []) results.delete(h);
   // Todas em paralelo: a lista nunca espera a máquina lenta.

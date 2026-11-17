@@ -17,12 +17,14 @@ import { approveTailscaleCheck, bundledBackendVersion, bundledCrmVersion, bundle
 import { portaParaInstalar } from "./porta-backend-core";
 import { isSupportAlias } from "../suporte/support-code";
 import { LOCAL_HOST } from "./localBackend";
+import { hostPadrao } from "./host-padrao-core";
 import { runSsh } from "../whatsapp/whatsapp";
 import { showRelief } from "../app/relief";
 import { openGrokbotReset } from "../app/grokbot";
 import { clearTailscaleCredential, saveTailscaleCredential, tailscaleCredentialState } from "../app/secrets";
 import { disableSshCheck } from "./tailscale";
-import { handleClient, handleShared, onShared } from "../ipc/registry";
+import { exigeCap, handleClient, handleShared, onShared } from "../ipc/registry";
+import { SEM_CAPACIDADE_MSG } from "../ipc/ipc-policy";
 import { log } from "./backend";
 import { resumoDoInstalador } from "./backend-bundle-core";
 import { evento } from "../app/depuracao";
@@ -237,20 +239,24 @@ let arrivalShown = false;
 
 /** A lista de máquinas do último init enviado: o foco só reenvia (e o seletor só sonda de novo) se ela mudou. */
 let lastHostsKey = "";
+/** Máquina de quem não escolheu nenhuma: "local" onde ele é oferecido; senão a primeira da lista; null = lista vazia. */
+export const hostPadraoAtual = (): string | null => hostPadrao(caps().hostLocal ? LOCAL_HOST : null, current().hosts());
 function initPayload(): PickerInit {
   const arrival = !arrivalShown; arrivalShown = true;
   const hosts = current().hosts();
   lastHostsKey = JSON.stringify(hosts);
-  const wanted = preselectOverride ?? getLastHost() ?? LOCAL_HOST;
+  const padrao = hostPadrao(caps().hostLocal ? LOCAL_HOST : null, hosts);
+  const wanted = preselectOverride ?? getLastHost() ?? padrao;
   return {
     hosts,
     enderecos: sshEnderecos(),
     support: current().support(),
-    preselect: hosts.includes(wanted) ? wanted : (hosts[0] ?? LOCAL_HOST),
+    preselect: wanted !== null && hosts.includes(wanted) ? wanted : (hosts[0] ?? padrao),
     open: hosts.filter((h) => windowForHost(h) !== undefined),
-    shortcuts: hosts.filter(hasShortcut).map((h) => ({ host: h, emoji: shortcutEmoji(h) })),
+    shortcuts: caps().atalhosMesa ? hosts.filter(hasShortcut).map((h) => ({ host: h, emoji: shortcutEmoji(h) })) : [],
     pods: hosts.filter(isPodHost),
-    reliefShortcuts: hosts.filter(hasReliefShortcut),
+    reliefShortcuts: caps().atalhosMesa ? hosts.filter(hasReliefShortcut) : [],
+    caps: { atalhosMesa: caps().atalhosMesa },
     openDirect: getOpenDirect(),
     names: getHostNames(),
     onboardingDone: isOnboardingDone(),
@@ -309,7 +315,7 @@ const { fromPicker, hostArg } = ctx;
 export const clientPickerSource: PickerSource = {
   // Nome do app (meu-bot-staging inclusive, com a versão): diz qual build está aberto.
   get title() { return `${caps().titulo} · escolher máquina`; },
-  hosts: () => [LOCAL_HOST, ...listSshHosts().filter((h) => !isSupportAlias(h))],
+  hosts: () => [...(caps().hostLocal ? [LOCAL_HOST] : []), ...listSshHosts().filter((h) => !isSupportAlias(h))],
   support: () => null,
   registerIpc: ({ fromPicker, hostArg, forgetProbe, progress, closePicker }) => {
     handleClient("picker:install", async (event, payload: unknown) => {
@@ -355,7 +361,7 @@ export const clientPickerSource: PickerSource = {
       if (hasShortcut(host)) removeShortcut(host);
       if (hasReliefShortcut(host)) removeReliefShortcut(host);
       forgetProbe(host);
-      if (getLastHost() === host) setLastHost(LOCAL_HOST);
+      if (getLastHost() === host) setLastHost(hostPadraoAtual());
       return { backup: r.backup };
     });
     handleClient("picker:rename-host", (event, payload: unknown) => {
@@ -400,6 +406,7 @@ export const clientPickerSource: PickerSource = {
       if (!fromPicker(event)) throw new Error("origem inválida");
       const raw = String((payload as { host?: unknown } | null)?.host ?? "").trim();
       const host = raw === LOCAL_HOST ? LOCAL_HOST : hostArg(payload);
+      if (host === LOCAL_HOST && !caps().hostLocal) throw new Error(SEM_CAPACIDADE_MSG);
       setLastHost(host);
       const win = openMainWindow(host, "picker");
       sendWhenLoaded(win, "ui:claude-login", {});
@@ -462,6 +469,7 @@ export function initPicker(src: PickerSource): void {
     if (!fromPicker(event)) throw new Error("origem inválida");
     if (!podeAbrirMaquina()) throw new Error("entre com sua conta meu-bot para abrir uma máquina");
     const escolhido = hostArg(payload);
+    if (escolhido === LOCAL_HOST && !caps().hostLocal) throw new Error(SEM_CAPACIDADE_MSG);
     const abrirComo = current().abrirComo;
     const host = abrirComo === undefined ? escolhido : await abrirComo(escolhido);
     setLastHost(host);
@@ -471,13 +479,13 @@ export function initPicker(src: PickerSource): void {
     // Abrir antes de fechar: fora do macOS, fechar a última janela encerraria o app.
     pickerWin?.close();
   });
-  handleShared("picker:shortcut", async (event, payload: unknown) => {
+  handleShared("picker:shortcut", exigeCap("atalhosMesa", async (event, payload: unknown) => {
     if (!fromPicker(event)) throw new Error("origem inválida");
     const host = hostArg(payload);
     const create = (payload as { create?: unknown } | null)?.create === true;
     if (create) await createShortcut(host); else removeShortcut(host);
     return { has: hasShortcut(host), emoji: shortcutEmoji(host) };
-  });
+  }));
   handleShared("picker:relieve", (event, payload: unknown) => {
     if (!fromPicker(event)) throw new Error("origem inválida");
     const host = hostArg(payload);
@@ -485,13 +493,13 @@ export function initPicker(src: PickerSource): void {
     showRelief(host);
     pickerWin?.close();
   });
-  handleShared("picker:relief-shortcut", async (event, payload: unknown) => {
+  handleShared("picker:relief-shortcut", exigeCap("atalhosMesa", async (event, payload: unknown) => {
     if (!fromPicker(event)) throw new Error("origem inválida");
     const host = hostArg(payload);
     const create = (payload as { create?: unknown } | null)?.create === true;
     if (create) await createReliefShortcut(host); else removeReliefShortcut(host);
     return { has: hasReliefShortcut(host) };
-  });
+  }));
   handleShared("picker:tailscale-credential", (event) => {
     if (!fromPicker(event)) throw new Error("origem inválida");
     return tailscaleCredentialState();

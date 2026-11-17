@@ -191,6 +191,18 @@ export interface Capabilities {
   /** Catálogo de add-ons (nome e rótulo para ler), para as telas não escreverem nomes à mão. */
   /** `modulos`: o add-on chega como módulos (página Módulos) quando está na licença da máquina. */
   addons: { nome: string; rotulo: string; modulos: boolean; semLicenca: boolean }[];
+  /** O host especial "local" (backend neste computador) é oferecido no seletor de máquinas. Derivada da plataforma (variant-core.ts, CAPS_DE_PLATAFORMA), como as cinco abaixo. */
+  hostLocal: boolean;
+  /** Terminal neste computador (e não na máquina remota). */
+  terminalLocal: boolean;
+  /** Atalhos na área de trabalho (applets de src/main/app/shortcuts.ts) e o botão "aliviar" na mesa. */
+  atalhosMesa: boolean;
+  /** O agente dirigindo o Navegador e o agente do Gmail (socket unix + `ssh -R`: nav-api.ts, gmail-api.ts). */
+  agenteNavegador: boolean;
+  /** Controle externo (servidor MCP local) e a API do terminal (src/main/controle-remoto, term-api.ts). */
+  controleRemoto: boolean;
+  /** Painel "Computador": a tela da máquina ao vivo, por noVNC (src/main/maquina/tela.ts). */
+  telaComputador: boolean;
 }
 
 /** O que a janela principal recebe ao nascer: a máquina a que está presa. */

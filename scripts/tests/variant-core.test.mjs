@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
-const { resolveVariant, capsFor, titleFor, userDataNameFor, PRODUTOS, produtoDe } = createRequire(import.meta.url)("../../dist/main/app/variant-core.js");
+const { resolveVariant, capsFor, titleFor, userDataNameFor, PRODUTOS, produtoDe, CAPS_DE_PLATAFORMA } = createRequire(import.meta.url)("../../dist/main/app/variant-core.js");
 
 test("resolveVariant: em dev manda a variável de ambiente; empacotado manda o variant.json", () => {
   assert.equal(resolveVariant({ packaged: false, env: "admin", variantJson: undefined }), "admin");
@@ -31,6 +31,33 @@ test("capsFor: o admin só tem supportAdmin; o cliente tem tudo menos isso (o CR
   assert.equal(client.planoExigido, "free"); assert.equal(admin.planoExigido, "free");
   assert.equal(client.produto, "meu-bot"); assert.equal(admin.produto, "meu-bot-admin");
   assert.deepEqual(Object.keys(admin).sort(), Object.keys(client).sort());
+});
+
+// De que capacidade do produto cada uma depende fora do Windows (null = de todos os apps, como os canais IPC comuns dela).
+const BASE_DA_PLATAFORMA = { hostLocal: null, terminalLocal: null, atalhosMesa: null, agenteNavegador: "navegador", controleRemoto: null, telaComputador: "chat" };
+
+test("capsFor: no macOS (e sem dizer a plataforma) as capacidades de plataforma valem onde o produto já permitia, em todos os produtos", () => {
+  assert.deepEqual([...CAPS_DE_PLATAFORMA].sort(), Object.keys(BASE_DA_PLATAFORMA).sort());
+  for (const p of PRODUTOS) {
+    const mac = capsFor(p.variant, "1.0.0", "darwin");
+    assert.deepEqual(capsFor(p.variant, "1.0.0"), mac, `${p.variant}: o padrão é o macOS`);
+    assert.deepEqual(capsFor(p.variant, "1.0.0", "linux"), mac, `${p.variant}: o Linux segue o macOS`);
+    for (const k of CAPS_DE_PLATAFORMA) {
+      const base = BASE_DA_PLATAFORMA[k];
+      assert.equal(mac[k], base === null ? true : p.caps[base], `${p.variant}.${k}`);
+      assert.equal(k in p.caps, false, `${k} é derivada: não entra na tabela do produto`);
+    }
+    // O resto é a linha do produto, sem mexer.
+    for (const [k, v] of Object.entries(p.caps)) assert.deepEqual(mac[k], v, `${p.variant}.${k}`);
+  }
+});
+
+test("capsFor: no Windows as seis capacidades de plataforma ficam desligadas e o resto é igual ao macOS", () => {
+  for (const p of PRODUTOS) {
+    const mac = capsFor(p.variant, "1.0.0", "darwin"), win = capsFor(p.variant, "1.0.0", "win32");
+    for (const k of CAPS_DE_PLATAFORMA) assert.equal(win[k], false, `${p.variant}.${k}`);
+    assert.deepEqual({ ...win, ...Object.fromEntries(CAPS_DE_PLATAFORMA.map((k) => [k, mac[k]])) }, mac, `${p.variant}: só as de plataforma mudam`);
+  }
 });
 
 test("meu-bot traz as duas extensões e funde a pasta do antigo meu-bot-crm", () => {

@@ -8,6 +8,7 @@
  */
 import type { PickerSource } from "../maquina/picker";
 import { handleAdmin } from "../ipc/registry";
+import { caps } from "../app/variant";
 import { isSupportAlias } from "../suporte/support-code";
 import { windowForHost } from "../app/windows";
 import { LOCAL_HOST } from "../maquina/localBackend";
@@ -17,7 +18,7 @@ import { vpsNova } from "./vps-nova-admin";
 
 export const adminPickerSource: PickerSource = {
   title: "meu-bot-admin-gestao · escolher pessoa",
-  hosts: () => [...(aliasDoEsteMac() === null ? [LOCAL_HOST] : []), ...knownPeople().filter((p) => p.on).map((p) => p.alias)],
+  hosts: () => [...(caps().hostLocal && aliasDoEsteMac() === null ? [LOCAL_HOST] : []), ...knownPeople().filter((p) => p.on).map((p) => p.alias)],
   abrirComo: async (host) => (host === LOCAL_HOST ? esteMacComoPessoa() : host),
   support: () => ({ people: knownPeople(), adminKey: adminKeyExists() }),
   registerIpc: ({ fromPicker, progressoLivre }) => {

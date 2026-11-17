@@ -54,7 +54,8 @@ import { readSegments, writeSegments } from "../agente/statusLine";
 import { deliverNow, reportSupportProgress, resetSupport, setSupport, setSupportNameOnly, setSupportShare, supportCodeText, supportInfo } from "../client/support";
 import { openMainWindow, sendWhenLoaded } from "../app/windows";
 import { hostFromEvent, ownedConversation, waNumber } from "./context";
-import { handleClient, onClient } from "./registry";
+import { exigeCap, handleClient, onClient } from "./registry";
+import { SEM_CAPACIDADE_MSG } from "./ipc-policy";
 import { setObservadorStatus } from "./shared";
 import { browserAgent, browserAgentInfo, browserExtensions, browserOpen, browserRemoveExtension, browserSetActive, browserSincronizarCrm, browserFavoriteAdd, browserFavoriteRemove, browserWorkspacesSet } from "../navegador/browser";
 import { registrar } from "../auditoria/auditoria";
@@ -234,7 +235,7 @@ export function registerClientIpc(): void {
   });
   handleClient("browser:extensions", (event) => browserExtensions(ctxOf(event).host));
   // O agente do WhatsApp também usa o Navegador: só o número do agente e a lista dos grupos (trava do OpenClaw por remetente).
-  handleClient("browser:agent-whatsapp", async (event, payload: unknown) => {
+  handleClient("browser:agent-whatsapp", exigeCap("agenteNavegador", async (event, payload: unknown) => {
     const h = ctxOf(event);
     const on = (payload as { on?: unknown } | null)?.on;
     if (typeof on !== "boolean") return navWhatsappInfo(h.host);
@@ -242,8 +243,8 @@ export function registerClientIpc(): void {
     const r = await setNavWhatsapp(h.host, on);
     void registrar(h.host, on ? "navegador.whatsapp-ligar" : "navegador.whatsapp-desligar", r.liberados.map((n) => `+${n}`).join(", "));
     return r;
-  });
-  handleClient("browser:agent", (event, payload: unknown) => { const h = ctxOf(event); browserAgent(h.host, (payload as { on?: unknown } | null)?.on === true); return browserAgentInfo(h.host); });
+  }));
+  handleClient("browser:agent", exigeCap("agenteNavegador", (event, payload: unknown) => { const h = ctxOf(event); browserAgent(h.host, (payload as { on?: unknown } | null)?.on === true); return browserAgentInfo(h.host); }));
   onClient("browser:active", (event, payload: unknown) => { const h = hostFromEvent(event); const id = (payload as { wcId?: unknown } | null)?.wcId; if (h !== null && typeof id === "number") browserSetActive(h.host, id); });
   handleClient("browser:remove-extension", (event, payload: unknown) => { const id = (payload as { extId?: unknown } | null)?.extId; if (typeof id !== "string" || !/^[a-p]{32}$/.test(id)) throw new Error("id de extensão inválido"); return browserRemoveExtension(ctxOf(event).host, id); });
   handleClient("browser:favorite-add", (event, payload: unknown) => { const p = payload as { titulo?: unknown; url?: unknown } | null; if (typeof p?.url !== "string") throw new Error("falta url"); return browserFavoriteAdd(ctxOf(event).host, { titulo: typeof p.titulo === "string" ? p.titulo : "", url: p.url }); });
@@ -338,13 +339,13 @@ export function registerClientIpc(): void {
     return r;
   });
   // Computador (módulo Pro): a tela do bot ao vivo. O plano é conferido aqui de novo, não só na tela.
-  const comp = async (event: Electron.IpcMainInvokeEvent): Promise<string> => { const h = ctxOf(event); await assertAcesso(h.host); return h.host; };
+  const comp = async (event: Electron.IpcMainInvokeEvent): Promise<string> => { if (!caps().telaComputador) throw new Error(SEM_CAPACIDADE_MSG); const h = ctxOf(event); await assertAcesso(h.host); return h.host; };
   handleClient("computador:status", async (event) => telaStatus(await comp(event)));
   handleClient("computador:acordar", async (event) => { const host = await comp(event); const st = await telaAcordar(host); log(`[computador] ${host}: acordar → ${st.erro ?? (st.rodando ? "no ar" : "parada")}`); return st; });
   handleClient("computador:instalar", async (event) => { const host = await comp(event); const r = await installTela(host); void registrar(host, "computador.instalar", "", r.ok ? "ok" : `código ${r.codigo ?? "timeout"}`); return r; });
   handleClient("computador:url", async (event) => telaUrl(await comp(event)));
   // Inspector: só no produto que tem a capacidade (meu-bot-inspector-staging); nos outros o canal recusa.
-  handleClient("inspector:abrir", async () => { if (!caps().inspector) throw new Error("o Inspector só existe no meu-bot-inspector-staging"); return abrirInspector(); });
+  handleClient("inspector:abrir", exigeCap("controleRemoto", async () => { if (!caps().inspector) throw new Error("o Inspector só existe no meu-bot-inspector-staging"); return abrirInspector(); }));
   handleClient("plano:avisar-pagamento", async (event) => { const h = ctxOf(event); await registrar(h.host, "plano.pago", "avisou que já pagou (aviso de plano)"); log(`[plano] ${h.host}: avisou que já pagou`); });
   // Espaço da conta na máquina (Configurações › Espaço): a cota dela, o que dá para apagar (só caches e workspaces, como ela) e o pedido de mais espaço.
   handleClient("cota:status", (event) => cotaStatus(ctxOf(event).host));
@@ -380,12 +381,12 @@ export function registerClientIpc(): void {
   handleClient("guarda:status", (event) => { const h = hostFromEvent(event); if (h === null) throw new Error("origem inválida"); return guardaInstalled(h.host); });
   handleClient("navegador:status", (event) => navegadorInstalled(ctxOf(event).host));
   // Gmail para o agente (Pro): a chave da página, e o lado da máquina (MCP + regra), como o Navegador.
-  handleClient("gmail:agent", async (event, payload: unknown) => {
+  handleClient("gmail:agent", exigeCap("agenteNavegador", async (event, payload: unknown) => {
     const h = ctxOf(event); const on = (payload as { on?: unknown } | null)?.on;
     if (typeof on !== "boolean") { await gmailAgenteReligar(h.host); return gmailAgenteInfo(h.host); }
     if (on) await assertAcesso(h.host);
     return gmailAgente(h.host, on);
-  });
+  }));
   handleClient("gmail:status", (event) => gmailInstalled(ctxOf(event).host));
   handleClient("gmail:install", (event) => { const h = ctxOf(event); return installGmail(h.host, (line) => { if (!h.win.isDestroyed()) (h.win.webContents.send("gmail:progress", { line }), eventoHook("gmail:progress", line)); }); });
   handleClient("navegador:install", (event) => { const h = ctxOf(event); return installNavegador(h.host, (line) => { if (!h.win.isDestroyed()) (h.win.webContents.send("navegador:progress", { line }), eventoHook("navegador:progress", line)); }); });

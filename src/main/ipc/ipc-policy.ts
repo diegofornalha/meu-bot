@@ -91,3 +91,5 @@ export type IpcChannel = SharedChannel | ClientChannel | AdminChannel;
 export const ADMIN_READONLY_MSG = "o meu-bot-admin-gestao só lê; use as ações de suporte";
 /** O que um canal de admin responde no meu-bot normal (ninguém chama; é só a recusa). */
 export const NOT_ADMIN_MSG = "origem inválida";
+/** O que responde um canal cuja capacidade de plataforma está desligada (variant-core.ts, CAPS_DE_PLATAFORMA): no Windows, o que depende deste computador. */
+export const SEM_CAPACIDADE_MSG = "este recurso não existe neste computador";

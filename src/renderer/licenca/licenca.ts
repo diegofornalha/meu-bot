@@ -15,7 +15,7 @@ const miniPlan = $<HTMLElement>("mini-plan");
 export function setPlanBadge(pro: boolean): void { const show = pro && ctx.caps.planoExigido === "free"; planBadge.hidden = !show; miniPlan.hidden = !show; }
 /** Linha "Computador" na lateral: só para quem tem o Pro em dia; sem o plano (ou antes da licença chegar) fica escondida. */
 const computadorLine = $<HTMLElement>("computador-line");
-function paintComputadorLine(): void { computadorLine.hidden = browserAccess(license, ctx.windowHost, ctx.caps.planoExigido, ctx.caps.produto) !== "ok"; }
+function paintComputadorLine(): void { computadorLine.hidden = !ctx.caps.telaComputador || browserAccess(license, ctx.windowHost, ctx.caps.planoExigido, ctx.caps.produto) !== "ok"; }
 export let navLicenseAsked = false;
 export async function refreshLicense(): Promise<LicenseView | null> {
   if (!ctx.caps.chat) { license = null; navLicenseAsked = true; setPlanBadge(false); return null; }
