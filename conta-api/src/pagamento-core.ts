@@ -185,6 +185,20 @@ export function metodosSemPix(metodos: readonly string[], ok: boolean, erro: unk
   return resto.length > 0 ? resto : null;
 }
 
+/**
+ * Para os totais do admin: uma assinatura por conta e produto, a mais nova. Uma conta com duas assinaturas ativas do
+ * mesmo produto (a antiga nunca cancelada na AbacatePay e uma nova) contaria duas vezes na receita.
+ */
+export function umaPorContaEProduto<A extends { produto: string | null; criadaEm: string; conta: { id: string } }>(assinaturas: readonly A[]): A[] {
+  const mais = new Map<string, A>();
+  for (const a of assinaturas) {
+    const chave = `${a.conta.id}|${a.produto ?? ""}`;
+    const atual = mais.get(chave);
+    if (atual === undefined || Date.parse(a.criadaEm) > Date.parse(atual.criadaEm)) mais.set(chave, a);
+  }
+  return [...mais.values()];
+}
+
 /** A licença como o admin a gravou; estrutural para não depender de tipos.ts (este arquivo é puro). */
 interface LicencaBase { plan: "free" | "pro"; status: "free" | "trialing" | "active" | "expired"; interval: "month" | "year" | null; expiresAt: string | null; produtos: string[] }
 

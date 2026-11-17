@@ -1,7 +1,7 @@
 // Assinatura do Pro pela AbacatePay: conferência do webhook, leitura do evento, decisão, prazo e a compra do GA4.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CHAVE_HMAC_ABACATEPAY, clientIdValido, compraGa4, decidir, hmacBase64, iguais, lerAddons, lerEvento, licencaComAddons, metodosSemPix, precoExigido, refValida, sessionIdValido, validoAte, webhookConfere } from "../dist/pagamento-core.js";
+import { CHAVE_HMAC_ABACATEPAY, clientIdValido, compraGa4, decidir, hmacBase64, iguais, lerAddons, lerEvento, licencaComAddons, metodosSemPix, precoExigido, refValida, sessionIdValido, validoAte, webhookConfere, umaPorContaEProduto } from "../dist/pagamento-core.js";
 
 const SECRET = "s".repeat(40);
 const REF = "mb_123e4567-e89b-12d3-a456-426614174000";
@@ -165,4 +165,12 @@ test("metodosSemPix: só tenta de novo sem o Pix quando a loja ainda não tem o 
   assert.equal(metodosSemPix(["CARD"], false, erro), null, "não havia Pix");
   assert.equal(metodosSemPix(["PIX"], false, erro), null, "sem o Pix não sobra método");
   assert.equal(metodosSemPix(["CARD", "PIX"], false, "Subscription is not available for this store"), null, "outro erro");
+});
+
+test("umaPorContaEProduto: duas assinaturas ativas do mesmo produto na mesma conta contam uma vez, a mais nova", () => {
+  const a = (id, conta, produto, criadaEm, valor) => ({ id, conta: { id: conta }, produto, criadaEm, valorCentavos: valor });
+  const lista = [a("s1", "c1", null, "2026-11-01T00:00:00Z", 9700), a("s2", "c1", null, "2026-11-16T00:00:00Z", 9700), a("s3", "c1", "meu-bot-finance", "2026-11-16T00:00:00Z", 99700), a("s4", "c2", null, "2026-11-10T00:00:00Z", 9700)];
+  const r = umaPorContaEProduto(lista).map((x) => x.id).sort();
+  assert.deepEqual(r, ["s2", "s3", "s4"]);
+  assert.deepEqual(umaPorContaEProduto([]), []);
 });

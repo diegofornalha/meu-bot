@@ -2,7 +2,7 @@
 import type { AdminAssinatura, AdminContaResumo, ContaAssinatura, AdminOrg, AdminPagamento, AdminVendas, AdminPedido, AdminPerfil, AdminVisao, CodigoLinha, ContaApi, ContaLinha, DeviceApi, DeviceLinha, License, LicencaLinha, MaquinaLinha, MembroApi, MembroLinha, OrgApi, OrgLinha, OrgResumo, PapelOrg, PerfilApi, SessaoLinha } from "./tipos.js";
 import { agoraIso, nomeExibicao, parseProvedores, provedoresDoLogin, unirProvedores, uuid, type MetodoLogin, type PatchLicenca, type PatchOrg, type PatchPerfil } from "./sessao-core.js";
 import type { UsuarioFirebase } from "./firebase.js";
-import { licencaComAddons } from "./pagamento-core.js";
+import { licencaComAddons, umaPorContaEProduto } from "./pagamento-core.js";
 
 export async function contaPorUid(db: D1Database, uid: string): Promise<ContaLinha | null> {
   return (await db.prepare("SELECT * FROM contas WHERE firebase_uid = ?1 AND apagada_em IS NULL").bind(uid).first<ContaLinha>()) ?? null;
@@ -260,7 +260,7 @@ async function vendasAdmin(db: D1Database, lic: Map<string, LicencaLinha>, pagos
     ultimoPagamentoEm: a.ultimo, conta: { id: a.conta_id, email: a.email, nome: a.nome },
   }));
   // Em dia = ativa e com prazo no futuro: assinatura que parou de renovar sem avisar não conta como receita.
-  const emDia = assinaturas.filter((a) => a.status === "ACTIVE" && a.valeAte !== null && Date.parse(a.valeAte) > Date.parse(agora));
+  const emDia = umaPorContaEProduto(assinaturas.filter((a) => a.status === "ACTIVE" && a.valeAte !== null && Date.parse(a.valeAte) > Date.parse(agora)));
   const addons: Record<string, number> = {};
   for (const a of emDia) if (a.produto !== null) addons[a.produto] = (addons[a.produto] ?? 0) + 1;
   return {
@@ -268,6 +268,15 @@ async function vendasAdmin(db: D1Database, lic: Map<string, LicencaLinha>, pagos
     pagamentos: pgs.results.map((p): AdminPagamento => ({ id: p.id, produto: p.produto, valorCentavos: p.valor_centavos, primeira: p.evento === "subscription.completed", pagoEm: p.pago_em, noAnalytics: p.ga_enviado_em !== null, conta: { id: p.conta_id, email: p.email, nome: p.nome } })),
     totais: { proPago: emDia.filter((a) => a.produto === null).length, addons, mensalCentavos: emDia.reduce((s, a) => s + (a.valorCentavos ?? 0), 0), aRevisar },
   };
+}
+/**
+ * O admin encerra agora um add-on pago (reembolso ou disputa): o prazo vira o momento atual e o add-on sai da licença
+ * em vigor. A assinatura na AbacatePay não é cancelada aqui: a marca `encerrado_em` faz a cobrança seguinte ir para
+ * revisão em vez de devolver o add-on. false se a conta não tem esse add-on em dia.
+ */
+export async function encerrarAddonPago(db: D1Database, contaId: string, produto: string, agora = agoraIso()): Promise<boolean> {
+  const r = await db.prepare("UPDATE addons_pagos SET expires_at = ?3, atualizado_em = ?3, encerrado_em = ?3 WHERE conta_id = ?1 AND produto = ?2 AND expires_at > ?3").bind(contaId, produto, agora).run();
+  return (r.meta.changes ?? 0) > 0;
 }
 /** O admin ativa um device pendente; false se o device não existe nessa conta. */
 export async function ativarDevice(db: D1Database, contaId: string, deviceId: string): Promise<boolean> {

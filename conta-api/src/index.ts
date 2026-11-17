@@ -18,7 +18,7 @@ import { postSair, postSessao, postSessaoConsole } from "./rotas/sessao.js";
 import { postToken } from "./rotas/token.js";
 import { deleteConta, getConta, patchConta, postSenha } from "./rotas/conta.js";
 import { getSuporteResumos, postSuporteResumo } from "./rotas/suporte.js";
-import { deleteDevice, deletePerfil, getAdminFirebase, getAdminVisao, patchLicenca, postAdminSenha, postAtenderPedido, postLiberarDevice, putAdminSenha, putPerfil } from "./rotas/admin.js";
+import { deleteDevice, deletePerfil, getAdminFirebase, getAdminVisao, patchLicenca, postAdminSenha, postAtenderPedido, postEncerrarAddon, postLiberarDevice, putAdminSenha, putPerfil } from "./rotas/admin.js";
 import { downloadMac, REPO } from "./release-github.js";
 import { GUIAS, lerReleases, novidadesHtml, sitemapXml } from "./novidades-core.js";
 import { CSP_ADS, CSP_GA, gaIds } from "./analytics-core.js";
@@ -121,6 +121,7 @@ async function api(req: Request, env: Env, url: URL, espera: (p: Promise<unknown
     const auth = await autenticar(req, env);
     const atender = /^POST \/admin\/pedidos\/([A-Za-z0-9-]{1,40})\/atender$/.exec(rota);
     const licenca = /^PATCH \/admin\/contas\/([A-Za-z0-9-]{1,40})\/licenca$/.exec(rota);
+    const encerrarAddon = /^POST \/admin\/contas\/([A-Za-z0-9-]{1,40})\/addons\/([a-z0-9-]{1,40})\/encerrar$/.exec(rota);
     const liberarDevice = /^POST \/admin\/contas\/([A-Za-z0-9-]{1,40})\/devices\/([a-f0-9-]{12,36})\/liberar$/.exec(rota);
     const removerDevice = /^DELETE \/admin\/contas\/([A-Za-z0-9-]{1,40})\/devices\/([a-f0-9-]{12,36})$/.exec(rota);
     const senhaAdmin = /^(POST|PUT) \/admin\/contas\/([A-Za-z0-9-]{1,40})\/senha$/.exec(rota);
@@ -149,6 +150,7 @@ async function api(req: Request, env: Env, url: URL, espera: (p: Promise<unknown
     else if (rota === "GET /admin/suporte") res = await getSuporteResumos(auth, env);
     else if (atender !== null) res = await postAtenderPedido(auth, env, atender[1]!);
     else if (licenca !== null) res = await patchLicenca(auth, env, licenca[1]!, req);
+    else if (encerrarAddon !== null) res = await postEncerrarAddon(auth, env, encerrarAddon[1]!, encerrarAddon[2]!);
     else if (liberarDevice !== null) res = await postLiberarDevice(auth, env, liberarDevice[1]!, liberarDevice[2]!, req);
     else if (removerDevice !== null) res = await deleteDevice(auth, env, removerDevice[1]!, removerDevice[2]!);
     else if (firebaseAdmin !== null) res = await getAdminFirebase(auth, env, firebaseAdmin[1]!);

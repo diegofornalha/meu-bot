@@ -101,7 +101,17 @@ export async function postWebhookAbacate(req: Request, env: Env, url: URL, esper
   const doEvento = refValida(refEv) ? await checkoutPor(env, refEv) : null;
   const exigido = precoExigido(doEvento?.produto, preco(env), lerAddons(env.ABACATEPAY_ADDONS));
   const d = decidir(e, env.CANAL === "staging" ? "staging" : "producao", exigido);
-  const resultado = await aplicar(env, d, e.devMode, agora, espera);
+  // Se aplicar falhar no meio, o registro do evento sai: assim a nova tentativa da AbacatePay é processada, em vez
+  // de cair em "repetido" e o pagamento nunca ser aplicado.
+  let resultado: string;
+  try { resultado = await aplicar(env, d, e.devMode, agora, espera); }
+  catch (erro) {
+    console.log(`[pagamento] evento ${e.id} falhou ao aplicar: ${erro instanceof Error ? erro.message : String(erro)}`);
+    // Se o próprio banco é a causa, este DELETE também pode falhar: o log acima já saiu e o registro fica para o admin ver.
+    await env.DB.prepare("DELETE FROM webhook_eventos WHERE id = ?1 AND resultado IS NULL").bind(e.id).run()
+      .catch((e2: unknown) => { console.log(`[pagamento] evento ${e.id} ficou marcado como recebido sem ser aplicado: ${e2 instanceof Error ? e2.message : String(e2)}`); });
+    return json({ erro: "falha ao aplicar o evento; tente de novo" }, 500);
+  }
   await env.DB.prepare("UPDATE webhook_eventos SET resultado = ?1 WHERE id = ?2").bind(resultado.slice(0, 300), e.id).run();
   return json({ ok: true });
 }
@@ -117,7 +127,7 @@ async function aplicar(env: Env, d: Decisao, devMode: boolean, agora: string, es
   const ck = await checkoutPor(env, d.ref);
   if (d.acao === "revisar") {
     // Vira um pedido aberto para o admin (aparece em console › Suporte): reembolso, disputa ou valor estranho.
-    if (ck !== null) await env.DB.prepare("INSERT INTO pedidos (id, conta_id, tipo, detalhe, maquina_id, criado_em) VALUES (?1, ?2, 'pagamento.revisar', ?3, NULL, ?4)").bind(uuid(), ck.conta_id, d.motivo.slice(0, 200), agora).run();
+    if (ck !== null) await env.DB.prepare("INSERT INTO pedidos (id, conta_id, tipo, detalhe, maquina_id, criado_em) VALUES (?1, ?2, 'pagamento.revisar', ?3, NULL, ?4)").bind(uuid(), ck.conta_id, `${d.motivo} · ${ck.produto ?? "Pro"}`.slice(0, 200), agora).run();
     await auditar(env.DB, quem, "pagamento.revisar", ck?.conta_id ?? null, d.motivo);
     console.log(`[pagamento] revisar: ${d.motivo} (ref ${d.ref ?? "-"})`);
     return `revisar: ${d.motivo}`;
@@ -153,9 +163,19 @@ async function aplicar(env: Env, d: Decisao, devMode: boolean, agora: string, es
 
 /** Cobrança paga de um add-on: renova o prazo dele (um mês mais a folga) sem tocar no plano da conta. */
 async function liberarAddon(env: Env, ck: CheckoutLinha, produto: string, d: Extract<Decisao, { acao: "liberar" }>, quem: string, agora: string, espera: (p: Promise<unknown>) => void): Promise<string> {
+  // Add-on que o admin encerrou (reembolso ou disputa): a renovação da assinatura antiga não o devolve sozinha. Vira
+  // pedido de revisão; quem decide religar é o admin, e a assinatura precisa ser cancelada na AbacatePay. Uma compra
+  // nova (primeira cobrança de outra assinatura) é pagamento legítimo: libera e limpa a marca.
+  const encerrado = await env.DB.prepare("SELECT encerrado_em FROM addons_pagos WHERE conta_id = ?1 AND produto = ?2").bind(ck.conta_id, produto).first<{ encerrado_em: string | null }>();
+  if (encerrado !== null && encerrado.encerrado_em !== null && !d.primeira) {
+    const motivo = `cobrança de ${produto} encerrado pelo admin em ${encerrado.encerrado_em.slice(0, 10)}: ${d.valor} centavos`;
+    await env.DB.prepare("INSERT INTO pedidos (id, conta_id, tipo, detalhe, maquina_id, criado_em) VALUES (?1, ?2, 'pagamento.revisar', ?3, NULL, ?4)").bind(uuid(), ck.conta_id, motivo.slice(0, 200), agora).run();
+    await auditar(env.DB, quem, "pagamento.revisar", ck.conta_id, motivo);
+    return `revisar: ${motivo}`;
+  }
   const atual = (await addonsPagos(env.DB, ck.conta_id)).find((p) => p.produto === produto) ?? null;
   const ate = validoAte(agora, atual !== null && Date.parse(atual.expiresAt) > Date.parse(agora) ? atual.expiresAt : null);
-  await env.DB.prepare("INSERT INTO addons_pagos (conta_id, produto, assinatura_id, expires_at, atualizado_em) VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT(conta_id, produto) DO UPDATE SET assinatura_id = excluded.assinatura_id, expires_at = excluded.expires_at, atualizado_em = excluded.atualizado_em")
+  await env.DB.prepare("INSERT INTO addons_pagos (conta_id, produto, assinatura_id, expires_at, atualizado_em) VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT(conta_id, produto) DO UPDATE SET assinatura_id = excluded.assinatura_id, expires_at = excluded.expires_at, atualizado_em = excluded.atualizado_em, encerrado_em = NULL")
     .bind(ck.conta_id, produto, d.assinaturaId, ate, agora).run();
   await env.DB.prepare("INSERT INTO assinaturas (id, conta_id, ref, status, metodo, valor_centavos, criada_em, atualizada_em, produto) VALUES (?1, ?2, ?3, 'ACTIVE', NULL, ?4, ?5, ?5, ?6) ON CONFLICT(id) DO UPDATE SET status = 'ACTIVE', atualizada_em = excluded.atualizada_em")
     .bind(d.assinaturaId, ck.conta_id, ck.ref, d.valor, agora, produto).run();
