@@ -11,7 +11,6 @@ import { controlDir } from "../app/control-dir";
 import { app } from "electron";
 import { spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
-import http from "node:http";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
@@ -31,6 +30,7 @@ export interface TunnelInfo {
 import { BACKEND_DIR_CANONICAL, BACKEND_DIR_SH } from "./backend-dir-core";
 import { pendenteUnico } from "./pendente-core";
 import { compartilhaConexao, opcoesDoTunel } from "./ssh-opcoes-core";
+import { backendResponde } from "./backend-responde";
 const BACKEND_KEY_NAME = "OPENAI_COMPAT_KEY";
 const CONTROL_PERSIST_S = 600;
 const FORWARD_RESTART_BUDGET = 5;
@@ -188,19 +188,6 @@ function freePort(): Promise<number> {
       srv.close(() => (typeof addr === "object" && addr !== null ? resolve(addr.port) : reject(new Error("porta livre não encontrada"))));
     });
     srv.on("error", reject);
-  });
-}
-
-/**
- * O backend responde pela porta local? Qualquer resposta HTTP prova o caminho inteiro (forward, conexão e backend).
- * Sem master, é a checagem que vale: a porta local aceita conexão mesmo com a conexão SSH do forward morta (depois de
- * o computador dormir, por exemplo), e um `ssh` novo provaria só que a máquina está no ar, não que este forward serve.
- */
-function backendResponde(port: number, timeoutMs: number): Promise<boolean> {
-  return new Promise((resolve) => {
-    const req = http.get({ host: "127.0.0.1", port, path: "/health", timeout: timeoutMs }, (res) => { res.resume(); resolve(true); });
-    req.on("timeout", () => { req.destroy(); resolve(false); });
-    req.on("error", () => resolve(false));
   });
 }
 
