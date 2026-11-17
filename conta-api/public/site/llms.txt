@@ -1,6 +1,6 @@
 # meu-bot
 
-> App para macOS (Apple Silicon) que põe um agente de IA no WhatsApp da pessoa, com um Navegador em que o agente trabalha dentro, o Gmail e a própria máquina (terminal) num app só. Usa o Grok, da xAI, como modelo (login com a conta Grok no app; também aceita a conta do Claude). A Coflow, que faz o meu-bot, é parceira da xAI.
+> Sistema operacional da empresa agêntica: app para macOS (Apple Silicon) em que agentes de IA trabalham nos canais (WhatsApp e Gmail), nas ferramentas (um Navegador em que o agente trabalha dentro, CRM) e na própria máquina (terminal), com regras e confirmação antes de ações sensíveis. Apps à parte, como o Finanças, acrescentam funções. Usa o Grok, da xAI, como modelo (login com a conta Grok no app; também aceita a conta do Claude). A Coflow, que faz o meu-bot, é parceira da xAI.
 
 Site do meu-bot (produto independente da Coflow): https://agentesgrok.com. Código aberto em https://github.com/diegofornalha/meu-bot (TypeScript, Electron). Idioma: português do Brasil. Responsável: Coflow, CNPJ 41.490.672/0001-00.
 
@@ -13,7 +13,7 @@ Site do meu-bot (produto independente da Coflow): https://agentesgrok.com. Códi
 
 ## Páginas
 
-- [Home](https://agentesgrok.com/): o que o meu-bot faz, Grok e xAI, planos, dúvidas e o download para macOS.
+- [Home](https://agentesgrok.com/): o sistema (agentes, canais, ferramentas, apps, máquinas, controle), casos de uso por área, Grok e xAI, planos, dúvidas e o download para macOS.
 - [Baixar para Mac](https://agentesgrok.com/baixar): requisitos, como instalar e o teste grátis de 14 dias.
 - [Perguntas frequentes](https://agentesgrok.com/perguntas): teste e planos, WhatsApp, Grok e xAI, Mac e dados.
 - [Grok no WhatsApp](https://agentesgrok.com/grok-no-whatsapp): não existe número oficial do Grok no WhatsApp; como ter o Grok respondendo no seu número com o meu-bot.

@@ -1,6 +1,7 @@
 // http → https: o Worker atende os dois esquemas, então o redirecionamento é dele (e o HSTS, em SEGURANCA).
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { llmsPorPagamentos, caminhoCanonico, ehAliasDoSite, paraHttps, redirecionamentoInicial, semBarraFinal, rascunhoForaDoCanal } from "../dist/site-core.js";
 
 test("paraHttps: http vira https com caminho e query; https e lixo ficam null", () => {
@@ -61,4 +62,14 @@ test("rascunhoForaDoCanal: o rascunho dos planos só sai no staging, também pel
   assert.equal(rascunhoForaDoCanal("/site/perguntas.html", "producao"), false);
   // Em produção /suporte não está no mapa de páginas: o caminho segue cru e não é um arquivo do site.
   assert.equal(rascunhoForaDoCanal("/suporte", "producao"), false);
+});
+
+test("home: o preço do Finanças escrito na página é o do catálogo de produção (wrangler.toml)", () => {
+  const toml = readFileSync(new URL("../wrangler.toml", import.meta.url), "utf8");
+  const producao = toml.slice(0, toml.indexOf("[env.staging]"));
+  const m = /ABACATEPAY_ADDONS = '([^']+)'/.exec(producao);
+  assert.ok(m, "catálogo de produção no wrangler.toml");
+  const centavos = JSON.parse(m[1])["meu-bot-finance"].centavos;
+  const home = readFileSync(new URL("../public/site/index.html", import.meta.url), "utf8");
+  assert.ok(home.includes(`R$ ${(centavos / 100).toLocaleString("pt-BR")} por mês, à parte do plano do agente.`), `a home deve mostrar R$ ${centavos / 100}`);
 });
