@@ -1285,3 +1285,9 @@ table.fin-abc tr.fin-abc-C td.fin-abc-tag { color: #757575; }
 .modulo-passo.feito .modulo-passo-n { color: var(--ok); border-color: var(--ok); }
 .modulo-passo-corpo p { margin: 4px 0; }
 .modulo-ajuda { display: block; font-size: 11px; }
+
+/* Página própria de um módulo: o <webview> do serviço dele ocupa a aba inteira. */
+.modulo-pagina-panel:not([hidden]) { display: flex; flex-direction: column; height: 100%; }
+.modulo-pagina-aviso:empty { display: none; }
+.modulo-pagina-aviso { padding: 12px 16px; }
+.modulo-pagina-tela { flex: 1; min-height: 0; display: flex; }

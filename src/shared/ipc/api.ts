@@ -11,7 +11,7 @@ import type { CrmDiag, CrmInfo, CrmLocal } from "./crm";
 import type { FinanceAbc, FinanceAbcLado, FinanceAbcPor, FinanceCategoria, FinanceConfig, FinanceConta, FinanceImportacao, FinanceInfo, FinanceLancamento, FinanceLancarInput, FinanceMoeda, FinanceTipoLinha } from "./financeiro";
 import type { AgendaEvento, BackupCopiasView, BackupDadosProgresso, BackupDadosView, BackupRestauroPedido, BackupRestauroProgresso, BackupRestauroResultado, GmailAgenteState, GmailApagado, GmailDetalhe, GmailLista, GoogleContaStatus, PlanilhaLeitura } from "./google";
 import type { LicensePatch, LicenseView } from "./licenca";
-import type { ModuloResultado, ModuloTeste, ModulosLista } from "./modulos";
+import type { ModuloPaginaAberta, ModuloResultado, ModuloTeste, ModulosLista } from "./modulos";
 import type { BackendStatusEvent, InstallBackendResult, TailscaleSshResult } from "./maquina";
 import type { BrowserAgentState, BrowserExtensionInfo, BrowserOpenInfo, NavFavorito, NavWorkspaces } from "./navegador";
 import type { MotorNovoUsuario, AdminAction, AdminHealth, AuditoriaVisao, UsuariosVisao, PrepararId, PrepararVisao, BackupIndiceView, BackupRestauracao, BotChat, BotMenuAction, BotMessage, ProdutoMvp, SupportInfo, SupportProgress, SupportShare, CgEstado, LpEstado, LpAviso } from "./suporte";
@@ -459,6 +459,8 @@ export interface MeuBotClientApi {
   modulosAtualizarFonte(): Promise<ModulosLista[]>;
   /** Testa a conexão do módulo na máquina (o testar.sh dele) e guarda o resultado no Mac. */
   modulosTestar(id: string): Promise<ModuloTeste>;
+  /** Abre a página própria do módulo: forward até o serviço dele na máquina, com o token; o <webview> usa a partição devolvida. */
+  modulosAbrirPagina(id: string): Promise<ModuloPaginaAberta>;
   modulosListar(): Promise<ModulosLista[]>;
   modulosLigar(id: string): Promise<ModuloResultado>;
   modulosDesligar(id: string): Promise<ModuloResultado>;

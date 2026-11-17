@@ -7,6 +7,7 @@
  * credenciais em ~/.config/meu-bot/modulos/<id>.env (0600). As credenciais nunca voltam ao app: o estado só diz quais
  * chaves têm valor.
  */
+import { parsePagina } from "./modulos-pagina-core";
 import type { Modulo, ModuloCredencial, ModuloEstado, ModuloFerramenta, ModuloGateway, ModuloGuia, ModuloOpcao, ModuloPasso, ModuloTeste } from "../../shared/ipc";
 
 export const MODULOS_DIR = "$HOME/.local/share/meu-bot/modulos";
@@ -87,7 +88,7 @@ export function parseManifesto(raw: unknown): { produto: string; modulos: Modulo
     const testar = str(m.testar, 61) || null;
     if (testar !== null && !SCRIPT_RE.test(testar)) throw new Error(`${onde}: testar precisa ser <nome>.sh dentro da pasta`);
     modulos.push({ id, rotulo: str(m.rotulo, 80) || id, descricao: str(m.descricao, 600), versao, pasta, instalar, desinstalar, credenciais, opcoes, gateways, requisitos: lista(m.requisitos).map((r) => str(r, 200)).filter(Boolean) ,
-      categoria: str(m.categoria, 40), exemplos: lista(m.exemplos).map((e) => str(e, 200)).filter(Boolean).slice(0, 6), guia: guia(m.guia), testar, passos: passos(m.passos, opcoes) });
+      categoria: str(m.categoria, 40), exemplos: lista(m.exemplos).map((e) => str(e, 200)).filter(Boolean).slice(0, 6), guia: guia(m.guia), testar, passos: passos(m.passos, opcoes), pagina: parsePagina(m.pagina, onde) });
   }
   if (modulos.length === 0) throw new Error("modulos.json: nenhum módulo");
   return { produto, modulos };

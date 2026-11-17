@@ -58,7 +58,7 @@ import { handleClient, onClient } from "./registry";
 import { setObservadorStatus } from "./shared";
 import { browserAgent, browserAgentInfo, browserExtensions, browserOpen, browserRemoveExtension, browserSetActive, browserSincronizarCrm, browserFavoriteAdd, browserFavoriteRemove, browserWorkspacesSet } from "../navegador/browser";
 import { registrar } from "../auditoria/auditoria";
-import { atualizarFontes, desligarModulo, ligarModulo, listarModulos, salvarCredenciais, salvarOpcoes, temModulos, testarModulo } from "../modulos/modulos";
+import { abrirPaginaModulo, atualizarFontes, desligarModulo, ligarModulo, listarModulos, salvarCredenciais, salvarOpcoes, temModulos, testarModulo } from "../modulos/modulos";
 
 /**
  * Padrão do app: máquina cujo agente transcreve áudio (capacidade `audio`) entende áudios sem a pessoa fazer nada. Liga
@@ -316,6 +316,7 @@ export function registerClientIpc(): void {
   // Os módulos vêm do repositório de cada produto, baixado com git neste Mac (atualizarFontes).
   const semModulos = (): void => { if (!temModulos()) throw new Error("este app não tem módulos"); };
   handleClient("modulos:atualizar-fonte", async (event) => { semModulos(); return atualizarFontes(ctxOf(event).host); });
+  handleClient("modulos:abrir-pagina", async (event, p: unknown) => { const h = ctxOf(event); const id = modId(p); const r = await abrirPaginaModulo(h.host, id); void registrar(h.host, "modulo.pagina", id); return r; });
   handleClient("modulos:testar", async (event, p: unknown) => { const h = ctxOf(event); const id = modId(p); return testarModulo(h.host, id, progressoModulo(h, id)); });
   handleClient("modulos:listar", async (event) => { semModulos(); return listarModulos(ctxOf(event).host); });
   handleClient("modulos:ligar", async (event, p: unknown) => { const h = ctxOf(event); const id = modId(p); const r = await ligarModulo(h.host, id, progressoModulo(h, id)); if (r.ok) void registrar(h.host, "modulo.ligar", id); return r; });
