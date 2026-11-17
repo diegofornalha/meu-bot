@@ -1,7 +1,7 @@
 // Assinatura do Pro pela AbacatePay: conferência do webhook, leitura do evento, decisão, prazo e a compra do GA4.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CHAVE_HMAC_ABACATEPAY, clientIdValido, compraGa4, decidir, hmacBase64, iguais, lerAddons, lerEvento, licencaComAddons, precoExigido, refValida, sessionIdValido, validoAte, webhookConfere } from "../dist/pagamento-core.js";
+import { CHAVE_HMAC_ABACATEPAY, clientIdValido, compraGa4, decidir, hmacBase64, iguais, lerAddons, lerEvento, licencaComAddons, metodosSemPix, precoExigido, refValida, sessionIdValido, validoAte, webhookConfere } from "../dist/pagamento-core.js";
 
 const SECRET = "s".repeat(40);
 const REF = "mb_123e4567-e89b-12d3-a456-426614174000";
@@ -155,4 +155,14 @@ test("precoExigido: checkout sem produto é o Pro; add-on usa o preço do catál
   assert.equal(precoExigido(undefined, 9700, addons), 9700, "linha lida sem a coluna não pode virar add-on desconhecido");
   assert.equal(precoExigido("meu-bot-finance", 9700, addons), 99700);
   assert.equal(precoExigido("meu-bot-fit", 9700, addons), Number.MAX_SAFE_INTEGER);
+});
+
+test("metodosSemPix: só tenta de novo sem o Pix quando a loja ainda não tem o Pix Automático", () => {
+  const erro = "PIX Automático is not available for this store";
+  assert.deepEqual(metodosSemPix(["CARD", "PIX"], false, erro), ["CARD"]);
+  assert.deepEqual(metodosSemPix(["CARD", "PIX"], false, { message: erro }), ["CARD"], "erro como objeto");
+  assert.equal(metodosSemPix(["CARD", "PIX"], true, null), null, "deu certo");
+  assert.equal(metodosSemPix(["CARD"], false, erro), null, "não havia Pix");
+  assert.equal(metodosSemPix(["PIX"], false, erro), null, "sem o Pix não sobra método");
+  assert.equal(metodosSemPix(["CARD", "PIX"], false, "Subscription is not available for this store"), null, "outro erro");
 });

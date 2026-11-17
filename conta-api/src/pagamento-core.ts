@@ -172,6 +172,19 @@ export function precoExigido(produto: string | null | undefined, precoPro: numbe
   return addons.find((a) => a.nome === produto)?.centavos ?? Number.MAX_SAFE_INTEGER;
 }
 
+/**
+ * A AbacatePay recusa a assinatura inteira quando `methods` traz PIX e o Pix Automático não está liberado na loja
+ * (a liberação é pedida ao suporte deles). Devolve a lista sem o PIX para uma segunda tentativa; null quando não é
+ * esse o caso (deu certo, o erro é outro, não havia PIX, ou sem o PIX não sobraria método).
+ */
+export function metodosSemPix(metodos: readonly string[], ok: boolean, erro: unknown): string[] | null {
+  if (ok || !metodos.includes("PIX")) return null;
+  const texto = typeof erro === "string" ? erro : JSON.stringify(erro ?? "");
+  if (!/pix autom[aá]tico is not available/i.test(texto)) return null;
+  const resto = metodos.filter((m) => m !== "PIX");
+  return resto.length > 0 ? resto : null;
+}
+
 /** A licença como o admin a gravou; estrutural para não depender de tipos.ts (este arquivo é puro). */
 interface LicencaBase { plan: "free" | "pro"; status: "free" | "trialing" | "active" | "expired"; interval: "month" | "year" | null; expiresAt: string | null; produtos: string[] }
 
