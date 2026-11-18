@@ -1,7 +1,7 @@
 import type { CrmInfo, CrmDiag, CrmLocal } from "../../shared/ipc";
 import { MODELOS_PIPELINE, validarPipeline, etapasDoTexto } from "../lib/crm-modelos.js";
 import { el } from "../lib/dom.js";
-import { carregando } from "../lib/carregando.js";
+import { carregando, esperaOuFalha } from "../lib/carregando.js";
 import { ipcErrorText } from "../lib/ipc-error.js";
 import { browserAccess, proBlockText, pagamentoDoBloqueio } from "../lib/pro.js";
 import { blocoPagamento } from "../lib/aviso-pagamento.js";
@@ -13,6 +13,7 @@ import { navInstState, renderNavOpen } from "../navegador/navegador-guia.js";
 
 // ---- Tutorial 17 · CRM pelo WhatsApp (Pro): estado na máquina, instalação, chave/pipeline/regras, teste.
 export let crmState: CrmInfo | null = null;
+let crmErro: string | null = null;
 let crmBusy = false;
 let crmLog: string[] = [];
 let crmMsg: { text: string; bad: boolean } | null = null;
@@ -87,7 +88,7 @@ export function renderCrmPipeline(container: HTMLElement): void {
 }
 export async function refreshCrm(): Promise<void> {
   if (!ctx.caps.install || ctx.windowHost === "" || ctx.windowHost === "local") return;
-  try { crmState = await window.meuBot.crmInfo(); } catch { /* máquina fora: fica o que havia */ }
+  try { crmState = await window.meuBot.crmInfo(); crmErro = null; } catch (err) { crmErro = ipcErrorText(err); /* fica o estado que havia */ }
   if (ctx.crmProprio()) { try { crmLocalState = await window.meuBot.crmLocal(); } catch { /* backend fora: fica o que havia */ } }
   ctx.paintGuide();
   void crmAutoPipeline();
@@ -121,13 +122,16 @@ export function renderCrmPro(container: HTMLElement): void {
 /** Passo 2: plugin + streak.mjs na máquina. */
 export function renderCrmInstall(container: HTMLElement): void {
   const box = el("div", "audio-controls");
+  // Este Mac: o plugin do CRM é do agente do WhatsApp de uma máquina por SSH, e a consulta nem é feita aqui.
+  // Sem isto o passo ficava em "Consultando a máquina…" para sempre, com o Instalar desligado.
+  if (!ehRemoto()) { box.append(el("p", "hint", "Neste Mac não há o que instalar: o CRM pelo WhatsApp é do agente de uma máquina por SSH.")); container.append(box); return; }
   const row = el("div", "audio-row");
   const inst = crmState?.installed === true;
   if (inst && !crmBusy) row.append(el("span", "audio-ok", "✓ instalado nesta máquina"));
   const b = el("button", `btn ${inst ? "btn-ghost" : "btn-primary"} btn-small`, crmBusy ? "Instalando…" : inst ? "Reinstalar" : "Instalar"); b.type = "button"; b.disabled = crmBusy || crmState === null;
   b.addEventListener("click", () => { crmLog = []; void crmDo(async () => { const r = await window.meuBot.installCrm(); if (!r.ok) throw new Error(r.log.at(-1) ?? "a instalação falhou"); return window.meuBot.crmInfo(); }, "Máquina pronta: o plugin do CRM está no OpenClaw."); });
   row.append(b); box.append(row);
-  if (crmState === null) box.append(carregando("Consultando a máquina…", "guia-crm"));
+  if (crmState === null) box.append(esperaOuFalha({ erro: crmErro, chave: "guia-crm", tentar: () => { crmErro = null; ctx.paintGuide(); void refreshCrm(); } }));
   if (crmBusy && crmLog.length > 0) box.append(el("pre", "admin-logs", crmLog.join("\n")));
   if (crmMsg !== null) box.append(el("p", `hint ${crmMsg.bad ? "guide-pair-note" : "audio-ok"}`, crmMsg.text));
   container.append(box);

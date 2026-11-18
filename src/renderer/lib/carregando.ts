@@ -51,3 +51,28 @@ export function carregando(rotulo: string, chave: string = rotulo, avisoDemora: 
   }, 1000);
   return box;
 }
+
+/** O rótulo da espera dos passos de tutorial que perguntam algo à máquina. */
+export const CONSULTANDO = "Consultando a máquina…";
+/** Quando a consulta volta sem resposta (a máquina não disse nada de útil), sem um erro para citar. */
+export const SEM_RESPOSTA = "a máquina não respondeu";
+
+/** O recado de uma consulta que falhou: diz o motivo, sem ponto dobrado. Puro. */
+export function textoFalhaConsulta(erro: string): string {
+  const e = erro.trim().replace(/[.\s]+$/, "");
+  return e === "" ? "Não consegui consultar a máquina." : `Não consegui consultar a máquina: ${e}.`;
+}
+
+/**
+ * A espera de um passo de tutorial que consulta a máquina: o indicador enquanto a resposta não veio; se a consulta
+ * falhou, o motivo e "Tentar de novo". Os passos usam isto, e não `carregando` direto: uma consulta que falhava em
+ * silêncio deixava o passo contando segundos para sempre, com o botão desligado (18 nov; quarta vez do mesmo defeito).
+ */
+export function esperaOuFalha(o: { erro: string | null; chave: string; tentar: () => void; rotulo?: string }): HTMLElement {
+  if (o.erro === null) return carregando(o.rotulo ?? CONSULTANDO, o.chave);
+  const box = el("div", "carregando-falha"); box.setAttribute("role", "status");
+  const b = el("button", "btn btn-ghost btn-small", "Tentar de novo"); b.type = "button";
+  b.addEventListener("click", () => { b.disabled = true; o.tentar(); });
+  box.append(el("p", "hint guide-pair-note", textoFalhaConsulta(o.erro)), b);
+  return box;
+}

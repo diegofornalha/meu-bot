@@ -3,7 +3,7 @@
  * `abrirLinkDoChat`, que outras telas usam para abrir um link numa aba do Navegador.
  */
 import { el } from "../lib/dom.js";
-import { carregando } from "../lib/carregando.js";
+import { esperaOuFalha, SEM_RESPOSTA } from "../lib/carregando.js";
 import { ipcErrorText } from "../lib/ipc-error.js";
 import { browserAccess, proBlockText, pagamentoDoBloqueio } from "../lib/pro.js";
 import { blocoPagamento } from "../lib/aviso-pagamento.js";
@@ -14,13 +14,16 @@ import { registrarPassos } from "../tutoriais/passos.js";
 
 /** Lado da máquina do Navegador (tutorial 9): instalado? null = ainda não consultado. */
 export let navInstState: boolean | null = null;
+/** Por que a última consulta falhou; só aparece enquanto não há resposta nenhuma (`navInstState === null`). */
+let navInstErro: string | null = null;
 let navInstBusy = false;
 let navInstLog: string[] = [];
 let navInstMsg: { text: string; bad: boolean } | null = null;
 
 export async function refreshNavInst(): Promise<void> {
   if (!ctx.caps.install || ctx.windowHost === "" || ctx.windowHost === "local") return;
-  try { navInstState = await window.meuBot.navegadorInstalled(); } catch { /* máquina fora: fica o que havia */ }
+  // Falhou: fica o estado que havia, e o passo diz o motivo em vez de esperar para sempre.
+  try { const r = await window.meuBot.navegadorInstalled(); if (r === null) navInstErro = SEM_RESPOSTA; else { navInstState = r; navInstErro = null; } } catch (err) { navInstErro = ipcErrorText(err); }
   ctx.paintGuide();
 }
 /** Tutorial 9, passo 2: instalar o lado da máquina (MCP + regra). */
@@ -42,7 +45,7 @@ export function renderNavInstall(container: HTMLElement): void {
   });
   row.append(b);
   box.append(row);
-  if (navInstState === null) box.append(carregando("Consultando a máquina…", "guia-navegador"));
+  if (navInstState === null) box.append(esperaOuFalha({ erro: navInstErro, chave: "guia-navegador", tentar: () => { navInstErro = null; ctx.paintGuide(); void refreshNavInst(); } }));
   if (navInstBusy && navInstLog.length > 0) box.append(el("pre", "admin-logs", navInstLog.join("\n")));
   if (navInstMsg !== null) box.append(el("p", `hint ${navInstMsg.bad ? "guide-pair-note" : "audio-ok"}`, navInstMsg.text));
   container.append(box);

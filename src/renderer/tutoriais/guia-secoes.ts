@@ -1,6 +1,6 @@
 import type { StatusLineSegments, SupportInfo, SupportShare } from "../../shared/ipc";
 import { byId as $, el } from "../lib/dom.js";
-import { carregando } from "../lib/carregando.js";
+import { esperaOuFalha } from "../lib/carregando.js";
 import { ipcErrorText } from "../lib/ipc-error.js";
 import { hostLabel } from "../lib/probe-text.js";
 import { previewLine, SL_TEST_COMMAND } from "../lib/status-line.js";
@@ -20,6 +20,7 @@ let supportCodeShown: string | null = null;
 let supportPoll: number | null = null;
 /** Status line do Claude nesta máquina: instalada? (null = ainda não consultado); limites = a conta já tem números. */
 let statusLineState: boolean | null = null;
+let statusLineErro: string | null = null;
 let statusLineBusy = false;
 let statusLineLog: string[] = [];
 let statusLineMsg: { text: string; bad: boolean } | null = null;
@@ -29,7 +30,7 @@ let statusLineSegsMsg: string | null = null;
 
 export async function refreshStatusLine(): Promise<void> {
   if (!ctx.caps.install || ctx.windowHost === "") return;
-  try { statusLineState = await window.meuBot.statusLineInstalled(); } catch { /* máquina fora: fica o que havia */ }
+  try { statusLineState = await window.meuBot.statusLineInstalled(); statusLineErro = null; } catch (err) { statusLineErro = ipcErrorText(err); /* fica o estado que havia */ }
   try { ctx.statusLineSegs = await window.meuBot.statusLineSegments(); } catch { /* idem */ }
   ctx.paintContext(ctx.active());
   ctx.paintGuide();
@@ -105,7 +106,7 @@ export function renderStatusLineInstall(container: HTMLElement): void {
   });
   row.append(b);
   box.append(row);
-  if (statusLineState === null) box.append(carregando("Consultando a máquina…", "guia-statusline"));
+  if (statusLineState === null) box.append(esperaOuFalha({ erro: statusLineErro, chave: "guia-statusline", tentar: () => { statusLineErro = null; ctx.paintGuide(); void refreshStatusLine(); } }));
   if (statusLineBusy && statusLineLog.length > 0) box.append(el("pre", "admin-logs", statusLineLog.join("\n")));
   if (statusLineMsg !== null) box.append(el("p", `hint ${statusLineMsg.bad ? "guide-pair-note" : "audio-ok"}`, statusLineMsg.text));
   container.append(box);
