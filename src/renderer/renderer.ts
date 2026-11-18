@@ -1998,6 +1998,8 @@ void (async () => {
   $<HTMLElement>("conta-google-count").textContent = caps.planoExigido === "free" ? "Pro" : "";
   $<HTMLElement>("gmail-count").textContent = caps.planoExigido === "free" ? "Pro" : "";
   $<HTMLElement>("computador-count").textContent = caps.planoExigido === "free" ? "Pro" : "";
+  // Módulos e Finanças são do pacote sob medida, não do Pro: etiqueta "Custom" (a de Finanças é pintada em paintFinanceLine).
+  $<HTMLElement>("modulos-count").textContent = caps.planoExigido === "free" ? "Custom" : "";
   financePage = mountFinancePage({
     panelsEl, definePage, openPage, armConfirm, api: window.meuBot, host: () => windowHost, license: () => license, licenseKnown: () => navLicenseAsked,
     goToChat: goToChatFromGuide, onInfo: (i) => { financeState = i; paintFinanceLine(); paintGuide(); },

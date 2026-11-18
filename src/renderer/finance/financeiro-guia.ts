@@ -4,13 +4,13 @@ import { ctx, ehRemoto } from "../app/ctx.js";
 import { registrarFonte } from "../tutoriais/fontes.js";
 import { registrarPassos } from "../tutoriais/passos.js";
 
-/** Botão "Finanças" da lateral: só com a licença do financeiro; o número são as pendências. */
+/** Botão "Finanças" da lateral: só com a licença do financeiro; o número são as pendências e, sem nenhuma, a etiqueta "Custom" (pacote sob medida, ao lado dos "Pro"). */
 export function paintFinanceLine(): void {
   const b = document.getElementById("financas-line"); if (b === null) return;
   // No app cujo add-on é o financeiro (meu-bot-finance-staging) o botão fica sempre (sem licença, a página diz como liberar).
   b.hidden = !ctx.caps.chat || (!financeOk(ctx.license, ctx.windowHost) && ctx.caps.addon !== "meu-bot-finance");
   const n = ctx.financeState?.estado?.pendencias ?? 0;
-  const c = document.getElementById("financas-count"); if (c !== null) c.textContent = n > 0 ? `${n} para confirmar` : "";
+  const c = document.getElementById("financas-count"); if (c !== null) c.textContent = n > 0 ? `${n} para confirmar` : ctx.caps.planoExigido === "free" ? "Custom" : "";
 }
 /** Corpo dos passos do tutorial 12: atalhos para a página, para o chat e a instalação na máquina. */
 export function renderFinanceStep(txt: HTMLElement, body: string): void {
