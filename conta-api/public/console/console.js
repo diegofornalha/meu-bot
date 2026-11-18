@@ -918,8 +918,13 @@ function pintarPlano(c) {
     cartao("+", "Add-ons", ...(l.produtos.length > 0 ? l.produtos.map((p) => selo(rotuloProduto(p))) : [document.createTextNode("nenhum")])),
   );
   // Assinar pela AbacatePay: só com os pagamentos ligados no Worker (config.js) e enquanto não há Pro pago ativo.
-  const pagoAtivo = l.plan === "pro" && l.status === "active";
+  // Pro ativo sem assinatura (liberado pelo admin, ou assinatura cancelada com o mês ainda valendo) continua podendo
+  // assinar: o painel só some para quem já tem a assinatura do Pro em andamento. A API segue a mesma regra.
+  const pagoAtivo = (c.assinaturas ?? []).some((a) => a.status === "ACTIVE" && (a.produto === null || a.produto === undefined));
+  const proSemAssinatura = !pagoAtivo && l.plan === "pro" && l.status === "active";
   $("pl-assinar").hidden = cfg.pagamentos !== "1" || pagoAtivo;
+  $("pl-assinar-ja").hidden = !proSemAssinatura;
+  $("pl-assinar-ja").textContent = proSemAssinatura ? `Você já tem o Pro${l.expiresAt ? ` até ${data(l.expiresAt)}` : ""}, sem assinatura ativa. Assinando, a cobrança passa a ser mensal e o prazo que você já tem não é encurtado.` : "";
   const qs = new URLSearchParams(location.search);
   const voltouDe = qs.get("assinatura") === "paga" ? qs.get("produto") : null;
   const voltou = qs.get("assinatura") === "paga" && voltouDe === null;
