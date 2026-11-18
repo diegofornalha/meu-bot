@@ -578,10 +578,11 @@ function editorLicenca(tr, c) {
   const status = select("status", [["free", "Free"], ["trialing", "Trial"], ["active", "Ativo"], ["expired", "Expirado"]], l.status);
   const ate = input("ate", "date", (l.expiresAt ?? l.trialEnd ?? "").slice(0, 10));
   const limite = input("deviceLimit", "number", String(l.deviceLimit)); limite.min = "1"; limite.max = "50";
+  const maquinas = input("maquinaLimit", "number", String(c.maquinaLimite ?? 1)); maquinas.min = "1"; maquinas.max = "50"; maquinas.title = "Em quantas máquinas (VMs) a pessoa pode usar a licença da conta ao mesmo tempo";
   const produtos = input("produtos", "text", l.produtos.join(", "), "meu-bot-finance, …");
   const instrucoes = input("instrucoes", "text", l.pagamento?.instrucoes ?? "", "Pix, link, contato…");
   const link = input("link", "url", l.pagamento?.link ?? "", "https://…");
-  form.append(campo("Plano", plan), campo("Status", status), campo("Vale até", ate), campo("Devices", limite), campo("Add-ons concedidos", produtos), campo("Como pagar", instrucoes), campo("Link", link));
+  form.append(campo("Plano", plan), campo("Status", status), campo("Vale até", ate), campo("Devices", limite), campo("Máquinas", maquinas), campo("Add-ons concedidos", produtos), campo("Como pagar", instrucoes), campo("Link", link));
   // Senha: o super admin define na hora (em branco não muda); qualquer admin manda o e-mail de redefinição.
   const superAdmin = conta !== null && conta.admin === "super";
   const senha = input("senha", "password", "", superAdmin ? "nova senha (em branco: não muda)" : "só o super admin define"); senha.autocomplete = "new-password"; senha.minLength = 8; senha.maxLength = 128; senha.disabled = !superAdmin;
@@ -591,12 +592,12 @@ function editorLicenca(tr, c) {
   const cancelar = el("button", "btn btn-ghost", "Cancelar"); cancelar.type = "button"; cancelar.addEventListener("click", () => linha.remove());
   const acoes = el("div", "acoes"); acoes.append(salvar, emailSenha, cancelar); form.append(acoes);
   const pagosTxt = (c.addonsPagos ?? []).map((a) => `${rotuloProduto(a.produto)} até ${data(a.expiresAt)}`).join(", ");
-  const aviso = el("p", "sub", `${pagosTxt ? `Pagos pela AbacatePay (não se mudam aqui): ${pagosTxt}. ` : ""}Vale na conta e no console; no app, o acesso ainda depende da licença da máquina (meu-bot-admin › Suporte). Senha preenchida: troca no Firebase e desconecta a pessoa de todos os Macs.`);
+  const aviso = el("p", "sub", `${pagosTxt ? `Pagos pela AbacatePay (não se mudam aqui): ${pagosTxt}. ` : ""}Vale na conta e em Este Mac; numa máquina por SSH, a pessoa aplica pelo app ("Usar o meu Pro nesta máquina"), ou o admin grava a licença da máquina (meu-bot-admin › Suporte). Senha preenchida: troca no Firebase e desconecta a pessoa de todos os Macs.`);
   form.append(aviso);
   form.addEventListener("submit", async (ev) => {
     ev.preventDefault(); salvar.disabled = true;
     const ateIso = ate.value ? `${ate.value}T23:59:59.000Z` : null;
-    const patch = { plan: plan.value, status: status.value, deviceLimit: Number(limite.value), produtos: produtos.value.split(",").map((x) => x.trim()).filter(Boolean), pagamento: instrucoes.value.trim() ? { instrucoes: instrucoes.value.trim(), link: link.value.trim() || null } : null };
+    const patch = { plan: plan.value, status: status.value, deviceLimit: Number(limite.value), maquinaLimit: Number(maquinas.value), produtos: produtos.value.split(",").map((x) => x.trim()).filter(Boolean), pagamento: instrucoes.value.trim() ? { instrucoes: instrucoes.value.trim(), link: link.value.trim() || null } : null };
     if (status.value === "trialing") { patch.trialEnd = ateIso; patch.expiresAt = ateIso; } else { patch.expiresAt = ateIso; patch.trialEnd = null; }
     const s = sessaoGuardada(); if (s === null) return;
     const r = await api("PATCH", `/admin/contas/${encodeURIComponent(c.id)}/licenca`, patch, s.acesso);
@@ -796,7 +797,49 @@ function pintarDevices(c) {
     tr.append(el("td", "", dataHora(d.lastSeen)));
     tb.append(tr);
   }
-  $("dv-maquinas").textContent = c.maquinas.length === 0 ? "Nenhuma máquina (VM) vinculada à conta ainda." : `Máquinas vinculadas: ${c.maquinas.map((m) => m.apelido ?? m.id.slice(0, 8)).join(", ")}.`;
+  pintarMaquinas(c);
+}
+/** A máquina ainda ocupa uma vaga: vinculada, ou tirada por aqui com a última licença ainda valendo lá. */
+const ocupaVaga = (m) => !m.desvinculadaEm || (m.proAte && Date.parse(m.proAte) > Date.now());
+/** As máquinas (VMs) que usam a licença da conta, com até quando ela vale lá e o botão de tirar. */
+function pintarMaquinas(c) {
+  const tb = $("dv-maquinas-tabela").querySelector("tbody"); tb.replaceChildren();
+  const maquinas = c.maquinas ?? [], limite = c.maquinaLimite ?? 1;
+  const ocupadas = maquinas.filter(ocupaVaga).length;
+  $("dv-maquinas").textContent = `${ocupadas} de ${limite} máquina${limite === 1 ? "" : "s"} em uso.`;
+  if (maquinas.length === 0) { const tr = el("tr"); const td = el("td", "", "Nenhuma máquina usa a licença da conta ainda."); td.colSpan = 4; tr.append(td); tb.append(tr); return; }
+  for (const m of maquinas) {
+    const tr = el("tr");
+    tr.append(el("td", "", m.apelido ?? `máquina ${m.id.slice(0, 8)}`));
+    const st = el("td");
+    if (!m.desvinculadaEm) st.append(selo("Em uso", "ok"));
+    else st.append(selo(ocupaVaga(m) ? "Tirada · vaga presa" : "Tirada"));
+    tr.append(st, el("td", "", m.proAte ? data(m.proAte) : "-"));
+    const acao = el("td");
+    if (!m.desvinculadaEm) { const b = el("button", "btn btn-ghost", "Tirar a licença"); b.type = "button"; b.addEventListener("click", () => { void tirarMaquina(m, b); }); acao.append(b); }
+    tr.append(acao);
+    tb.append(tr);
+  }
+}
+/**
+ * "Tirar a licença" de uma máquina: dois cliques (o segundo confirma, em até 5 s). Daqui ninguém apaga o arquivo da
+ * máquina, então ela segue com o plano até a data de "Vale até" e a vaga só abre nesse dia. Pelo app, na janela da
+ * máquina (Configurações › Sua conta), a vaga abre na hora.
+ */
+async function tirarMaquina(m, botao) {
+  if (botao.dataset.confirma !== "1") {
+    botao.dataset.confirma = "1"; botao.textContent = "Confirmar";
+    $("dv-maquinas").textContent = `Por aqui, ${m.apelido ?? "a máquina"} segue com o plano até ${m.proAte ? data(m.proAte) : "a licença vencer"} e a vaga só abre nesse dia. Para abrir a vaga na hora, tire pelo app, na janela da máquina (Configurações › Sua conta).`;
+    setTimeout(() => { if (botao.isConnected && !botao.disabled) { delete botao.dataset.confirma; botao.textContent = "Tirar a licença"; } }, 5000);
+    return;
+  }
+  const s = sessaoGuardada(); if (s === null) { void entrar(); return; }
+  botao.disabled = true;
+  const r = await api("DELETE", `/conta/maquinas/${encodeURIComponent(m.id)}`, {}, s.acesso);
+  if (r.status !== 200) { botao.disabled = false; delete botao.dataset.confirma; botao.textContent = "Tirar a licença"; $("dv-maquinas").textContent = erroDe(r); return; }
+  ga.evento("maquina_tirada", {});
+  const c2 = await lerConta().catch(() => null);
+  if (c2) pintarDevices(c2);
 }
 let esperasPagamento = 0;
 /** "Assinar": pede o checkout à API (com o client_id/session_id do GA4, para a compra ir à mesma visita) e vai para a página da AbacatePay. */
@@ -871,6 +914,7 @@ function pintarPlano(c) {
     cartao("▦", "Vale até", document.createTextNode(l.expiresAt ? data(l.expiresAt) : l.trialEnd ? `trial até ${data(l.trialEnd)}` : "sem prazo")),
     cartao("↻", "Ciclo", document.createTextNode(l.interval ? CICLO[l.interval] : "-")),
     cartao("▭", "Limite de devices", document.createTextNode(String(l.deviceLimit))),
+    cartao("⌂", "Máquinas com a licença", document.createTextNode(`${(c.maquinas ?? []).filter(ocupaVaga).length} de ${c.maquinaLimite ?? 1}`)),
     cartao("+", "Add-ons", ...(l.produtos.length > 0 ? l.produtos.map((p) => selo(rotuloProduto(p))) : [document.createTextNode("nenhum")])),
   );
   // Assinar pela AbacatePay: só com os pagamentos ligados no Worker (config.js) e enquanto não há Pro pago ativo.
