@@ -1,1 +1,1 @@
-{ "name": "meu-bot-crm", "version": "1.2.1", "private": true, "type": "module", "openclaw": { "extensions": ["./index.js"] } }
+{ "name": "meu-bot-crm", "version": "1.2.2", "private": true, "type": "module", "openclaw": { "extensions": ["./index.js"] } }

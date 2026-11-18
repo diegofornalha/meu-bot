@@ -176,7 +176,19 @@ licença vencida. Os add-ons que o admin concede continuam em `licencas.produtos
 
 **Quem paga o quê.** O super admin vê em console › Assinaturas cada assinatura (produto, situação, valor, prazo), os
 últimos pagamentos e os totais em dia; o `GET /admin/visao` só devolve `vendas` a ele. Cada primeira cobrança paga abre
-um pedido "Liberar na máquina" em Suporte: a licença da conta ainda não chega sozinha à máquina, quem libera é o admin.
+um pedido "Liberar na máquina" em Suporte, que fecha sozinho quando a pessoa aplica a licença na máquina dela (abaixo).
+
+**A licença da conta numa máquina.** O app da própria pessoa leva a licença da conta a uma máquina por SSH, sem o admin:
+`POST /conta/maquinas {id, apelido}` vincula a máquina (`id` é o uuid do `maquina.json` dela) e devolve o
+`licenca-conta.json` assinado com Ed25519 (`licenca-core.ts`), que o app grava lá e o backend da máquina confere com a
+chave pública que já carrega. Vale 30 dias; `POST /conta/maquinas/:id/licenca` emite de novo (o app renova sozinho).
+Cada conta leva a licença a `licencas.maquina_limit` máquinas ao mesmo tempo (1; o admin sobe com `maquinaLimit` no
+`PATCH /admin/contas/:id/licenca`), e isso é outro número, não o limite de devices. `DELETE /conta/maquinas/:id` tira:
+com `{apagada: true}` (o app apagou o arquivo de lá) a vaga abre na hora, até 3 vezes em 30 dias; sem isso (pelo
+console) a vaga só abre quando a última emissão vencer, para uma assinatura não servir várias máquinas alternando o
+vínculo. O `licenca.json` que o admin grava continua valendo: a máquina tem Pro se um dos dois der. Liga só com o secret
+`LICENCA_PRIVATE_KEY` (`npm run chave-licenca -- --copiar` na raiz, depois `wrangler secret put LICENCA_PRIVATE_KEY`,
+por ambiente); sem ele as três rotas respondem 503.
 
 Ligar num ambiente (o staging usa a loja no Modo Teste):
 

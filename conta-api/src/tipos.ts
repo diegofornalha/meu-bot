@@ -21,7 +21,7 @@ export interface Env {
   TRIAL_DIAS?: string;
   /** Secret: chave HMAC (base64) dos tokens de acesso. */
   SESSAO_HMAC_KEY: string;
-  /** Secret: privada Ed25519 da licença (PKCS#8 DER base64); só a partir da PR 5. */
+  /** Secret: privada Ed25519 da licença (PKCS#8 DER base64). Sem ela, vincular máquina responde 503. */
   LICENCA_PRIVATE_KEY?: string;
   /** Secret: JSON da conta de serviço do Firebase (só para o super admin definir senhas); sem ele, só o e-mail. */
   FIREBASE_ADMIN_SA?: string;
@@ -55,13 +55,13 @@ export interface ContaLinha {
 export interface PerfilApi { nomeProprio: string | null; sobrenome: string | null }
 export interface LicencaLinha {
   conta_id: string; plan: string; status: string; interval: string | null; member_since: string; trial_end: string | null;
-  expires_at: string | null; device_limit: number; produtos: string; pagamento: string | null; updated_at: string; updated_by: string;
+  expires_at: string | null; device_limit: number; maquina_limit?: number; produtos: string; pagamento: string | null; updated_at: string; updated_by: string;
 }
 export interface DeviceLinha {
   conta_id: string; id: string; alias_legado: string | null; name: string | null; user: string | null; platform: string | null;
   status: string; requested_at: string | null; first_seen: string; last_seen: string; apps: string;
 }
-export interface MaquinaLinha { id: string; conta_id: string | null; apelido: string | null; vinculada_por: string; criada_em: string; ultima_emissao_em: string | null; ultimo_hello_em: string | null }
+export interface MaquinaLinha { id: string; conta_id: string | null; apelido: string | null; vinculada_por: string; criada_em: string; ultima_emissao_em: string | null; ultimo_hello_em: string | null; desvinculada_em: string | null }
 export interface SessaoLinha {
   id: string; conta_id: string; refresh_hash: string; familia: string; device_id: string | null; app: string | null; versao_app: string | null;
   criada_em: string; usada_em: string; expira_em: string; revogada_em: string | null;
@@ -99,6 +99,8 @@ export interface DeviceApi {
   /** É o device desta sessão. */
   este: boolean;
 }
+/** Uma máquina da conta. `desvinculadaEm` preenchido = a pessoa tirou a licença pelo console e a vaga abre em `proAte`. */
+export interface MaquinaApi { id: string; apelido: string | null; vinculadaPor: string; proAte: string | null; desvinculadaEm: string | null }
 /** O que `GET /conta` e `POST /token` devolvem: a conta como o app a mostra. */
 /** Uma assinatura paga da conta, como o console › Plano a mostra: `produto` null é o Pro. */
 export interface ContaAssinatura { id: string; produto: string | null; status: "ACTIVE" | "CANCELLED"; valorCentavos: number | null; valeAte: string | null }
@@ -118,7 +120,10 @@ export interface ContaApi {
   admin: "super" | "admin" | null;
   licenca: License;
   devices: DeviceApi[];
-  maquinas: { id: string; apelido: string | null; vinculadaPor: string }[];
+  /** As máquinas (VMs por SSH) que usam a licença desta conta; `proAte` é até quando a última emissão vale lá. */
+  maquinas: MaquinaApi[];
+  /** Em quantas máquinas a conta pode usar a licença ao mesmo tempo (licencas.maquina_limit). */
+  maquinaLimite: number;
   /** Pedidos abertos desta conta (Pro, add-on, device). */
   pedidos: number;
   /** As assinaturas pagas da conta (Pro e add-ons), a mais nova primeiro. */
@@ -127,7 +132,7 @@ export interface ContaApi {
   orgs: OrgResumo[];
 }
 /** `GET /admin/visao`: todas as contas (com licença, devices e máquinas), os pedidos abertos e os totais. Só admin. */
-export interface AdminContaResumo { id: string; email: string; nome: string | null; foto: string | null; admin: "super" | "admin" | null; criadaEm: string; licenca: License; /** Add-ons pagos pela AbacatePay, com o prazo de cada um (os concedidos pelo admin estão em licenca.produtos). */ addonsPagos: { produto: string; expiresAt: string }[]; devices: DeviceApi[]; maquinas: number; pedidos: number }
+export interface AdminContaResumo { id: string; email: string; nome: string | null; foto: string | null; admin: "super" | "admin" | null; criadaEm: string; licenca: License; /** Add-ons pagos pela AbacatePay, com o prazo de cada um (os concedidos pelo admin estão em licenca.produtos). */ addonsPagos: { produto: string; expiresAt: string }[]; devices: DeviceApi[]; maquinas: number; maquinaLimite: number; pedidos: number }
 export interface AdminPedido { id: string; tipo: string; detalhe: string | null; maquinaId: string | null; criadoEm: string; atendidoEm: string | null; atendidoPor: string | null; conta: { id: string; email: string; nome: string | null } }
 export interface AdminPerfil { email: string; papel: "super" | "admin"; criadoEm: string; entrou: boolean }
 /** Uma assinatura paga (subs_...): `produto` null é o Pro; `valeAte` é o prazo que ela sustenta hoje na conta. */

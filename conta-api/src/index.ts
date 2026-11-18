@@ -25,6 +25,7 @@ import { GUIAS, lerReleases, novidadesHtml, sitemapXml } from "./novidades-core.
 import { CSP_ADS, CSP_GA, gaIds } from "./analytics-core.js";
 import { caminhoCanonico, llmsPorPagamentos, redirecionamentoInicial, rascunhoForaDoCanal } from "./site-core.js";
 import { postListaEspera } from "./rotas/lista.js";
+import { deleteMaquina, postMaquina, postRenovarLicenca } from "./rotas/maquinas.js";
 import { addonsAVenda, pagamentosLigados, postAssinatura, postCancelarAssinatura, postWebhookAbacate } from "./rotas/pagamentos.js";
 import { deleteMembro, deleteOrg, getOrg, getOrgPublico, getOrgs, patchAdminOrg, patchMembro, patchOrg, postMembro, postOrg } from "./rotas/orgs.js";
 
@@ -119,7 +120,7 @@ async function api(req: Request, env: Env, url: URL, espera: (p: Promise<unknown
   else if (rota === "POST /token") res = await postToken(req, env);
   // Webhook da AbacatePay: sem login (prova a origem pelo secret e o corpo pela assinatura) e sem CORS.
   else if (rota === "POST /pagamentos/abacatepay") return comCabecalhos(await postWebhookAbacate(req, env, url, espera), {});
-  else if (rota === "POST /sessao/sair" || rota === "POST /sessao/console" || rota === "GET /conta" || rota === "PATCH /conta" || rota === "DELETE /conta" || rota === "POST /conta/senha" || rota === "POST /conta/assinatura" || rota === "POST /conta/assinatura/cancelar" || /^(GET|POST|PATCH|DELETE) \/orgs(\/|$)/.test(rota) || rota.startsWith("GET /admin/") || rota.startsWith("POST /admin/") || rota.startsWith("PATCH /admin/") || rota.startsWith("PUT /admin/") || rota.startsWith("DELETE /admin/")) {
+  else if (rota === "POST /sessao/sair" || rota === "POST /sessao/console" || rota === "GET /conta" || rota === "PATCH /conta" || rota === "DELETE /conta" || rota === "POST /conta/senha" || rota === "POST /conta/assinatura" || rota === "POST /conta/assinatura/cancelar" || /^(POST|DELETE) \/conta\/maquinas(\/|$)/.test(rota) || /^(GET|POST|PATCH|DELETE) \/orgs(\/|$)/.test(rota) || rota.startsWith("GET /admin/") || rota.startsWith("POST /admin/") || rota.startsWith("PATCH /admin/") || rota.startsWith("PUT /admin/") || rota.startsWith("DELETE /admin/")) {
     const auth = await autenticar(req, env);
     const atender = /^POST \/admin\/pedidos\/([A-Za-z0-9-]{1,40})\/atender$/.exec(rota);
     const licenca = /^PATCH \/admin\/contas\/([A-Za-z0-9-]{1,40})\/licenca$/.exec(rota);
@@ -128,6 +129,8 @@ async function api(req: Request, env: Env, url: URL, espera: (p: Promise<unknown
     const removerDevice = /^DELETE \/admin\/contas\/([A-Za-z0-9-]{1,40})\/devices\/([a-f0-9-]{12,36})$/.exec(rota);
     const senhaAdmin = /^(POST|PUT) \/admin\/contas\/([A-Za-z0-9-]{1,40})\/senha$/.exec(rota);
     const firebaseAdmin = /^GET \/admin\/contas\/([A-Za-z0-9-]{1,40})\/firebase$/.exec(rota);
+    const renovarLicenca = /^POST \/conta\/maquinas\/([a-f0-9-]{36})\/licenca$/.exec(rota);
+    const tirarMaquina = /^DELETE \/conta\/maquinas\/([a-f0-9-]{36})$/.exec(rota);
     const perfil = /^(PUT|DELETE) \/admin\/perfis\/([^/]{3,200})$/.exec(rota);
     const org = /^(GET|PATCH|DELETE) \/orgs\/([a-z0-9-]{1,40})$/.exec(rota);
     const membroNovo = /^POST \/orgs\/([a-z0-9-]{1,40})\/membros$/.exec(rota);
@@ -146,6 +149,9 @@ async function api(req: Request, env: Env, url: URL, espera: (p: Promise<unknown
     else if (rota === "POST /conta/senha") res = await postSenha(auth, env);
     else if (rota === "POST /conta/assinatura") res = await postAssinatura(auth, env, req);
     else if (rota === "POST /conta/assinatura/cancelar") res = await postCancelarAssinatura(auth, env, req);
+    else if (rota === "POST /conta/maquinas") res = await postMaquina(auth, env, req);
+    else if (renovarLicenca !== null) res = await postRenovarLicenca(auth, env, renovarLicenca[1]!);
+    else if (tirarMaquina !== null) res = await deleteMaquina(auth, env, tirarMaquina[1]!, req);
     else if (rota === "POST /sessao/sair") res = await postSair(auth, env);
     else if (rota === "POST /sessao/console") res = await postSessaoConsole(auth, env, req);
     else if (rota === "GET /admin/visao") res = await getAdminVisao(auth, env, url);

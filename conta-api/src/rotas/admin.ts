@@ -1,8 +1,8 @@
 /**
  * Rotas do admin (Bearer com `adm`): `GET /admin/visao?busca=` (todas as contas, com licença, devices e máquinas; os
  * pedidos abertos; os totais), `PATCH /admin/contas/:id/licenca` (plano, status, prazo, limite de devices, add-ons,
- * pagamento) e `POST /admin/pedidos/:id/atender`. Liberar device e vincular máquina entram na rodada da licença
- * assinada (PR 5/6 do plano). Tudo fica na auditoria.
+ * pagamento, limite de máquinas) e `POST /admin/pedidos/:id/atender`. Vincular máquina é da própria pessoa
+ * (rotas/maquinas.ts). Tudo fica na auditoria.
  */
 import type { Env } from "../tipos.js";
 import { ativarDevice, atenderPedido, encerrarAddonPago, auditar, contaPorId, contarSupers, devicesDaConta, gravarLicenca, licencaGravada, removerDevice, gravarPerfil, gravarProvedor, removerPerfil, revogarSessoesDaConta, visaoAdmin } from "../db.js";
