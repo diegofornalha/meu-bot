@@ -9,18 +9,15 @@ import type { LicenseView, PlanoDaContaResultado } from "../../shared/ipc";
 import { log } from "../maquina/tunnel";
 import { getHostNames, isValidHost } from "../app/settings";
 import { contaView, licencaParaMaquina, renovarLicencaDaMaquina, tirarLicencaDaMaquina } from "../conta/conta";
-import { UUID_RE, verificaLicencaAssinada } from "../conta/licenca-assinada-core";
+import { verificaLicencaAssinada } from "../conta/licenca-assinada-core";
 import { LOCAL_HOST } from "../maquina/localBackend";
 import { gravarJsonRemoto } from "../maquina/json-remoto";
 import { runSsh } from "../whatsapp/whatsapp";
-import { deveRenovarLicenca } from "./licenca-conta-core";
+import { LICENCA_CONTA_PATH, MAQUINA_PATH, deveRenovarLicenca, idDaMaquinaDe, jsonCru } from "./licenca-conta-core";
 
-export const LICENCA_CONTA_PATH = "$HOME/.local/share/meu-bot/licenca-conta.json";
-export const MAQUINA_PATH = "$HOME/.local/share/meu-bot/maquina.json";
+export { LICENCA_CONTA_PATH, MAQUINA_PATH };
 const SEP = "<<<REA-SEP>>>";
-
-const json = (t: string): unknown => { try { return JSON.parse(t.trim() || "null"); } catch { return null; } };
-const idDe = (raw: unknown): string | null => { const id = raw !== null && typeof raw === "object" ? (raw as { id?: unknown }).id : null; return typeof id === "string" && UUID_RE.test(id) ? id : null; };
+const json = jsonCru, idDe = idDaMaquinaDe;
 
 /** O id da máquina e a licença da conta gravada nela; null se a máquina não responde. */
 export async function lerLicencaDaContaNaMaquina(host: string): Promise<{ maquina: string | null; arquivo: unknown } | null> {
@@ -107,8 +104,11 @@ export async function renovarSePreciso(host: string, now: number = Date.now()): 
       return true;
     }
     if (r.status === 404) {
-      await runSsh(host, `rm -f "${LICENCA_CONTA_PATH}"\n`, 20_000);
-      await tirarLicencaDaMaquina(atual.maquina, true);
+      // Só abre a vaga na conta depois de o arquivo sair de fato da máquina; senão tenta de novo na próxima leitura.
+      const rm = await runSsh(host, `rm -f "${LICENCA_CONTA_PATH}"\n`, 20_000);
+      if (rm.code !== 0) { log(`[licenca] ${host}: a conta não leva mais a licença a esta máquina, mas não consegui apagar o arquivo`); renovadaEm.delete(host); return false; }
+      const t = await tirarLicencaDaMaquina(atual.maquina, true);
+      if (!t.ok) log(`[licenca] ${host}: arquivo apagado, mas a conta não abriu a vaga (${t.erro})`);
       log(`[licenca] ${host}: a conta não leva mais a licença a esta máquina; arquivo apagado`);
       return true;
     }

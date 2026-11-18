@@ -33,3 +33,12 @@ test("conta: as máquinas trazem até quando a licença vale, e o limite diz se 
   assert.deepEqual(antiga.maquinas, [{ id: M, apelido: "Karen", vinculadaPor: "app", proAte: null, desvinculadaEm: null }]);
   for (const ruim of [0, -1, 1.5, "2", null]) assert.equal(parseContaInfo({ ...base, maquinaLimite: ruim }).maquinaLimite, null, String(ruim));
 });
+
+test("arquivos da máquina: o id só vale se for uuid, e JSON vazio ou quebrado vira null", () => {
+  const { idDaMaquinaDe, jsonCru, LICENCA_CONTA_PATH, MAQUINA_PATH } = req("../../dist/main/licenca/licenca-conta-core.js");
+  assert.equal(idDaMaquinaDe({ id: "22222222-2222-4222-8222-222222222222" }), "22222222-2222-4222-8222-222222222222");
+  for (const ruim of [null, {}, { id: 7 }, { id: "karen" }, { id: "0123456789ab" }, "x", []]) assert.equal(idDaMaquinaDe(ruim), null, JSON.stringify(ruim));
+  assert.equal(jsonCru(""), null); assert.equal(jsonCru(undefined), null); assert.equal(jsonCru("{quebrado"), null);
+  assert.deepEqual(jsonCru(' {"id":"a"}\n'), { id: "a" });
+  assert.match(LICENCA_CONTA_PATH, /meu-bot\/licenca-conta\.json$/); assert.match(MAQUINA_PATH, /meu-bot\/maquina\.json$/);
+});
