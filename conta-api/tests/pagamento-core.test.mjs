@@ -53,9 +53,17 @@ test("lerEvento: lê o envelope v2 e recusa o resto", () => {
 
 test("decidir: libera na primeira cobrança e em cada renovação paga", () => {
   const d = decidir(lerEvento(evento()), "producao", 9700);
-  assert.deepEqual(d, { acao: "liberar", ref: REF, assinaturaId: "subs_1", pagamentoId: "card_1", valor: 9700, primeira: true });
+  assert.deepEqual(d, { acao: "liberar", ref: REF, assinaturaId: "subs_1", pagamentoId: "card_1", valor: 9700, primeira: true, metodo: "CARD" });
   const r = decidir(lerEvento(evento({ event: "subscription.renewed" }, { payment: { id: "char_2", paidAmount: 9700, status: "PAID" } })), "producao", 9700);
   assert.equal(r.acao, "liberar"); assert.equal(r.primeira, false); assert.equal(r.pagamentoId, "char_2");
+});
+
+test("decidir: leva a forma de pagamento da assinatura (CARD ou PIX); valor estranho ou ausente fica nulo", () => {
+  const com = (subscription) => decidir(lerEvento(evento({}, { subscription })), "producao", 9700);
+  assert.equal(com({ id: "subs_1", amount: 9700, method: "PIX", status: "ACTIVE" }).metodo, "PIX");
+  assert.equal(com({ id: "subs_1", amount: 9700, method: "pix", status: "ACTIVE" }).metodo, "PIX");
+  assert.equal(com({ id: "subs_1", amount: 9700, method: "BOLETO", status: "ACTIVE" }).metodo, null);
+  assert.equal(com({ id: "subs_1", amount: 9700, status: "ACTIVE" }).metodo, null);
 });
 
 test("decidir: não libera por checkout.completed (duplicaria), valor baixo, externalId alheio ou canal errado", () => {

@@ -76,11 +76,17 @@ export function lerEvento(bruto: unknown): EventoAssinatura | { erro: string } {
 export const refValida = (ref: string | null): ref is string => ref !== null && /^mb_[0-9a-f-]{36}$/.test(ref);
 
 export type Decisao =
-  | { acao: "liberar"; ref: string; assinaturaId: string; pagamentoId: string; valor: number; primeira: boolean }
+  | { acao: "liberar"; ref: string; assinaturaId: string; pagamentoId: string; valor: number; primeira: boolean; metodo: "CARD" | "PIX" | null }
   | { acao: "cancelada"; ref: string | null; assinaturaId: string }
   | { acao: "falhou"; ref: string | null; assinaturaId: string | null }
   | { acao: "revisar"; ref: string | null; motivo: string }
   | { acao: "ignorar"; motivo: string };
+
+/** A forma de pagamento que a AbacatePay informa na assinatura (`subscription.method`); o que não for CARD ou PIX fica nulo. */
+export function metodoPago(m: string | null): "CARD" | "PIX" | null {
+  const x = (m ?? "").trim().toUpperCase();
+  return x === "CARD" || x === "PIX" ? x : null;
+}
 
 /**
  * O que fazer com um evento. Libera o Pro só por `subscription.completed` (primeira cobrança sem teste) ou
@@ -98,7 +104,7 @@ export function decidir(e: EventoAssinatura, canal: "producao" | "staging", prec
     if (e.pagamento.status !== "PAID" && e.pagamento.status !== "APPROVED") return { acao: "ignorar", motivo: `pagamento ${e.pagamento.status || "sem status"}` };
     const valor = e.pagamento.pago ?? 0;
     if (valor < precoCentavos) return { acao: "revisar", ref, motivo: `pago ${valor} centavos, abaixo de ${precoCentavos}` };
-    return { acao: "liberar", ref, assinaturaId: e.assinatura.id, pagamentoId: e.pagamento.id, valor, primeira: e.evento === "subscription.completed" };
+    return { acao: "liberar", ref, assinaturaId: e.assinatura.id, pagamentoId: e.pagamento.id, valor, primeira: e.evento === "subscription.completed", metodo: metodoPago(e.assinatura.metodo) };
   }
   if (e.evento === "subscription.cancelled") return e.assinatura === null ? { acao: "revisar", ref, motivo: "cancelamento sem assinatura" } : { acao: "cancelada", ref, assinaturaId: e.assinatura.id };
   if (e.evento === "subscription.payment_failed") return { acao: "falhou", ref, assinaturaId: e.assinatura?.id ?? null };
