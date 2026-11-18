@@ -190,6 +190,8 @@ function licencaComOrigem() {
   return r;
 }
 let vigorGravado = null;
+/** Último erro ao gravar o espelho: avisa uma vez por erro, não a cada gate (disco cheio encheria o log). */
+let ultimoErroVigor = null;
 /**
  * O job do CRM (um plugin do OpenClaw, longe deste processo) e o motor do CRM leem a licença de um arquivo cru. Quando
  * o Pro vem da conta, o backend deixa a licença em vigor em `licenca-vigor.json` para eles; com a validade cortada no
@@ -202,7 +204,8 @@ function espelharVigor(r) {
     const txt = JSON.stringify({ ...r.license, expiresAt: ate });
     if (txt === vigorGravado) return;
     writeJson(LICENSE_VIGOR_FILE, JSON.parse(txt)); vigorGravado = txt;
-  } catch (e) { log(`licença: não gravei o espelho em vigor (${e.message})`); }
+    ultimoErroVigor = null;
+  } catch (e) { if (ultimoErroVigor !== e.message) { ultimoErroVigor = e.message; log(`licença: não gravei o espelho em vigor (${e.message}); o job do CRM segue lendo só a licença do admin`); } }
 }
 /** A licença em vigor nesta máquina (a do admin somada à da conta). */
 function ensureLicense() { return licencaComOrigem().license; }
