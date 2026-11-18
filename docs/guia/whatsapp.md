@@ -117,6 +117,14 @@ Diferença dita na tela: o agente nem vê as mensagens da pessoa nesse período.
   `hermes send`; diz "ENVIADA E REGISTRADA" ou avisa "SEM registro" (contato ainda sem sessão). Nas máquinas com
   `~/.hermes`, o instalador põe a regra no `~/agent-workspace/CLAUDE.md` (bloco `meu-bot:wa-enviar v1`): usar o
   comando, nunca a ponte, e confirmar o texto com quem pediu antes de enviar. `uninstall-porteiro.sh` desfaz os dois.
+- Conversa encerrada (18 nov): o espelho do Hermes só acha sessão **viva** (`find_session_by_origin`, `ended_at IS NULL`).
+  Depois de um "Limpar histórico" do app (`end_session(id, "session_reset")`) ou de um `/reset`, o contato fica sem
+  sessão até escrever de novo, e o `wa-enviar` avisava "SEM registro": a mensagem chegava no celular e a conversa do
+  app seguia "Sem mensagens ainda" (caso: senha do painel mandada à Kathy no box-1, 9 min depois de a sessão dela
+  ser encerrada). Agora, sem espelho, o `wa-enviar` reabre a conversa com o Python do Hermes: `create_session` com a
+  chave e a origem da última sessão do contato e `mirror_to_session(..., session_id=)`. O gateway adota essa sessão
+  na próxima mensagem do contato (`find_latest_gateway_session_for_peer`, pela chave). Contato que nunca teve sessão
+  continua "SEM registro". Para provar sem mandar nada: `HERMES_HOME` numa cópia do `state.db` e um `hermes` falso.
 - Mensagem já enviada pela ponte pode ser espelhada depois com `gateway.mirror.mirror_to_session(...)` da venv do
   Hermes, passando `session_id` (foi o que se fez com a da Kathy em 30 out).
 
