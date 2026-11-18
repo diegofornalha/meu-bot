@@ -246,7 +246,8 @@
 - **Quem chama:** o Hermes, com `model.default: whatsapp` no config.yaml, só quando o backend da máquina é 1.3.0+
   (`HERMES_WA_ENSURE_SH`; antes disso fica `agente`). O OpenClaw segue com a trava dele (`tools.toolsBySender`).
 - **Limite:** no Hermes o nível vale para todas as conversas do WhatsApp dele (quem fala é a allowlist do Hermes); não há
-  trava por remetente como no OpenClaw.
+  trava por remetente como no OpenClaw. A exceção é o Navegador: só os números que o dono marca o recebem, por um passe
+  de turno (`docs/guia/navegador.md`, "No Hermes").
 - **Backend como root:** o Claude Code recusa `--dangerously-skip-permissions` como root; na meu-root todo turno do
   agente caía no Grok. O backend passa `IS_SANDBOX=1` quando roda como uid 0 no modo sem permissões.
 - Testado na meu-root chamando o backend como o Hermes: `conversa` e `consulta` recusam "rode echo", `age` executa.

@@ -7,7 +7,7 @@
  * app grava quando o túnel sobe; sem arquivo ou sem resposta, o Navegador está fechado (app fechado no Mac do dono).
  * Protocolo: JSON-RPC 2.0, uma mensagem por linha (initialize, tools/list, tools/call, ping, notifications).
  * Cada pedido leva quem está pedindo (cabeçalho X-Meu-Bot-Dono): cada conversa trabalha nas próprias abas.
- * meu-bot-navegador v4
+ * meu-bot-navegador v5
  */
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -24,12 +24,13 @@ const FECHADO = portFile
   ? 'o Navegador do dono está fechado: o app meu-bot precisa estar aberto no Mac dele, com "agente pode usar" ligado na aba Navegador. Avise quem pediu e siga sem o navegador.'
   : 'o Navegador da pessoa não está ligado para o agente (abra a aba Navegador no app e ligue "agente pode usar")';
 /**
- * Quem pede: no meu-bot, a conversa (--dono/--rotulo, do backend); no agente do WhatsApp (--port-file), a sessão do
+ * Quem pede: no meu-bot, a conversa (--dono/--rotulo, do backend; com --origem whatsapp é a conversa do WhatsApp num
+ * gateway Hermes, onde o próprio backend roda o turno); no agente do WhatsApp do OpenClaw (--port-file), a sessão do
  * OpenClaw se ela vier no ambiente, senão um id deste processo (o Claude Code de cada sessão abre o seu).
  */
 const sessaoOpenClaw = (process.env.OPENCLAW_TOOLS_MCP_AGENT_SESSION_KEY || '').trim();
 const DONO = arg('--dono')
-  ? { id: arg('--dono'), rotulo: arg('--rotulo') || 'conversa do meu-bot', origem: 'meu-bot' }
+  ? { id: arg('--dono'), rotulo: arg('--rotulo') || 'conversa do meu-bot', origem: arg('--origem') === 'whatsapp' ? 'whatsapp' : 'meu-bot' }
   : portFile
     ? { id: /^agent:[\w:+.@=-]{1,190}$/.test(sessaoOpenClaw) ? sessaoOpenClaw : `whatsapp-${crypto.randomBytes(4).toString('hex')}`, rotulo: 'WhatsApp', origem: 'whatsapp' }
     : null;

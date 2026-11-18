@@ -1,13 +1,23 @@
 /**
- * Navegador do meu-bot para o agente do WhatsApp: o IO (SSH) sobre navegador-whatsapp-core.ts. Ligar instala o lado
- * da máquina se faltar (o mesmo do tutorial 9), grava o servidor MCP e a trava por remetente, recarrega e confere.
- * O arquivo da porta é do browser.ts (grava quando o túnel reverso sobe).
+ * Navegador do meu-bot para o agente do WhatsApp, qualquer que seja o gateway da máquina. Esta é a fachada: descobre o
+ * gateway (`motorDe`) e chama o caminho dele.
+ *
+ * - OpenClaw (aqui embaixo, IO sobre navegador-whatsapp-core.ts): ligar instala o lado da máquina se faltar (o mesmo do
+ *   tutorial 9), grava o servidor MCP e a trava por remetente do gateway, recarrega e confere.
+ * - Hermes (navegador-whatsapp-hermes.ts): o backend do meu-bot roda o turno, então o que se grava é o estado com a
+ *   lista de números marcada pelo dono; o plugin do Hermes entrega um passe por turno a quem está nela.
+ * - PicoClaw ou sem agente: não há o recurso; a leitura diz por quê e o botão fica apagado.
+ *
+ * O arquivo da porta é do browser.ts (grava quando o túnel reverso sobe) e serve aos dois.
  */
 import { CREDS_ME, runSsh } from "../whatsapp/whatsapp";
 import { WORKSPACE_SH } from "../agente/objetivo-core";
 import { installNavegador } from "../maquina/hostProbe";
 import { liberadosDoNavegador, navegadorNoWhatsapp, navWhatsappAplicarSh, navWhatsappLerSh, patchNavegadorWhatsapp, travaNavegador } from "./navegador-whatsapp-core";
 import { log } from "../maquina/backend";
+import { motorDe } from "../whatsapp/whatsapp-motor";
+import { navHermesInfo, setNavHermes } from "./navegador-whatsapp-hermes";
+import type { Gateway, NavWhatsappInfo } from "../../shared/ipc";
 
 const jsonOr = (v: string | undefined): unknown => { try { return JSON.parse(v || "null"); } catch { return null; } };
 async function ler(host: string): Promise<Map<string, string>> {
@@ -19,14 +29,38 @@ async function ler(host: string): Promise<Map<string, string>> {
 }
 const selfOf = (kv: Map<string, string>): string | null => { const m = /^(\d{8,15})[:@]/.exec(kv.get("self") ?? ""); return m === null ? null : m[1]!; };
 
-export interface NavWhatsappInfo { on: boolean; liberados: string[] }
+export type { NavWhatsappInfo };
+/** O gateway do WhatsApp desta máquina; null = não tem agente com WhatsApp (ou não deu para saber). */
+async function gatewayDe(host: string): Promise<Gateway | null> { try { return (await motorDe(host)).nome; } catch { return null; } }
+const semRecurso = (gateway: Gateway | null): NavWhatsappInfo => ({ on: false, liberados: [], gateway, suportado: false, editavel: false, motivo: gateway === null ? "esta máquina não tem agente com WhatsApp" : "o Navegador pelo WhatsApp ainda não existe para o PicoClaw" });
+
 export async function navWhatsappInfo(host: string): Promise<NavWhatsappInfo> {
+  const g = await gatewayDe(host);
+  if (g === "hermes") return { ...(await navHermesInfo(host)), gateway: g, suportado: true, editavel: true };
+  if (g !== "openclaw") return semRecurso(g);
   const kv = await ler(host);
-  return { on: navegadorNoWhatsapp(jsonOr(kv.get("mcp"))), liberados: liberadosDoNavegador(jsonOr(kv.get("wa")), selfOf(kv)) };
+  return { on: navegadorNoWhatsapp(jsonOr(kv.get("mcp"))), liberados: liberadosDoNavegador(jsonOr(kv.get("wa")), selfOf(kv)), gateway: g, suportado: true, editavel: false };
 }
 
-/** Liga/desliga; `soSincronizar` = só refaz a trava com a lista atual (se estiver ligado), sem mexer no resto. */
-export async function setNavWhatsapp(host: string, ligar: boolean | "sincronizar"): Promise<NavWhatsappInfo> {
+/**
+ * Liga/desliga. `"sincronizar"` = só refaz a trava do OpenClaw com a lista atual (se estiver ligado); no Hermes a lista é
+ * a gravada e não há o que refazer. `numeros` troca a lista onde ela é do app (Hermes).
+ */
+export async function setNavWhatsapp(host: string, ligar: boolean | "sincronizar", numeros?: readonly string[]): Promise<NavWhatsappInfo> {
+  const g = await gatewayDe(host);
+  if (g === "hermes") {
+    if (ligar === "sincronizar") return { ...(await navHermesInfo(host)), gateway: g, suportado: true, editavel: true };
+    return { ...(await setNavHermes(host, ligar, numeros)), gateway: g, suportado: true, editavel: true };
+  }
+  if (g !== "openclaw") {
+    if (ligar === "sincronizar") return semRecurso(g);
+    throw new Error(semRecurso(g).motivo);
+  }
+  return { ...(await setNavOpenclaw(host, ligar)), gateway: g, suportado: true, editavel: false };
+}
+
+/** OpenClaw: liga/desliga; `"sincronizar"` = só refaz a trava com a lista atual (se estiver ligado), sem mexer no resto. */
+async function setNavOpenclaw(host: string, ligar: boolean | "sincronizar"): Promise<{ on: boolean; liberados: string[] }> {
   let kv = await ler(host);
   const ligado = navegadorNoWhatsapp(jsonOr(kv.get("mcp")));
   if (ligar === "sincronizar" && !ligado) return { on: false, liberados: [] };

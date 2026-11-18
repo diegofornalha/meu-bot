@@ -223,7 +223,7 @@ const clientApi: MeuBotClientApi = {
   crmLocal: () => ipcRenderer.invoke("crm:local", {}),
   crmCriarPipeline: (name: string, stages: string[]) => ipcRenderer.invoke("crm:pipeline-criar", { name, stages }),
   crmDefinirPadrao: (key: string) => ipcRenderer.invoke("crm:pipeline-padrao", { key }),
-  browserAgentWhatsapp: (on?: boolean) => ipcRenderer.invoke("browser:agent-whatsapp", on === undefined ? {} : { on }),
+  browserAgentWhatsapp: (on?: boolean, numeros?: string[]) => ipcRenderer.invoke("browser:agent-whatsapp", on === undefined ? {} : numeros === undefined ? { on } : { on, numeros }),
   browserActive: (wcId: number) => ipcRenderer.send("browser:active", { wcId }),
   browserRemoveExtension: (extId: string) => ipcRenderer.invoke("browser:remove-extension", { extId }),
   browserRequestPro: () => ipcRenderer.invoke("browser:request-pro", {}),

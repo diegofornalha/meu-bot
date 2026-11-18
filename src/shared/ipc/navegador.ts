@@ -23,3 +23,10 @@ export interface NavWorkspaces { ativo: string | null; lista: NavWorkspace[] }
 export interface NavFavorito { id: string; titulo: string; url: string }
 /** "Agente pode usar" o Navegador: ligado? o túnel reverso está de pé? em que porta da máquina? */
 export interface BrowserAgentState { on: boolean; state: "up" | "down" | "connecting"; port: number | null }
+
+/**
+ * O Navegador para o agente do WhatsApp (botão 📱). `liberados` = números (só dígitos) que podem usá-lo. `suportado`
+ * falso = o gateway da máquina não tem o recurso (`motivo` diz por quê). `editavel` = a lista é do app e a pessoa a
+ * muda pelo 📱 (Hermes); no OpenClaw quem pode vem da configuração do gateway.
+ */
+export interface NavWhatsappInfo { on: boolean; liberados: string[]; gateway: "hermes" | "openclaw" | "picoclaw" | null; suportado: boolean; editavel: boolean; motivo?: string }

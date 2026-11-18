@@ -5,8 +5,11 @@
  */
 'use strict';
 
-/** `--dono`/`--rotulo` do MCP: a conversa dona das abas (Navegador) e o rótulo da auditoria (Gmail). */
-const dono = (d) => (d && typeof d.id === 'string' ? ['--dono', d.id, '--rotulo', String(d.rotulo || 'conversa do meu-bot').slice(0, 80)] : []);
+/**
+ * `--dono`/`--rotulo` do MCP: a conversa dona das abas (Navegador) e o rótulo da auditoria (Gmail). `--origem whatsapp`
+ * quando quem pede é o agente do WhatsApp (Hermes): a aba abre em segundo plano e ganha o selo do WhatsApp.
+ */
+const dono = (d) => (d && typeof d.id === 'string' ? ['--dono', d.id, '--rotulo', String(d.rotulo || 'conversa do meu-bot').slice(0, 80), ...(d.origem === 'whatsapp' ? ['--origem', 'whatsapp'] : [])] : []);
 
 /**
  * Argumentos extras da CLI para o turno. `browser`/`gmail`: `{ port, dono? }` ou null. `navegadorMcp`/`gmailMcp`: os

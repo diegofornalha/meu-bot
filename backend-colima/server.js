@@ -26,6 +26,7 @@ const toolEvents = require('./tool-events');
 const navegador = require('./navegador');
 const gmailPonte = require('./gmail');
 const pontes = require('./pontes');
+const navWhatsapp = require('./navegador-whatsapp');
 const NAVEGADOR_MCP = path.join(os.homedir(), '.local/share/meu-bot/navegador-mcp.mjs');
 const GMAIL_MCP = path.join(os.homedir(), '.local/share/meu-bot/gmail-mcp.mjs');
 /** Passos por mensagem quando o Navegador está ligado (o perfil "agente" tem 30 sem ele). */
@@ -661,7 +662,10 @@ async function chatCompletions(req, res) {
   if (!MODELS[model] && !(openaiProvider && openaiProvider.type === 'openai' && openaiProvider.available)) {
     return json(res, 404, { error: { message: `modelo desconhecido: ${model}`, type: 'invalid_request_error', code: 'model_not_found' } });
   }
-  const messages = Array.isArray(body.messages) ? body.messages.filter((m) => m && typeof m.role === 'string') : [];
+  let messages = Array.isArray(body.messages) ? body.messages.filter((m) => m && typeof m.role === 'string') : [];
+  // WhatsApp do Hermes: o passe do plugin meu-bot-navegador sai das mensagens aqui (o modelo nunca o vê); se vale, o turno ganha o Navegador mais abaixo.
+  const turnoWa = model === 'whatsapp' ? navWhatsapp.resolverTurno({ messages, dir: MEU_BOT_DIR, agoraMs: Date.now() }) : null;
+  if (turnoWa !== null) messages = turnoWa.messages;
   if (!messages.some((m) => m.role === 'user')) return json(res, 400, { error: { message: 'messages precisa ter ao menos um user', type: 'invalid_request_error' } });
   const stream = body.stream === true;
   const live = stream && String(req.headers['x-stream-mode'] || '').toLowerCase() === 'live';
@@ -674,6 +678,13 @@ async function chatCompletions(req, res) {
     if (!licenca.proOk(lic)) log(`navegador pedido sem Pro (plano ${lic.plan}/${lic.status}); ignorado`);
     else if (!fs.existsSync(NAVEGADOR_MCP)) log(`navegador pedido, mas ${NAVEGADOR_MCP} não existe; ignorado`);
     else browser = { port: browserPort };
+  } else if (turnoWa !== null && (turnoWa.browser !== null || turnoWa.motivo !== null)) {
+    // Navegador do dono para quem ele marcou no app (navegador-whatsapp.js): a mesma regra de Pro e de MCP instalado.
+    const lic = licenseView().license;
+    if (turnoWa.browser === null) log(`navegador no whatsapp: negado (${turnoWa.motivo})`);
+    else if (!licenca.proOk(lic)) log(`navegador no whatsapp sem Pro (plano ${lic.plan}/${lic.status}); ignorado`);
+    else if (!fs.existsSync(NAVEGADOR_MCP)) log(`navegador no whatsapp, mas ${NAVEGADOR_MCP} não existe; ignorado`);
+    else { browser = turnoWa.browser; log(`navegador no whatsapp: ligado neste turno para +${turnoWa.numero}`); }
   }
   // Gmail do agente (módulo Pro, 31 out): a mesma regra do Navegador, com o próprio MCP e a própria porta.
   let gmail = null;
@@ -687,7 +698,7 @@ async function chatCompletions(req, res) {
   const convRaw = req.headers['x-conversation-id'];
   const convId = typeof convRaw === 'string' && CONV_ID_RE.test(convRaw) ? convRaw : null;
   // Dono das abas que este turno abrir no Navegador (cada conversa trabalha nas próprias abas): id da conversa + título.
-  if (browser !== null && convId !== null) browser.dono = { id: `meu-bot:${convId}`, rotulo: navegador.parseRotulo(req.headers['x-meu-bot-browser-rotulo']) };
+  if (browser !== null && convId !== null && !browser.dono) browser.dono = { id: `meu-bot:${convId}`, rotulo: navegador.parseRotulo(req.headers['x-meu-bot-browser-rotulo']) };
   if (gmail !== null && convId !== null) gmail.dono = { id: `meu-bot:${convId}`, rotulo: navegador.parseRotulo(req.headers['x-meu-bot-browser-rotulo']) };
   const hash = sysHash(messages);
   const id = `chatcmpl-${crypto.randomBytes(8).toString('hex')}`;
@@ -751,7 +762,7 @@ async function chatCompletions(req, res) {
       const ultimaFala = [...messages].reverse().find((m) => m.role === 'user');
       const acao = modulos.ajusteDaAcao(doModulo.acoes, ultimaFala ? messageText(ultimaFala) : '');
       const regrasModulos = [...doModulo.regras, ...(acao && acao.adendo ? [acao.adendo] : [])].join('\n\n');
-      const identity = `Você responde dentro do meu-bot pelo Claude Code, perfil "${name}" (Anthropic). Se perguntarem qual modelo ou IA você é, diga exatamente isso.${browser ? `\n\n${navegador.BROWSER_RULE}` : ''}${gmail ? `\n\n${gmailPonte.GMAIL_RULE}` : ''}${avisoNivel ? `\n\n${avisoNivel}` : ''}${regrasModulos ? `\n\n${regrasModulos}` : ''}`;
+      const identity = `Você responde dentro do meu-bot pelo Claude Code, perfil "${name}" (Anthropic). Se perguntarem qual modelo ou IA você é, diga exatamente isso.${browser ? `\n\n${navegador.BROWSER_RULE}${browser.dono && browser.dono.origem === 'whatsapp' ? `\n\n${navegador.NAV_WA_RULE}` : ''}` : ''}${gmail ? `\n\n${gmailPonte.GMAIL_RULE}` : ''}${avisoNivel ? `\n\n${avisoNivel}` : ''}${regrasModulos ? `\n\n${regrasModulos}` : ''}`;
       plan = { ...plan, system: plan.system ? `${identity}\n\n${plan.system}` : identity };
       resumed = Boolean(plan.resume);
       // A melhor conta agora (uma em aviso só se não há outra). Sem nenhuma: erro com a hora em que a próxima volta;

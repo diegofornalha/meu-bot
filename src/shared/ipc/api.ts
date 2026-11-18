@@ -13,7 +13,7 @@ import type { AgendaEvento, BackupCopiasView, BackupDadosProgresso, BackupDadosV
 import type { LicensePatch, LicenseView, PlanoDaContaResultado } from "./licenca";
 import type { ModuloPaginaAberta, ModuloPlanilhaResultado, ModuloResultado, ModuloTeste, ModulosLista } from "./modulos";
 import type { BackendStatusEvent, InstallBackendResult, TailscaleSshResult } from "./maquina";
-import type { BrowserAgentState, BrowserExtensionInfo, BrowserOpenInfo, NavFavorito, NavWorkspaces } from "./navegador";
+import type { BrowserAgentState, BrowserExtensionInfo, BrowserOpenInfo, NavFavorito, NavWhatsappInfo, NavWorkspaces } from "./navegador";
 import type { MotorNovoUsuario, AdminAction, AdminHealth, AuditoriaVisao, UsuariosVisao, PrepararId, PrepararVisao, BackupIndiceView, BackupRestauracao, BotChat, BotMenuAction, BotMessage, ProdutoMvp, SupportInfo, SupportProgress, SupportShare, CgEstado, LpEstado, LpAviso } from "./suporte";
 import type { TypingChoice, WaMarkPatch, WhatsappAlvo, WhatsappArchive, WhatsappChat, WhatsappEvent, WhatsappGroupAgent, WhatsappGroupArchive, WhatsappGroupMenuAction, WhatsappGroupPatch, WhatsappGroups, WhatsappMenuAction, WhatsappAgente, WhatsappReplyChoice, WhatsappStatus, WhatsappThreadMessage } from "./whatsapp";
 
@@ -374,8 +374,11 @@ export interface MeuBotClientApi {
   browserExtensions(): Promise<BrowserExtensionInfo[]>;
   /** Liga/desliga "agente pode usar" (socket de ações + túnel reverso); estado em browser:agent. */
   browserAgent(on: boolean): Promise<BrowserAgentState>;
-  /** O agente do WhatsApp também usa o Navegador (sem `on`: só lê). `liberados` = números (só dígitos) que podem. */
-  browserAgentWhatsapp(on?: boolean): Promise<{ on: boolean; liberados: string[] }>;
+  /**
+   * O agente do WhatsApp também usa o Navegador (sem `on`: só lê). `liberados` = números (só dígitos) que podem.
+   * `numeros` troca a lista onde ela é do app (`editavel`: gateway Hermes); no OpenClaw quem pode vem do gateway.
+   */
+  browserAgentWhatsapp(on?: boolean, numeros?: string[]): Promise<NavWhatsappInfo>;
   /** meu-bot-crm: pipelines do CRM da máquina e o padrão do WhatsApp. */
   crmLocal(): Promise<CrmLocal>;
   /** meu-bot-crm: cria um pipeline (o único vira o padrão do WhatsApp). */
