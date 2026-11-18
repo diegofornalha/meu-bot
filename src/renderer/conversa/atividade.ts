@@ -4,6 +4,7 @@ import type { PageTab } from "../lib/pages-types.js";
 import { hostLabel } from "../lib/probe-text.js";
 import type { XTermCtor } from "../terminal/terminal.js";
 import type { Tab } from "../renderer.js";
+import { ehAcaoDoNavegador } from "../lib/navegador-ferramenta.js";
 import { ctx } from "../app/ctx.js";
 
 /* ---------- Atividade do agente: o que o modo agente roda (chat:tool), na conversa e numa aba só leitura ---------- */
@@ -86,7 +87,7 @@ export function ligarAtividade(): void {
     if (tab !== undefined && tool.kind === "use" && tool.name.startsWith("mcp__navegador__")) { for (const h of ctx.navHostsIn(tool.summary)) tab.navSitesTurn.add(h); if (tab.navSitesTurn.size === 0) tab.navSitesTurn.add(ctx.navCurrentHost() ?? "*"); }
     // "Deixar o agente navegar" só conclui com uma ação do Navegador que deu certo. A tentativa (o `use`) e o erro
     // com "agente pode usar" desligado não contam: antes, qualquer tentativa marcava o passo e o tutorial "concluía".
-    if (tool.kind === "result" && tool.ok && name !== null && name.startsWith("mcp__navegador__") && !ctx.loadGuideFlags(ctx.NAV_TUTORIAL).navAgentUsed) { ctx.saveGuideFlag(ctx.NAV_TUTORIAL, "navAgentUsed"); ctx.paintGuide(); }
+    if (tool.kind === "result" && tool.ok && name !== null && ehAcaoDoNavegador(name) && !ctx.loadGuideFlags(ctx.NAV_TUTORIAL).navAgentUsed) { ctx.saveGuideFlag(ctx.NAV_TUTORIAL, "navAgentUsed"); ctx.paintGuide(); }
     // O agente acabou de gravar a chave do Streak na máquina: o passo 3 do CRM segue sozinho (teste, pipeline único).
     if (tool.kind === "result" && ctx.crmKeyFromAgent && name === "Bash") void ctx.crmAfterAgentKey();
   });
