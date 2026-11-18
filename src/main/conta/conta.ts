@@ -102,7 +102,7 @@ const ouvintesRetorno = new Set<() => void>();
 export function aoRetorno(cb: () => void): void { ouvintesRetorno.add(cb); }
 
 /** Pedido à API: JSON de ida e volta; `status` 0 = sem resposta (rede, tempo). */
-async function api(metodo: "GET" | "POST", rota: string, corpo: unknown = null, bearer: string | null = null): Promise<{ status: number; corpo: unknown }> {
+async function api(metodo: "GET" | "POST" | "DELETE", rota: string, corpo: unknown = null, bearer: string | null = null): Promise<{ status: number; corpo: unknown }> {
   const headers: Record<string, string> = { accept: "application/json" };
   if (corpo !== null) headers["content-type"] = "application/json";
   if (bearer !== null) headers.authorization = `Bearer ${bearer}`;
@@ -187,6 +187,29 @@ export async function atualizarConta(): Promise<ContaView> {
   else if (sessaoAcabou(resp.status)) { apagarSessao(); erro = erroDaApi(resp.status, resp.corpo); log(`[conta] sessão acabou: ${erro}`); avisar(); saiu(); }
   else log(`[conta] GET /conta falhou (${resp.status}): ${erroDaApi(resp.status, resp.corpo)}`);
   return avisar();
+}
+/** Resposta das rotas `/conta/maquinas`: o arquivo assinado, ou o erro (com as máquinas que ocupam a vaga, se for isso). */
+export type LicencaDaApi = { ok: true; arquivo: unknown } | { ok: false; status: number; erro: string; ocupadas: string[] };
+async function pedirLicenca(rota: string, corpo: unknown): Promise<LicencaDaApi> {
+  const tok = await tokenDeAcesso();
+  if (tok === null) return { ok: false, status: 401, erro: "entre na sua conta meu-bot para usar a licença dela aqui", ocupadas: [] };
+  const r = await api("POST", rota, corpo, tok);
+  const c = r.corpo !== null && typeof r.corpo === "object" ? (r.corpo as { licenca?: unknown; ocupadas?: unknown }) : {};
+  if (r.status === 200 && c.licenca !== null && typeof c.licenca === "object") { void atualizarConta(); return { ok: true, arquivo: c.licenca }; }
+  const ocupadas = Array.isArray(c.ocupadas) ? c.ocupadas.map((m) => (m !== null && typeof m === "object" ? (m as { apelido?: unknown; id?: unknown }) : {})).map((m) => (typeof m.apelido === "string" && m.apelido !== "" ? m.apelido : typeof m.id === "string" ? `máquina ${m.id.slice(0, 8)}` : "outra máquina")) : [];
+  return { ok: false, status: r.status, erro: erroDaApi(r.status, r.corpo), ocupadas };
+}
+/** `POST /conta/maquinas`: vincula a máquina (uuid do maquina.json dela) à conta e devolve o licenca-conta.json assinado. */
+export const licencaParaMaquina = (id: string, apelido: string | null): Promise<LicencaDaApi> => pedirLicenca("/conta/maquinas", { id, apelido });
+/** `POST /conta/maquinas/:id/licenca`: emite de novo para uma máquina já vinculada (404 = não é mais desta conta). */
+export const renovarLicencaDaMaquina = (id: string): Promise<LicencaDaApi> => pedirLicenca(`/conta/maquinas/${id}/licenca`, {});
+/** `DELETE /conta/maquinas/:id`: `apagada` = o app já apagou o arquivo da máquina, então a vaga abre na hora. */
+export async function tirarLicencaDaMaquina(id: string, apagada: boolean): Promise<{ ok: boolean; erro: string }> {
+  const tok = await tokenDeAcesso();
+  if (tok === null) return { ok: false, erro: "entre na sua conta meu-bot" };
+  const r = await api("DELETE", `/conta/maquinas/${id}`, { apagada }, tok);
+  void atualizarConta();
+  return r.status === 200 || r.status === 404 ? { ok: true, erro: "" } : { ok: false, erro: erroDaApi(r.status, r.corpo) };
 }
 /**
  * Papel da conta confirmado pelo servidor AGORA (GET /conta com resposta 200): o que libera uma ação só de super

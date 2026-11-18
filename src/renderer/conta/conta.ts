@@ -5,7 +5,10 @@
 import type { ContaView } from "../../shared/ipc";
 import { el } from "../lib/dom.js";
 import { ipcErrorText } from "../lib/ipc-error.js";
-import { ctx } from "../app/ctx.js";
+import { ctx, ehRemoto } from "../app/ctx.js";
+import { relerPlano } from "../lib/aviso-pagamento.js";
+import { caminhoDoPlano } from "../lib/pro.js";
+import { hostLabel } from "../lib/probe-text.js";
 import { montarMenuConta } from "../lib/conta-menu.js";
 
 let view: ContaView | null = null;
@@ -37,6 +40,42 @@ function ligarMenuConta(): void {
   aoMudarConta(() => { menuConta?.fechar(); menuConta?.pintar(); });
 }
 
+/**
+ * A licença da conta na máquina desta janela: ela já a usa ("Tirar o Pro desta máquina", em dois toques), a conta tem
+ * o que levar ("Usar o meu Pro nesta máquina"), ou nada disso (só o que o admin gravou).
+ */
+function blocoMaquina(c: ContaView, repintar: () => void): HTMLElement {
+  const box = el("div", "conta-maquina");
+  const nota = el("p", "hint"); nota.hidden = true;
+  const dizer = (t: string): void => { nota.hidden = false; nota.textContent = t; };
+  const acoes = el("div", "actions");
+  const onde = hostLabel(ctx.windowHost);
+  const rodar = (b: HTMLButtonElement, rotulo: string, acao: () => Promise<{ ok: true } | { ok: false; erro: string; semVaga?: string[] }>): void => {
+    const antes = b.textContent; b.disabled = true; b.textContent = rotulo;
+    void acao().then(async (r) => {
+      if (r.ok) { await relerPlano(); repintar(); return; }
+      b.disabled = false; b.textContent = antes;
+      dizer(r.semVaga !== undefined && r.semVaga.length > 0 ? `A sua conta já usa a licença em ${r.semVaga.join(", ")}. Tire de lá primeiro.` : `Não deu certo: ${r.erro}`);
+    }, (err: unknown) => { b.disabled = false; b.textContent = antes; dizer(`Não deu certo: ${ipcErrorText(err)}`); });
+  };
+  if (ctx.license?.origem === "conta") {
+    box.append(el("p", "hint", `${onde} usa a licença da sua conta. Ela se renova sozinha enquanto a assinatura estiver em dia.`));
+    const tirar = el("button", "btn btn-ghost btn-small", "Tirar o Pro desta máquina"); tirar.type = "button";
+    tirar.addEventListener("click", () => {
+      if (tirar.dataset.confirma !== "1") { tirar.dataset.confirma = "1"; tirar.textContent = "Toque de novo para tirar"; setTimeout(() => { if (tirar.isConnected && !tirar.disabled) { delete tirar.dataset.confirma; tirar.textContent = "Tirar o Pro desta máquina"; } }, 5000); return; }
+      rodar(tirar, "Tirando…", () => window.meuBot.planoTirarDaConta());
+    });
+    acoes.append(tirar);
+  } else if (c.conta !== null && caminhoDoPlano({ remoto: true, conta: c.conta.licenca, maquinaLimite: c.conta.maquinaLimite, origem: ctx.license?.origem }) === "usar-da-conta") {
+    box.append(el("p", "hint", `A sua conta tem uma licença que ${onde} ainda não usa. Ela vale em uma máquina por vez.`));
+    const usar = el("button", "btn btn-primary btn-small", c.conta.licenca.plan === "pro" ? "Usar o meu Pro nesta máquina" : "Usar a minha assinatura nesta máquina"); usar.type = "button";
+    usar.addEventListener("click", () => rodar(usar, "Aplicando nesta máquina…", () => window.meuBot.planoUsarDaConta()));
+    acoes.append(usar);
+  } else return box;
+  box.append(acoes, nota);
+  return box;
+}
+
 /** O bloco da conta para o painel "Sua conta": botão Entrar, "aguardando o navegador", ou e-mail com Sair. */
 export function blocoConta(): HTMLElement {
   const box = el("div", "conta-bloco");
@@ -51,7 +90,8 @@ export function blocoConta(): HTMLElement {
       sair.addEventListener("click", () => { sair.disabled = true; void window.meuBot.contaSair().then(mudou).catch((err: unknown) => { sair.disabled = false; box.append(el("p", "error", `Não consegui sair: ${ipcErrorText(err)}`)); }); });
       const acoes = el("div", "actions"); acoes.append(sair);
       const este = c.conta.devices.find((d) => d.este);
-      box.append(linha, el("p", "hint", `Plano da conta: ${c.conta.licenca.plan === "pro" ? "Pro" : "Free"} · ${c.conta.devices.length} device${c.conta.devices.length === 1 ? "" : "s"}${c.conta.pedidos > 0 ? ` · ${c.conta.pedidos} pedido${c.conta.pedidos === 1 ? "" : "s"} aberto${c.conta.pedidos === 1 ? "" : "s"}` : ""}. Nesta versão a licença da máquina ainda vem do backend dela.`));
+      box.append(linha, el("p", "hint", `Plano da conta: ${c.conta.licenca.plan === "pro" ? "Pro" : "Free"} · ${c.conta.devices.length} device${c.conta.devices.length === 1 ? "" : "s"}${c.conta.pedidos > 0 ? ` · ${c.conta.pedidos} pedido${c.conta.pedidos === 1 ? "" : "s"} aberto${c.conta.pedidos === 1 ? "" : "s"}` : ""}.${ehRemoto() ? "" : " Este Mac usa o plano da conta."}`));
+      if (ehRemoto()) box.append(blocoMaquina(c, pinta));
       if (este !== undefined && este.status === "pending") box.append(el("p", "error", `Este Mac aguarda a liberação do admin: a conta já usa ${c.conta.licenca.deviceLimit} device${c.conta.licenca.deviceLimit === 1 ? "" : "s"}.`));
       box.append(acoes);
       return;

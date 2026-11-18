@@ -406,6 +406,16 @@ function navClose(id: string): void {
 }
 // Entrou ou saiu da conta com o bloqueio na tela: o botão "Entrar" some ou volta.
 aoMudarConta(() => { if (navEls !== null && navAccess !== "ok") paintNav(); });
+/**
+ * A licença da janela mudou (a pessoa aplicou a da conta, ou ela foi renovada ou tirada): com o bloqueio na tela, o
+ * Navegador reabre (monta as abas se liberou); fora da tela só o estado é refeito, sem trazer a página para a frente.
+ */
+export function navReavaliar(): void {
+  if (navEls === null) return;
+  if (navAccess !== "ok" && navEls.block.offsetParent !== null) { void openNavTab(); return; }
+  navAccess = browserAccess(ctx.license, ctx.windowHost, ctx.caps.planoExigido, ctx.caps.produto);
+  paintNav();
+}
 export function paintNav(): void {
   if (navEls === null || navPage === null) return;
   const e = navEls;
@@ -418,8 +428,8 @@ export function paintNav(): void {
     const pg = pagamentoDoBloqueio(a, ctx.license);
     if (pg !== null) e.block.append(blocoPagamento(pg));
     const row = el("div", "actions");
-    // Sem conta meu-bot neste Mac: "Entrar" primeiro (a conta é o caminho para o plano e os devices); o pedido ao admin continua ao lado.
-    if (t.askAdmin && contaAtual() !== null && !contaEntrou()) {
+    // Sem conta meu-bot neste Mac: "Entrar" primeiro (a conta é o caminho para o plano: é nela que a assinatura fica).
+    if (a !== "unknown" && contaAtual() !== null && !contaEntrou()) {
       const entrar = el("button", "btn btn-ghost", contaAtual()?.situacao === "entrando" ? "Aguardando o login no navegador…" : "Entrar na conta meu-bot"); entrar.type = "button"; entrar.disabled = contaAtual()?.situacao === "entrando";
       entrar.addEventListener("click", () => { entrar.disabled = true; void window.meuBot.contaEntrar().catch((err: unknown) => { entrar.disabled = false; e.note.hidden = false; e.note.textContent = `Não consegui abrir o login: ${ipcErrorText(err)}`; }); });
       row.append(entrar);

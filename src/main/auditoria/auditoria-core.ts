@@ -33,6 +33,7 @@ export const ACOES = {
   "device.pedido": (a: string) => `pedido de device a mais${a ? `: ${a}` : ""}`,
   "plano.pedir": (a: string) => a || "pediu um plano",
   "plano.pago": (a: string) => a || "avisou que já pagou",
+  "plano.conta": (a: string) => a || "usou a licença da conta nesta máquina",
   "computador.instalar": () => "instalou a tela do bot (Computador)",
   "meu-bot.apagar-conversa": () => "apagou uma conversa dela com o meu-bot",
   "backend.instalar": (a: string) => `instalou o backend do meu-bot${a ? ` (${a})` : ""}`,

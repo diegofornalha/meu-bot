@@ -35,17 +35,46 @@ test("add-on (meu-bot-finance…): acumulativo por cima do plano, com ou sem o P
   // App que exigisse mais que o free: ou tudo aberto, ou "assinatura" (uma tela só).
   assert.equal(browserAccess(lic({ produtos: ["meu-bot-fit"] }), "agente-box", "pro", "meu-bot-fit"), "ok");
   assert.equal(browserAccess(lic({ plan: "pro", status: "active" }), "agente-box", "pro", "meu-bot-fit"), "assinatura");
-  const t = proBlockText("assinatura", lic({ plan: "pro", status: "active" }), "navegador", "meu-bot-fit");
+  const t = proBlockText("assinatura", lic({ plan: "pro", status: "active", pagamento: { instrucoes: "Pix do admin", link: null } }), "navegador", "meu-bot-fit");
   assert.equal(t.askAdmin, true); assert.match(t.title, /meu-bot-fit/); assert.doesNotMatch(t.text, /plano Pro/);
   assert.equal(crmProprioOk(lic({ plan: "pro", status: "active" }), "agente-box"), true);
   assert.equal(crmProprioOk(lic({ produtos: ["meu-bot-crm"] }), "agente-box"), false, "o antigo add-on meu-bot-crm não libera");
 });
 
-test("proBlockText: free pede ao admin; unknown não; vencido traz a data", () => {
-  assert.equal(proBlockText("free", lic({})).askAdmin, true);
+const PIX = { pagamento: { instrucoes: "Pix do admin", link: null } };
+test("proBlockText: a pessoa assina pelo site; só pede ao admin quando ele gravou um Como pagar próprio", () => {
+  const f = proBlockText("free", lic({}));
+  assert.equal(f.askAdmin, false); assert.match(f.text, /Assine o Pro pelo site/); assert.doesNotMatch(f.text, /admin/);
+  const fa = proBlockText("free", lic(PIX));
+  assert.equal(fa.askAdmin, true); assert.match(fa.text, /Peça o Pro ao admin/);
   assert.equal(proBlockText("unknown", null).askAdmin, false);
   const e = proBlockText("expired", lic({ plan: "pro", status: "expired", expiresAt: "2026-09-30T12:00:00Z" }));
-  assert.equal(e.askAdmin, true); assert.match(e.text, /venceu em \d{2}\/\d{2}\/\d{4}/);
+  assert.equal(e.askAdmin, false); assert.match(e.text, /venceu em \d{2}\/\d{2}\/\d{4}/); assert.match(e.text, /Renove pelo site/);
+  assert.equal(proBlockText("expired", lic({ plan: "pro", status: "expired", ...PIX })).askAdmin, true);
+  const ad = proBlockText("assinatura", lic({}), "finance", "meu-bot-finance");
+  assert.equal(ad.askAdmin, false); assert.match(ad.text, /Assine pelo site/);
+});
+
+test("caminho do plano: com a licença na conta, a máquina por SSH oferece usá-la; senão, assinar", async () => {
+  const { caminhoDoPlano, contaTemLicenca } = await import("../../dist/renderer/lib/pro.js");
+  const t = Date.parse("2026-11-18T12:00:00Z");
+  const L = (x = {}) => lic(x).license;
+  const pro = L({ plan: "pro", status: "active", expiresAt: "2026-12-18T00:00:00Z" });
+  assert.equal(contaTemLicenca(pro, t), true);
+  assert.equal(contaTemLicenca(L({ plan: "pro", status: "trialing" }), t), true);
+  assert.equal(contaTemLicenca(L({}), t), false, "conta free não tem o que levar");
+  assert.equal(contaTemLicenca(L({ plan: "pro", status: "active", expiresAt: "2026-11-01T00:00:00Z" }), t), false, "Pro vencido");
+  assert.equal(contaTemLicenca(L({ plan: "pro", status: "expired" }), t), false);
+  assert.equal(contaTemLicenca(L({ produtos: ["meu-bot-finance"] }), t), true, "só um add-on pago também vai para a máquina");
+  assert.equal(contaTemLicenca(null, t), false, "sem conta");
+  const c = (o) => caminhoDoPlano({ remoto: true, conta: pro, maquinaLimite: 1, origem: "admin", ...o }, t);
+  assert.equal(c({}), "usar-da-conta");
+  assert.equal(c({ origem: undefined }), "usar-da-conta", "backend antigo não diz a origem");
+  assert.equal(c({ remoto: false }), "assinar", "este Mac já usa o plano da conta");
+  assert.equal(c({ conta: L({}) }), "assinar", "a conta ainda não assinou");
+  assert.equal(c({ conta: null }), "assinar", "não entrou na conta");
+  assert.equal(c({ maquinaLimite: null }), "assinar", "a API da conta ainda não leva a licença a máquinas");
+  assert.equal(c({ origem: "conta" }), "assinar", "a máquina já usa a da conta e ainda falta algo: é assinar o que falta");
 });
 
 test("tabLabel e displayUrl", () => {
@@ -72,7 +101,7 @@ test("crmProprioOk: plano Pro em vigor; nunca neste Mac nem sem licença", () =>
 });
 
 test("proBlockText: Conta Google é módulo Pro, com o mesmo pedido ao admin", () => {
-  const t = proBlockText("free", lic({}), "google", "meu-bot");
+  const t = proBlockText("free", lic({ pagamento: { instrucoes: "Pix do admin", link: null } }), "google", "meu-bot");
   assert.ok(t.title.includes("Conta Google") && t.askAdmin, t.title);
   assert.ok(proBlockText("expired", lic({ plan: "pro", status: "expired" }), "google").title.includes("venceu"));
 });
@@ -87,10 +116,10 @@ test("pagamentoDoBloqueio: só mostra a orientação quando pagar resolve; a do 
   assert.equal(pagamentoDoBloqueio("free", null), null);
 });
 
-test("proBlockText: módulo Computador tem texto próprio e oferece pedir ao admin", () => {
+test("proBlockText: módulo Computador tem texto próprio e manda assinar pelo site", () => {
   const t = proBlockText("free", lic({}), "computador");
   assert.match(t.title, /Computador/);
-  assert.equal(t.askAdmin, true);
+  assert.equal(t.askAdmin, false); assert.match(t.text, /Assine o Pro pelo site/);
 });
 
 test("modulosNaLicenca: só add-on com módulos e liberado nesta máquina traz a página Módulos", () => {

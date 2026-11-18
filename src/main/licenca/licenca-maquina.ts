@@ -7,6 +7,7 @@
 import type { LicenseView } from "../../shared/ipc";
 import { fetchLicense } from "../maquina/backend";
 import { buildLicenseView, type LicencaDaMaquina } from "./licenca";
+import { licencaEmVigor } from "../conta/licenca-assinada-core";
 import { LOCAL_HOST } from "../maquina/localBackend";
 import { isValidHost } from "../app/settings";
 import { runSsh } from "../whatsapp/whatsapp";
@@ -15,15 +16,22 @@ import { contaView } from "../conta/conta";
 export const LICENSE_PATH = "$HOME/.local/share/meu-bot/licenca.json";
 export const MACHINES_PATH = "$HOME/.local/share/meu-bot/maquinas.json";
 
-/** licenca.json + maquinas.json da máquina por SSH; null se ela não responde. Sem arquivo = licença padrão (free). */
+const LICENCA_CONTA = "$HOME/.local/share/meu-bot/licenca-conta.json";
+const MAQUINA = "$HOME/.local/share/meu-bot/maquina.json";
+const cru = (t: string | undefined): unknown => { try { return JSON.parse((t ?? "").trim() || "null"); } catch { return null; } };
+/**
+ * A licença em vigor da máquina lida por SSH: o `licenca.json` do admin somado à licença da conta da pessoa
+ * (`licenca-conta.json`, conferida aqui com o id do `maquina.json`), mais os devices do `maquinas.json`. É o que o
+ * backend da máquina faz; aqui serve às máquinas sem ele (Hermes) ou com ele fora do ar. null se ela não responde.
+ */
 export async function readLicenseViewSsh(host: string): Promise<LicenseView | null> {
-  const r = await runSsh(host, `cat "${LICENSE_PATH}" 2>/dev/null; echo "<<<REA-SEP>>>"; cat "${MACHINES_PATH}" 2>/dev/null; echo\n`, 20_000).catch(() => null);
+  const r = await runSsh(host, `cat "${LICENSE_PATH}" 2>/dev/null; echo "<<<REA-SEP>>>"; cat "${MACHINES_PATH}" 2>/dev/null; echo "<<<REA-SEP>>>"; cat "${LICENCA_CONTA}" 2>/dev/null; echo "<<<REA-SEP>>>"; cat "${MAQUINA}" 2>/dev/null; echo\n`, 20_000).catch(() => null);
   if (r === null || r.code !== 0) return null;
-  const [licPart = "", maqPart = ""] = r.stdout.split("<<<REA-SEP>>>");
-  let licRaw: unknown = null; let maqRaw: unknown = null;
-  try { licRaw = JSON.parse(licPart.trim() || "null"); } catch { licRaw = null; }
-  try { maqRaw = JSON.parse(maqPart.trim() || "null"); } catch { maqRaw = null; }
-  return buildLicenseView(licRaw, maqRaw);
+  const [licPart, maqPart, contaPart, idPart] = r.stdout.split("<<<REA-SEP>>>");
+  const idRaw = cru(idPart);
+  const id = idRaw !== null && typeof idRaw === "object" && typeof (idRaw as { id?: unknown }).id === "string" ? (idRaw as { id: string }).id : null;
+  const vigor = licencaEmVigor(cru(licPart), cru(contaPart), id);
+  return { ...buildLicenseView(vigor.license, cru(maqPart)), origem: vigor.origem };
 }
 
 /**

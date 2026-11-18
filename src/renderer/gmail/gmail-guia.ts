@@ -6,7 +6,8 @@
  */
 import type { GoogleContaStatus } from "../../shared/ipc";
 import { el } from "../lib/dom.js";
-import { browserAccess, proBlockText } from "../lib/pro.js";
+import { browserAccess, pagamentoDoBloqueio, proBlockText } from "../lib/pro.js";
+import { blocoPagamento } from "../lib/aviso-pagamento.js";
 import { hostLabel } from "../lib/probe-text.js";
 import { ctx } from "../app/ctx.js";
 import type { GmailFato } from "./gmail-page.js";
@@ -38,6 +39,8 @@ function renderGmailPro(txt: HTMLElement): void {
   if (a === "ok") { box.append(el("p", "audio-ok", `✓ plano Pro ativo em ${hostLabel(ctx.windowHost)}`)); txt.append(box); return; }
   const t = proBlockText(a, ctx.license, "google", ctx.caps.produto);
   box.append(el("p", "hint", t.text));
+  const pg = pagamentoDoBloqueio(a, ctx.license);
+  if (pg !== null) box.append(blocoPagamento(pg));
   const row = el("div", "audio-row");
   if (t.askAdmin) {
     const b = el("button", "btn btn-primary btn-small", proPedido ? "Pedido enviado ao admin ✓" : a === "assinatura" ? "Avisar o admin" : "Pedir o Pro ao admin"); b.type = "button"; b.disabled = proPedido;

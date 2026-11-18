@@ -10,7 +10,7 @@ import type { ClaudeSessionRef, ContextEvent, ConversationRef, DoneEvent, ErrorE
 import type { CrmDiag, CrmInfo, CrmLocal } from "./crm";
 import type { FinanceAbc, FinanceAbcLado, FinanceAbcPor, FinanceCategoria, FinanceConfig, FinanceConta, FinanceImportacao, FinanceInfo, FinanceLancamento, FinanceLancarInput, FinanceMoeda, FinanceTipoLinha } from "./financeiro";
 import type { AgendaEvento, BackupCopiasView, BackupDadosProgresso, BackupDadosView, BackupRestauroPedido, BackupRestauroProgresso, BackupRestauroResultado, GmailAgenteState, GmailApagado, GmailDetalhe, GmailLista, GoogleContaStatus, PlanilhaLeitura } from "./google";
-import type { LicensePatch, LicenseView } from "./licenca";
+import type { LicensePatch, LicenseView, PlanoDaContaResultado } from "./licenca";
 import type { ModuloPaginaAberta, ModuloPlanilhaResultado, ModuloResultado, ModuloTeste, ModulosLista } from "./modulos";
 import type { BackendStatusEvent, InstallBackendResult, TailscaleSshResult } from "./maquina";
 import type { BrowserAgentState, BrowserExtensionInfo, BrowserOpenInfo, NavFavorito, NavWorkspaces } from "./navegador";
@@ -82,6 +82,8 @@ export interface MainEvents {
   "contas:evento": ContaEvento;
   /** Conta meu-bot deste Mac mudou (entrou, saiu, erro no retorno do login, cópia relida). */
   "conta:changed": ContaView;
+  /** A licença desta máquina mudou por baixo (a da conta foi renovada ou tirada): a janela relê. */
+  "license:changed": Record<string, never>;
   /** Terminal: bytes crus do shell (o xterm decodifica) e o fim da sessão. */
   "term:data": { id: string; data: Uint8Array };
   "term:exit": { id: string; code: number; detail: string | null };
@@ -387,6 +389,10 @@ export interface MeuBotClientApi {
   browserRequestPro(): Promise<void>;
   /** A pessoa avisou que já pagou (aviso de plano): fica no registro do suporte da máquina para o admin liberar. */
   planoAvisarPagamento(): Promise<void>;
+  /** Leva a licença da conta meu-bot (Pro e add-ons pagos) à máquina desta janela: a API assina, o app grava lá e relê. */
+  planoUsarDaConta(): Promise<PlanoDaContaResultado>;
+  /** Tira da máquina desta janela a licença da conta (apaga o arquivo de lá e abre a vaga na conta). */
+  planoTirarDaConta(): Promise<PlanoDaContaResultado>;
   /** Espaço da conta na máquina (Configurações › Espaço): a cota relida agora pelo backend dela; null = sem cota, fora do ar ou este Mac. */
   cotaStatus(): Promise<CotaInfo | null>;
   /** O que ela pode apagar para liberar espaço (só caches de mídia, workspaces e sessões antigas do WhatsApp), como ela. */
