@@ -64,3 +64,34 @@ test("install-porteiro: shim, bloco de PATH no topo dos perfis e drop-in do gate
   assert.ok(!existsSync(path.join(m.home, ".config/systemd/user/openclaw-gateway.service.d/meu-bot.conf")));
   m.limpar();
 });
+
+test("wa-enviar: sem espelho do hermes send, reabre a conversa pelo Python do Hermes e diz o que aconteceu", () => {
+  const home = mkdtempSync(path.join(tmpdir(), "wa-enviar-"));
+  const fakebin = path.join(home, "fakebin"), R = path.join(home, "hermes-agent");
+  mkdirSync(fakebin); mkdirSync(path.join(R, "venv/bin"), { recursive: true });
+  // hermes falso: diz onde está instalado e "envia" com o espelho que o teste pedir.
+  writeFileSync(path.join(fakebin, "hermes"), `#!/usr/bin/env bash\ncase "$1" in --version) echo "Install directory: ${R}";; send) echo "$*" >> "${home}/send.log"; echo "{ \\"mirrored\\": $ESPELHO }";; esac\n`);
+  // Python falso do Hermes: guarda o alvo e o texto e responde o que o teste pedir.
+  writeFileSync(path.join(R, "venv/bin/python3"), `#!/usr/bin/env bash\ncat > /dev/null\nprintf '%s|%s\\n' "$2" "$3" >> "${home}/py.log"\nprintf '%b' "$RESPOSTA"\n`);
+  // timeout falso: o macOS não tem o do coreutils, e o teste não precisa do prazo.
+  writeFileSync(path.join(fakebin, "timeout"), `#!/usr/bin/env bash\nshift\nexec "$@"\n`);
+  for (const f of [path.join(fakebin, "hermes"), path.join(fakebin, "timeout"), path.join(R, "venv/bin/python3")]) chmodSync(f, 0o755);
+  const rodar = (alvo, ESPELHO, RESPOSTA) => spawnSync("bash", [path.join(RAIZ, "backend-colima/wa-enviar"), alvo, "oi, tudo bem?"], { env: { HOME: home, PATH: `${fakebin}:/usr/bin:/bin`, ESPELHO, RESPOSTA }, encoding: "utf8" });
+  const py = () => (existsSync(path.join(home, "py.log")) ? readFileSync(path.join(home, "py.log"), "utf8").trim().split("\n") : []);
+  // Espelho nativo deu certo: nem chama o Python.
+  let r = rodar("123@lid", "true", "");
+  assert.equal(r.status, 0, r.stderr); assert.match(r.stdout, /ENVIADA E REGISTRADA na conversa \(123@lid\)\.$/m); assert.equal(py().length, 0);
+  // Conversa encerrada: reabre e registra o mesmo texto no mesmo chat.
+  r = rodar("123@lid", "false", "reaberta\\nregistrada\\n");
+  assert.equal(r.status, 0, r.stderr); assert.match(r.stdout, /ENVIADA E REGISTRADA.*estava encerrada e foi reaberta/); assert.deepEqual(py(), ["123@lid|oi, tudo bem?"]);
+  // Contato que nunca teve conversa: avisa, sem fingir registro.
+  r = rodar("123@lid", "false", "sem-sessao\\n");
+  assert.equal(r.status, 0); assert.match(r.stderr, /SEM registro.*nunca teve conversa/); assert.doesNotMatch(r.stdout, /REGISTRADA/);
+  // Python do Hermes falhou: avisa.
+  r = rodar("123@lid", "false", "");
+  assert.match(r.stderr, /SEM registro.*não deu para reabrir/);
+  // Grupo: não tenta reabrir (a sessão de grupo é por remetente).
+  const antes = py().length; r = rodar("999-1@g.us", "false", "registrada\\n");
+  assert.match(r.stderr, /SEM registro/); assert.equal(py().length, antes);
+  rmSync(home, { recursive: true, force: true });
+});

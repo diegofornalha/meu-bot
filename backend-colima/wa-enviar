@@ -22,5 +22,42 @@ esac
 OUT="$(timeout 90 hermes send --to "whatsapp:$CHAT" --json "$TEXTO" 2>&1)"; RC=$?
 printf '%s\n' "$OUT"
 if [ $RC -ne 0 ]; then echo "NÃO ENVIADA (hermes send saiu com $RC)" >&2; exit $RC; fi
-if printf '%s' "$OUT" | grep -q '"mirrored": *true'; then echo "ENVIADA E REGISTRADA na conversa ($CHAT)."
-else echo "ENVIADA, mas SEM registro na conversa ($CHAT): o contato ainda não tem sessão no Hermes (primeiro contato) ou o alvo não é o LID dele." >&2; fi
+if printf '%s' "$OUT" | grep -q '"mirrored": *true'; then echo "ENVIADA E REGISTRADA na conversa ($CHAT)."; exit 0; fi
+# Sem espelho: o Hermes só registra numa sessão VIVA do contato. Depois de um "Limpar histórico" do app (ou de um
+# /reset) a sessão fica encerrada até o contato escrever de novo, e a mensagem saía sem aparecer na conversa (caso
+# da Kathy no box-1, 18 nov). Aqui a conversa é reaberta do jeito que o gateway faria: uma sessão nova com a mesma
+# chave e origem da última (SessionDB.create_session, nunca escrevendo no banco à mão), e o texto é registrado nela
+# (gateway.mirror, com o session_id). Na próxima mensagem do contato o gateway adota essa sessão pela chave
+# (find_latest_gateway_session_for_peer). Contato que nunca teve sessão continua sem registro: não há origem a copiar.
+R="$(timeout 20 hermes --version 2>/dev/null | sed -n 's/^Install directory: //p')"; [ -n "$R" ] || R="$HOME/.local/lib/node_modules/hermes-agent/runtime/hermes-agent"
+REG=""
+case "$CHAT" in *@lid|*@s.whatsapp.net)
+  [ -x "$R/venv/bin/python3" ] && REG="$(cd "$R" && timeout 60 "$R/venv/bin/python3" - "$CHAT" "$TEXTO" 2>/dev/null <<'PY'
+import sqlite3, sys, uuid
+from datetime import datetime
+import hermes_state
+from gateway.mirror import mirror_to_session
+from hermes_cli.config import get_hermes_home
+chat, texto = sys.argv[1], sys.argv[2]
+db = hermes_state.SessionDB()
+sid = db.find_session_by_origin(platform="whatsapp", chat_id=chat)
+if not sid:
+    c = sqlite3.connect("file:%s?mode=ro" % (get_hermes_home() / "state.db"), uri=True); c.row_factory = sqlite3.Row
+    r = c.execute("select * from sessions where lower(source) = 'whatsapp' and chat_id = ? and chat_type = 'dm' and session_key is not null order by started_at desc limit 1", (chat,)).fetchone()
+    c.close()
+    if r is None or r["ended_at"] is None:
+        print("sem-sessao"); raise SystemExit(0)
+    r = dict(r)
+    sid = datetime.now().strftime("%Y%m%d_%H%M%S_") + uuid.uuid4().hex[:8]
+    db.create_session(session_id=sid, source="whatsapp", **{k: r.get(k) for k in ("user_id", "session_key", "chat_id", "chat_type", "thread_id", "profile_name", "transport_profile", "origin_json", "display_name")})
+    print("reaberta")
+print("registrada" if mirror_to_session("whatsapp", chat, texto, source_label="cli", session_id=sid) else "falhou")
+PY
+)" ;;
+esac
+case "$REG" in
+  *reaberta*registrada*) echo "ENVIADA E REGISTRADA na conversa ($CHAT) (a conversa estava encerrada e foi reaberta)." ;;
+  *registrada*) echo "ENVIADA E REGISTRADA na conversa ($CHAT)." ;;
+  *sem-sessao*) echo "ENVIADA, mas SEM registro na conversa ($CHAT): o contato nunca teve conversa com o agente nesta máquina (primeiro contato) ou o alvo não é o LID dele." >&2 ;;
+  *) echo "ENVIADA, mas SEM registro na conversa ($CHAT): não deu para reabrir a conversa do contato no Hermes." >&2 ;;
+esac
