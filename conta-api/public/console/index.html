@@ -103,8 +103,10 @@
         <details class="pessoal" open><summary>Minha conta</summary>
         <p class="sub" id="dv-resumo"></p>
         <div class="painel tabela-rolagem"><table class="tabela" id="dv-tabela"><thead><tr><th>Mac</th><th>Usuário</th><th>Apps</th><th>Status</th><th>Visto</th></tr></thead><tbody></tbody></table></div>
-        <p class="sub" id="dv-maquinas"></p>
         <p class="sub">Um device é um Mac onde você entrou com a conta no app. Além do limite do plano, o Mac fica pendente até o admin liberar.</p>
+        <div class="painel tabela-rolagem"><h2>Máquinas com a licença da conta</h2><table class="tabela" id="dv-maquinas-tabela"><thead><tr><th>Máquina</th><th>Situação</th><th>Vale até</th><th></th></tr></thead><tbody></tbody></table></div>
+        <p class="sub" id="dv-maquinas" role="status"></p>
+        <p class="sub">Uma máquina é o computador remoto onde o seu agente roda. Você leva o plano da conta até ela pelo app: abra a janela da máquina e toque em "Usar o meu Pro nesta máquina". É outro limite, separado do de devices.</p>
         </details>
         <div class="admin" id="ad-devices" hidden>
           <h2>Devices de todas as contas <span class="selo">admin</span></h2>
@@ -120,13 +122,13 @@
         <div id="pl-addons"></div>
         <div class="painel tabela-rolagem" id="pl-assinaturas" hidden><h2>Suas assinaturas</h2><table class="tabela"><thead><tr><th>Produto</th><th>Valor</th><th>Situação</th><th>Vale até</th><th></th></tr></thead><tbody></tbody></table><p class="sub" id="pl-assinaturas-aviso" role="status">Você cancela quando quiser, aqui mesmo. O acesso continua até o fim do mês já pago.</p></div>
         <div class="painel" id="pl-pagamento" hidden><h2>Como pagar</h2><p id="pl-instrucoes"></p><p><a class="btn btn-primary" id="pl-link" target="_blank" rel="noopener" hidden>Abrir o link de pagamento</a></p></div>
-        <p class="sub">Quem muda o plano, o prazo e os add-ons é o admin do seu meu-bot. No app, o bloqueio Pro tem "Pedir o Pro ao admin".</p>
+        <p class="sub">Assinou? Numa máquina por SSH, abra a janela dela no app e toque em "Usar o meu Pro nesta máquina". Neste Mac o plano da conta já vale sozinho. As máquinas que usam a licença ficam em Devices.</p>
         </details>
         <div class="admin" id="ad-plan" hidden>
           <h2>Planos de todas as contas <span class="selo">admin</span></h2>
           <form class="busca" id="ad-busca-form"><input id="ad-busca" type="search" placeholder="Buscar por e-mail ou nome" autocomplete="off"><button type="submit" class="btn btn-ghost">Buscar</button></form>
           <div class="painel tabela-rolagem"><table class="tabela" id="ad-contas"><thead><tr><th>Conta</th><th>Plano</th><th>Fase</th><th>Vale até</th><th title="Apps à parte: pagos pela AbacatePay (com prazo) ou concedidos pelo admin">Add-ons</th><th>Devices</th><th>Máquinas</th><th>Pedidos</th><th>Entrou em</th><th></th></tr></thead><tbody></tbody></table></div>
-          <p class="sub">Conta nova começa em trial do Pro; "Mudar" grava plano, status, prazo, limite de devices, add-ons concedidos e a orientação de pagamento. O que foi pago pela AbacatePay entra sozinho na conta; no app, o acesso ainda depende da licença da máquina, e cada primeira compra abre um pedido "Liberar na máquina" em Suporte.</p>
+          <p class="sub">Conta nova começa em trial do Pro; "Mudar" grava plano, status, prazo, limite de devices e de máquinas, add-ons concedidos e a orientação de pagamento. O que foi pago pela AbacatePay entra sozinho na conta; a própria pessoa leva a licença à máquina dela pelo app ("Usar o meu Pro nesta máquina"), dentro do limite de máquinas da conta; cada primeira compra ainda abre um pedido "Liberar na máquina", que fecha sozinho quando ela aplica em Suporte.</p>
         </div>
       </section>
 
