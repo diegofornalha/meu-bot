@@ -92,9 +92,20 @@ test("voz do Hermes: faber no Piper, dora e alex no Kokoro; a tela lê a voz do 
     execFileSync("bash", ["-c", hermesVozLocalSh("dora")], { env, encoding: "utf8" });
     assert.equal(ler(), "vozid=dora");
     falso("echo sem memoria >&2; exit 1");
-    const out = execFileSync("bash", ["-c", hermesVozLocalSh("alex")], { env, encoding: "utf8" });
+    // Reprovada: sai com 7 antes do que vem depois no script da máquina (gravar voice.auto_tts, reiniciar o gateway).
+    const { spawnSync } = await import("node:child_process");
+    const ruim = spawnSync("bash", ["-c", `${hermesVozLocalSh("alex")}\necho depois=rodou`], { env, encoding: "utf8" });
+    const out = ruim.stdout;
+    assert.equal(ruim.status, 7);
     assert.match(out, /^voz=falhou .*sem memoria/m);
-    assert.doesNotMatch(out, /voz=ok/);
+    assert.doesNotMatch(out, /voz=ok|depois=rodou/);
+    // E numa máquina que nunca teve voz: não sobra hermes-voz.sh nenhum.
+    const limpa = mkdtempSync(join(tmpdir(), "voz-hermes-limpa-"));
+    try {
+      const r2 = spawnSync("bash", ["-c", hermesVozLocalSh("dora")], { env: { ...env, HOME: limpa }, encoding: "utf8" });
+      assert.equal(r2.status, 7);
+      assert.equal(execFileSync("bash", ["-c", HERMES_VOZ_ID_SH], { env: { ...env, HOME: limpa }, encoding: "utf8" }).trim(), "vozid=");
+    } finally { rmSync(limpa, { recursive: true, force: true }); }
     assert.equal(ler(), "vozid=dora", "a voz que falhou no teste não entra");
   } finally { rmSync(home, { recursive: true, force: true }); }
   const base = "stt=1\ntts=inbound\nprov=groq\n";
