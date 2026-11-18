@@ -12,7 +12,7 @@ import { VOZES, isVozId } from "../whatsapp/vozes-core";
 import { WA_MOTOR_SH } from "../whatsapp/whatsapp-capacidades";
 import { audioMarcaSh } from "../whatsapp/transcritor-core";
 import { hermesPausaPluginSh, lerPausaPlugin, versaoDoPluginYaml, type PausaPluginFonte } from "../whatsapp/whatsapp-hermes-pausa-core";
-import { HERMES_PIPER_VOICE, HERMES_RESTART_SH, HERMES_VENV_PY_SH, HERMES_VOZ_ID_SH, hermesAudioPatch, hermesConfigSetSh, hermesPmExtraSh, hermesSttLigarSh, hermesVozLocalSh } from "../whatsapp/whatsapp-hermes-core";
+import { HERMES_PIPER_VOICE, HERMES_PY_SH, HERMES_RESTART_SH, HERMES_VENV_PY_SH, HERMES_VOZ_ID_SH, hermesAudioPatch, hermesConfigSetSh, hermesPmExtraSh, hermesSttLigarSh, hermesVozLocalSh } from "../whatsapp/whatsapp-hermes-core";
 import { sshHostInfo } from "./sshConfig";
 import { scriptLocal } from "../whatsapp/whatsapp-local-core";
 import { spawn, spawnSync } from "node:child_process";
@@ -415,7 +415,7 @@ export async function installAudio(host: string, setup: AudioSetup, onLine?: (li
       const scp = await run("scp", ["-q", ...sshBase(host), "--", path.join(backendBundleDir(), "install-voz.sh"), `${host}:${stageDe("audio")}/`], 60_000);
       if (scp.code !== 0) return { ok: false, log: [...lines, `scp falhou: ${lastLine(scp.stderr)}`] };
       const motor = await run("ssh", [...sshBase(host), "--", host, `bash ${stageDe("audio")}/install-voz.sh motor ${voz} 2>&1`], 20 * 60_000, (l) => { if (l.trim() !== "motor=ok") say(l); });
-      if (motor.code !== 0 || !motor.stdout.includes("motor=ok")) return { ok: false, codigo: motor.code, log: [...lines, lines.at(-1) ?? `instalador saiu com código ${motor.code ?? "timeout"}`] };
+      if (motor.code !== 0 || !motor.stdout.includes("motor=ok")) return { ok: false, codigo: motor.code, log: [...lines, lastLine(motor.stdout) || `o instalador da voz saiu com código ${motor.code ?? "timeout"}`] };
     }
     // Voz = extra piper + a voz pt-BR já baixada (senão a 1ª resposta demora ~30 s) + ffmpeg (sem ele o áudio não vira
     // Ogg/Opus e não chega como mensagem de voz; instala pelo apt quando dá). Os extras são do ambiente do gateway
@@ -427,14 +427,15 @@ export async function installAudio(host: string, setup: AudioSetup, onLine?: (li
       : kokoro ? ""
       : ligarVoz ? `${hermesPmExtraSh("piper")}\n${HERMES_VENV_PY_SH}\ncommand -v ffmpeg >/dev/null 2>&1 || { if [ "$(id -u)" = 0 ]; then DEBIAN_FRONTEND=noninteractive apt-get install -y -q ffmpeg; elif sudo -n true 2>/dev/null; then sudo -n DEBIAN_FRONTEND=noninteractive apt-get install -y -q ffmpeg; fi; } >/dev/null 2>&1; command -v ffmpeg >/dev/null 2>&1 || echo "ffmpeg=falta"\nmkdir -p "$HOME/.hermes/cache/piper-voices"; [ -s "$HOME/.hermes/cache/piper-voices/${HERMES_PIPER_VOICE}.onnx" ] || { [ -n "$HPY" ] && timeout 600 "$HPY" -m piper.download_voices ${HERMES_PIPER_VOICE} --download-dir "$HOME/.hermes/cache/piper-voices" >/dev/null 2>&1 || echo "voz=nao-baixou"; }\n` : "";
     // O script vai em base64 no próprio comando: tem aspas e quebras de linha que o argv do ssh não carrega intactas.
-    // Ligar a voz: depois do config, o provedor voz-local (script + tts.provider); hermesConfigSetSh já deixou $PY definido.
+    // Ligar a voz: o provedor voz-local (script + tts.provider) vem ANTES do config, porque a voz do Kokoro é provada
+    // ali e, reprovada, o script sai (7) sem gravar `voice.auto_tts` nem reiniciar o gateway: nada muda na máquina.
     // Ligar ou desligar a transcrição mexe na marca "desligada de propósito" (o app só religa sozinho sem ela).
     const marca = setup.kind === "in" ? `${audioMarcaSh(setup.off === true)}\n` : "";
-    const b64 = Buffer.from(`set -e\n${marca}${extra}${ligarStt ? stt : `${hermesConfigSetSh(hermesAudioPatch(setup))}\n`}${ligarVoz ? `${hermesVozLocalSh(voz)}\n` : ""}${HERMES_RESTART_SH}\n`, "utf8").toString("base64");
+    const b64 = Buffer.from(`set -e\n${marca}${extra}${ligarVoz ? `${HERMES_PY_SH}\n${hermesVozLocalSh(voz)}\n` : ""}${ligarStt ? stt : `${hermesConfigSetSh(hermesAudioPatch(setup))}\n`}${HERMES_RESTART_SH}\n`, "utf8").toString("base64");
     const r = await run("ssh", [...sshBase(host), "--", host, `echo ${b64} | base64 -d | bash`], 25 * 60_000);
     if (/extra=falhou/.test(r.stdout)) return { ok: false, log: [...lines, ligarStt ? "não consegui instalar o faster-whisper no Hermes (hermes pm install --extra stt-whisper); veja a máquina" : "não consegui instalar a voz Piper no Hermes (hermes pm install --extra piper); veja a máquina"] };
-    // A voz nova não falou a frase de teste: o hermes-voz.sh de antes ficou como estava.
-    if (/^voz=falhou/m.test(r.stdout)) return { ok: false, log: [...lines, `a voz ${rotulo} não passou no teste nesta máquina (a conta pode estar no teto de RAM); o agente continua com a voz de antes${(/^voz=falhou (.+)$/m.exec(r.stdout)?.[1] ?? "").trim() ? `: ${(/^voz=falhou (.+)$/m.exec(r.stdout)?.[1] ?? "").trim()}` : ""}`] };
+    // A voz nova não falou a frase de teste: o script saiu antes de mexer no config e de reiniciar o gateway.
+    if (/^voz=falhou/m.test(r.stdout)) return { ok: false, log: [...lines, `a voz ${rotulo} não passou no teste nesta máquina (a conta pode estar no teto de RAM); nada foi alterado, o agente continua como estava${(/^voz=falhou (.+)$/m.exec(r.stdout)?.[1] ?? "").trim() ? `: ${(/^voz=falhou (.+)$/m.exec(r.stdout)?.[1] ?? "").trim()}` : ""}`] };
     if (r.code !== 0 || !r.stdout.includes("cfgset=ok") || (ligarVoz && !r.stdout.includes("voz=ok"))) return { ok: false, log: [...lines, `não consegui gravar o config.yaml do Hermes: ${lastLine(r.stderr) || lastLine(r.stdout) || "ssh falhou"}`] };
     if (/restart=falhou/.test(r.stdout)) return { ok: false, log: [...lines, "gravei, mas não consegui reiniciar o gateway do Hermes; reinicie-o na máquina para valer"] };
     say(setup.kind === "in"

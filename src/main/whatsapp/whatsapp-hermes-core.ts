@@ -801,7 +801,8 @@ export const HERMES_VOZ_ID_SH = `echo "vozid=$(F="${HERMES_VOZ_SH_FILE}"; if gre
  * script nosso (HERMES_VOZ_SH_FILE), porque o venv do gateway muda de pasta a cada `hermes pm install --extra`.
  * A voz: faber roda o Piper do ambiente do gateway; dora e alex rodam o Kokoro que o `install-voz.sh motor` deixou
  * na máquina (o mesmo do OpenClaw). O script do Kokoro só troca o atual depois de falar uma frase de teste: se não
- * sair WAV, a voz de antes continua e a saída traz `voz=falhou` (sem `voz=ok`).
+ * sair WAV, imprime `voz=falhou`, não mexe no hermes-voz.sh nem no config e SAI com 7. Por isso quem monta o script
+ * da máquina põe este trecho antes de gravar `voice.auto_tts` e de reiniciar o gateway: voz reprovada, nada muda.
  * Roda depois de HERMES_PY_SH; imprime `voz=ok`.
  */
 export function hermesVozLocalSh(voz: VozId = "faber"): string {
@@ -838,7 +839,7 @@ pv["type"] = "command"; pv["command"] = os.environ["VOZCMD"]; pv["format"] = "wa
 salvar()
 print("voz=ok")
 '
-else rm -f "${HERMES_VOZ_SH_FILE}.novo"; fi`;
+else rm -f "${HERMES_VOZ_SH_FILE}.novo"; exit 7; fi`;
 }
 /** A voz padrão (faber), como era antes de a voz poder ser escolhida. */
 export const HERMES_VOZ_LOCAL_SH = hermesVozLocalSh("faber");
