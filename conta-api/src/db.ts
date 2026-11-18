@@ -1,8 +1,9 @@
 /** Acesso ao D1: consultas tipadas, uma função por intenção. O que sai do banco é dado; quem decide é a rota. */
-import type { AdminAssinatura, AdminContaResumo, AdminListaEspera, ContaAssinatura, AdminOrg, AdminPagamento, AdminVendas, AdminPedido, AdminPerfil, AdminVisao, CodigoLinha, ContaApi, ContaLinha, DeviceApi, DeviceLinha, License, LicencaLinha, MaquinaLinha, MembroApi, MembroLinha, OrgApi, OrgLinha, OrgResumo, PapelOrg, PerfilApi, SessaoLinha } from "./tipos.js";
+import type { AdminAssinatura, AdminContaResumo, AdminListaEspera, ContaAssinatura, AdminOrg, MaquinaApi, AdminPagamento, AdminVendas, AdminPedido, AdminPerfil, AdminVisao, CodigoLinha, ContaApi, ContaLinha, DeviceApi, DeviceLinha, License, LicencaLinha, MaquinaLinha, MembroApi, MembroLinha, OrgApi, OrgLinha, OrgResumo, PapelOrg, PerfilApi, SessaoLinha } from "./tipos.js";
 import { agoraIso, nomeExibicao, parseProvedores, provedoresDoLogin, unirProvedores, uuid, type MetodoLogin, type PatchLicenca, type PatchOrg, type PatchPerfil } from "./sessao-core.js";
 import type { UsuarioFirebase } from "./firebase.js";
 import { licencaComAddons, umaPorContaEProduto } from "./pagamento-core.js";
+import { valeAte } from "./licenca-core.js";
 
 export async function contaPorUid(db: D1Database, uid: string): Promise<ContaLinha | null> {
   return (await db.prepare("SELECT * FROM contas WHERE firebase_uid = ?1 AND apagada_em IS NULL").bind(uid).first<ContaLinha>()) ?? null;
@@ -167,6 +168,36 @@ export async function gravarDevice(db: D1Database, contaId: string, d: DeviceGra
 export async function maquinasDaConta(db: D1Database, contaId: string): Promise<MaquinaLinha[]> {
   return (await db.prepare("SELECT * FROM maquinas WHERE conta_id = ?1 ORDER BY criada_em").bind(contaId).all<MaquinaLinha>()).results;
 }
+export const maquinaApi = (m: MaquinaLinha): MaquinaApi => ({ id: m.id, apelido: m.apelido, vinculadaPor: m.vinculada_por, proAte: valeAte(m.ultima_emissao_em), desvinculadaEm: m.desvinculada_em });
+/** A máquina pelo id, de qualquer conta (o id é o uuid do maquina.json dela). */
+export async function maquinaPorId(db: D1Database, id: string): Promise<MaquinaLinha | null> {
+  return (await db.prepare("SELECT * FROM maquinas WHERE id = ?1").bind(id).first<MaquinaLinha>()) ?? null;
+}
+const limiteValido = (n: unknown): number => (typeof n === "number" && Number.isInteger(n) && n >= 1 ? n : 1);
+/** Em quantas máquinas a conta pode usar a licença (licencas.maquina_limit); sem linha de licença, 1. */
+export async function limiteDeMaquinas(db: D1Database, contaId: string): Promise<number> {
+  return limiteValido((await db.prepare("SELECT maquina_limit FROM licencas WHERE conta_id = ?1").bind(contaId).first<{ maquina_limit: number }>())?.maquina_limit);
+}
+/** Vincula a máquina à conta (ou a traz de volta) e carimba a emissão de agora. */
+export async function vincularMaquina(db: D1Database, contaId: string, id: string, apelido: string | null, agora = agoraIso()): Promise<void> {
+  await db.prepare("INSERT INTO maquinas (id, conta_id, apelido, vinculada_por, criada_em, ultima_emissao_em, desvinculada_em) VALUES (?1, ?2, ?3, 'app', ?4, ?4, NULL) ON CONFLICT(id) DO UPDATE SET conta_id = excluded.conta_id, apelido = COALESCE(excluded.apelido, apelido), vinculada_por = 'app', ultima_emissao_em = excluded.ultima_emissao_em, desvinculada_em = NULL")
+    .bind(id, contaId, apelido, agora).run();
+}
+/** A vaga abre na hora (a linha sai) ou fica presa até a emissão vencer (`desvinculada_em`); false se não era desta conta. */
+export async function desvincularMaquina(db: D1Database, contaId: string, id: string, naHora: boolean, agora = agoraIso()): Promise<boolean> {
+  const r = naHora
+    ? await db.prepare("DELETE FROM maquinas WHERE id = ?1 AND conta_id = ?2").bind(id, contaId).run()
+    : await db.prepare("UPDATE maquinas SET desvinculada_em = ?3 WHERE id = ?1 AND conta_id = ?2 AND desvinculada_em IS NULL").bind(id, contaId, agora).run();
+  return (r.meta.changes ?? 0) > 0;
+}
+/** Quantas vezes a conta abriu a vaga na hora desde `desde` (auditoria `maquina.desvinculada`, detalhe "na hora …"). */
+export async function trocasDeMaquina(db: D1Database, contaId: string, desde: string): Promise<number> {
+  return (await db.prepare("SELECT COUNT(*) AS n FROM auditoria WHERE conta_id = ?1 AND acao = 'maquina.desvinculada' AND detalhe LIKE 'na hora%' AND quando > ?2").bind(contaId, desde).first<{ n: number }>())?.n ?? 0;
+}
+/** A pessoa aplicou a licença sozinha: os pedidos "liberar na máquina" abertos desta conta deixam de esperar o admin. */
+export async function fecharPedidosDeLiberar(db: D1Database, contaId: string, agora = agoraIso()): Promise<void> {
+  await db.prepare("UPDATE pedidos SET atendido_em = ?2, atendido_por = 'system' WHERE conta_id = ?1 AND tipo = 'pagamento.liberar' AND atendido_em IS NULL").bind(contaId, agora).run();
+}
 export async function pedidosAbertos(db: D1Database, contaId: string): Promise<number> {
   return (await db.prepare("SELECT COUNT(*) AS n FROM pedidos WHERE conta_id = ?1 AND atendido_em IS NULL").bind(contaId).first<{ n: number }>())?.n ?? 0;
 }
@@ -200,7 +231,7 @@ export async function auditar(db: D1Database, quem: string, acao: string, contaI
 
 /** A conta como o app a vê: licença, devices (com "este"), máquinas, pedidos e o papel de admin. */
 export async function montarContaApi(db: D1Database, conta: ContaLinha, admin: "super" | "admin" | null, deviceAtual: string | null): Promise<ContaApi> {
-  const [gravada, pagos, devices, maquinas, pedidos, orgs, ass] = await Promise.all([licencaGravada(db, conta), addonsPagos(db, conta.id), devicesDaConta(db, conta.id), maquinasDaConta(db, conta.id), pedidosAbertos(db, conta.id), orgsDaConta(db, conta.id),
+  const [gravada, pagos, devices, maquinas, pedidos, orgs, maquinaLimite, ass] = await Promise.all([licencaGravada(db, conta), addonsPagos(db, conta.id), devicesDaConta(db, conta.id), maquinasDaConta(db, conta.id), pedidosAbertos(db, conta.id), orgsDaConta(db, conta.id), limiteDeMaquinas(db, conta.id),
     db.prepare("SELECT id, produto, status, valor_centavos FROM assinaturas WHERE conta_id = ?1 ORDER BY criada_em DESC LIMIT 50").bind(conta.id).all<{ id: string; produto: string | null; status: string; valor_centavos: number | null }>()]);
   const licenca = licencaComAddons(gravada, pagos, agoraIso());
   const assinaturas: ContaAssinatura[] = ass.results.map((a) => ({ id: a.id, produto: a.produto, status: a.status === "CANCELLED" ? "CANCELLED" : "ACTIVE", valorCentavos: a.valor_centavos, valeAte: a.produto === null ? gravada.expiresAt : pagos.find((p) => p.produto === a.produto)?.expiresAt ?? null }));
@@ -209,7 +240,7 @@ export async function montarContaApi(db: D1Database, conta: ContaLinha, admin: "
     try { const a: unknown = JSON.parse(d.apps); if (a !== null && typeof a === "object") apps = a as DeviceApi["apps"]; } catch { apps = {}; }
     return { id: d.id, alias: d.alias_legado, name: d.name ?? "", user: d.user ?? "", platform: d.platform ?? "", status: d.status === "pending" ? "pending" : "active", requestedAt: d.requested_at, firstSeen: d.first_seen, lastSeen: d.last_seen, apps, este: deviceAtual !== null && (d.id === deviceAtual || d.alias_legado === deviceAtual) };
   });
-  return { id: conta.id, email: conta.email, nome: nomeExibicao(conta), nomeLogin: conta.nome, foto: conta.foto, perfil: perfilDaLinha(conta), provedores: parseProvedores(conta.provedores), dadosUso: conta.dados_uso !== 0, admin, licenca, devices: ds, maquinas: maquinas.map((m) => ({ id: m.id, apelido: m.apelido, vinculadaPor: m.vinculada_por })), pedidos, assinaturas, orgs };
+  return { id: conta.id, email: conta.email, nome: nomeExibicao(conta), nomeLogin: conta.nome, foto: conta.foto, perfil: perfilDaLinha(conta), provedores: parseProvedores(conta.provedores), dadosUso: conta.dados_uso !== 0, admin, licenca, devices: ds, maquinas: maquinas.map(maquinaApi), maquinaLimite, pedidos, assinaturas, orgs };
 }
 
 // ---- Admin: a visão de todas as contas. `busca` filtra por e-mail ou nome (LIKE, escapado); até 500 contas.
@@ -241,7 +272,7 @@ export async function visaoAdmin(db: D1Database, busca: string, comVendas = fals
   const maq = new Map(maquinas.results.map((m) => [m.conta_id, m.n]));
   const ped = new Map(pedidosN.results.map((m) => [m.conta_id, m.n]));
   const adm = new Map(admins.results.map((a) => [a.email, a.papel === "super" ? "super" as const : "admin" as const]));
-  const resumo: AdminContaResumo[] = contas.map((c) => ({ id: c.id, email: c.email, nome: nomeExibicao(c), foto: c.foto, admin: adm.get(c.email) ?? null, criadaEm: c.criada_em, licenca: licencaDaLinha(lic.get(c.id) ?? null, c.criada_em), addonsPagos: pagos.get(c.id) ?? [], devices: devs.get(c.id) ?? [], maquinas: maq.get(c.id) ?? 0, pedidos: ped.get(c.id) ?? 0 }));
+  const resumo: AdminContaResumo[] = contas.map((c) => ({ id: c.id, email: c.email, nome: nomeExibicao(c), foto: c.foto, admin: adm.get(c.email) ?? null, criadaEm: c.criada_em, licenca: licencaDaLinha(lic.get(c.id) ?? null, c.criada_em), addonsPagos: pagos.get(c.id) ?? [], devices: devs.get(c.id) ?? [], maquinas: maq.get(c.id) ?? 0, maquinaLimite: limiteValido(lic.get(c.id)?.maquina_limit), pedidos: ped.get(c.id) ?? 0 }));
   const todas = busca === "" ? resumo : (await db.prepare("SELECT id, criada_em FROM contas WHERE apagada_em IS NULL").all<{ id: string; criada_em: string }>()).results.map((c) => ({ id: c.id, licenca: licencaDaLinha(lic.get(c.id) ?? null, c.criada_em), devices: devs.get(c.id) ?? [] }));
   const totais = { contas: todas.length, pro: todas.filter((c) => c.licenca.plan === "pro").length, devicesPendentes: devices.results.filter((d) => d.status === "pending").length, pedidosAbertos: pedidos.results.length, orgs: orgs.length };
   const emails = new Set((await db.prepare("SELECT email FROM contas WHERE apagada_em IS NULL").all<{ email: string }>()).results.map((c) => c.email));
@@ -312,12 +343,15 @@ export async function gravarLicenca(db: D1Database, conta: ContaLinha, patch: Pa
   // viraria concessão sem prazo. Só fica na lista o que já era concessão ou não está pago em dia.
   const [atual, pagos] = await Promise.all([licencaGravada(db, conta), addonsPagos(db, conta.id)]);
   const emDia = new Set(pagos.filter((p) => Date.parse(p.expiresAt) > Date.parse(agora)).map((p) => p.produto));
-  const nova: License = { ...atual, ...patch, updatedAt: agora, updatedBy: "admin" } as License;
+  const { maquinaLimit, ...daLicenca } = patch;
+  const nova: License = { ...atual, ...daLicenca, updatedAt: agora, updatedBy: "admin" } as License;
   if (patch.produtos !== undefined) nova.produtos = patch.produtos.filter((x) => atual.produtos.includes(x) || !emDia.has(x));
   if (patch.plan === "pro" && patch.status === undefined && atual.status === "free") nova.status = "active";
   if (patch.plan === "free" && patch.status === undefined) nova.status = "free";
   await db.prepare("INSERT INTO licencas (conta_id, plan, status, interval, member_since, trial_end, expires_at, device_limit, produtos, pagamento, updated_at, updated_by) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 'admin') ON CONFLICT(conta_id) DO UPDATE SET plan = excluded.plan, status = excluded.status, interval = excluded.interval, trial_end = excluded.trial_end, expires_at = excluded.expires_at, device_limit = excluded.device_limit, produtos = excluded.produtos, pagamento = excluded.pagamento, updated_at = excluded.updated_at, updated_by = 'admin'")
     .bind(conta.id, nova.plan, nova.status, nova.interval, nova.memberSince, nova.trialEnd, nova.expiresAt, nova.deviceLimit, JSON.stringify(nova.produtos), nova.pagamento === null ? null : JSON.stringify(nova.pagamento), agora).run();
+  // Fora de License (o app e o backend não o leem): é só da conta, como quantas máquinas levam a licença dela.
+  if (maquinaLimit !== undefined) await db.prepare("UPDATE licencas SET maquina_limit = ?2 WHERE conta_id = ?1").bind(conta.id, maquinaLimit).run();
   return nova;
 }
 /** Conta sem linha de licença (acabou de entrar pela primeira vez) ganha o trial do Pro por `dias`; 0 = fica free. */
