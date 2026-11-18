@@ -126,11 +126,12 @@ test("crm-job.mjs com personalizado cru em vigor passa do gate; vencido registra
   const { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } = await import("node:fs");
   const { tmpdir } = await import("node:os"); const { join } = await import("node:path");
   const job = new URL("../../backend-colima/crm/crm-job.mjs", import.meta.url).pathname;
-  const roda = (lic) => {
+  const roda = (lic, vigor = null) => {
     const home = mkdtempSync(join(tmpdir(), "crm-job-"));
     const base = join(home, ".local", "share", "meu-bot");
     mkdirSync(base, { recursive: true });
     writeFileSync(join(base, "licenca.json"), JSON.stringify(lic));
+    if (vigor !== null) writeFileSync(join(base, "licenca-vigor.json"), JSON.stringify(vigor));
     try {
       execFileSync(process.execPath, [job], { env: { ...process.env, HOME: home }, stdio: "pipe" });
       const log = readFileSync(join(base, "crm", "crm.log"), "utf8");
@@ -147,6 +148,11 @@ test("crm-job.mjs com personalizado cru em vigor passa do gate; vencido registra
   const vencido = roda({ plan: "personalizado", status: "active", expiresAt: "2020-01-01T00:00:00.000Z" });
   assert.equal(vencido.status, 0);
   assert.match(vencido.log, /sem plano Pro em vigor/);
+  // Pro da conta da pessoa: o admin deixou free, e o espelho em vigor que o backend grava é quem decide.
+  const daConta = roda({ plan: "free", status: "free" }, { plan: "pro", status: "active", expiresAt: "2099-01-01T00:00:00.000Z" });
+  assert.equal(daConta.status, 2, "passou da licença pelo espelho em vigor");
+  const espelhoVencido = roda({ plan: "free", status: "free" }, { plan: "pro", status: "active", expiresAt: "2020-01-01T00:00:00.000Z" });
+  assert.match(espelhoVencido.log, /sem plano Pro em vigor/);
 });
 
 test("parseCrmJson lê resumoConversa (opcional)", async () => {

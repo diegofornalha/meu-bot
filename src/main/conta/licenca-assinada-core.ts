@@ -15,7 +15,7 @@
 import { createPrivateKey, sign, type KeyObject } from "node:crypto";
 import type { License, LicenseDevice, LicenseView } from "../../shared/ipc";
 import { verificaAssinatura } from "../atualizacao/updater-core";
-import { buildLicenseView, DEVICE_ID_RE, parseLicense, UUID_RE } from "../licenca/licenca";
+import { buildLicenseView, DEVICE_ID_RE, parseLicense, proOk, UUID_RE } from "../licenca/licenca";
 
 export { DEVICE_ID_RE, UUID_RE };
 
@@ -107,6 +107,31 @@ export function verificaLicencaAssinada(raw: unknown, opts: { chaves?: readonly 
   if (opts.maquina !== undefined && payload.maquina !== opts.maquina) return { ok: false, motivo: "formato" };
   if (Date.parse(payload.exp) < now) return { ok: false, motivo: "expirada" };
   return { ok: true, payload, kid: a.kid };
+}
+
+/** De onde vem o plano em vigor numa máquina: do que o admin gravou ou da licença da conta da pessoa. */
+export type OrigemLicenca = "admin" | "conta";
+const vencida = (l: License, now: number): boolean => l.status === "expired" || (l.expiresAt !== null && Date.parse(l.expiresAt) < now);
+/**
+ * A licença em vigor numa máquina: a que o admin gravou (`licenca.json`) somada à da conta da pessoa
+ * (`licenca-conta.json`, assinada pela API para a máquina `maquina`). A máquina tem o Pro se uma das duas der; os
+ * add-ons são a união dos que cada licença não vencida traz. Limite de devices e orientação de pagamento seguem os do
+ * admin, que são daquela máquina. Arquivo da conta ausente, mexido, de outra máquina ou vencido não conta: vale só a
+ * do admin. `exp` é até quando a emissão da conta sustenta isso (null quando ela não entra). Mesma regra de
+ * `licencaEmVigor` em backend-colima/licenca.js (o teste licenca-assinada-core compara as duas).
+ */
+export function licencaEmVigor(admin: unknown, rawConta: unknown, maquina: string | null, opts: { chaves?: readonly { id: string; chave: string }[]; now?: number } = {}): { license: License; origem: OrigemLicenca; exp: string | null } {
+  const now = opts.now ?? Date.now();
+  const base = parseLicense(admin, now);
+  if (maquina === null || !UUID_RE.test(maquina)) return { license: base, origem: "admin", exp: null };
+  const v = verificaLicencaAssinada(rawConta, { ...(opts.chaves === undefined ? {} : { chaves: opts.chaves }), now, maquina });
+  if (!v.ok) return { license: base, origem: "admin", exp: null };
+  const conta = v.payload.licenca;
+  const produtos = [...new Set([...(vencida(base, now) ? [] : base.produtos), ...(vencida(conta, now) ? [] : conta.produtos)])].sort();
+  // A da conta entra quando dá o que a do admin não dá: o Pro, ou (sem Pro em nenhuma) add-ons com a do admin vencida.
+  const usaConta = proOk(base, now) ? false : proOk(conta, now) || (vencida(base, now) && !vencida(conta, now));
+  if (!usaConta) return { license: { ...base, produtos }, origem: "admin", exp: null };
+  return { license: { ...conta, deviceLimit: base.deviceLimit, pagamento: base.pagamento, produtos }, origem: "conta", exp: v.payload.exp };
 }
 
 /** A licença mais recente vale (a API carimba `emitidaEm`); empate = não é mais nova. */

@@ -259,8 +259,31 @@ function verificaLicencaAssinada(raw, opts = {}) {
   return { ok: true, payload, kid: a.kid };
 }
 
+/** Licença vencida: status expired ou validade no passado (o plano free, sem validade, não está vencido). */
+const vencida = (l, now) => l.status === 'expired' || (l.expiresAt !== null && Date.parse(l.expiresAt) < now);
+/**
+ * A licença em vigor nesta máquina: a que o admin gravou (`licenca.json`) somada à da conta da pessoa
+ * (`licenca-conta.json`, assinada pela API para a máquina `maquina`). A máquina tem o Pro se uma das duas der; os
+ * add-ons são a união dos que cada licença não vencida traz. Limite de devices e orientação de pagamento seguem os do
+ * admin, que são desta máquina. Arquivo da conta ausente, mexido, de outra máquina ou vencido não conta: vale só a do
+ * admin. Cópia de `licencaEmVigor` em src/main/conta/licenca-assinada-core.ts (o teste compara as duas).
+ */
+function licencaEmVigor(admin, rawConta, maquina, opts = {}) {
+  const now = opts.now === undefined ? Date.now() : opts.now;
+  const base = parseLicense(admin, now);
+  if (typeof maquina !== 'string' || !UUID_RE.test(maquina)) return { license: base, origem: 'admin', exp: null };
+  const v = verificaLicencaAssinada(rawConta, { chaves: opts.chaves, now, maquina });
+  if (!v.ok) return { license: base, origem: 'admin', exp: null };
+  const conta = v.payload.licenca;
+  const produtos = [...new Set([...(vencida(base, now) ? [] : base.produtos), ...(vencida(conta, now) ? [] : conta.produtos)])].sort();
+  // A da conta entra quando dá o que a do admin não dá: o Pro, ou (sem Pro em nenhuma) add-ons com a do admin vencida.
+  const usaConta = proOk(base, now) ? false : proOk(conta, now) || (vencida(base, now) && !vencida(conta, now));
+  if (!usaConta) return { license: { ...base, produtos }, origem: 'admin', exp: null };
+  return { license: { ...conta, deviceLimit: base.deviceLimit, pagamento: base.pagamento, produtos }, origem: 'conta', exp: v.payload.exp };
+}
+
 module.exports = {
-  LICENCA_PUBLIC_KEYS, DEVICE_ID_RE, UUID_RE, verificaLicencaAssinada, parsePayloadLicenca, parseLicencaAssinada,
+  LICENCA_PUBLIC_KEYS, DEVICE_ID_RE, UUID_RE, verificaLicencaAssinada, parsePayloadLicenca, parseLicencaAssinada, licencaEmVigor,
   ADDONS, ADDONS_DO_PERSONALIZADO, NAO_ADDON: [...NAO_ADDON], MODULOS_SEM_LICENCA, moduloOk,
   PLANS,
   isActive,

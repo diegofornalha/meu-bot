@@ -57,11 +57,12 @@ test("motor do CRM: patch aceita proprio/streak/null; a regra sem motor gravado 
 test("streakSh: personalizado cru em vigor usa o CRM próprio; expiresAt no passado não", () => {
   const py = streakSh("diag").match(/python3 -c '([\s\S]*)' 2>\/dev\/null/)?.[1];
   assert.equal(typeof py, "string");
-  const decide = (lic, crm = {}) => {
+  const decide = (lic, crm = {}, vigor = null) => {
     const home = mkdtempSync(join(tmpdir(), "crm-sh-"));
     const base = join(home, ".local", "share", "meu-bot");
     mkdirSync(base, { recursive: true });
     writeFileSync(join(base, "licenca.json"), JSON.stringify(lic));
+    if (vigor !== null) writeFileSync(join(base, "licenca-vigor.json"), JSON.stringify(vigor));
     writeFileSync(join(base, "crm.json"), JSON.stringify(crm));
     try {
       execFileSync("python3", ["-c", py], { env: { ...process.env, HOME: home }, stdio: "pipe" });
@@ -73,6 +74,9 @@ test("streakSh: personalizado cru em vigor usa o CRM próprio; expiresAt no pass
   };
   const chave = { apiKey: "abcdefghij1234567890" };
   assert.equal(decide({ plan: "personalizado", status: "active" }, chave), "proprio");
+  // Pro que vem da conta da pessoa: o backend deixa a licença em vigor em licenca-vigor.json, e ela decide.
+  assert.equal(decide({ plan: "free", status: "free" }, {}, { plan: "pro", status: "active", expiresAt: "2099-01-01T00:00:00.000Z" }), "proprio");
+  assert.equal(decide({ plan: "free", status: "free" }, {}, { plan: "pro", status: "active", expiresAt: "2020-01-01T00:00:00.000Z" }), "streak", "espelho vencido não libera");
   assert.equal(decide({ plan: "pro", status: "active", produtos: ["meu-bot-crm"] }, chave), "proprio");
   assert.equal(decide({ plan: "personalizado", status: "active", expiresAt: "2020-01-01T00:00:00.000Z" }, chave), "streak");
   assert.equal(decide({ plan: "personalizado", status: "expired" }), "streak");

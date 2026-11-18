@@ -103,3 +103,70 @@ test("maisNova e base64url", () => {
   assert.equal(deBase64url(base64url(b)).equals(b), true);
   assert.equal(deBase64url("a+b"), null, "base64 comum não é base64url");
 });
+
+// ---- A licença em vigor na máquina: a do admin (licenca.json) somada à da conta (licenca-conta.json assinado).
+const DIA = 24 * 60 * 60 * 1000;
+const FREE = { plan: "free", status: "free", interval: null, memberSince: "2026-10-01T00:00:00.000Z", trialEnd: null, expiresAt: null, deviceLimit: 3, produtos: [], pagamento: { instrucoes: "Pix do admin", link: null }, updatedAt: "2026-11-01T00:00:00.000Z", updatedBy: "admin" };
+const lic = (extra = {}) => ({ ...payload().licenca, ...extra });
+const arquivo = (extra = {}) => { const p = payload(extra); return licencaJsonV2(p, assinarLicenca(p, privateKey, "teste")); };
+/** A regra nos dois lados, exigindo a mesma resposta. */
+const emVigor = (admin, conta, maquina = MAQ, now = AGORA) => {
+  const a = app.licencaEmVigor(admin, conta, maquina, { chaves: CHAVES, now });
+  assert.deepEqual(be.licencaEmVigor(admin, conta, maquina, { chaves: CHAVES, now }), a, "o backend decide igual ao app");
+  return a;
+};
+
+test("em vigor: sem licença da conta (ou sem id da máquina) vale só a do admin", () => {
+  for (const conta of [null, undefined, {}, "x", { assinada: null }]) assert.deepEqual(emVigor(FREE, conta), { license: FREE, origem: "admin", exp: null });
+  assert.equal(emVigor(FREE, arquivo(), null).origem, "admin", "máquina sem maquina.json não tem a quem a licença pertencer");
+  assert.equal(emVigor(FREE, arquivo(), "nao-e-uuid").origem, "admin");
+});
+
+test("em vigor: o Pro da conta entra numa máquina que o admin deixou free, com o limite e o pagamento do admin", () => {
+  const r = emVigor(FREE, arquivo());
+  assert.equal(r.origem, "conta"); assert.equal(r.license.plan, "pro"); assert.equal(r.license.status, "active");
+  assert.equal(r.license.deviceLimit, 3, "o limite de devices é desta máquina: segue o do admin");
+  assert.deepEqual(r.license.pagamento, FREE.pagamento);
+  assert.deepEqual(r.license.produtos, ["meu-bot-finance"]);
+  assert.equal(r.exp, payload().exp);
+  assert.equal(be.proOk(r.license, AGORA), true); assert.equal(be.crmOk(r.license, AGORA), true); assert.equal(be.financeOk(r.license, AGORA), true);
+});
+
+test("em vigor: o que não confere não dá Pro (assinatura mexida, outra máquina, emissão vencida, outra chave)", () => {
+  const bom = arquivo();
+  const mexido = { ...bom, assinada: { ...bom.assinada, payload: base64url(Buffer.from(JSON.stringify({ ...payload(), licenca: lic({ produtos: ["meu-bot-finance", "meu-bot-diego"] }) }))) } };
+  assert.equal(emVigor(FREE, mexido).origem, "admin");
+  assert.equal(emVigor(FREE, { ...bom, plan: "pro" , assinada: undefined }).license.plan, "free", "a cópia legível no topo não vale nada sem o bloco");
+  assert.equal(emVigor(FREE, bom, "44444444-4444-4444-8444-444444444444").origem, "admin", "copiada para outra máquina");
+  assert.equal(emVigor(FREE, bom, MAQ, AGORA + LICENCA_VALIDADE_MS + DIA).origem, "admin", "30 dias sem renovar");
+  const outra = generateKeyPairSync("ed25519").privateKey;
+  const p = payload(); assert.equal(emVigor(FREE, licencaJsonV2(p, assinarLicenca(p, outra, "teste"))).origem, "admin");
+});
+
+test("em vigor: Pro do admin continua valendo, e os add-ons se somam", () => {
+  const adminPro = { ...FREE, plan: "pro", status: "active", produtos: ["meu-bot-diego"] };
+  const r = emVigor(adminPro, arquivo());
+  assert.equal(r.origem, "admin"); assert.equal(r.license.plan, "pro"); assert.equal(r.exp, null);
+  assert.deepEqual(r.license.produtos, ["meu-bot-diego", "meu-bot-finance"]);
+  // A conta ficou free (cancelou): a máquina segue com o que o admin deu, sem perder nada.
+  const semPro = emVigor(adminPro, arquivo({ licenca: lic({ plan: "free", status: "free", produtos: [] }) }));
+  assert.equal(semPro.origem, "admin"); assert.equal(be.proOk(semPro.license, AGORA), true);
+  assert.deepEqual(semPro.license.produtos, ["meu-bot-diego"]);
+});
+
+test("em vigor: Pro vencido na conta não libera, e licença vencida não empresta add-on", () => {
+  const venceu = arquivo({ licenca: lic({ expiresAt: new Date(AGORA - DIA).toISOString() }) });
+  const r = emVigor(FREE, venceu);
+  assert.equal(r.origem, "admin"); assert.equal(be.proOk(r.license, AGORA), false);
+  assert.deepEqual(r.license.produtos, [], "o add-on de uma licença vencida não passa para a outra");
+  // Admin deixou vencer; a conta está em dia: vale a da conta.
+  const adminVencido = { ...FREE, plan: "pro", status: "expired", produtos: ["meu-bot-diego"] };
+  const s = emVigor(adminVencido, arquivo());
+  assert.equal(s.origem, "conta"); assert.equal(be.proOk(s.license, AGORA), true); assert.deepEqual(s.license.produtos, ["meu-bot-finance"]);
+  // Conta free com um add-on pago, admin vencido: o add-on vale.
+  const soAddon = emVigor(adminVencido, arquivo({ licenca: lic({ plan: "free", status: "free" }) }));
+  assert.equal(soAddon.origem, "conta"); assert.equal(be.proOk(soAddon.license, AGORA), false); assert.equal(be.financeOk(soAddon.license, AGORA), true);
+  // Conta free com add-on, admin free em dia: o add-on se soma e o plano segue o do admin.
+  const soma = emVigor(FREE, arquivo({ licenca: lic({ plan: "free", status: "free" }) }));
+  assert.equal(soma.origem, "admin"); assert.deepEqual(soma.license.produtos, ["meu-bot-finance"]); assert.equal(be.financeOk(soma.license, AGORA), true);
+});
