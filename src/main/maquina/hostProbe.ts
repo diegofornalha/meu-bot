@@ -435,7 +435,7 @@ export async function installAudio(host: string, setup: AudioSetup, onLine?: (li
     const r = await run("ssh", [...sshBase(host), "--", host, `echo ${b64} | base64 -d | bash`], 25 * 60_000);
     if (/extra=falhou/.test(r.stdout)) return { ok: false, log: [...lines, ligarStt ? "não consegui instalar o faster-whisper no Hermes (hermes pm install --extra stt-whisper); veja a máquina" : "não consegui instalar a voz Piper no Hermes (hermes pm install --extra piper); veja a máquina"] };
     // A voz nova não falou a frase de teste: o script saiu antes de mexer no config e de reiniciar o gateway.
-    if (/^voz=falhou/m.test(r.stdout)) return { ok: false, log: [...lines, `a voz ${rotulo} não passou no teste nesta máquina (a conta pode estar no teto de RAM); nada foi alterado, o agente continua como estava${(/^voz=falhou (.+)$/m.exec(r.stdout)?.[1] ?? "").trim() ? `: ${(/^voz=falhou (.+)$/m.exec(r.stdout)?.[1] ?? "").trim()}` : ""}`] };
+    if (/^voz=falhou/m.test(r.stdout)) return { ok: false, log: [...lines, `a voz ${rotulo} não passou no teste nesta máquina (a conta pode estar no teto de RAM); o config e o gateway ficaram como estavam e o agente continua com a voz de antes${(/^voz=falhou (.+)$/m.exec(r.stdout)?.[1] ?? "").trim() ? `: ${(/^voz=falhou (.+)$/m.exec(r.stdout)?.[1] ?? "").trim()}` : ""}`] };
     if (r.code !== 0 || !r.stdout.includes("cfgset=ok") || (ligarVoz && !r.stdout.includes("voz=ok"))) return { ok: false, log: [...lines, `não consegui gravar o config.yaml do Hermes: ${lastLine(r.stderr) || lastLine(r.stdout) || "ssh falhou"}`] };
     if (/restart=falhou/.test(r.stdout)) return { ok: false, log: [...lines, "gravei, mas não consegui reiniciar o gateway do Hermes; reinicie-o na máquina para valer"] };
     say(setup.kind === "in"
