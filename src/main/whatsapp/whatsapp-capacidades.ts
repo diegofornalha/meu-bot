@@ -116,7 +116,7 @@ export function capacidadesDe(gateway: Gateway | null, ready: boolean, connected
     // (`pausaPrazo`), pausar é só a marca em whatsapp-lista.json: vale em qualquer política, tem prazo e as mensagens
     // da pausa ficam guardadas (contorno #2). Sem ele, é tirar da WHATSAPP_ALLOWED_USERS com reinício, e o agente nem
     // vê as mensagens nesse período (contorno #1). `pausaNativa` é o dia em que o Hermes trouxer isso de fábrica.
-    // Áudio: o app grava `stt` e `voice.auto_tts` no config.yaml (hermes-audio.ts); só não há escolha de voz.
+    // Áudio: o app grava `stt` e `voice.auto_tts` no config.yaml (hermes-audio.ts); a voz é o hermes-voz.sh (faber, dora ou alex).
     // "Digitando…": `platforms.whatsapp.typing_indicator` no config.yaml (ligado/desligado), lido na subida: aplicar reinicia.
     case "hermes": {
       const prazo = connected && hermes.pausaModo !== "allowlist";

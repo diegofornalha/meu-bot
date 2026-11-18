@@ -5,9 +5,9 @@
  * faster-whisper no ambiente do gateway (`hermes pm install --extra stt-whisper`) ou o transcritor compartilhado da
  * máquina (`local_command` → /opt/transcriber): sem um dos dois, "ouvir" fica desligado na tela mesmo com o config gravado. Lê com o Python do runtime do Hermes (ruamel; PyYAML nem sempre existe).
  */
-import type { VoiceReplyMode } from "../../shared/ipc";
+import type { VoiceReplyMode, VozId } from "../../shared/ipc";
 import { runSsh } from "./whatsapp-ssh";
-import { HERMES_PATH_SH, HERMES_VENV_PY_SH, hermesSttCmdSh, lerHermesAudio } from "./whatsapp-hermes-core";
+import { HERMES_PATH_SH, HERMES_VENV_PY_SH, HERMES_VOZ_ID_SH, hermesSttCmdSh, lerHermesAudio } from "./whatsapp-hermes-core";
 import { AUDIO_ESTADO_SH } from "./transcritor-core";
 
 const LER_SH = `${HERMES_PATH_SH}; R=$(hermes_version | sed -n "s/^Install directory: //p"); [ -n "$R" ] || R=$HOME/.local/lib/node_modules/hermes-agent/runtime/hermes-agent; PY="$R/venv/bin/python3"; [ -x "$PY" ] || PY=python3
@@ -15,6 +15,7 @@ ${HERMES_VENV_PY_SH}
 echo "whisper=$( [ -n "$HPY" ] && "$HPY" -c "import faster_whisper" >/dev/null 2>&1 && echo 1 || echo 0)"
 ${hermesSttCmdSh()}
 ${AUDIO_ESTADO_SH}
+${HERMES_VOZ_ID_SH}
 "$PY" -c '
 import os
 p = os.path.expanduser("~/.hermes/config.yaml")
@@ -36,7 +37,7 @@ v = c.get("voice") or {}
 print("tts=" + ("inbound" if v.get("auto_tts") else "off"))
 ' 2>/dev/null`;
 
-export interface HermesAudio { audioIn: boolean; audioOut: VoiceReplyMode; audioMaquina?: boolean; audioDesligado?: boolean }
+export interface HermesAudio { audioIn: boolean; audioOut: VoiceReplyMode; audioVoice?: VozId | null; audioMaquina?: boolean; audioDesligado?: boolean }
 
 /** Estado do áudio no Hermes da máquina; null se não deu para ler (a tela fica sem a linha, sem inventar). */
 export async function hermesAudioStatus(host: string): Promise<HermesAudio | null> {

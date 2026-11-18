@@ -6,6 +6,8 @@
  * abaixo leem o banco em modo só-leitura na máquina e devolvem JSON numa linha; as funções puras viram isso nos
  * tipos do contrato. É a fronteira dona desse formato: o renderer nunca vê o esquema do Hermes.
  */
+import type { VozId } from "../../shared/ipc";
+import { isVozId } from "./vozes-core";
 import type { TypingChoice, TypingMode, WhatsappChat, WhatsappDmPolicy, WhatsappGroup, WhatsappGroupAgent, WhatsappGroupPatch, WhatsappGroups, WhatsappReplyChoice, WhatsappThreadMessage } from "../../shared/ipc";
 import { donosDe, souEu, type WaQuem } from "./whatsapp-marks";
 import { JID_RE, parseCacheGrupos } from "./whatsapp-grupos-core";
@@ -755,7 +757,7 @@ export const hermesSttCmdSh = (bin: string = TRANSCRITOR_BIN): string => `echo "
  * O que a tela mostra do áudio do Hermes, a partir das linhas `stt= prov= whisper= cmd= tts=` (e `audiomaq= audiooff=`,
  * quando vieram); null = não deu para ler.
  */
-export function lerHermesAudio(out: string): { audioIn: boolean; audioOut: "off" | "inbound" | "always"; audioMaquina?: boolean; audioDesligado?: boolean } | null {
+export function lerHermesAudio(out: string): { audioIn: boolean; audioOut: "off" | "inbound" | "always"; audioVoice?: VozId | null; audioMaquina?: boolean; audioDesligado?: boolean } | null {
   const stt = /^stt=([01])$/m.exec(out); const tts = /^tts=(off|inbound|always)$/m.exec(out);
   if (stt === null || tts === null) return null;
   const kv = new Map<string, string>(); for (const l of out.split("\n")) { const i = l.indexOf("="); if (i > 0) kv.set(l.slice(0, i), l.slice(i + 1).trim()); }
@@ -764,13 +766,15 @@ export function lerHermesAudio(out: string): { audioIn: boolean; audioOut: "off"
   // (o transcritor compartilhado da máquina) só com o comando no .env e, se for o nosso, o binário lá.
   const whisper = /^whisper=1$/m.test(out); const cmd = /^cmd=1$/m.test(out);
   const ouve = stt[1] === "1" && (prov === "local" || prov === "" ? whisper : prov === "local_command" ? cmd : true);
-  return { audioIn: ouve, audioOut: tts[1] as "off" | "inbound" | "always", ...lerAudioEstado(kv) };
+  // `vozid=` vem do hermes-voz.sh da máquina (HERMES_VOZ_ID_SH); vazio = nenhuma voz instalada ainda.
+  const vozid = kv.get("vozid");
+  return { audioIn: ouve, audioOut: tts[1] as "off" | "inbound" | "always", ...(vozid === undefined ? {} : { audioVoice: isVozId(vozid) ? vozid : null }), ...lerAudioEstado(kv) };
 }
 export function hermesAudioPatch(setup: { kind: "in"; off?: boolean; compartilhado?: boolean } | { kind: "out"; mode: "off" | "inbound" | "always" }): Record<string, unknown> {
   if (setup.kind === "in" && setup.off !== true && setup.compartilhado === true) return { "stt.enabled": true, "stt.provider": "local_command", "stt.language": "pt" };
   if (setup.kind === "in") return setup.off === true ? { "stt.enabled": false } : { "stt.enabled": true, "stt.provider": "local", "stt.language": "pt", "stt.local.model": "small", "stt.local.unload_after_idle_seconds": STT_OCIOSO_S };
   if (setup.mode === "off") return { "voice.auto_tts": false };
-  // O provedor padrão (voz-local) entra por HERMES_VOZ_LOCAL_SH, que precisa do caminho da máquina.
+  // O provedor padrão (voz-local) entra por hermesVozLocalSh, que precisa do caminho da máquina e da voz escolhida.
   return { "voice.auto_tts": true, "tts.piper.voice": HERMES_PIPER_VOICE, "tts.edge.voice": "pt-BR-FranciscaNeural" };
 }
 /** Script de voz do meu-bot na máquina: acha o Python do gateway na hora e roda o Piper (WAV). */
@@ -781,33 +785,63 @@ export const HERMES_VOZ_SH_FILE = "$HOME/.local/share/meu-bot/hermes-voz.sh";
  * com falha, lê o original. O install.sh insere esta mesma linha nos hermes-voz.sh de antes dela.
  */
 export const HERMES_VOZ_FILTRO = `L=$(mktemp) && python3 "$HOME/.local/share/meu-bot/fala-texto.py" <"$1" >"$L" 2>/dev/null && [ -s "$L" ] && exec 3<"$L" && set -- /dev/fd/3 "$2"; rm -f "$L"`;
+/** Onde o install-voz.sh (modo motor) deixa o Kokoro: venv, modelo e o falar.py. */
+const KOKORO_DIR = "$HOME/.local/share/meu-bot/voz/kokoro";
+/** Voz do Kokoro de cada id nosso. */
+const KOKORO_VOZ: Record<Exclude<VozId, "faber">, string> = { dora: "pf_dora", alex: "pm_alex" };
+/**
+ * `vozid=` da máquina, lido do próprio hermes-voz.sh (é ele que fala; uma marca à parte podia ficar para trás):
+ * dora, alex, faber (script do Piper) ou vazio (sem voz instalada).
+ */
+export const HERMES_VOZ_ID_SH = `echo "vozid=$(F="${HERMES_VOZ_SH_FILE}"; if grep -q ${KOKORO_VOZ.dora} "$F" 2>/dev/null; then echo dora; elif grep -q ${KOKORO_VOZ.alex} "$F" 2>/dev/null; then echo alex; elif [ -f "$F" ]; then echo faber; fi)"`;
 /**
  * Voz local como `tts.providers.voz-local` (type command, WAV, voice_compatible) e `tts.provider: voz-local`. O
  * provedor "piper" embutido do Hermes 0.22 grava Ogg VORBIS quando o nome termina em .ogg e pula o ffmpeg: o
  * WhatsApp não toca. Pelo command provider o Hermes recebe WAV e converte para Ogg/Opus de verdade. O comando é um
  * script nosso (HERMES_VOZ_SH_FILE), porque o venv do gateway muda de pasta a cada `hermes pm install --extra`.
+ * A voz: faber roda o Piper do ambiente do gateway; dora e alex rodam o Kokoro que o `install-voz.sh motor` deixou
+ * na máquina (o mesmo do OpenClaw). O script do Kokoro só troca o atual depois de falar uma frase de teste: se não
+ * sair WAV, a voz de antes continua e a saída traz `voz=falhou` (sem `voz=ok`).
  * Roda depois de HERMES_PY_SH; imprime `voz=ok`.
  */
-export const HERMES_VOZ_LOCAL_SH = `mkdir -p "$(dirname "${HERMES_VOZ_SH_FILE}")"
-cat > "${HERMES_VOZ_SH_FILE}" <<'VOZ'
-#!/bin/bash
-# Voz local do meu-bot para o Hermes: texto em $1, WAV em $2 (o Hermes converte para Ogg/Opus).
+export function hermesVozLocalSh(voz: VozId = "faber"): string {
+  const kokoro = voz !== "faber";
+  const corpo = kokoro
+    ? `# Voz local do meu-bot para o Hermes: texto em $1, WAV em $2 (o Hermes converte para Ogg/Opus). Voz: ${voz} (Kokoro).
+${HERMES_VOZ_FILTRO}
+exec "${KOKORO_DIR}/venv/bin/python" "${KOKORO_DIR}/falar.py" ${KOKORO_VOZ[voz]} "$2" <"$1"`
+    : `# Voz local do meu-bot para o Hermes: texto em $1, WAV em $2 (o Hermes converte para Ogg/Opus).
 ${HERMES_VENV_PY_SH}
 [ -n "$HPY" ] || { echo "sem ambiente do Hermes" >&2; exit 1; }
 ${HERMES_VOZ_FILTRO}
-exec "$HPY" -m piper -m "$HOME/.hermes/cache/piper-voices/${HERMES_PIPER_VOICE}.onnx" -i "$1" -f "$2"
+exec "$HPY" -m piper -m "$HOME/.hermes/cache/piper-voices/${HERMES_PIPER_VOICE}.onnx" -i "$1" -f "$2"`;
+  // Kokoro: carrega um modelo de ~325 MB a cada fala; numa conta no teto de RAM ele não termina. Prova antes de trocar.
+  const prova = kokoro ? `VT=$(mktemp -d); printf 'Olá! Esta é a voz das respostas.\\n' > "$VT/t.txt"
+if timeout 150 /bin/bash "${HERMES_VOZ_SH_FILE}.novo" "$VT/t.txt" "$VT/t.wav" >/dev/null 2>"$VT/err" && [ -s "$VT/t.wav" ]; then VOZ_OK=1; else VOZ_OK=0; echo "voz=falhou $(tail -c 200 "$VT/err" 2>/dev/null | tr '\\n' ' ')"; fi
+rm -rf "$VT"` : "VOZ_OK=1";
+  return `mkdir -p "$(dirname "${HERMES_VOZ_SH_FILE}")"
+cat > "${HERMES_VOZ_SH_FILE}.novo" <<'VOZ'
+#!/bin/bash
+${corpo}
 VOZ
-chmod 755 "${HERMES_VOZ_SH_FILE}"
-VOZCMD="/bin/bash ${HERMES_VOZ_SH_FILE} {input_path} {output_path}" "$PY" -c '
+chmod 755 "${HERMES_VOZ_SH_FILE}.novo"
+${prova}
+if [ "$VOZ_OK" = 1 ]; then
+mv -f "${HERMES_VOZ_SH_FILE}.novo" "${HERMES_VOZ_SH_FILE}"
+VOZCMD="/bin/bash ${HERMES_VOZ_SH_FILE} {input_path} {output_path}" VOZT=${kokoro ? 120 : 60} "$PY" -c '
 import os
 ${HERMES_YAML_PY}
 t = sub(doc, "tts")
 t["provider"] = "voz-local"
 pv = sub(sub(t, "providers"), "voz-local")
-pv["type"] = "command"; pv["command"] = os.environ["VOZCMD"]; pv["format"] = "wav"; pv["voice_compatible"] = True; pv["timeout"] = 60
+pv["type"] = "command"; pv["command"] = os.environ["VOZCMD"]; pv["format"] = "wav"; pv["voice_compatible"] = True; pv["timeout"] = int(os.environ["VOZT"])
 salvar()
 print("voz=ok")
-'`;
+'
+else rm -f "${HERMES_VOZ_SH_FILE}.novo"; fi`;
+}
+/** A voz padrão (faber), como era antes de a voz poder ser escolhida. */
+export const HERMES_VOZ_LOCAL_SH = hermesVozLocalSh("faber");
 /** Grava chaves com ponto (`stt.enabled`) no config.yaml do Hermes, com backup. Imprime `cfgset=ok`. */
 export function hermesConfigSetSh(patch: Record<string, unknown>): string {
   const b64 = Buffer.from(JSON.stringify(patch), "utf8").toString("base64");
