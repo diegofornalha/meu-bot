@@ -183,8 +183,8 @@ async function aplicar(env: Env, d: Decisao, devMode: boolean, agora: string, es
   const ate = validoAte(agora, atual.plan === "pro" && atual.status === "active" ? atual.expiresAt : null);
   await env.DB.prepare("INSERT INTO licencas (conta_id, plan, status, interval, member_since, trial_end, expires_at, device_limit, produtos, pagamento, updated_at, updated_by) VALUES (?1, 'pro', 'active', 'month', ?2, ?3, ?4, ?5, ?6, NULL, ?7, 'system') ON CONFLICT(conta_id) DO UPDATE SET plan = 'pro', status = 'active', interval = 'month', expires_at = excluded.expires_at, pagamento = NULL, updated_at = excluded.updated_at, updated_by = 'system'")
     .bind(conta.id, atual.memberSince, atual.trialEnd, ate, atual.deviceLimit, JSON.stringify(atual.produtos), agora).run();
-  await env.DB.prepare("INSERT INTO assinaturas (id, conta_id, ref, status, metodo, valor_centavos, criada_em, atualizada_em) VALUES (?1, ?2, ?3, 'ACTIVE', NULL, ?4, ?5, ?5) ON CONFLICT(id) DO UPDATE SET status = 'ACTIVE', atualizada_em = excluded.atualizada_em")
-    .bind(d.assinaturaId, conta.id, ck.ref, d.valor, agora).run();
+  await env.DB.prepare("INSERT INTO assinaturas (id, conta_id, ref, status, metodo, valor_centavos, criada_em, atualizada_em) VALUES (?1, ?2, ?3, 'ACTIVE', ?6, ?4, ?5, ?5) ON CONFLICT(id) DO UPDATE SET status = 'ACTIVE', metodo = COALESCE(excluded.metodo, assinaturas.metodo), atualizada_em = excluded.atualizada_em")
+    .bind(d.assinaturaId, conta.id, ck.ref, d.valor, agora, d.metodo).run();
   await auditar(env.DB, quem, d.primeira ? "assinatura.paga" : "assinatura.renovada", conta.id, `${d.pagamentoId} · ${d.valor} centavos · até ${ate}`);
   espera(enviarCompraGa(env, ck, d.pagamentoId, d.valor, d.primeira));
   return `Pro liberado até ${ate}`;
@@ -206,8 +206,8 @@ async function liberarAddon(env: Env, ck: CheckoutLinha, produto: string, d: Ext
   const ate = validoAte(agora, atual !== null && Date.parse(atual.expiresAt) > Date.parse(agora) ? atual.expiresAt : null);
   await env.DB.prepare("INSERT INTO addons_pagos (conta_id, produto, assinatura_id, expires_at, atualizado_em) VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT(conta_id, produto) DO UPDATE SET assinatura_id = excluded.assinatura_id, expires_at = excluded.expires_at, atualizado_em = excluded.atualizado_em, encerrado_em = NULL")
     .bind(ck.conta_id, produto, d.assinaturaId, ate, agora).run();
-  await env.DB.prepare("INSERT INTO assinaturas (id, conta_id, ref, status, metodo, valor_centavos, criada_em, atualizada_em, produto) VALUES (?1, ?2, ?3, 'ACTIVE', NULL, ?4, ?5, ?5, ?6) ON CONFLICT(id) DO UPDATE SET status = 'ACTIVE', atualizada_em = excluded.atualizada_em")
-    .bind(d.assinaturaId, ck.conta_id, ck.ref, d.valor, agora, produto).run();
+  await env.DB.prepare("INSERT INTO assinaturas (id, conta_id, ref, status, metodo, valor_centavos, criada_em, atualizada_em, produto) VALUES (?1, ?2, ?3, 'ACTIVE', ?7, ?4, ?5, ?5, ?6) ON CONFLICT(id) DO UPDATE SET status = 'ACTIVE', metodo = COALESCE(excluded.metodo, assinaturas.metodo), atualizada_em = excluded.atualizada_em")
+    .bind(d.assinaturaId, ck.conta_id, ck.ref, d.valor, agora, produto, d.metodo).run();
   await auditar(env.DB, quem, d.primeira ? "addon.pago" : "addon.renovado", ck.conta_id, `${produto} · ${d.pagamentoId} · ${d.valor} centavos · até ${ate}`);
   const rotulo = lerAddons(env.ABACATEPAY_ADDONS).find((a) => a.nome === produto)?.rotulo ?? produto;
   espera(enviarCompraGa(env, ck, d.pagamentoId, d.valor, d.primeira, { id: `${produto}-mensal`, nome: `${rotulo} mensal` }));
