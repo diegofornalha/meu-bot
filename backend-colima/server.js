@@ -94,6 +94,12 @@ function anotarAbertura(m) {
 }
 /** Licença da conta (plano, status, validade, limite de devices): o admin é dono e grava por SSH; o app só lê. */
 const LICENSE_FILE = path.join(MEU_BOT_DIR, 'licenca.json');
+/** A licença da conta da pessoa para esta máquina, assinada pela API (o app grava; `licenca.js` confere). */
+const LICENSE_CONTA_FILE = path.join(MEU_BOT_DIR, 'licenca-conta.json');
+/** O id desta máquina ({id: uuid}), que o app cria ao aplicar a licença da conta; a licença assinada é presa a ele. */
+const MAQUINA_FILE = path.join(MEU_BOT_DIR, 'maquina.json');
+/** Espelho da licença em vigor para quem lê arquivo cru (o job do CRM); só existe quando o Pro vem da conta. */
+const LICENSE_VIGOR_FILE = path.join(MEU_BOT_DIR, 'licenca-vigor.json');
 /**
  * Versão mínima do meu-bot que este backend atende (vai na resposta do hello e no /health): abaixo dela o app
  * mostra "Atualização necessária" e só volta ao normal depois de reiniciar na versão nova. A constante acompanha
@@ -165,14 +171,41 @@ function sendWhatsapp({ texto, para, midia }) {
 function sshPeers() {
   try { return [...new Set(require('child_process').execSync("ss -Htn state established '( sport = :22 )' 2>/dev/null | awk '{print $NF}' | sed 's/:[0-9]*$//'", { encoding: 'utf8', timeout: 3000 }).split('\n').map((s) => s.trim()).filter(Boolean))]; } catch (_) { return []; }
 }
-/** Licença da conta, criando o arquivo com os defaults (e carimbando "membro desde") na 1ª vez. */
-function ensureLicense() {
+/** A licença que o admin gravou, criando o arquivo com os defaults (e carimbando "membro desde") na 1ª vez. */
+function licencaDoAdmin() {
   const raw = readJson(LICENSE_FILE, null);
   if (raw === null) { const lic = licenca.defaultLicense(); writeJson(LICENSE_FILE, lic); return lic; }
   const lic = licenca.parseLicense(raw);
   if (licenca.legadoCrmContratado(raw)) migrarLicencaLegada(raw, lic);
   return lic;
 }
+/**
+ * A licença em vigor com a origem: a do admin somada à da conta da pessoa, se o `licenca-conta.json` confere
+ * (assinatura da API, prazo e o id desta máquina, `maquina.json`). Todo gate do backend passa por aqui.
+ */
+function licencaComOrigem() {
+  const maq = readJson(MAQUINA_FILE, null);
+  const r = licenca.licencaEmVigor(licencaDoAdmin(), readJson(LICENSE_CONTA_FILE, null), maq !== null && typeof maq.id === 'string' ? maq.id : null);
+  espelharVigor(r);
+  return r;
+}
+let vigorGravado = null;
+/**
+ * O job do CRM (um plugin do OpenClaw, longe deste processo) e o motor do CRM leem a licença de um arquivo cru. Quando
+ * o Pro vem da conta, o backend deixa a licença em vigor em `licenca-vigor.json` para eles; com a validade cortada no
+ * prazo da emissão, para o espelho não valer mais que a licença assinada. Só do admin: o espelho sai.
+ */
+function espelharVigor(r) {
+  try {
+    if (r.origem !== 'conta') { if (vigorGravado !== '') { fs.rmSync(LICENSE_VIGOR_FILE, { force: true }); vigorGravado = ''; } return; }
+    const ate = r.license.expiresAt === null || Date.parse(r.exp) < Date.parse(r.license.expiresAt) ? r.exp : r.license.expiresAt;
+    const txt = JSON.stringify({ ...r.license, expiresAt: ate });
+    if (txt === vigorGravado) return;
+    writeJson(LICENSE_VIGOR_FILE, JSON.parse(txt)); vigorGravado = txt;
+  } catch (e) { log(`licença: não gravei o espelho em vigor (${e.message})`); }
+}
+/** A licença em vigor nesta máquina (a do admin somada à da conta). */
+function ensureLicense() { return licencaComOrigem().license; }
 /**
  * Uma vez por máquina: a licença de antes de 22 out (plano personalizado ou add-on meu-bot-crm) é regravada já no
  * formato novo (personalizado → Pro + Finance; meu-bot-crm sai, o CRM vem do Pro). Quem tinha o CRM contratado seguia
@@ -188,7 +221,7 @@ function migrarLicencaLegada(raw, lic) {
 }
 /** Licença + devices (ativos/pendentes) da conta, como o app e o admin veem. */
 function licenseView() {
-  const license = ensureLicense();
+  const { license, origem } = licencaComOrigem();
   const all = readJson(MACHINES_FILE, {}) || {};
   const devices = Object.entries(all).map(([id, v]) => ({
     id, name: v.name, user: v.user, platform: v.platform, app: v.app, apps: v.apps && typeof v.apps === 'object' ? v.apps : {},
@@ -197,7 +230,8 @@ function licenseView() {
   })).sort((a, b) => (Date.parse(b.lastSeen) || 0) - (Date.parse(a.lastSeen) || 0));
   const activeCount = devices.filter((d) => d.status === 'active').length;
   const pendingCount = devices.filter((d) => d.status === 'pending').length;
-  return { license, devices, activeCount, pendingCount, deviceLimit: license.deviceLimit };
+  // `origem`: 'conta' quando o plano vem da licença da conta da pessoa; 'admin' quando é o que o admin gravou.
+  return { license, devices, activeCount, pendingCount, deviceLimit: license.deviceLimit, origem };
 }
 let crmApiInst = null;
 /** Instância única da API do CRM (abre o db na 1ª chamada; sem CRM instalado só cria a pasta vazia). */

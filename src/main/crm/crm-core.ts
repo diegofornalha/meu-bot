@@ -95,7 +95,7 @@ def expirada(l):
         return t.timestamp() < datetime.datetime.now(datetime.timezone.utc).timestamp()
     except Exception:
         return False
-l = j("$HOME/.local/share/meu-bot/licenca.json"); c = j("${CRM_FILE}")
+l = j("$HOME/.local/share/meu-bot/licenca-vigor.json") or j("$HOME/.local/share/meu-bot/licenca.json"); c = j("${CRM_FILE}")
 plano = "pro" if l.get("plan") == "personalizado" else l.get("plan")
 vigor = plano == "pro" and l.get("status") in ("active", "trialing") and not expirada(l)
 key = isinstance(c.get("apiKey"), str) and c.get("apiKey") != ""

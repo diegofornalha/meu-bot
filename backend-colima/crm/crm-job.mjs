@@ -33,8 +33,12 @@ const ESTADO = path.join(DIR, "estado.json");
 const LOG = path.join(DIR, "crm.log");
 const log = (line) => { try { fs.appendFileSync(LOG, `${new Date().toISOString()} ${line}\n`); } catch { /* cortesia */ } };
 const readJson = (f, dflt) => { try { const v = JSON.parse(fs.readFileSync(f, "utf8")); return v && typeof v === "object" ? v : dflt; } catch { return dflt; } };
-/** Plano Pro em vigor, lendo o licenca.json cru (personalizado já conta; ver licenca-crm.mjs). */
-const licencaAtual = () => readJson(path.join(BASE, "licenca.json"), {});
+/**
+ * A licença crua desta máquina: o espelho em vigor que o backend deixa quando o Pro vem da conta da pessoa
+ * (licenca-vigor.json; ele confere a assinatura), senão o licenca.json do admin (personalizado já conta; ver
+ * licenca-crm.mjs).
+ */
+const licencaAtual = () => readJson(path.join(BASE, "licenca-vigor.json"), null) ?? readJson(LICENCA, {});
 export const crmProprio = (l = licencaAtual(), now = Date.now()) => crmProprioDe(l, now);
 /** Motor do CRM nesta máquina. Sem motor gravado, a licença crua decide (licenca-crm.mjs). */
 export const motorCrm = (l = licencaAtual(), c = readJson(path.join(BASE, "crm.json"), {}), now = Date.now()) => motorCrmDe(l, c, now);
@@ -60,7 +64,7 @@ function ownerPhone() {
   const creds = readJson(path.join(HOME, ".openclaw", "credentials", "whatsapp", "default", "creds.json"), {});
   return normalizePhone(creds?.me?.id ?? "");
 }
-function proOk() { return crmProprio(readJson(LICENCA, {})); }
+function proOk() { return crmProprio(); }
 function openclaw(args, timeoutMs = 60_000) { return execFileSync("openclaw", args, { encoding: "utf8", timeout: timeoutMs, env: { ...process.env, PATH: PATH_EXTRA }, stdio: ["ignore", "pipe", "pipe"] }); }
 function sendOwner(text) {
   const to = ownerPhone(); if (to === null) { log("sem número do dono: mensagem não enviada"); return; }
