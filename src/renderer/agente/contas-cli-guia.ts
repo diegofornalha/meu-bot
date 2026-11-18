@@ -1,7 +1,7 @@
 /** Contas de linha de comando na máquina (tutorial 11): Cloudflare e GitHub, login pelo Navegador, instalar o gh. */
 import type { ContaEstado, ContaEvento, ContaId } from "../../shared/ipc";
 import { el } from "../lib/dom.js";
-import { carregando } from "../lib/carregando.js";
+import { esperaOuFalha, SEM_RESPOSTA } from "../lib/carregando.js";
 import { ipcErrorText } from "../lib/ipc-error.js";
 import { browserAccess } from "../lib/pro.js";
 import { ctx, ehRemoto } from "../app/ctx.js";
@@ -11,10 +11,12 @@ import { registrarPassos } from "../tutoriais/passos.js";
 
 /** Tutorial 11: contas de CLI desta máquina (null = ainda não consultado) e o login em andamento. */
 export let contasState: ContaEstado[] | null = null;
+let contasErro: string | null = null;
 let contaLogin: { id: ContaId; trocar: boolean; url: string | null; codigo: string | null; texto: string; rodando: boolean; ok: boolean | null } | null = null;
 export async function refreshContas(): Promise<void> {
   if (!ctx.caps.install || ctx.windowHost === "") return;
-  try { const r = await window.meuBot.contasStatus(); if (r !== null) contasState = r; } catch { /* máquina fora: fica o que havia */ }
+  // Sem resposta ou com erro: fica o estado que havia, e o passo diz o motivo em vez de esperar para sempre.
+  try { const r = await window.meuBot.contasStatus(); if (r !== null) { contasState = r; contasErro = null; } else contasErro = SEM_RESPOSTA; } catch (err) { contasErro = ipcErrorText(err); }
   ctx.paintGuide();
 }
 /** O link do login abre no Navegador do app: é por ele que o retorno do Cloudflare chega ao localhost da máquina. */
@@ -35,7 +37,7 @@ export function renderConta(container: HTMLElement, id: ContaId): void {
   const st = contasState?.find((c) => c.id === id) ?? null;
   const login = contaLogin?.id === id ? contaLogin : null;
   const row = el("div", "audio-row");
-  if (contasState === null) row.append(carregando("Consultando a máquina…", "guia-contas"));
+  if (contasState === null) row.append(esperaOuFalha({ erro: contasErro, chave: "guia-contas", tentar: () => { contasErro = null; ctx.paintGuide(); void refreshContas(); } }));
   else if (st !== null && !st.presente && id === "github") {
     row.append(el("span", "hint", ghInstalando ? "Instalando o GitHub CLI na máquina…" : "O GitHub CLI (gh) não está instalado nesta máquina."));
     const b = el("button", "btn btn-primary btn-small", ghInstalando ? "Instalando…" : "Instalar o GitHub CLI"); b.type = "button";

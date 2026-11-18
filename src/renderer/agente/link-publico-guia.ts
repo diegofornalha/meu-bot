@@ -1,7 +1,7 @@
 /** Link público da pessoa no guia (tutorial 13): ver o link, publicar e tirar do ar, trocar o nome. */
 import type { LinkPublicoInfo, LinkPublicoItem } from "../../shared/ipc";
 import { el } from "../lib/dom.js";
-import { carregando } from "../lib/carregando.js";
+import { carregando, esperaOuFalha } from "../lib/carregando.js";
 import { ipcErrorText } from "../lib/ipc-error.js";
 import { ctx, ehRemoto } from "../app/ctx.js";
 import { registrarFonte } from "../tutoriais/fontes.js";
@@ -11,6 +11,7 @@ import { registrarPassos } from "../tutoriais/passos.js";
 /** Tutorial 13: o link público da pessoa (null = desligado ou não consultado; `linkPublicoLido` separa os dois). */
 export let linkPublicoState: LinkPublicoInfo | null = null;
 export let linkPublicoLido = false;
+let linkPublicoErro: string | null = null;
 /** false = a janela é do root: sem link por desenho (o tutorial 13 some da lista). */
 export let linkPublicoPossivel = true;
 /** A máquina tem o Link Público Global? Sem ele o passo diz que é o admin quem instala (não "ainda não ligou"). */
@@ -45,14 +46,14 @@ export async function refreshLinkPublico(): Promise<void> {
   // Este Mac: o link público é de uma conta numa máquina por SSH (nginx e túnel do Link Público Global, do admin);
   // aqui não se aplica, e o tutorial 13 some (needsLinkPublico) em vez de ficar em "Consultando a máquina…".
   if (ctx.windowHost === "local") { linkPublicoState = null; linkPublicoPossivel = false; linkPublicoLido = true; ctx.paintGuide(); return; }
-  try { const r = await window.meuBot.linkPublico(); linkPublicoState = r.info; linkPublicoPossivel = r.possivel; linkPublicoGlobal = r.global; linkPublicoLido = true; } catch { /* máquina fora: fica o que havia */ }
+  try { const r = await window.meuBot.linkPublico(); linkPublicoState = r.info; linkPublicoPossivel = r.possivel; linkPublicoGlobal = r.global; linkPublicoLido = true; linkPublicoErro = null; } catch (err) { linkPublicoErro = ipcErrorText(err); /* fica o estado que havia */ }
   ctx.paintGuide();
 }
 /** Tutorial 13: o link (passo 1), o que está no ar (passo 2) ou o campo para trocar o nome (passo 3). */
 export function renderLinkPublico(container: HTMLElement, parte: "ver" | "testar" | "nome"): void {
   const box = el("div", "audio-controls");
   const lp = linkPublicoState;
-  if (!linkPublicoLido) { box.append(carregando("Consultando a máquina…", "guia-link")); container.append(box); return; }
+  if (!linkPublicoLido) { box.append(esperaOuFalha({ erro: linkPublicoErro, chave: "guia-link", tentar: () => { linkPublicoErro = null; ctx.paintGuide(); void refreshLinkPublico(); } })); container.append(box); return; }
   if (lp === null) {
     box.append(el("p", "hint", !linkPublicoPossivel ? "Esta janela é da conta root da máquina: o link público é das contas de usuário (box-1, box-2…), não do root." : !linkPublicoGlobal ? "Esta máquina ainda não tem o Link Público Global (o nginx e o túnel da Cloudflare, do root). É o admin quem instala, no meu-bot-admin › Preparar máquina › Link Público Global; até lá, \"Conferir de novo\" não vai achar nada. Depois ele liga o seu link na aba Link Público Global." : "O Link Público Global está nesta máquina, mas o seu link ainda não está ligado. É o admin quem liga, no meu-bot-admin › Link Público Global, na linha da sua conta."));
     const b = el("button", "btn btn-ghost btn-small", "Conferir de novo"); b.type = "button"; b.addEventListener("click", () => { void refreshLinkPublico(); });
