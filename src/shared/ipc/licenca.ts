@@ -52,7 +52,14 @@ export interface LicenseView {
   activeCount: number;
   pendingCount: number;
   deviceLimit: number;
+  /** De onde vem o plano em vigor nesta máquina: o que o admin gravou, ou a licença da conta da pessoa. Ausente em backend antigo. */
+  origem?: "admin" | "conta";
 }
+/**
+ * "Usar o meu Pro nesta máquina" e "Tirar": `semVaga` traz os nomes das máquinas que já usam a licença da conta
+ * (o limite de máquinas dela); `view` é a licença da janela relida depois da ação.
+ */
+export type PlanoDaContaResultado = { ok: true; view: LicenseView | null } | { ok: false; erro: string; semVaga?: string[] };
 /** O que o admin pode mudar na licença de uma pessoa (campos omitidos ficam como estão). */
 export interface LicensePatch {
   plan?: PlanName;

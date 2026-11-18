@@ -2,14 +2,14 @@
  * Acesso aos módulos Pro (aba Navegador, CRM pelo WhatsApp) a partir da licença da máquina. Puro, testado.
  * Produto free (meu-bot), `exige === "free"`:
  * - "ok": plano pro em vigor;
- * - "free": plano grátis → a aba abre bloqueada, com "Pedir o Pro ao admin";
+ * - "free": plano grátis → a aba abre bloqueada, com "Assinar pelo site" (ou "Usar o meu Pro nesta máquina");
  * - "expired": tinha o plano e venceu → bloqueada, com a data;
  * - "unknown": backend antigo/fora do ar, ou este Mac sem conta (sem licença para ler) → bloqueada. Este Mac usa o
  *   plano da conta meu-bot (o main manda a licença da conta, nunca o arquivo local).
  * App que exigisse mais que o free (`exige !== "free"`): sem etiqueta Pro; ou está tudo aberto ("ok") ou o add-on
  * `produto` falta/venceu ("assinatura"), uma tela só. Mesmas regras do src/main/licenca.ts (lado do main).
  */
-import type { LicenseView, Pagamento, PlanName } from "../../shared/ipc";
+import type { License, LicenseView, Pagamento, PlanName } from "../../shared/ipc";
 
 export type ProAccess = "ok" | "free" | "expired" | "unknown" | "assinatura";
 
@@ -80,6 +80,28 @@ export function pagamentoDoBloqueio(a: Exclude<ProAccess, "ok">, view: LicenseVi
   return view.license.pagamento ?? pagamentoPadrao();
 }
 
+/**
+ * A conta meu-bot da pessoa tem o que levar a uma máquina: Pro em vigor, ou um add-on pago numa licença não vencida.
+ * É a licença da CONTA (a API já soma os add-ons pagos em dia), não a da máquina.
+ */
+export function contaTemLicenca(l: License | null, now: number = Date.now()): boolean {
+  if (l === null || vencida(l, now)) return false;
+  return (planoLiberaPro(l.plan) && (l.status === "active" || l.status === "trialing")) || (l.produtos ?? []).length > 0;
+}
+/**
+ * O que o aviso de plano oferece quando o admin não gravou um "Como pagar" próprio (o caminho padrão), agora que a
+ * pessoa assina sozinha pelo site:
+ * - "usar-da-conta": a conta já tem a licença e esta janela é de uma máquina por SSH que ainda não a usa → o botão
+ *   principal leva a licença da conta à máquina;
+ * - "assinar": falta assinar (ou a máquina já usa a da conta e ainda falta algo) → o botão principal abre o site.
+ * Este Mac nunca é "usar-da-conta": ele já usa o plano da conta. `maquinaLimite` null = a API da conta ainda não leva
+ * a licença a máquinas.
+ */
+export type CaminhoPlano = "usar-da-conta" | "assinar";
+export function caminhoDoPlano(o: { remoto: boolean; conta: License | null; maquinaLimite: number | null; origem: "admin" | "conta" | undefined }, now: number = Date.now()): CaminhoPlano {
+  return o.remoto && o.maquinaLimite !== null && o.origem !== "conta" && contaTemLicenca(o.conta, now) ? "usar-da-conta" : "assinar";
+}
+
 /** Página do console onde se assina (a cobrança é pela AbacatePay, no conta-api). O main monta o endereço do canal e entra logado (`contaAbrirConsole`). */
 export const CAMINHO_ASSINATURA = "/account/plan";
 /**
@@ -87,14 +109,21 @@ export const CAMINHO_ASSINATURA = "/account/plan";
  * precisa preencher "Como pagar" em caso especial (Pix direto, preço combinado). Sem link: o botão abre o console.
  */
 export function pagamentoPadrao(): Pagamento {
-  return { instrucoes: "Assine pelo site do meu-bot, com Pix ou cartão. Depois de pagar, toque em \"Já paguei\": o admin libera nesta máquina.", link: null, padrao: true };
+  return { instrucoes: "Assine pelo site do meu-bot, com Pix ou cartão. O plano fica na sua conta; depois de pagar, toque em \"Já assinei\" e ele passa a valer aqui.", link: null, padrao: true };
 }
+/**
+ * Título e texto do bloqueio. `askAdmin` = mostrar "Pedir ao admin": só quando o admin gravou um "Como pagar" próprio
+ * para esta máquina (acordo à parte). Sem isso a pessoa resolve sozinha, assinando pelo site, e o botão do admin não
+ * aparece.
+ */
 export function proBlockText(a: Exclude<ProAccess, "ok">, view: LicenseView | null, modulo: ProModule = "navegador", produto: string = "meu-bot"): { title: string; text: string; askAdmin: boolean } {
   const m = MODULE_TEXT[modulo];
-  if (a === "assinatura") return { title: `${produto}: produto não liberado nesta máquina`, text: `O ${produto} é contratado por cima do seu plano${view !== null && (view.license.produtos ?? []).includes(produto) ? `, e a licença desta máquina venceu${view.license.expiresAt ? ` em ${new Date(view.license.expiresAt).toLocaleDateString("pt-BR")}` : ""}` : ", e esta máquina ainda não o tem"}. Fale com o admin para liberar; assim que ele gravar, ${m.back}.`, askAdmin: true };
+  // `pagamento` pode faltar num backend antigo (licença sem o campo): conta como não gravado.
+  const comAdmin = view !== null && view.license.pagamento != null;
+  if (a === "assinatura") return { title: `${produto}: produto não liberado nesta máquina`, text: `O ${produto} é contratado por cima do seu plano${view !== null && (view.license.produtos ?? []).includes(produto) ? `, e a licença desta máquina venceu${view.license.expiresAt ? ` em ${new Date(view.license.expiresAt).toLocaleDateString("pt-BR")}` : ""}` : ", e esta máquina ainda não o tem"}. ${comAdmin ? `Fale com o admin para liberar; assim que ele gravar, ${m.back}.` : `Assine pelo site; com o pagamento confirmado, ${m.back}.`}`, askAdmin: comAdmin };
   if (a === "unknown") return { title: `${m.name} · Pro`, text: "Não consegui ler o plano desta máquina (backend antigo, fora do ar, ou este Mac). Reinstale o backend pelo seletor e tente de novo.", askAdmin: false };
-  if (a === "expired") return { title: "Seu Pro venceu", text: `O plano Pro desta máquina venceu${view?.license.expiresAt ? ` em ${new Date(view.license.expiresAt).toLocaleDateString("pt-BR")}` : ""}. Peça ao admin para renovar e ${m.back}.`, askAdmin: true };
-  return { title: `${m.name} é do plano Pro`, text: `${m.pitch} Peça o Pro ao admin: ele libera e ${m.back} aqui mesmo.`, askAdmin: true };
+  if (a === "expired") return { title: "Seu Pro venceu", text: `O plano Pro desta máquina venceu${view?.license.expiresAt ? ` em ${new Date(view.license.expiresAt).toLocaleDateString("pt-BR")}` : ""}. ${comAdmin ? "Peça ao admin para renovar" : "Renove pelo site"} e ${m.back}.`, askAdmin: comAdmin };
+  return { title: `${m.name} é do plano Pro`, text: `${m.pitch} ${comAdmin ? `Peça o Pro ao admin: ele libera e ${m.back} aqui mesmo.` : `Assine o Pro pelo site e ${m.back} aqui mesmo.`}`, askAdmin: comAdmin };
 }
 
 /** Título curto de uma aba interna (favicon à parte): o título da página, senão o domínio, senão "Nova aba". */

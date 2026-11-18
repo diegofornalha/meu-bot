@@ -21,7 +21,13 @@ export interface ContaDevice {
   este: boolean;
 }
 /** Uma máquina (VM com backend) vinculada à conta. */
-export interface ContaMaquina { id: string; apelido: string | null; vinculadaPor: string }
+export interface ContaMaquina {
+  id: string; apelido: string | null; vinculadaPor: string;
+  /** Até quando a última licença emitida vale naquela máquina; null em API antiga ou sem emissão. */
+  proAte: string | null;
+  /** Preenchido = a pessoa tirou a licença pelo console; a vaga abre em `proAte`. */
+  desvinculadaEm: string | null;
+}
 /** O perfil que a pessoa edita no console (console.agentesgrok.com/account/profile): nome e sobrenome. */
 export interface ContaPerfil { nomeProprio: string | null; sobrenome: string | null }
 /** A conta como a API a devolve (`POST /token`, `GET /conta`). */
@@ -42,6 +48,8 @@ export interface ContaInfo {
   licenca: License;
   devices: ContaDevice[];
   maquinas: ContaMaquina[];
+  /** Em quantas máquinas a conta pode usar a licença ao mesmo tempo; null = a API ainda não leva a licença a máquinas. */
+  maquinaLimite: number | null;
   /** Pedidos abertos desta conta (Pro, add-on, device). */
   pedidos: number;
   /** Organizações de que a conta é membro (console › /organizations/<slug>/members). */

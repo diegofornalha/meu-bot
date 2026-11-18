@@ -47,7 +47,7 @@ import { rankPalette, type PaletteItem } from "./lib/palette-rank.js";
 import { ESPACO_THRESHOLDS, buildSegments, previewLine, SL_TEST_COMMAND, thresholdToWarn, timeUntil } from "./lib/status-line.js";
 import { advanceOnboard, FINAL_MESSAGE, SKIPPED_MESSAGE, TOUR_INVITE, initialOnboardState, pickFeedback, welcomeMessage, type Feedback, type OnboardEvent, type OnboardState } from "./lib/onboarding.js";
 import { firstReplyOnHost, FALLBACK_TUTORIAL, XAI_TUTORIAL, clAuth, enterClaude, ligarContasAgente, logoutClaude, logoutXai, navHostsIn, offerClaudeLogin, offerSkillFromTurn, refreshClaudeLine, refreshContasClaude, refreshXaiLine, renderContasClaude, contasClaudeView, xaiAuth, xaiKey } from "./agente/contas-agente.js";
-import { ctx } from "./app/ctx.js";
+import { ctx, ehRemoto } from "./app/ctx.js";
 import { conferirPassos } from "./tutoriais/passos.js";
 import { abaFixaAtual, inserirAba, activatePage, closePage, deactivatePage, definePage, pintarFixada, ehVazia, ligarPaginas, openPage, pageActive, pagePrev, pageShown, pages, preencherEsquerda, relayoutSplit, restoreSplit, splitColunaVazia, splitOff, splitOn, splitOnAny, splitPages, toggleSplit } from "./app/paginas.js";
 import { acervoList, ligarAcervo, paintAcervoCount } from "./acervo/acervo.js";
@@ -72,7 +72,7 @@ import { ligarCatalogo, setTutNext, tutNext, tutoriaisPage } from "./tutoriais/c
 import { crmAfterAgentKey, crmLocalState, crmState, ligarCrmGuia, refreshCrm } from "./crm/crm-guia.js";
 import { crmProprio, license, motorCrm, navLicenseAsked, refreshLicense, setPlanBadge } from "./licenca/licenca.js";
 import { ligarFinanceiroGuia, paintFinanceLine } from "./finance/financeiro-guia.js";
-import { NAV_TUTORIAL, disposeNav, ligarNavegador, navAccess, navCurrent, navCurrentHost, navDonoView, navEstavaAberto, navExtensions, navFavsShown, navMarcarAberto, navPage, navPartition, navServicosCount, navTabs, navZoomStep, openNavTab, origemNome, paintNav, toggleFavsBar } from "./navegador/navegador.js";
+import { NAV_TUTORIAL, disposeNav, ligarNavegador, navAccess, navCurrent, navCurrentHost, navDonoView, navEstavaAberto, navExtensions, navFavsShown, navMarcarAberto, navPage, navPartition, navServicosCount, navTabs, navReavaliar, navZoomStep, openNavTab, origemNome, paintNav, toggleFavsBar } from "./navegador/navegador.js";
 import { cssVar, disposeTerminal, ligarTerminal, openTerminalTab, rethemeTerminals, runInTerminal, terminals, themeNow, xtermClass } from "./terminal/terminal.js";
 import type { XTermCtor } from "./terminal/terminal.js";
 import { askAgentAbout, cancelAutoSend, goToChatFromGuide, preencherChat } from "./conversa/ponte-chat.js";
@@ -83,7 +83,8 @@ import { aceleracaoInput, atualizarOciosoInput, corretorInput, lastUpdate, ligar
 import { abrirAtalhos, abrirBusca, buscaAberta, ligarAlvoWebview, ligarBusca, pararBusca, usarTeclaCmd, type AlvoWebview } from "./busca/busca.js";
 import { dicaTeclas, ehDoShell, rotuloTeclas, temTeclaDoApp } from "./lib/teclas-core.js";
 import { ligarConfiguracoes, maybeAskNotificationsOnce } from "./configuracoes/configuracoes.js";
-import { ligarConta } from "./conta/conta.js";
+import { aoMudarConta, contaAtual, ligarConta } from "./conta/conta.js";
+import { ligarAvisoPlano } from "./lib/aviso-pagamento.js";
 import { paintEspaco } from "./configuracoes/espaco.js";
 import { tam as tamEspaco } from "./lib/espaco.js";
 import type { CotaInfo } from "../shared/ipc";
@@ -2041,7 +2042,16 @@ void (async () => {
   void refreshContas();
   void refreshLinkPublico();
   void refreshGmailGuia();
-  void refreshLicense().then(() => { paintGuide(); contaGoogle.repintar(); gmail.repintar(); computador?.repintar(); });
+  /** A licença da janela pode ter mudado: relê e repinta toda tela que mostra bloqueio de plano. */
+  const relerLicenca = async (): Promise<void> => { await refreshLicense(); paintGuide(); contaGoogle.repintar(); gmail.repintar(); computador?.repintar(); navReavaliar(); if (financePage !== null) void financePage.refresh(); };
+  void relerLicenca();
+  // O aviso de plano sabe quem é a conta e a máquina: é ele que oferece "Usar o meu Pro nesta máquina".
+  ligarAvisoPlano({ conta: contaAtual, remoto: ehRemoto, origem: () => license?.origem, aoLiberar: relerLicenca });
+  // A licença da conta nesta máquina foi renovada ou tirada por baixo (main), ou a conta mudou: em Este Mac o plano
+  // da janela É o da conta, então entrar, sair ou pagar muda o que abre; numa máquina, muda o que o aviso oferece.
+  window.meuBot.on("license:changed", () => { void relerLicenca(); });
+  let planoDaConta = JSON.stringify(contaAtual()?.conta?.licenca ?? null);
+  aoMudarConta(() => { const agora = JSON.stringify(contaAtual()?.conta?.licenca ?? null); if (agora === planoDaConta) return; planoDaConta = agora; void relerLicenca(); });
   void refreshNavInst();
   void refreshCrm();
   const intro = playIntro(); // cobre a janela enquanto as abas voltam; some sozinha

@@ -67,7 +67,8 @@ function parseMaquina(raw: unknown): ContaMaquina | null {
   const r = raw as Record<string, unknown>;
   const id = str(r.id);
   if (id === null || !UUID_RE.test(id)) return null;
-  return { id, apelido: strOuNull(r.apelido), vinculadaPor: str(r.vinculadaPor) ?? "" };
+  const data = (v: unknown): string | null => { const t = strOuNull(v); return t !== null && !Number.isNaN(Date.parse(t)) ? t : null; };
+  return { id, apelido: strOuNull(r.apelido), vinculadaPor: str(r.vinculadaPor) ?? "", proAte: data(r.proAte), desvinculadaEm: data(r.desvinculadaEm) };
 }
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/;
 function parseOrg(raw: unknown): ContaOrg | null {
@@ -100,6 +101,7 @@ export function parseContaInfo(raw: unknown, now: number = Date.now()): ContaInf
     licenca: parseLicense(r.licenca, now),
     devices: Array.isArray(r.devices) ? r.devices.map(parseDevice).filter((d): d is ContaDevice => d !== null) : [],
     maquinas: Array.isArray(r.maquinas) ? r.maquinas.map(parseMaquina).filter((m): m is ContaMaquina => m !== null) : [],
+    maquinaLimite: typeof r.maquinaLimite === "number" && Number.isInteger(r.maquinaLimite) && r.maquinaLimite >= 1 ? r.maquinaLimite : null,
     pedidos: typeof r.pedidos === "number" && Number.isFinite(r.pedidos) && r.pedidos >= 0 ? Math.floor(r.pedidos) : 0,
     orgs: Array.isArray(r.orgs) ? r.orgs.map(parseOrg).filter((o): o is ContaOrg => o !== null) : [],
   };

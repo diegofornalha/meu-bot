@@ -7,10 +7,11 @@ import { VOZES, isVozId } from "../whatsapp/vozes-core";
 import { app, dialog, Menu, Notification } from "electron";
 import fs from "node:fs";
 import path from "node:path";
-import type { AudioSetup, ClaudeLoginEvent, ClaudeSessionRef, ExportFormat, LimiaresClaude, TabMenuAction, WhatsappEvent, WhatsappStatus } from "../../shared/ipc";
+import type { AudioSetup, ClaudeLoginEvent, LicenseView, ClaudeSessionRef, ExportFormat, LimiaresClaude, TabMenuAction, WhatsappEvent, WhatsappStatus } from "../../shared/ipc";
 import { conversationToMarkdown, conversationTitle, slugify } from "../conversa/export";
 import { atualizarContaClaude, conferirContaClaude, criarContaClaude, deleteBackendSession, fetchAccountStatus, fetchAlertPrefs, fetchBackendSession, fetchContasClaude, limiaresContasClaude, log, removerContaClaude, reordenarContasClaude, runBackendTurn, saveAlertPrefs, usarAgoraContaClaude } from "../maquina/backend";
 import { lerLicenca, lerLicencaDaMaquina } from "../licenca/licenca-maquina";
+import { renovarSePreciso, tirarProDaConta, usarProDaConta } from "../licenca/licenca-conta";
 import { assertAcesso, assertFinance } from "../licenca/acesso";
 import { telaAcordar, telaStatus, telaUrl } from "../maquina/tela";
 import { abrirInspector } from "../inspector/inspector";
@@ -355,6 +356,10 @@ export function registerClientIpc(): void {
   handleClient("computador:url", async (event) => telaUrl(await comp(event)));
   // Inspector: só no produto que tem a capacidade (meu-bot-inspector-staging); nos outros o canal recusa.
   handleClient("inspector:abrir", exigeCap("controleRemoto", async () => { if (!caps().inspector) throw new Error("o Inspector só existe no meu-bot-inspector-staging"); return abrirInspector(); }));
+  // A própria pessoa leva a licença da conta dela (Pro e add-ons pagos) à máquina desta janela, e tira.
+  const relerLicenca = (host: string) => async (): Promise<LicenseView | null> => { const lic = await lerLicencaDaMaquina(host); void browserSincronizarCrm(host, lic); return lic.view; };
+  handleClient("plano:usar-da-conta", async (event) => { const h = ctxOf(event); const r = await usarProDaConta(h.host, relerLicenca(h.host)); void registrar(h.host, "plano.conta", "usou a licença da conta nesta máquina", r.ok ? "ok" : r.erro); return r; });
+  handleClient("plano:tirar-da-conta", async (event) => { const h = ctxOf(event); const r = await tirarProDaConta(h.host, relerLicenca(h.host)); void registrar(h.host, "plano.conta", "tirou a licença da conta desta máquina", r.ok ? "ok" : r.erro); return r; });
   handleClient("plano:avisar-pagamento", async (event) => { const h = ctxOf(event); await registrar(h.host, "plano.pago", "avisou que já pagou (aviso de plano)"); log(`[plano] ${h.host}: avisou que já pagou`); });
   // Espaço da conta na máquina (Configurações › Espaço): a cota dela, o que dá para apagar (só caches e workspaces, como ela) e o pedido de mais espaço.
   handleClient("cota:status", (event) => cotaStatus(ctxOf(event).host));
@@ -755,6 +760,8 @@ export function registerClientIpc(): void {
     const h = hostFromEvent(event); if (h === null) throw new Error("origem inválida");
     const lic = await lerLicencaDaMaquina(h.host);
     void browserSincronizarCrm(h.host, lic); // a extensão do CRM acompanha a licença relida (admin liberou o Pro com o app aberto)
+    // A licença da conta nesta máquina vale 30 dias: renova em segundo plano; se o arquivo mudou, a janela relê.
+    void renovarSePreciso(h.host).then((mudou) => { if (mudou && !h.win.isDestroyed()) h.win.webContents.send("license:changed", {}); });
     return lic.view;
   });
   // Avisos de segurança desta máquina (alertas.json, via backend): um Mac novo usou o meu-bot dela.

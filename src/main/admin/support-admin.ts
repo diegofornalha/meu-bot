@@ -4,6 +4,7 @@
  * arquivo só do suporte (~/.ssh/meu-bot-suporte.conf, incluído no topo do ~/.ssh/config) com known_hosts
  * próprio: o admin entra pela chave ~/.ssh/meu-bot-admin, que só funciona enquanto a pessoa deixar.
  */
+import { gravarJsonRemoto } from "../maquina/json-remoto";
 import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
@@ -468,13 +469,8 @@ async function fetchJson(host: string, remotePath: string): Promise<Record<strin
   try { const v = JSON.parse(r.stdout.trim() || "null"); return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {}; } catch { return {}; }
 }
 
-/** Grava um JSON na máquina da pessoa de forma atômica (base64 pela stdin do bash, 700/600 como o backend). */
-async function writeJson(host: string, remotePath: string, value: unknown): Promise<void> {
-  const b64 = Buffer.from(JSON.stringify(value, null, 1), "utf8").toString("base64");
-  const script = `set -e\numask 077\nmkdir -p "$HOME/.local/share/meu-bot"\nprintf '%s' '${b64}' | base64 -d > "${remotePath}.tmp"\nchmod 600 "${remotePath}.tmp"\nmv "${remotePath}.tmp" "${remotePath}"\n`;
-  const r = await runSsh(host, script, 20_000);
-  if (r.code !== 0) throw new Error(`não consegui gravar na máquina: ${lastLine(r)}`);
-}
+/** Grava um JSON na máquina da pessoa de forma atômica (maquina/json-remoto.ts). */
+const writeJson = gravarJsonRemoto;
 
 /** meu-bot-admin: muda a licença da pessoa (plano, status, validade, limite). Grava licenca.json por SSH. */
 export async function setLicense(host: string, patch: LicensePatch): Promise<LicenseView> {
