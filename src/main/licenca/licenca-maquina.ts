@@ -4,7 +4,7 @@
  * arquivos por SSH (`licenca.json` + `maquinas.json`), do mesmo jeito que o admin lê e grava. Sem isso, o Pro que o
  * admin libera numa máquina sem backend-colima nunca chegava à tela da pessoa.
  */
-import type { LicenseView } from "../../shared/ipc";
+import type { LicenseView, PlanName } from "../../shared/ipc";
 import { fetchLicense } from "../maquina/backend";
 import { buildLicenseView, type LicencaDaMaquina } from "./licenca";
 import { licencaEmVigor } from "../conta/licenca-assinada-core";
@@ -17,17 +17,27 @@ import { contaView } from "../conta/conta";
 export const LICENSE_PATH = "$HOME/.local/share/meu-bot/licenca.json";
 export const MACHINES_PATH = "$HOME/.local/share/meu-bot/maquinas.json";
 
+/** Os quatro arquivos de que a licença em vigor depende, num SSH só: admin, devices, conta e o id da máquina. */
+const LER_LICENCA = `cat "${LICENSE_PATH}" 2>/dev/null; echo "<<<REA-SEP>>>"; cat "${MACHINES_PATH}" 2>/dev/null; echo "<<<REA-SEP>>>"; cat "${LICENCA_CONTA_PATH}" 2>/dev/null; echo "<<<REA-SEP>>>"; cat "${MAQUINA_PATH}" 2>/dev/null; echo\n`;
 /**
  * A licença em vigor da máquina lida por SSH: o `licenca.json` do admin somado à licença da conta da pessoa
  * (`licenca-conta.json`, conferida aqui com o id do `maquina.json`), mais os devices do `maquinas.json`. É o que o
  * backend da máquina faz; aqui serve às máquinas sem ele (Hermes) ou com ele fora do ar. null se ela não responde.
  */
-export async function readLicenseViewSsh(host: string): Promise<LicenseView | null> {
-  const r = await runSsh(host, `cat "${LICENSE_PATH}" 2>/dev/null; echo "<<<REA-SEP>>>"; cat "${MACHINES_PATH}" 2>/dev/null; echo "<<<REA-SEP>>>"; cat "${LICENCA_CONTA_PATH}" 2>/dev/null; echo "<<<REA-SEP>>>"; cat "${MAQUINA_PATH}" 2>/dev/null; echo\n`, 20_000).catch(() => null);
+export async function readLicenseViewSsh(host: string, timeoutMs: number = 20_000): Promise<LicenseView | null> {
+  const r = await runSsh(host, LER_LICENCA, timeoutMs).catch(() => null);
   if (r === null || r.code !== 0) return null;
   const [licPart, maqPart, contaPart, idPart] = r.stdout.split("<<<REA-SEP>>>");
   const vigor = licencaEmVigor(jsonCru(licPart), jsonCru(contaPart), idDaMaquinaDe(jsonCru(idPart)));
   return { ...buildLicenseView(vigor.license, jsonCru(maqPart)), origem: vigor.origem };
+}
+/**
+ * Só o plano em vigor, para o selo "PRO" dos seletores (o do app e o do admin). Lia o `licenca.json` sozinho, e o Pro
+ * que a pessoa assina pelo site (que chega em `licenca-conta.json`) abria o Navegador sem acender o selo (18 nov).
+ * null = máquina fora do ar.
+ */
+export async function readPlanoEmVigorSsh(host: string, timeoutMs: number): Promise<PlanName | null> {
+  return (await readLicenseViewSsh(host, timeoutMs))?.license.plan ?? null;
 }
 
 /**

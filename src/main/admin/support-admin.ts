@@ -12,7 +12,7 @@ import path from "node:path";
 import { app } from "electron";
 import type { Abertura, AdminAction, AdminHealth, BotChat, BotMessage, LicensePatch, LicenseView, Pagamento, SupportPerson, SupportProgress, SupportShare, PlanName } from "../../shared/ipc";
 import { applyLicensePatch, parseLicense, parsePagamento } from "../licenca/licenca";
-import { LICENSE_PATH, MACHINES_PATH, readLicenseViewSsh as readLicenseView } from "../licenca/licenca-maquina";
+import { LICENSE_PATH, MACHINES_PATH, readLicenseViewSsh as readLicenseView, readPlanoEmVigorSsh } from "../licenca/licenca-maquina";
 import { BACKEND_DIR_SH } from "../maquina/backend-dir-core";
 import { WA_MOTOR_SH } from "../whatsapp/whatsapp-capacidades";
 import { HERMES_RESTART_SH } from "../whatsapp/whatsapp-hermes-core";
@@ -192,12 +192,8 @@ export async function supportPeople(): Promise<{ people: SupportPerson[]; warnin
   return { people: [...m.values()].map(toPerson).sort((a, b) => a.name.localeCompare(b.name)), warning };
 }
 
-/** Lê só o plano da licença da máquina (SSH curto, melhor esforço); null = fora do ar, ausente ou inválido. */
-async function readPlan(host: string): Promise<PlanName | null> {
-  const r = await runSsh(host, `cat "${LICENSE_PATH}" 2>/dev/null; echo\n`, 10_000).catch(() => null);
-  if (r === null || r.code !== 0) return null;
-  try { const v: unknown = JSON.parse(r.stdout.trim() || "null"); return v !== null && typeof v === "object" && !Array.isArray(v) ? parseLicense(v).plan : null; } catch { return null; }
-}
+/** Lê só o plano em vigor da máquina (SSH curto, melhor esforço); null = fora do ar. */
+const readPlan = (host: string): Promise<PlanName | null> => readPlanoEmVigorSsh(host, 10_000);
 
 /** Pessoas já conhecidas (sem ler a caixa): a lista do seletor abre na hora. */
 export const knownPeople = (): SupportPerson[] => [...load().values()].map(toPerson).sort((a, b) => a.name.localeCompare(b.name));

@@ -9,7 +9,7 @@ import { molduraDaJanela } from "../app/moldura-core";
 import { caps } from "../app/variant";
 import type { MainEventChannel, MainEvents } from "../../shared/ipc";
 import { contaEntrada } from "../conta/conta";
-import { parseLicense } from "../licenca/licenca";
+import { readPlanoEmVigorSsh } from "../licenca/licenca-maquina";
 import { deveAtualizar, precisaAtualizarBackend } from "../atualizacao/updater-core";
 import { app, BrowserWindow, screen, shell } from "electron";
 import path from "node:path";
@@ -426,7 +426,7 @@ export function initPicker(src: PickerSource): void {
     if (!fromPicker(event)) throw new Error("origem inválida");
     return syncSshConfig();
   });
-  // Plano de cada host (licenca.json por SSH, melhor esforço) para o selo "PRO"; local e máquinas fora do ar ficam de fora.
+  // Plano em vigor de cada host (por SSH, melhor esforço) para o selo "PRO"; local e máquinas fora do ar ficam de fora.
   // Um pod do Grok Bot demora até 90 s para aceitar o ssh: com 10 s a grokbot-1 nunca ganhava o selo.
   // Quais máquinas são este próprio Mac por SSH (Colima): `ssh -G` local, sem rede, cacheado por alias.
   handleShared("picker:locais", async (event) => {
@@ -441,12 +441,9 @@ export function initPicker(src: PickerSource): void {
     const hosts = current().hosts().filter((h) => h !== LOCAL_HOST && isValidHost(h) && (typeof so !== "string" || h === so));
     const out: Record<string, PlanName> = {};
     await Promise.all(hosts.map(async (h) => {
-      try {
-        const r = await runSsh(h, `cat "$HOME/.local/share/meu-bot/licenca.json" 2>/dev/null; echo\n`, 90_000);
-        if (r.code !== 0) return;
-        const v: unknown = JSON.parse(r.stdout.trim() || "null");
-        if (v !== null && typeof v === "object" && !Array.isArray(v)) out[h] = parseLicense(v).plan;
-      } catch { /* fora do ar, ausente ou JSON inválido: sem selo */ }
+      // A licença em vigor (admin + conta da pessoa), não só o licenca.json: o Pro assinado pelo site também acende o selo.
+      const plan = await readPlanoEmVigorSsh(h, 90_000).catch(() => null);
+      if (plan !== null) out[h] = plan;
     }));
     return out;
   });
