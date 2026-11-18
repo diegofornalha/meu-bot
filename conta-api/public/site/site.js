@@ -19,15 +19,27 @@
   // O código do clique do anúncio (gclid e afins) fica na aba para a lista de espera saber de qual anúncio veio o contato.
   try { const q = new URLSearchParams(location.search); const cl = q.get("gclid") || q.get("gbraid") || q.get("wbraid"); if (cl) sessionStorage.setItem("mb-clique", cl.slice(0, 200)); } catch { /* sem sessionStorage */ }
   const ua = navigator.userAgent;
-  const celular = /Android|iPhone|iPad|iPod|Windows Phone/i.test(ua);
+  // celular.js (só a home carrega) tem a conta pura: quem é celular, o link para o Mac e a referência do anúncio.
+  const cel = window.MEU_BOT_CELULAR || null;
+  const celular = cel ? cel.ehCelular(ua, navigator.maxTouchPoints) : /Android|iPhone|iPad|iPod|Windows Phone/i.test(ua);
   const windows = !celular && /Windows/i.test(ua);
-  // Home: no celular o download vira "mandar o link para o meu Mac"; cada CTA leva data-ev e a origem.
+  // Home: no celular o download vira conversa no WhatsApp (e, em segundo plano, "mandar o link para o meu Mac"); cada
+  // CTA leva data-ev e a origem.
   if (document.querySelector("[data-ev]")) {
     const fixo = $("cta-fixo");
+    if (cel) {
+      // O link que a pessoa manda para si leva a campanha da visita; a conversa leva de qual anúncio ela veio.
+      const ref = cel.refDoAnuncio(location.search);
+      for (const a of document.querySelectorAll('a[data-ev="link_celular"]')) {
+        const link = cel.linkParaMac(location.search, a.closest(".win") ? "windows" : "celular");
+        a.href = a.dataset.via === "email" ? `mailto:?subject=${encodeURIComponent("meu-bot para Mac")}&body=${encodeURIComponent(`Baixar no Mac: ${link}`)}` : `https://wa.me/?text=${encodeURIComponent(`Baixar o meu-bot no Mac: ${link}`)}`;
+      }
+      for (const a of document.querySelectorAll('a[data-ev="falar_whatsapp"]')) a.href = cel.zapComRef(a.href, ref);
+    }
     if (celular) {
       document.body.classList.add("mobile");
-      const wa = $("cta-cel-wa");
-      if (fixo && wa) { fixo.href = wa.href; fixo.dataset.ev = "link_celular"; fixo.dataset.via = "whatsapp"; fixo.textContent = "Mandar o link para o meu Mac"; }
+      const zap = $("cta-cel-zap");
+      if (fixo && zap) { fixo.href = zap.href; fixo.target = "_blank"; fixo.rel = "noopener"; fixo.dataset.ev = "falar_whatsapp"; fixo.dataset.origem = "fixo"; fixo.textContent = "Falar no WhatsApp"; }
     } else if (windows) {
       document.body.classList.add("windows");
       const wa = $("cta-win-wa");

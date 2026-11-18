@@ -172,6 +172,8 @@ footer a:hover { color: var(--tx); text-decoration: underline; }
 }
 body.mobile .soMac { display: none; }
 body.mobile .cel { display: block; }
+/* No celular o botão fixo do rodapé já é a conversa no WhatsApp: o ícone flutuante sairia repetido. */
+body.mobile .zap { display: none; }
 /* Windows no computador: sem download do Mac; o contato vira lista de espera pelo WhatsApp (site.js põe a classe). */
 body.windows .soMac { display: none; }
 body.windows .win { display: block; }
