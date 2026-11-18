@@ -83,5 +83,5 @@ test("apelido e limite: o que o app e o admin mandam", () => {
   assert.equal(validaApelido("  Karen "), "Karen");
   assert.equal(validaApelido(""), null); assert.equal(validaApelido(7), null); assert.equal(validaApelido("a\u0000b"), null); assert.equal(validaApelido("x".repeat(81)), null);
   assert.deepEqual(validaPatchLicenca({ maquinaLimit: 3 }), { maquinaLimit: 3 });
-  assert.ok("erro" in validaPatchLicenca({ maquinaLimit: 0 })); assert.ok("erro" in validaPatchLicenca({ maquinaLimit: 51 })); assert.ok("erro" in validaPatchLicenca({ maquinaLimit: "2" }));
+  assert.ok("erro" in validaPatchLicenca({ maquinaLimit: 0 })); assert.ok("erro" in validaPatchLicenca({ maquinaLimit: 51 })); assert.ok("erro" in validaPatchLicenca({ maquinaLimit: "2" })); assert.ok("erro" in validaPatchLicenca({ maquinaLimit: 1.5 }));
 });

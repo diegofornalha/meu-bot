@@ -19,15 +19,17 @@ const DESLIGADA = "a licença da conta na máquina ainda não está ligada; fale
 const LIMITE_POR_MIN = 10;
 const vinculo = (m: MaquinaLinha): Vinculo => ({ id: m.id, ultimaEmissaoEm: m.ultima_emissao_em, desvinculadaEm: m.desvinculada_em });
 
-/** Assina a licença em vigor da conta para a máquina e devolve o arquivo, com as máquinas da conta como ficaram. */
-async function emitir(auth: Autenticado, env: Env, maquina: string, agoraMs: number): Promise<Response> {
+/**
+ * Assina a licença em vigor da conta para a máquina e devolve o arquivo; null se a chave do Worker não presta. Vem
+ * ANTES de qualquer gravação: se não dá para assinar, a máquina não ocupa vaga nem fecha pedido.
+ */
+async function assinar(auth: Autenticado, env: Env, maquina: string, agoraMs: number): Promise<Record<string, unknown> | null> {
   const [licenca, devices] = await Promise.all([licencaDaConta(env.DB, auth.conta, agoraIso(agoraMs)), devicesDaConta(env.DB, auth.conta.id)]);
   const p = montarPayload(auth.conta, maquina, licenca, devices, agoraMs);
-  let arquivo: Record<string, unknown>;
-  try { arquivo = licencaJsonV2(p, await assinarLicenca(p, env.LICENCA_PRIVATE_KEY ?? "")); }
-  catch (e) { console.log(`[licenca] não deu para assinar: ${e instanceof Error ? e.message : String(e)}`); return json({ erro: DESLIGADA }, 503); }
-  return json({ licenca: arquivo, maquinas: (await maquinasDaConta(env.DB, auth.conta.id)).map(maquinaApi) });
+  try { return licencaJsonV2(p, await assinarLicenca(p, env.LICENCA_PRIVATE_KEY ?? "")); }
+  catch (e) { console.log(`[licenca] não deu para assinar: ${e instanceof Error ? e.message : String(e)}`); return null; }
 }
+const emitida = async (auth: Autenticado, env: Env, arquivo: Record<string, unknown>): Promise<Response> => json({ licenca: arquivo, maquinas: (await maquinasDaConta(env.DB, auth.conta.id)).map(maquinaApi) });
 
 export async function postMaquina(auth: Autenticado, env: Env, req: Request): Promise<Response> {
   if (!licencaLigada(env)) return json({ erro: DESLIGADA }, 503);
@@ -41,12 +43,16 @@ export async function postMaquina(auth: Autenticado, env: Env, req: Request): Pr
   if (existente !== null && existente.conta_id !== null && existente.conta_id !== auth.conta.id && ocupaVaga(vinculo(existente), agoraMs)) return json({ erro: "esta máquina já usa a licença de outra conta; tire por lá antes de usar a sua" }, 409);
   const d = admitirMaquina(daConta.map(vinculo), id, limite, agoraMs);
   if ("erro" in d) return json({ erro: d.erro, noLimite: true, ocupadas: daConta.filter((m) => d.ocupadas.includes(m.id)).map(maquinaApi) }, 409);
+  const arquivo = await assinar(auth, env, id, agoraMs);
+  if (arquivo === null) return json({ erro: DESLIGADA }, 503);
+  // A conferência da vaga e esta gravação não são uma transação: dois pedidos no mesmo instante, com máquinas
+  // diferentes, podem passar do limite. O limite por minuto segura o abuso, e o excesso aparece no console.
   await vincularMaquina(env.DB, auth.conta.id, id, validaApelido(corpo?.apelido), agora);
   if (d.acao === "vincular") {
     await fecharPedidosDeLiberar(env.DB, auth.conta.id, agora);
     await auditar(env.DB, auth.conta.email, "maquina.vinculada", auth.conta.id, `${id} · ${validaApelido(corpo?.apelido) ?? "-"}`, agora);
   }
-  return emitir(auth, env, id, agoraMs);
+  return emitida(auth, env, arquivo);
 }
 
 export async function postRenovarLicenca(auth: Autenticado, env: Env, id: string): Promise<Response> {
@@ -56,8 +62,10 @@ export async function postRenovarLicenca(auth: Autenticado, env: Env, id: string
   const m = await maquinaPorId(env.DB, id);
   if (m === null || m.conta_id !== auth.conta.id || m.desvinculada_em !== null) return json({ erro: "esta máquina não usa a licença da sua conta" }, 404);
   const agoraMs = Date.now();
+  const arquivo = await assinar(auth, env, id, agoraMs);
+  if (arquivo === null) return json({ erro: DESLIGADA }, 503);
   await vincularMaquina(env.DB, auth.conta.id, id, null, agoraIso(agoraMs));
-  return emitir(auth, env, id, agoraMs);
+  return emitida(auth, env, arquivo);
 }
 
 export async function deleteMaquina(auth: Autenticado, env: Env, id: string, req: Request): Promise<Response> {
