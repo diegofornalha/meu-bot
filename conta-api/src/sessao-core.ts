@@ -180,7 +180,7 @@ export function decidirLiberarDevice(status: string, ativos: number, limite: num
 }
 
 /** O que o admin pode mudar na licença de uma conta (campos omitidos ficam como estão), como LicensePatch do app. */
-export interface PatchLicenca { plan?: "free" | "pro"; status?: "free" | "trialing" | "active" | "expired"; interval?: "month" | "year" | null; trialEnd?: string | null; expiresAt?: string | null; deviceLimit?: number; produtos?: string[]; pagamento?: { instrucoes: string; link: string | null } | null }
+export interface PatchLicenca { plan?: "free" | "pro"; status?: "free" | "trialing" | "active" | "expired"; interval?: "month" | "year" | null; trialEnd?: string | null; expiresAt?: string | null; deviceLimit?: number; maquinaLimit?: number; produtos?: string[]; pagamento?: { instrucoes: string; link: string | null } | null }
 const DATA_RE = /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)?$/;
 const dataOuNull = (v: unknown): string | null | undefined => (v === null ? null : typeof v === "string" && DATA_RE.test(v) && !Number.isNaN(Date.parse(v)) ? new Date(v).toISOString() : undefined);
 export function validaPatchLicenca(raw: unknown): PatchLicenca | { erro: string } {
@@ -192,6 +192,7 @@ export function validaPatchLicenca(raw: unknown): PatchLicenca | { erro: string 
   if (raw.trialEnd !== undefined) { const d = dataOuNull(raw.trialEnd); if (d === undefined) return { erro: "trialEnd: data ISO ou null" }; p.trialEnd = d; }
   if (raw.expiresAt !== undefined) { const d = dataOuNull(raw.expiresAt); if (d === undefined) return { erro: "expiresAt: data ISO ou null" }; p.expiresAt = d; }
   if (raw.deviceLimit !== undefined) { if (typeof raw.deviceLimit !== "number" || !Number.isInteger(raw.deviceLimit) || raw.deviceLimit < 1 || raw.deviceLimit > 50) return { erro: "deviceLimit: inteiro de 1 a 50" }; p.deviceLimit = raw.deviceLimit; }
+  if (raw.maquinaLimit !== undefined) { if (typeof raw.maquinaLimit !== "number" || !Number.isInteger(raw.maquinaLimit) || raw.maquinaLimit < 1 || raw.maquinaLimit > 50) return { erro: "maquinaLimit: inteiro de 1 a 50" }; p.maquinaLimit = raw.maquinaLimit; }
   if (raw.produtos !== undefined) { if (!Array.isArray(raw.produtos) || !raw.produtos.every((x) => typeof x === "string" && /^[a-z][a-z0-9-]{1,40}$/.test(x))) return { erro: "produtos: lista de nomes (letras, dígitos, hífen)" }; p.produtos = [...new Set(raw.produtos as string[])].sort(); }
   if (raw.pagamento !== undefined) {
     if (raw.pagamento === null) p.pagamento = null;
