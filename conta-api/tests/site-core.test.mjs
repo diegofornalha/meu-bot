@@ -101,3 +101,36 @@ test("carrossel da home: o próximo quadro dá a volta nas pontas e o quadro à 
   assert.equal(maisPerto(99999, 400, 5), 4, "não passa do último");
   assert.equal(maisPerto(100, 0, 5), 0, "largura ainda desconhecida");
 });
+
+test("celular da home: iPad conta como celular, o link para o Mac leva a campanha e a conversa leva o anúncio", () => {
+  const window = {};
+  vm.runInNewContext(readFileSync(new URL("../public/site/celular.js", import.meta.url), "utf8"), { window, URL, URLSearchParams });
+  const { ehCelular, linkParaMac, refDoAnuncio, zapComRef } = window.MEU_BOT_CELULAR;
+  const mac = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/18.0 Safari/605.1.15";
+  assert.equal(ehCelular("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)", 5), true);
+  assert.equal(ehCelular("Mozilla/5.0 (Linux; Android 15)", 5), true);
+  assert.equal(ehCelular(mac, 0), false, "Mac de verdade");
+  assert.equal(ehCelular(mac, 5), true, "o iPad se apresenta como Mac, mas tem tela de toque");
+  assert.equal(ehCelular("Mozilla/5.0 (Windows NT 10.0; Win64; x64)", 10), false, "notebook Windows com toque não é celular");
+
+  const anuncio = "?utm_source=google&utm_medium=cpc&utm_campaign=grok-mac-teste&utm_content=empresario&gclid=AbCdEf1234567890";
+  assert.equal(linkParaMac(anuncio, "celular"), "https://agentesgrok.com/?utm_source=google&utm_medium=cpc&utm_campaign=grok-mac-teste&utm_content=empresario-celular", "a campanha segue, o clique não");
+  assert.equal(linkParaMac("?utm_source=google&utm_campaign=x", "windows"), "https://agentesgrok.com/?utm_source=google&utm_campaign=x&utm_content=windows", "sem utm_content, o sufixo é o conteúdo");
+  assert.equal(linkParaMac("", "celular"), "https://agentesgrok.com/?utm_source=celular", "sem campanha, como era");
+  assert.equal(linkParaMac("?gclid=AbCdEf1234567890", "celular"), "https://agentesgrok.com/?utm_source=celular");
+  assert.equal(linkParaMac("?utm_source=a%20b&utm_campaign=x", "celular"), "https://agentesgrok.com/?utm_source=celular", "valor fora do formato não segue");
+
+  assert.equal(refDoAnuncio(anuncio), "empresario");
+  assert.equal(refDoAnuncio("?utm_source=google&utm_campaign=grok-mac-teste"), "grok-mac-teste");
+  assert.equal(refDoAnuncio(""), null);
+  const zap = "https://wa.me/5521923670743?text=Ol%C3%A1!%20Quero%20saber%20mais.";
+  assert.equal(new URL(zapComRef(zap, "empresario")).searchParams.get("text"), "Olá! Quero saber mais. (ref: empresario)");
+  assert.equal(zapComRef(zap, null), zap, "sem anúncio, o link fica como está");
+});
+
+test("home: no celular a conversa no WhatsApp vem antes de mandar o link, e o celular.js carrega antes do site.js", () => {
+  const home = readFileSync(new URL("../public/site/index.html", import.meta.url), "utf8");
+  assert.ok(home.indexOf('id="cta-cel-zap"') > 0 && home.indexOf('id="cta-cel-zap"') < home.indexOf('id="cta-cel-wa"'));
+  assert.match(home, /id="cta-cel-zap"[^>]*data-ev="falar_whatsapp"[^>]*data-origem="celular"[^>]*href="https:\/\/wa\.me\/5521923670743\?/);
+  assert.ok(home.indexOf("/site/celular.js") > 0 && home.indexOf("/site/celular.js") < home.indexOf("/site/site.js"));
+});
