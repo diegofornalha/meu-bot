@@ -1,3 +1,4 @@
+import { estadoAssinaturaPro } from "./plano-core.js";
 // Console da conta meu-bot (console.agentesgrok.com/account/* e /organizations/<slug>/members|settings, molde Rambox). Entra pela mesma página de
 // login do app (auth.agentesgrok.com) com esquema=web: o console gera state + PKCE, a página devolve #code&state, e
 // POST /token {grant:"web"} vira um token de acesso de 1 h guardado neste navegador (localStorage: outra aba, inclusive
@@ -919,9 +920,8 @@ function pintarPlano(c) {
   );
   // Assinar pela AbacatePay: só com os pagamentos ligados no Worker (config.js) e enquanto não há Pro pago ativo.
   // Pro ativo sem assinatura (liberado pelo admin, ou assinatura cancelada com o mês ainda valendo) continua podendo
-  // assinar: o painel só some para quem já tem a assinatura do Pro em andamento. A API segue a mesma regra.
-  const pagoAtivo = (c.assinaturas ?? []).some((a) => a.status === "ACTIVE" && (a.produto === null || a.produto === undefined));
-  const proSemAssinatura = !pagoAtivo && l.plan === "pro" && l.status === "active";
+  // assinar: o painel só some para quem tem a assinatura do Pro em andamento e o Pro valendo (plano-core.js).
+  const { pagoAtivo, proSemAssinatura } = estadoAssinaturaPro(l, c.assinaturas);
   $("pl-assinar").hidden = cfg.pagamentos !== "1" || pagoAtivo;
   $("pl-assinar-ja").hidden = !proSemAssinatura;
   $("pl-assinar-ja").textContent = proSemAssinatura ? `Você já tem o Pro${l.expiresAt ? ` até ${data(l.expiresAt)}` : ""}, sem assinatura ativa. Assinando, a cobrança passa a ser mensal e o prazo que você já tem não é encurtado.` : "";
