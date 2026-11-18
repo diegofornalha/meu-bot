@@ -7,7 +7,7 @@ import path from "node:path";
 import { createRequire } from "node:module";
 const req = createRequire(import.meta.url);
 const { agenteEscolhido, WA_MOTOR_SH } = req("../../dist/main/whatsapp/whatsapp-capacidades.js");
-const { hermesAudioPatch, hermesConfigSetSh, HERMES_WA_ENSURE_SH, HERMES_VOZ_LOCAL_SH } = req("../../dist/main/whatsapp/whatsapp-hermes-core.js");
+const { hermesAudioPatch, hermesConfigSetSh, HERMES_WA_ENSURE_SH, HERMES_VOZ_LOCAL_SH, HERMES_VOZ_ID_SH, hermesVozLocalSh, lerHermesAudio } = req("../../dist/main/whatsapp/whatsapp-hermes-core.js");
 
 test("escolha do motor: openclaw, hermes ou picoclaw; o resto é \"não escolheu\"", () => {
   assert.equal(agenteEscolhido("hermes\n"), "hermes");
@@ -62,4 +62,43 @@ test("scripts do Hermes: o patch vai em base64 (sem aspas soltas no shell) e a c
   for (const s of [sh, HERMES_WA_ENSURE_SH, HERMES_VOZ_LOCAL_SH]) execFileSync("bash", ["-n", "-c", s]);
   assert.match(HERMES_VOZ_LOCAL_SH, /"provider"\] = "voz-local"/);
   assert.match(HERMES_VOZ_LOCAL_SH, /\{input_path\} \{output_path\}/);
+});
+
+test("voz do Hermes: faber no Piper, dora e alex no Kokoro; a tela lê a voz do próprio hermes-voz.sh", async () => {
+  const { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } = await import("node:fs"); const { join } = await import("node:path"); const { tmpdir } = await import("node:os");
+  for (const v of ["faber", "dora", "alex"]) execFileSync("bash", ["-n", "-c", hermesVozLocalSh(v)]);
+  assert.equal(hermesVozLocalSh("faber"), HERMES_VOZ_LOCAL_SH, "sem escolher, a voz de sempre");
+  assert.match(hermesVozLocalSh("faber"), /-m piper -m/);
+  assert.doesNotMatch(hermesVozLocalSh("faber"), /falar\.py|voz=falhou/, "a faber não passa pela prova do Kokoro");
+  assert.match(hermesVozLocalSh("dora"), /kokoro\/falar\.py" pf_dora "\$2" <"\$1"/);
+  assert.match(hermesVozLocalSh("alex"), /kokoro\/falar\.py" pm_alex "\$2" <"\$1"/);
+  assert.doesNotMatch(hermesVozLocalSh("dora"), /-m piper/);
+  assert.match(hermesVozLocalSh("dora"), /fala-texto\.py/, "o texto continua passando pelo filtro");
+  // O instalador do OpenClaw ganhou o modo que só instala o Kokoro.
+  const inst = join(import.meta.dirname, "../../backend-colima/install-voz.sh");
+  execFileSync("bash", ["-n", inst]);
+  assert.match(readFileSync(inst, "utf8"), /motor=ok/);
+  // De ponta a ponta numa HOME de mentira, com um Kokoro falso: a dora troca o script; um Kokoro que falha deixa o de antes.
+  const home = mkdtempSync(join(tmpdir(), "voz-hermes-"));
+  try {
+    // O macOS não traz o `timeout` do coreutils (as máquinas, Linux, trazem): um de mentira só para o teste.
+    mkdirSync(join(home, "bin")); writeFileSync(join(home, "bin/timeout"), '#!/bin/bash\nshift; exec "$@"\n', { mode: 0o755 });
+    const env = { ...process.env, HOME: home, PY: "true", PATH: `${join(home, "bin")}:${process.env.PATH}` };
+    const ler = () => execFileSync("bash", ["-c", HERMES_VOZ_ID_SH], { env, encoding: "utf8" }).trim();
+    assert.equal(ler(), "vozid=", "sem hermes-voz.sh não há voz");
+    const k = join(home, ".local/share/meu-bot/voz/kokoro"); mkdirSync(join(k, "venv/bin"), { recursive: true });
+    const falso = (corpo) => writeFileSync(join(k, "venv/bin/python"), `#!/bin/bash\n${corpo}\n`, { mode: 0o755 });
+    falso('cat >/dev/null; echo "$2" > "$3"');
+    execFileSync("bash", ["-c", hermesVozLocalSh("dora")], { env, encoding: "utf8" });
+    assert.equal(ler(), "vozid=dora");
+    falso("echo sem memoria >&2; exit 1");
+    const out = execFileSync("bash", ["-c", hermesVozLocalSh("alex")], { env, encoding: "utf8" });
+    assert.match(out, /^voz=falhou .*sem memoria/m);
+    assert.doesNotMatch(out, /voz=ok/);
+    assert.equal(ler(), "vozid=dora", "a voz que falhou no teste não entra");
+  } finally { rmSync(home, { recursive: true, force: true }); }
+  const base = "stt=1\ntts=inbound\nprov=groq\n";
+  assert.equal(lerHermesAudio(`${base}vozid=dora\n`).audioVoice, "dora");
+  assert.equal(lerHermesAudio(`${base}vozid=\n`).audioVoice, null, "sem voz instalada");
+  assert.ok(!("audioVoice" in lerHermesAudio(base)), "máquina que não mandou a linha: nada inventado");
 });

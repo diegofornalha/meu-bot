@@ -299,7 +299,7 @@ export function renderAudioControls(container: HTMLElement): void {
   box.append(speak);
   const cards = el("div", "reply-cards voice-cards");
   const marked = waAudioBusy !== null && waAudioBusy !== "in" ? waAudioBusy : current;
-  // O Hermes responde em áudio quando recebe áudio (voice.auto_tts), com a voz dele: sem "sempre" e sem escolher voz.
+  // O Hermes só responde em áudio quando recebe áudio (voice.auto_tts): sem "sempre". A voz escolhe-se como no OpenClaw.
   for (const o of hermes ? VOICE_OPTIONS.filter((v) => v.id !== "always") : VOICE_OPTIONS) {
     const saving = waAudioBusy === o.id;
     const card = el("button", `reply-card${marked === o.id ? " on" : ""}${saving ? " saving" : ""}`);
@@ -307,20 +307,15 @@ export function renderAudioControls(container: HTMLElement): void {
     card.setAttribute("role", "radio"); card.setAttribute("aria-checked", String(marked === o.id));
     const title = el("div", "reply-title"); title.append(el("strong", "", o.title));
     if (o.isDefault) title.append(el("span", "reply-default", "Padrão"));
-    // O spinner no lugar do rádio já diz "aplicando"; texto só quando há download (voz do OpenClaw).
-    if (saving && o.id !== "off" && !hermes) title.append(el("span", "reply-saving", "instalando a voz…"));
+    // O spinner no lugar do rádio já diz "aplicando"; texto só quando pode haver download (a voz).
+    if (saving && o.id !== "off") title.append(el("span", "reply-saving", "instalando a voz…"));
     const body = el("div", "reply-body"); body.append(title, el("p", "", o.text));
     card.append(saving ? el("span", "reply-spin") : el("span", "reply-radio"), body);
-    card.addEventListener("click", () => { if (o.id !== current) void runAudioSetup({ kind: "out", mode: o.id, ...(o.id !== "off" && !hermes ? { voz: waVozEscolhida ?? st?.audioVoice ?? "faber" } : {}) }); });
+    card.addEventListener("click", () => { if (o.id !== current) void runAudioSetup({ kind: "out", mode: o.id, ...(o.id !== "off" ? { voz: waVozEscolhida ?? st?.audioVoice ?? "faber" } : {}) }); });
     cards.append(card);
   }
   box.append(cards);
-  if (hermes) {
-    box.append(el("p", "hint", "Usa a voz do próprio agente. Mudar reinicia o WhatsApp da máquina por alguns segundos."));
-    { const m = audioMsgEl("out"); if (m !== null) box.append(m); }
-    container.append(box);
-    return;
-  }
+  if (hermes) box.append(el("p", "hint", "Mudar o modo ou a voz reinicia o WhatsApp da máquina por alguns segundos."));
   // Voz: com o áudio ligado, troca na hora; desligado, fica guardada para quando ligar. Todas rodam na máquina.
   box.append(el("p", "hint strong-hint", "Voz"));
   const vozes = el("div", "reply-cards voice-cards");

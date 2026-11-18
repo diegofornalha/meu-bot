@@ -4,6 +4,8 @@
 # chave e sem servidor: a extensão tts-local-cli do OpenClaw chama ~/.local/bin/meu-bot-falar com o texto na
 # entrada e o caminho do WAV em {{OutputPath}}; o próprio OpenClaw converte para nota de voz do WhatsApp.
 # Uso: install-voz.sh <off|inbound|always> [faber|dora|alex]   (voz padrão: faber)
+#      install-voz.sh motor <dora|alex>   só instala o Kokoro, sem tocar no OpenClaw: é o que o app usa numa máquina
+#                                         com Hermes, onde quem chama a voz é o hermes-voz.sh. Imprime `motor=ok`.
 #   off     = nunca responde em áudio (instala nada; só desliga)
 #   inbound = responde em áudio quando recebe áudio
 #   always  = toda resposta vira áudio
@@ -11,8 +13,9 @@
 set -euo pipefail
 MODE=${1:-}
 VOZ=${2:-faber}
-case "$MODE" in off|inbound|always) ;; *) echo "uso: install-voz.sh <off|inbound|always> [faber|dora|alex]"; exit 64 ;; esac
+case "$MODE" in off|inbound|always|motor) ;; *) echo "uso: install-voz.sh <off|inbound|always> [faber|dora|alex]  |  install-voz.sh motor <dora|alex>"; exit 64 ;; esac
 case "$VOZ" in faber|dora|alex) ;; *) echo "voz desconhecida: $VOZ (faber, dora ou alex)"; exit 64 ;; esac
+[ "$MODE" != motor ] || [ "$VOZ" != faber ] || { echo "o modo motor é para as vozes do Kokoro (dora ou alex)"; exit 64; }
 KOKORO_PKG=kokoro-onnx==0.4.9
 KOKORO_URL=https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0
 PIPER_URL=https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_linux_x86_64.tar.gz
@@ -49,6 +52,8 @@ venv_ou_avisa() {
   echo "Falta o python3-venv (pacote do sistema) e esta máquina não deixa instalar programas sem senha. O admin instala uma vez (pelo app dele: Preparar máquina › Pacotes do sistema) e aí $para."
   return 1
 }
+# Daqui até o `fi`: só para o OpenClaw (skill, permissões, desligar, voz de terceiros). O modo motor pula.
+if [ "$MODE" != motor ]; then
 command -v openclaw >/dev/null 2>&1 || { echo "esta máquina não tem OpenClaw: a voz é para o agente do WhatsApp dele"; exit 2; }
 
 # O agente (chat do meu-bot e o dono pelo WhatsApp) também troca a voz a pedido: uma cópia deste script fica na máquina
@@ -100,6 +105,7 @@ fi
 # Outra voz já configurada (de quem não é o meu-bot): respeita.
 CUR=$(openclaw config get tts.provider 2>/dev/null | tr -d '"' || true)
 case "$CUR" in ""|*unset*|tts-local-cli) ;; *) echo "o OpenClaw desta máquina já usa outra voz ($CUR); nada foi alterado"; exit 3 ;; esac
+fi
 
 [ "$(uname -m)" = x86_64 ] || { echo "a voz local só está pronta para x86_64 (esta máquina é $(uname -m))"; exit 1; }
 ffmpeg_ou_avisa "a resposta em áudio funciona aqui" || exit 3
@@ -155,6 +161,8 @@ audio, sr = k.create(texto, voice=sys.argv[1], speed=1.0, lang="pt-br")
 sf.write(sys.argv[2], audio, sr)
 PY
 fi
+# Hermes: o motor está pronto; quem o chama é o hermes-voz.sh, que o app grava em seguida.
+if [ "$MODE" = motor ]; then echo "motor=ok"; exit 0; fi
 
 # O meu-bot-falar limpa o texto (fala-texto.py, que o install.sh do backend copia) e chama o motor da voz escolhida,
 # o meu-bot-falar-motor (o provedor no OpenClaw é sempre o tts-local-cli). O install.sh grava o mesmo meu-bot-falar.

@@ -47,6 +47,11 @@ Como funciona:
   `voz/voz-atual`.
 - Se o teste do OpenClaw falhar, a voz volta para a anterior.
 - A Microsoft "grátis" foi descartada: o serviço devolve 403 e 429.
+- **No Hermes** as mesmas três vozes valem (antes só a `faber`): o provedor é o `voz-local` (comando) e quem fala é o
+  `~/.local/share/meu-bot/hermes-voz.sh`. Para `dora` e `alex` o app roda `install-voz.sh motor <voz>` (só o Kokoro,
+  sem tocar no OpenClaw) e grava um `hermes-voz.sh` que chama o `falar.py`; o script novo só troca o atual depois de
+  falar uma frase de teste. A tela lê a voz do próprio `hermes-voz.sh`, não de `voz/voz-atual`. O Kokoro pede ~700 MB
+  livres no teto de RAM da conta.
 - **Pela tela:** no tutorial de áudio, uma seção "Voz" com três cartões.
 - **Pelo chat** (e pelo dono no WhatsApp): o instalador deixa uma cópia de si em `voz/install-voz.sh` e a skill
   `~/.claude/skills/voz-das-respostas`. No `~/.claude/settings.json` libera só esses comandos.
