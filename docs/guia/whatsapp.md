@@ -422,6 +422,11 @@ chat da pessoa consigo mesma — não há modo que atenda os dois. Daí o concei
   `@s.whatsapp.net`) aponta para o dono ao trocar; o preparo depois do QR o deixa no próprio número quando não há
   nenhum (nunca sobrescreve um existente). O dono nunca é pausado (`whatsappPause` recusa; o menu não oferece). No
   OpenClaw a trava de ferramentas (`toolsBySender`) e o `allowFrom` de "só eu" seguem o dono.
+- **Plugin meu-bot-pausa 1.2.0, áudio por conversa:** quem transforma a resposta em áudio é o gateway, depois de o
+  agente escrever; o agente dizia "só texto" e o áudio saía do mesmo jeito (o próprio aviso ia em áudio). A ferramenta
+  `audio_da_conversa(responder_em_audio)` liga o modo de voz por conversa do Hermes (o mesmo do `/voice off`, gravado em
+  `~/.hermes/gateway_voice_mode.json`) para a conversa da sessão atual. O hook guarda em memória a origem da última
+  mensagem de cada número; logo depois de um reinício, antes de a pessoa escrever, a ferramenta orienta o `/voice off`.
 - **Plugin meu-bot-pausa 1.1.0:** `_dono()` soma o `dono.numero` do arquivo ao `me.id`/`me.lid` (cache por mtime de
   cada fonte): do celular dele, `/pausar <número>` e `/pausados` funcionam.
 - **UI, sem tela nova:** no bloco "Quem o agente responde" (modal e tutorial 3), acima dos cartões, a linha

@@ -11,6 +11,13 @@ Sai quando: o status do app imprimir `pausanativa=1` (sonda HERMES_PAUSA_SH troc
 a issue); aí `capacidadesDe` prefere o nativo e `hermesPausaPluginRemoverSh` tira este plugin.
 Tabela: docs/guia/contornos.md.
 
+Áudio por conversa (1.2.0): quem transforma a resposta em áudio é o gateway, depois que o agente escreveu; o agente
+prometia "só texto" e o áudio saía do mesmo jeito. O Hermes tem o modo de voz por conversa (`/voice off`), mas só por
+comando de quem escreve. A ferramenta `audio_da_conversa` liga esse mesmo modo para a conversa da sessão atual: o hook
+guarda de onde veio a última mensagem de cada número e a ferramenta chama `_apply_voice_mode` do gateway.
+As ferramentas recebem os argumentos como o Hermes manda (`handler(args, task_id=…, session_id=…)`) e acham o número
+da conversa pela chave da sessão no state.db: até a 1.1.0 a `pausar_conversa` esperava outra forma e nunca funcionava.
+
 Regras: o dono (me.id/me.lid do creds.json e, se gravado pelo app, `dono.numero` de whatsapp-lista.json — a pessoa
 falando do celular dela quando o agente roda num chip dedicado) nunca é descartado nem pausado; um contato só pausa a si mesmo e só com
 prazo (pausado ele não consegue pedir para voltar); o dono pausa qualquer um, com ou sem prazo. Grupos passam reto.
@@ -25,7 +32,7 @@ import re
 import time
 from datetime import datetime, timedelta, timezone
 
-VERSAO = "1.1.0"  # igual ao plugin.yaml (o teste confere)
+VERSAO = "1.2.0"  # igual ao plugin.yaml (o teste confere)
 NOME = "meu-bot-pausa"
 log = logging.getLogger(NOME)
 
@@ -39,6 +46,9 @@ CMD_RE = re.compile(r"^\s*/(pausar|retomar|pausados)\b(.*)$", re.IGNORECASE | re
 PRAZO_RE = re.compile(r"(\d{1,3})\s*(h|hs|hora|horas|d|dia|dias)\b", re.IGNORECASE)
 
 _lids_avisados = set()
+# Última origem de cada número (gateway e source do evento): é o que a ferramenta de áudio precisa para achar a conversa.
+_conversas = {}
+CONVERSAS_MAX = 500
 
 
 # ------------------------------------------------------------------ tempo
@@ -485,6 +495,7 @@ async def pre_gateway_dispatch(event=None, gateway=None, session_store=None, **k
         nums = _resolver(numeros, lids)
         eu = _dono()
         dono = bool(nums & eu)
+        _lembrar_conversa(nums, gateway, src)
         texto = (getattr(event, "text", "") or "").strip()
         paused = _expirar(agora)
         cmd = _parse_comando(texto)
@@ -515,17 +526,51 @@ async def pre_gateway_dispatch(event=None, gateway=None, session_store=None, **k
 
 
 # ------------------------------------------------------------------ ferramenta para o agente (só a própria conversa)
+SESSAO_RE = re.compile(r":whatsapp:dm:(\d{8,15})")
+
+
 def _numero_da_sessao(kwargs):
+    """Número do contato da conversa em que a ferramenta foi chamada. O Hermes 0.22 só entrega `task_id` e `session_id`
+    (o id curto, "20261118_225127_…", sem número): por isso, depois dos argumentos, tenta o contexto de sessão do
+    gateway e, por fim, a chave da sessão no state.db."""
     for k in ("session_key", "session_id", "task_id", "session"):
-        m = re.search(r":whatsapp:dm:(\d{8,15})", str(kwargs.get(k) or ""))
+        m = SESSAO_RE.search(str(kwargs.get(k) or ""))
         if m:
             return m.group(1)
+    try:
+        from gateway.session_context import get_session_env
+        m = SESSAO_RE.search(str(get_session_env("HERMES_SESSION_KEY", "") or ""))
+        if m:
+            return m.group(1)
+    except Exception:
+        pass
+    try:
+        import sqlite3
+        db = os.path.join(os.environ.get("HERMES_HOME") or os.path.join(_home(), ".hermes"), "state.db")
+        if os.path.exists(db):
+            con = sqlite3.connect("file:" + db + "?mode=ro", uri=True, timeout=2)
+            try:
+                for k in ("session_id", "task_id"):
+                    sid = str(kwargs.get(k) or "")
+                    if not sid:
+                        continue
+                    linha = con.execute("select session_key from sessions where id = ?", (sid,)).fetchone()
+                    m = SESSAO_RE.search(str(linha[0] or "")) if linha else None
+                    if m:
+                        return m.group(1)
+            finally:
+                con.close()
+    except Exception:
+        pass
     return None
 
 
-def _tool_pausar(horas=None, **kwargs):
-    """O agente chama quando o contato pede para pausar: só a conversa da sessão atual e só 2 ou 24 h."""
+def _tool_pausar(args=None, horas=None, **kwargs):
+    """O agente chama quando o contato pede para pausar: só a conversa da sessão atual e só 2 ou 24 h. O Hermes entrega
+    os argumentos da ferramenta num dicionário, na primeira posição (`handler(args, **contexto)`)."""
     try:
+        if isinstance(args, dict):
+            horas = args.get("horas", horas)
         numero = _numero_da_sessao(kwargs)
         if numero is None:
             return json.dumps({"ok": False, "mensagem": "Não sei qual conversa é esta. Oriente a pessoa a mandar /pausar 2h ou /pausar 24h."}, ensure_ascii=False)
@@ -542,6 +587,47 @@ def _tool_pausar(horas=None, **kwargs):
     except Exception as exc:
         return json.dumps({"ok": False, "mensagem": f"Não consegui pausar: {exc}"}, ensure_ascii=False)
 
+
+def _lembrar_conversa(nums, gateway, src):
+    """Guarda gateway e origem da última mensagem de cada número (em memória; some no reinício, e aí a próxima mensagem repõe)."""
+    try:
+        if gateway is None or src is None:
+            return
+        for n in nums:
+            _conversas.pop(n, None)
+            _conversas[n] = (gateway, src)
+        while len(_conversas) > CONVERSAS_MAX:
+            _conversas.pop(next(iter(_conversas)))
+    except Exception:
+        pass
+
+
+def _tool_audio(args=None, responder_em_audio=None, **kwargs):
+    """O agente chama quando o contato pede para não receber (ou voltar a receber) áudio: só a conversa da sessão atual."""
+    try:
+        if isinstance(args, dict):
+            responder_em_audio = args.get("responder_em_audio", responder_em_audio)
+        if not isinstance(responder_em_audio, bool):
+            return json.dumps({"ok": False, "mensagem": "Diga responder_em_audio: false (só texto) ou true (voltar ao áudio)."}, ensure_ascii=False)
+        numero = _numero_da_sessao(kwargs)
+        achado = _conversas.get(numero) if numero else None
+        if achado is None:
+            return json.dumps({"ok": False, "mensagem": "Não achei esta conversa no gateway. Oriente a pessoa a mandar /voice off (para voltar: /voice on)."}, ensure_ascii=False)
+        gateway, src = achado
+        # Os mesmos passos do /voice do Hermes: grava o modo da conversa e avisa o adapter. "voice_only" = só quando recebe áudio.
+        adapter = gateway._delivery_adapter_for(src)
+        gateway._apply_voice_mode(adapter, gateway._voice_key_for_source(src), src.chat_id, "voice_only" if responder_em_audio else "off")
+        log.info("%s: áudio %s para %s, a pedido na conversa", NOME, "ligado" if responder_em_audio else "desligado", numero)
+        return json.dumps({"ok": True, "mensagem": "Esta conversa volta a receber resposta em áudio quando a pessoa mandar áudio." if responder_em_audio else "Áudio desligado nesta conversa: daqui em diante, inclusive esta resposta, vai só texto."}, ensure_ascii=False)
+    except Exception as exc:
+        return json.dumps({"ok": False, "mensagem": f"Não consegui mudar o áudio desta conversa ({exc}). Oriente a pessoa a mandar /voice off."}, ensure_ascii=False)
+
+
+TOOL_AUDIO_SCHEMA = {
+    "name": "audio_da_conversa",
+    "description": "Liga ou desliga a resposta em áudio para o contato desta conversa do WhatsApp. Chame ANTES de responder sempre que a pessoa pedir para não receber áudio (\"para de mandar áudio\", \"só texto\", \"não consigo ouvir\") ou para voltar a receber. Sem chamar, o áudio continua saindo: quem gera o áudio é o sistema, não o seu texto; prometer \"só texto\" não basta.",
+    "parameters": {"type": "object", "properties": {"responder_em_audio": {"type": "boolean", "description": "false = só texto nesta conversa; true = volta a responder em áudio quando a pessoa mandar áudio."}}, "required": ["responder_em_audio"]},
+}
 
 TOOL_SCHEMA = {
     "name": "pausar_conversa",
@@ -568,4 +654,8 @@ def register(ctx):
         ctx.register_tool(name="pausar_conversa", toolset="meu-bot", schema=TOOL_SCHEMA, handler=_tool_pausar, description=TOOL_SCHEMA["description"], emoji="⏸")
     except Exception:
         log.info("%s: ferramenta para o agente não registrada; /pausar 2h continua valendo", NOME)
+    try:
+        ctx.register_tool(name="audio_da_conversa", toolset="meu-bot", schema=TOOL_AUDIO_SCHEMA, handler=_tool_audio, description=TOOL_AUDIO_SCHEMA["description"], emoji="🔇")
+    except Exception:
+        log.info("%s: ferramenta de áudio não registrada; /voice off continua valendo", NOME)
     _gravar_carregado()

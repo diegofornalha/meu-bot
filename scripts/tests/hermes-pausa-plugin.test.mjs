@@ -22,7 +22,10 @@ class Adapter:
 class Plat:
     value = "whatsapp"
 class GW:
-    def __init__(s, com_adapter): s.enviadas = []; s.adapters = {Plat(): Adapter(s)} if com_adapter else {}
+    def __init__(s, com_adapter): s.enviadas = []; s.adapters = {Plat(): Adapter(s)} if com_adapter else {}; s.voz = []
+    def _delivery_adapter_for(s, src): return "adapter"
+    def _voice_key_for_source(s, src): return "whatsapp:" + str(src.chat_id)
+    def _apply_voice_mode(s, adapter, chave, chat_id, modo): s.voz.append([adapter, chave, chat_id, modo])
 ctx = Ctx(); m.register(ctx)
 cen = json.load(sys.stdin); gw = GW(cen.get("adapter", True))
 out = {"hooks": list(ctx.hooks), "tools": list(ctx.tools), "versao": m.VERSAO, "passos": []}
@@ -33,8 +36,10 @@ for p in cen["passos"]:
         ev = types.SimpleNamespace(text=p.get("text", ""), message_type=p.get("tipo", "text"), user_id=p.get("user_id"), user_name=p.get("nome"), source=src, media_urls=[])
         out["passos"].append(asyncio.run(ctx.hooks["pre_gateway_dispatch"](event=ev, gateway=gw)))
     elif p["t"] == "tool":
-        out["passos"].append(json.loads(ctx.tools["pausar_conversa"](**p["args"])))
-out["enviadas"] = gw.enviadas
+        # "pos" = como o Hermes chama de verdade: os argumentos num dicionário, na primeira posição, e o contexto por nome.
+        h = ctx.tools[p.get("tool", "pausar_conversa")]
+        out["passos"].append(json.loads(h(p["pos"], **p.get("args", {})) if "pos" in p else h(**p["args"])))
+out["enviadas"] = gw.enviadas; out["voz"] = gw.voz
 print(json.dumps(out, ensure_ascii=False))
 `;
 
@@ -61,7 +66,7 @@ test("register: só o hook pre_gateway_dispatch e a ferramenta; a versão do mó
   const home = homeFalso();
   const r = rodar(home, []);
   assert.deepEqual(r.hooks, ["pre_gateway_dispatch"]);
-  assert.deepEqual(r.tools, ["pausar_conversa"]);
+  assert.deepEqual(r.tools, ["pausar_conversa", "audio_da_conversa"]);
   const yaml = readFileSync(join(PLUGIN, "plugin.yaml"), "utf8");
   assert.equal(r.versao, /^version:\s*"?([\w.-]+)"?/m.exec(yaml)[1]);
   const carregado = JSON.parse(readFileSync(join(home, ".local", "share", "meu-bot", "whatsapp-pausa.carregado"), "utf8"));
@@ -200,6 +205,45 @@ test("ferramenta do agente: só a conversa da sessão atual, só 2 ou 24 h; sem 
   assert.equal(r.passos[2].ok, false); assert.match(r.passos[2].mensagem, /\/pausar 2h/);
   assert.equal(r.passos[3].ok, false); assert.match(r.passos[3].mensagem, /dono/);
   assert.equal(lista(home).paused[DIEGO].ate, "2026-10-29T15:00:00Z"); assert.equal(lista(home).paused[OUTRO], undefined);
+});
+
+test("áudio da conversa: a ferramenta liga o modo de voz do gateway só para a conversa da sessão; sem mensagem vista, orienta o /voice off", { skip: semPython }, () => {
+  const home = homeFalso();
+  const sess = (n) => ({ session_key: `agent:main:whatsapp:dm:${n}` });
+  const r = rodar(home, [
+    { agora: T0, t: "tool", tool: "audio_da_conversa", args: { responder_em_audio: false, ...sess(DIEGO) } },
+    { t: "evento", chat_id: `${LID}@lid`, user_id: jid(DIEGO), user_id_alt: `${LID}@lid`, text: "pode parar de me responder em áudio?" },
+    { t: "tool", tool: "audio_da_conversa", args: { responder_em_audio: false, ...sess(DIEGO) } },
+    { t: "tool", tool: "audio_da_conversa", args: { responder_em_audio: true, ...sess(DIEGO) } },
+    { t: "tool", tool: "audio_da_conversa", args: { responder_em_audio: false, ...sess(OUTRO) } },
+    { t: "tool", tool: "audio_da_conversa", args: { responder_em_audio: "não", ...sess(DIEGO) } },
+  ]);
+  assert.equal(r.passos[0].ok, false); assert.match(r.passos[0].mensagem, /\/voice off/, "gateway recém-reiniciado: ainda não viu a conversa");
+  assert.equal(r.passos[1], null, "a mensagem segue normal para o agente");
+  assert.equal(r.passos[2].ok, true); assert.match(r.passos[2].mensagem, /só texto/);
+  assert.equal(r.passos[3].ok, true);
+  assert.equal(r.passos[4].ok, false, "outra conversa não é mexida");
+  assert.equal(r.passos[5].ok, false);
+  // A chave e o chat são os do evento (aqui, o LID), como o /voice do Hermes faria.
+  assert.deepEqual(r.voz, [["adapter", `whatsapp:${LID}@lid`, `${LID}@lid`, "off"], ["adapter", `whatsapp:${LID}@lid`, `${LID}@lid`, "voice_only"]]);
+});
+
+test("ferramentas como o Hermes chama: argumentos num dicionário e só o id curto da sessão; o número vem do state.db", { skip: semPython }, () => {
+  const home = homeFalso();
+  execFileSync("python3", ["-I", "-c", `import sqlite3, sys
+c = sqlite3.connect(sys.argv[1]); c.execute("create table sessions (id text primary key, session_key text)")
+c.execute("insert into sessions values (?, ?)", ("20261118_225127_be7d4a8a", "agent:main:whatsapp:dm:${DIEGO}")); c.commit()`, join(home, ".hermes", "state.db")]);
+  const ctxHermes = { task_id: "t1", session_id: "20261118_225127_be7d4a8a", user_task: "x" };
+  const r = rodar(home, [
+    { agora: T0, t: "evento", chat_id: `${LID}@lid`, user_id: jid(DIEGO), user_id_alt: `${LID}@lid`, text: "para de mandar áudio" },
+    { t: "tool", tool: "audio_da_conversa", pos: { responder_em_audio: false }, args: ctxHermes },
+    { t: "tool", tool: "pausar_conversa", pos: { horas: 2 }, args: ctxHermes },
+    { t: "tool", tool: "audio_da_conversa", pos: { responder_em_audio: false }, args: { ...ctxHermes, session_id: "desconhecida" } },
+  ]);
+  assert.equal(r.passos[1].ok, true, JSON.stringify(r.passos[1]));
+  assert.deepEqual(r.voz, [["adapter", `whatsapp:${LID}@lid`, `${LID}@lid`, "off"]]);
+  assert.equal(r.passos[2].ok, true, JSON.stringify(r.passos[2])); assert.equal(lista(home).paused[DIEGO].ate, "2026-10-29T15:00:00Z");
+  assert.equal(r.passos[3].ok, false, "sessão que não está no banco: não mexe em conversa nenhuma");
 });
 
 test("fail-open: lista corrompida = ninguém pausado; pasta sem escrita não derruba o hook", { skip: semPython }, () => {
