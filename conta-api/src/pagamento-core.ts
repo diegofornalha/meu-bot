@@ -188,6 +188,68 @@ export function precoExigido(produto: string | null | undefined, precoPro: numbe
   return addons.find((a) => a.nome === produto)?.centavos ?? Number.MAX_SAFE_INTEGER;
 }
 
+/** A promoção do primeiro mês do Pro neste ambiente: o código do cupom na AbacatePay, quanto a primeira cobrança sai e por quantos dias depois do teste ela vale. */
+export interface Promo { cupom: string; precoCentavos: number; dias: number }
+
+/**
+ * Lê `PROMO_CUPOM`, `PROMO_PRECO_CENTAVOS` e `PROMO_DIAS`. Sem cupom a promoção está desligada (null). Preço ou prazo
+ * escritos fora da forma também desligam, em vez de valer um número que não é o do cupom: o preço é inteiro, de
+ * R$ 1,00 para cima (a AbacatePay recusa total entre R$ 0,01 e R$ 0,99) e abaixo do preço cheio; o prazo, de 1 a 30 dias.
+ */
+export function lerPromo(cupom: string | undefined, preco: string | undefined, dias: string | undefined, precoPro: number): Promo | null {
+  const c = (cupom ?? "").trim();
+  if (!/^[A-Za-z0-9_.-]{1,60}$/.test(c)) return null;
+  const p = (preco ?? "").trim() === "" ? 100 : Number(preco), d = (dias ?? "").trim() === "" ? 3 : Number(dias);
+  if (!Number.isInteger(p) || p < 100 || p >= precoPro) return null;
+  if (!Number.isInteger(d) || d < 1 || d > 30) return null;
+  return { cupom: c, precoCentavos: p, dias: d };
+}
+
+const DIA_MS = 24 * 60 * 60 * 1000;
+/**
+ * A conta tem direito ao primeiro mês do Pro pelo preço da promoção? Devolve até quando (`ate`), ou null. Tem quando:
+ * há cupom configurado; o teste grátis já acabou (`trialEnd` no passado) e a conta não está com o Pro ativo; ainda não
+ * passaram `promoDias` desde o fim do teste; e a conta nunca pagou o Pro (uma vez por conta).
+ * - Conta sem `trialEnd` (nunca teve teste, ou teve o teste negado por já ter apagado uma conta com o mesmo e-mail) não tem.
+ * - Teste estendido à mão pelo admin ("+30 dias de teste" muda o `trialEnd`): a janela conta a partir do `trialEnd`
+ *   em vigor, então quem ganhou mais 30 dias tem os `promoDias` depois deles. Se o admin troca o status para outro que
+ *   não Trial, o formulário apaga o `trialEnd` e a conta deixa de ter direito.
+ */
+export function direitoPromo(p: { licenca: { plan: string; status: string; trialEnd: string | null; expiresAt: string | null }; jaPagouPro: boolean; agoraMs: number; promoDias: number; cupom: string }): { ate: string } | null {
+  if (p.cupom.trim() === "" || p.jaPagouPro || !(p.promoDias > 0)) return null;
+  const l = p.licenca;
+  const fim = Date.parse(l.trialEnd ?? "");
+  if (Number.isNaN(fim) || fim > p.agoraMs) return null;
+  if (l.plan === "pro" && l.status === "active") {
+    const vale = l.expiresAt === null ? NaN : Date.parse(l.expiresAt);
+    if (Number.isNaN(vale) || vale > p.agoraMs) return null;
+  }
+  const ate = fim + p.promoDias * DIA_MS;
+  return p.agoraMs <= ate ? { ate: new Date(ate).toISOString() } : null;
+}
+
+/**
+ * O que muda no `subscriptions/create` conforme a promoção. Sem direito (`promo` null: teste ainda em vigor, prazo
+ * vencido, já pagou, add-on): as formas de pagamento do ambiente, sem cupom, e com a segunda tentativa sem Pix
+ * (`metodosSemPix`). Com direito: só cartão (a AbacatePay só aceita cupom em assinatura no cartão), o cupom em
+ * `coupons` e uma tentativa só.
+ */
+export function pedidoDoCheckout(promo: { cupom: string } | null, metodos: readonly string[]): { methods: string[]; coupons?: string[]; tentarSemPix: boolean } {
+  return promo === null ? { methods: [...metodos], tentarSemPix: true } : { methods: ["CARD"], coupons: [promo.cupom], tentarSemPix: false };
+}
+
+/**
+ * O preço que ESTA cobrança precisa atingir. É o `precoExigido` do produto, com uma exceção: a primeira cobrança
+ * (`subscription.completed`) de um checkout do Pro criado com a promoção, numa conta que nunca tinha pago o Pro, exige
+ * o preço da promoção. Renovação, add-on, checkout sem a marca da promoção e conta que já pagou antes (dois checkouts
+ * da promoção abertos na mesma janela) continuam no preço cheio: pagos com menos, vão para a revisão do admin.
+ */
+export function precoDaCobranca(p: { evento: string; checkout: { produto: string | null; promo: boolean } | null; precoPro: number; addons: readonly OfertaAddon[]; promoCentavos: number | null; jaPagouPro: boolean }): number {
+  const cheio = precoExigido(p.checkout?.produto, p.precoPro, p.addons);
+  const naPromo = p.checkout !== null && p.checkout.promo && (p.checkout.produto === null || p.checkout.produto === "") && p.evento === "subscription.completed" && !p.jaPagouPro && p.promoCentavos !== null && p.promoCentavos > 0;
+  return naPromo ? Math.min(p.promoCentavos as number, cheio) : cheio;
+}
+
 /**
  * A AbacatePay recusa a assinatura inteira quando `methods` traz PIX e o Pix Automático não está liberado na loja
  * (a liberação é pedida ao suporte deles). Devolve a lista sem o PIX para uma segunda tentativa; null quando não é

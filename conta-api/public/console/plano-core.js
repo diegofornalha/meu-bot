@@ -13,6 +13,22 @@ export function estadoAssinaturaPro(licenca, assinaturas) {
   return { pagoAtivo: proAtivo && assina, proSemAssinatura: proAtivo && !assina };
 }
 
+/**
+ * A promoção do primeiro mês que a API mandou em `conta.promo` ({precoCentavos, ate, cupom}), conferida campo a campo;
+ * null quando não veio, veio fora da forma ou o prazo já passou (a tela fica aberta e o prazo acaba).
+ */
+export function promoNaTela(promo, agoraMs = Date.now()) {
+  if (promo === null || typeof promo !== "object") return null;
+  const { precoCentavos, ate, cupom } = promo;
+  if (!Number.isInteger(precoCentavos) || precoCentavos <= 0 || typeof cupom !== "string" || cupom === "" || typeof ate !== "string") return null;
+  const fim = Date.parse(ate);
+  if (Number.isNaN(fim) || fim < agoraMs) return null;
+  return { precoCentavos, ate, cupom };
+}
+
+/** "R$ 1" para valor redondo, "R$ 1,50" para o resto: o preço como o site o escreve. */
+export const reaisCurto = (centavos) => `R$ ${centavos % 100 === 0 ? String(centavos / 100) : (centavos / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
 const HORA = 60 * 60 * 1000, DIA = 24 * HORA;
 /** Quando o plano acaba, em ms: o `expiresAt` e, sem ele, o `trialEnd`; null sem data válida. */
 export function fimDoPlano(licenca) { const fim = Date.parse(licenca?.expiresAt ?? licenca?.trialEnd ?? ""); return Number.isNaN(fim) ? null : fim; }
@@ -36,4 +52,15 @@ export function contagemRegressiva(licenca, agoraMs) {
   if (falta <= 0) { const d = Math.floor(-falta / DIA); return { texto: d === 0 ? `${teste ? "teste" : "Pro"} venceu hoje` : `${teste ? "teste" : "Pro"} venceu há ${d} dia${d === 1 ? "" : "s"}`, tom: "mau" }; }
   if (falta <= DIA) { const h = Math.ceil(falta / HORA); return { texto: h <= 1 ? `falta menos de 1 hora ${de}` : `faltam ${h} horas ${de}`, tom: "mau" }; }
   return { texto: `faltam ${diasAteOFim(licenca, agoraMs)} dias ${de}`, tom: "ok" };
+}
+
+/**
+ * O que o "Assinar" manda à API além dos ids do GA4. Add-on: só o `produto`. Pro com a promoção na tela: `promo: true`
+ * (se o prazo acabou, a API recusa em vez de abrir o preço cheio sem avisar), ou `semPromo: true` quando a pessoa
+ * escolheu pagar por Pix, sem o desconto (o cupom só vale no cartão).
+ */
+export function pedidoAssinar(produto, promoMostrada, semPromo = false) {
+  if (produto !== null && produto !== undefined) return { produto };
+  if (promoMostrada === null || promoMostrada === undefined) return {};
+  return semPromo ? { semPromo: true } : { promo: true };
 }

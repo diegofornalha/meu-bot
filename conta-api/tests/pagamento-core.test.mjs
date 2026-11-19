@@ -1,7 +1,7 @@
 // Assinatura do Pro pela AbacatePay: conferência do webhook, leitura do evento, decisão, prazo e a compra do GA4.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { assinaturaIdValido, resultadoCancelamento, CHAVE_HMAC_ABACATEPAY, clientIdDeReserva, clientIdValido, compraGa4, decidir, hmacBase64, iguais, lerAddons, lerEvento, licencaComAddons, metodosSemPix, precoExigido, refValida, sessionIdValido, validoAte, webhookConfere, umaPorContaEProduto } from "../dist/pagamento-core.js";
+import { assinaturaIdValido, resultadoCancelamento, CHAVE_HMAC_ABACATEPAY, clientIdDeReserva, clientIdValido, compraGa4, decidir, hmacBase64, iguais, lerAddons, lerEvento, licencaComAddons, metodosSemPix, precoExigido, precoDaCobranca, pedidoDoCheckout, direitoPromo, lerPromo, refValida, sessionIdValido, validoAte, webhookConfere, umaPorContaEProduto } from "../dist/pagamento-core.js";
 
 const SECRET = "s".repeat(40);
 const REF = "mb_123e4567-e89b-12d3-a456-426614174000";
@@ -207,3 +207,118 @@ test("assinaturaIdValido: só subs_… curto, sem espaço nem barra", () => {
   assert.equal(assinaturaIdValido("subs_abc123XYZ"), true);
   for (const x of ["", "bill_1", "subs_", "subs_a b", "subs_a/b", `subs_${"a".repeat(91)}`, 5, null, undefined]) assert.equal(assinaturaIdValido(x), false, String(x));
 });
+
+// ---- Promoção do primeiro mês (PROMO_CUPOM): quem tem direito e quanto a cobrança precisa atingir.
+const DIA = 24 * 60 * 60 * 1000;
+const FIM = Date.parse("2026-11-10T12:00:00.000Z");
+const vencido = { plan: "pro", status: "trialing", trialEnd: new Date(FIM).toISOString(), expiresAt: new Date(FIM).toISOString() };
+const direito = (over = {}) => direitoPromo({ licenca: vencido, jaPagouPro: false, agoraMs: FIM + DIA, promoDias: 3, cupom: "PRIMEIROMES", ...over });
+
+test("lerPromo: sem cupom a promoção está desligada; preço e prazo ausentes valem R$ 1 e 3 dias; fora da forma desligam", () => {
+  assert.equal(lerPromo("", "100", "3", 9700), null);
+  assert.equal(lerPromo(undefined, undefined, undefined, 9700), null);
+  assert.deepEqual(lerPromo(" PRIMEIROMES ", "100", "3", 9700), { cupom: "PRIMEIROMES", precoCentavos: 100, dias: 3 });
+  assert.deepEqual(lerPromo("PRIMEIROMES", undefined, "", 9700), { cupom: "PRIMEIROMES", precoCentavos: 100, dias: 3 });
+  assert.equal(lerPromo("PRIMEIROMES", "97", "3", 9700), null, "abaixo de R$ 1,00 a AbacatePay recusa");
+  assert.equal(lerPromo("PRIMEIROMES", "9700", "3", 9700), null, "o preço da promoção fica abaixo do cheio");
+  assert.equal(lerPromo("PRIMEIROMES", "1.5", "3", 9700), null);
+  assert.equal(lerPromo("PRIMEIROMES", "100", "0", 9700), null);
+  assert.equal(lerPromo("PRIMEIROMES", "100", "x", 9700), null);
+  assert.equal(lerPromo("com espaço", "100", "3", 9700), null);
+});
+
+test("direitoPromo: vale do fim do teste até promoDias depois, para quem nunca pagou o Pro", () => {
+  assert.deepEqual(direito(), { ate: new Date(FIM + 3 * DIA).toISOString() });
+  assert.deepEqual(direito({ agoraMs: FIM }), { ate: new Date(FIM + 3 * DIA).toISOString() }, "no instante em que o teste acaba");
+  assert.deepEqual(direito({ agoraMs: FIM + 3 * DIA }), { ate: new Date(FIM + 3 * DIA).toISOString() }, "o último instante do prazo ainda vale");
+  assert.equal(direito({ agoraMs: FIM + 3 * DIA + 1 }), null, "passado o prazo, perde o direito");
+  assert.equal(direito({ agoraMs: FIM - 1 }), null, "teste ainda em vigor");
+});
+
+test("direitoPromo: sem cupom, quem já pagou, quem nunca teve teste e quem está com o Pro ativo não têm", () => {
+  assert.equal(direito({ cupom: "" }), null, "promoção desligada");
+  assert.equal(direito({ cupom: "  " }), null);
+  assert.equal(direito({ jaPagouPro: true }), null, "uma vez por conta");
+  assert.equal(direito({ promoDias: 0 }), null);
+  assert.equal(direito({ licenca: { plan: "free", status: "free", trialEnd: null, expiresAt: null } }), null, "nunca teve teste, ou teste negado");
+  assert.equal(direito({ licenca: { ...vencido, trialEnd: "lixo" } }), null);
+  assert.equal(direito({ licenca: { plan: "pro", status: "active", trialEnd: vencido.trialEnd, expiresAt: null } }), null, "Pro ativo sem prazo (dado pelo admin)");
+  assert.equal(direito({ licenca: { plan: "pro", status: "active", trialEnd: vencido.trialEnd, expiresAt: new Date(FIM + 30 * DIA).toISOString() } }), null, "Pro ativo valendo");
+  assert.notEqual(direito({ licenca: { plan: "pro", status: "active", trialEnd: vencido.trialEnd, expiresAt: new Date(FIM + DIA / 2).toISOString() } }), null, "Pro que já venceu não tira o direito");
+  assert.notEqual(direito({ licenca: { plan: "free", status: "expired", trialEnd: vencido.trialEnd, expiresAt: null } }), null);
+});
+
+test("direitoPromo: teste estendido pelo admin (+30 dias) conta a janela a partir do trialEnd novo", () => {
+  const novoFim = FIM + 30 * DIA;
+  const estendido = { plan: "pro", status: "trialing", trialEnd: new Date(novoFim).toISOString(), expiresAt: new Date(novoFim).toISOString() };
+  assert.equal(direito({ licenca: estendido, agoraMs: FIM + DIA }), null, "durante os 30 dias a mais, ainda é teste");
+  assert.deepEqual(direito({ licenca: estendido, agoraMs: novoFim + 2 * DIA }), { ate: new Date(novoFim + 3 * DIA).toISOString() });
+  assert.equal(direito({ licenca: estendido, agoraMs: novoFim + 4 * DIA }), null);
+});
+
+// Os quatro casos do webhook: o preço exigido sai de precoDaCobranca e vai para decidir.
+const cobranca = (ev, pago, promo, over = {}) => {
+  const e = lerEvento(evento({ event: ev }, { payment: { id: "card_1", amount: pago, paidAmount: pago, status: "APPROVED" } }));
+  return decidir(e, "producao", precoDaCobranca({ evento: e.evento, checkout: { produto: null, promo }, precoPro: 9700, addons: [], promoCentavos: 100, jaPagouPro: false, ...over }));
+};
+
+test("promoção no webhook: checkout com promo, primeira cobrança de R$ 1 libera, com o valor realmente pago", () => {
+  const d = cobranca("subscription.completed", 100, true);
+  assert.equal(d.acao, "liberar"); assert.equal(d.valor, 100); assert.equal(d.primeira, true);
+  // O purchase do GA4 leva o que entrou (R$ 1), não o preço cheio.
+  const ev = compraGa4({ clientId: "1.1700000000", sessionId: null, pagamentoId: d.pagamentoId, valorCentavos: d.valor, primeira: d.primeira, ambiente: "producao" }).events[0];
+  assert.equal(ev.name, "purchase"); assert.equal(ev.params.value, 1); assert.equal(ev.params.items[0].price, 1);
+});
+
+test("promoção no webhook: checkout com promo, renovação de R$ 1 vai para revisão (renovação é preço cheio)", () => {
+  const d = cobranca("subscription.renewed", 100, true);
+  assert.equal(d.acao, "revisar"); assert.match(d.motivo, /abaixo de 9700/);
+  assert.equal(cobranca("subscription.renewed", 9700, true).acao, "liberar");
+});
+
+test("promoção no webhook: checkout SEM promo pago com R$ 1 continua indo para revisão", () => {
+  const d = cobranca("subscription.completed", 100, false);
+  assert.equal(d.acao, "revisar"); assert.match(d.motivo, /pago 100 centavos, abaixo de 9700/);
+});
+
+test("promoção no webhook: checkout com promo pago pelo preço cheio na primeira cobrança libera", () => {
+  const d = cobranca("subscription.completed", 9700, true);
+  assert.equal(d.acao, "liberar"); assert.equal(d.valor, 9700);
+});
+
+test("precoDaCobranca: a promoção não vale para add-on, conta que já pagou, promoção desligada nem evento sem checkout", () => {
+  const addons = lerAddons('{"meu-bot-finance":{"produto":"prod_abcdef12","centavos":99700,"rotulo":"Finanças"}}');
+  const base = { evento: "subscription.completed", checkout: { produto: null, promo: true }, precoPro: 9700, addons, promoCentavos: 100, jaPagouPro: false };
+  assert.equal(precoDaCobranca(base), 100);
+  assert.equal(precoDaCobranca({ ...base, checkout: { produto: "meu-bot-finance", promo: true } }), 99700, "add-on nunca entra na promoção");
+  assert.equal(precoDaCobranca({ ...base, jaPagouPro: true }), 9700, "segundo checkout da promoção na mesma conta");
+  assert.equal(precoDaCobranca({ ...base, promoCentavos: null }), 9700, "cupom tirado da configuração");
+  assert.equal(precoDaCobranca({ ...base, checkout: null }), 9700);
+  assert.equal(precoDaCobranca({ ...base, promoCentavos: 20000 }), 9700, "nunca acima do preço cheio");
+  assert.equal(cobranca("subscription.completed", 100, true, { jaPagouPro: true }).acao, "revisar");
+});
+
+test("checkout: com o teste EM VIGOR não há promoção (preço cheio, métodos normais, sem cupom); só depois do trialEnd, por PROMO_DIAS", () => {
+  const promo = lerPromo("PRIMEIROMES1", "100", "3", 9700);
+  const METODOS = ["CARD", "PIX"];
+  // O mesmo caminho de postAssinatura: direitoPromo decide, pedidoDoCheckout monta o que vai à AbacatePay.
+  const pedido = (agoraMs, over = {}) => {
+    const d = direitoPromo({ licenca: vencido, jaPagouPro: false, agoraMs, promoDias: promo.dias, cupom: promo.cupom, ...over });
+    return pedidoDoCheckout(d === null ? null : promo, METODOS);
+  };
+  const normal = { methods: ["CARD", "PIX"], tentarSemPix: true };
+  const comCupom = { methods: ["CARD"], coupons: ["PRIMEIROMES1"], tentarSemPix: false };
+  for (const [quando, t] of [["primeiro dia do teste", FIM - 3 * DIA], ["último segundo do teste", FIM - 1000]]) {
+    const p = pedido(t);
+    assert.deepEqual(p, normal, quando);
+    assert.equal("coupons" in p, false, `${quando}: sem a chave coupons no corpo`);
+  }
+  assert.deepEqual(pedido(FIM), comCupom, "o teste acabou agora");
+  assert.deepEqual(pedido(FIM + 3 * DIA), comCupom, "último instante do prazo");
+  assert.deepEqual(pedido(FIM + 3 * DIA + 1000), normal, "passado o prazo, preço normal");
+  assert.deepEqual(pedido(FIM + DIA, { jaPagouPro: true }), normal, "quem já pagou o Pro");
+  // Quem assina durante o teste paga o preço cheio: o checkout nasce sem a marca e R$ 1 não libera.
+  assert.equal(cobranca("subscription.completed", 100, false).acao, "revisar");
+  assert.equal(cobranca("subscription.completed", 9700, false).acao, "liberar");
+});
+

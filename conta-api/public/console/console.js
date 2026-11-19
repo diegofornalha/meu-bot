@@ -1,4 +1,4 @@
-import { contagemRegressiva, diasAteOFim, estadoAssinaturaPro } from "./plano-core.js";
+import { contagemRegressiva, diasAteOFim, estadoAssinaturaPro, pedidoAssinar, promoNaTela, reaisCurto } from "./plano-core.js";
 // Console da conta meu-bot (console.agentesgrok.com/account/* e /organizations/<slug>/members|settings, molde Rambox). Entra pela mesma página de
 // login do app (auth.agentesgrok.com) com esquema=web: o console gera state + PKCE, a página devolve #code&state, e
 // POST /token {grant:"web"} vira um token de acesso de 1 h guardado neste navegador (localStorage: outra aba, inclusive
@@ -845,15 +845,55 @@ async function tirarMaquina(m, botao) {
   if (c2) pintarDevices(c2);
 }
 let esperasPagamento = 0;
-/** "Assinar": pede o checkout à API (com o client_id/session_id do GA4, para a compra ir à mesma visita) e vai para a página da AbacatePay. */
-async function assinar(produto = null, btn = $("pl-assinar-btn"), aviso = $("pl-assinar-aviso")) {
+/** A promoção do primeiro mês que o painel "Assinar o Pro" está mostrando agora (null = preço normal). */
+let promoMostrada = null;
+const ASSINAR_NORMAL = $("pl-assinar-btn").textContent;
+/** Copia o cupom da promoção; false se o navegador não deixou (a pessoa ainda pode selecionar o código na tela). */
+async function copiarCupom(cupom) { try { await navigator.clipboard.writeText(cupom); return true; } catch { return false; } }
+/**
+ * O aviso da promoção acima do "Assinar": preço, prazo e o cupom. A página da AbacatePay NÃO aplica o cupom sozinha
+ * (conferido no Modo Teste em 18 nov 2026): mostra o campo "Código do cupom" e a pessoa cola e toca em Aplicar. Por
+ * isso o aviso diz onde colar e tem o "Copiar cupom"; o "Assinar" tenta copiar o código também (nem todo navegador
+ * deixa, então a tela não promete isso); quem prefere o Pix tem o caminho do preço normal.
+ */
+function pintarPromo(c) {
+  promoMostrada = promoNaTela(c.promo);
+  const caixa = $("pl-promo"); caixa.hidden = promoMostrada === null; caixa.replaceChildren();
+  $("pl-assinar-btn").textContent = promoMostrada === null ? ASSINAR_NORMAL : `Assinar por ${reaisCurto(promoMostrada.precoCentavos)} no primeiro mês`;
+  if (promoMostrada === null) return;
+  const { precoCentavos, ate, cupom } = promoMostrada;
+  // "R$ 97" é o preço do Pro que este painel já escreve no index.html.
+  const regra = el("p"); regra.append(el("strong", "", `Seu teste acabou: o primeiro mês do Pro sai por ${reaisCurto(precoCentavos)}.`), document.createTextNode(` Depois, R$ 97 por mês. Só no cartão. Vale até ${dataHora(ate)}.`));
+  const passo = el("p"); passo.append(document.createTextNode("Na página de pagamento, cole o cupom "), el("code", "", cupom), document.createTextNode(` em "Código do cupom" e toque em Aplicar: o total cai para ${reaisCurto(precoCentavos)}. `));
+  const copiar = el("button", "btn btn-ghost btn-small", "Copiar cupom"); copiar.type = "button";
+  copiar.addEventListener("click", () => { void copiarCupom(cupom).then((ok) => { copiar.textContent = ok ? "✓ Cupom copiado" : "Selecione o código e copie"; }); });
+  passo.append(copiar);
+  // Quem só paga por Pix: o cupom não vale, mas o caminho do preço normal continua aberto.
+  const pix = el("button", "promo-link", "Prefiro pagar com Pix: R$ 97 por mês, sem o desconto"); pix.type = "button";
+  pix.addEventListener("click", () => { void assinar(null, $("pl-assinar-btn"), $("pl-assinar-aviso"), true); });
+  const rodape = el("p", "sub"); rodape.append(pix);
+  // As regras ficam numa página do site que só este link abre (noindex, fora do menu).
+  if (typeof cfg.site === "string" && cfg.site !== "") { const a = el("a", "", "Ver as regras"); a.href = `${cfg.site}/promocao`; a.target = "_blank"; a.rel = "noopener"; rodape.append(document.createTextNode(" · "), a); }
+  caixa.append(regra, passo, rodape);
+}
+/**
+ * "Assinar": pede o checkout à API (com o client_id/session_id do GA4, para a compra ir à mesma visita) e vai para a
+ * página da AbacatePay. Com a promoção na tela, copia o cupom antes (ainda dentro do clique, senão o navegador recusa);
+ * `semPromo` é o "Prefiro pagar com Pix".
+ */
+async function assinar(produto = null, btn = $("pl-assinar-btn"), aviso = $("pl-assinar-aviso"), semPromo = false) {
   const s = sessaoGuardada();
   if (s === null) { void entrar(); return; }
-  btn.disabled = true; aviso.textContent = "Abrindo a página de pagamento…";
+  const pedido = pedidoAssinar(produto, promoMostrada, semPromo);
+  const copiou = pedido.promo === true ? await copiarCupom(promoMostrada.cupom) : false;
+  btn.disabled = true; aviso.textContent = copiou ? "Cupom copiado. Abrindo a página de pagamento…" : "Abrindo a página de pagamento…";
   const v = typeof ga.visita === "function" ? await ga.visita() : { clientId: null, sessionId: null };
-  const r = await api("POST", "/conta/assinatura", { gaClientId: v.clientId, gaSessionId: v.sessionId, ...(produto === null ? {} : { produto }) }, s.acesso);
-  if (r.status === 200 && r.corpo && typeof r.corpo.url === "string") { ga.evento("checkout_iniciado", { plano: produto ?? "chip-coflow" }); location.assign(r.corpo.url); return; }
-  btn.disabled = false; aviso.textContent = erroDe(r);
+  const r = await api("POST", "/conta/assinatura", { gaClientId: v.clientId, gaSessionId: v.sessionId, ...pedido }, s.acesso);
+  if (r.status === 200 && r.corpo && typeof r.corpo.url === "string") { ga.evento("checkout_iniciado", { plano: produto ?? "chip-coflow", ...(r.corpo.promo === true ? { promo: "primeiro-mes" } : {}) }); location.assign(r.corpo.url); return; }
+  btn.disabled = false;
+  // O prazo acabou com a tela aberta: repinta o painel com o preço normal e mantém o aviso da API.
+  if (pedido.promo === true && r.corpo && r.corpo.promoAcabou === true) { const c2 = await lerConta().catch(() => null); if (c2) pintarPlano(c2); }
+  aviso.textContent = erroDe(r);
 }
 /** Um painel "Assinar" por app à venda que a conta ainda não tem; quem voltou do pagamento vê o aviso no painel do app. */
 function pintarAddons(l, voltouDe) {
@@ -932,6 +972,7 @@ function pintarPlano(c) {
   const { pagoAtivo, proSemAssinatura } = estadoAssinaturaPro(l, c.assinaturas);
   $("pl-assinar").hidden = cfg.pagamentos !== "1" || pagoAtivo;
   $("pl-assinar-ja").hidden = !proSemAssinatura;
+  pintarPromo(c);
   $("pl-assinar-ja").textContent = proSemAssinatura ? `Você já tem o Pro${l.expiresAt ? ` até ${data(l.expiresAt)}` : ""}, sem assinatura ativa. Assinando, a cobrança passa a ser mensal e o prazo que você já tem não é encurtado.` : "";
   const qs = new URLSearchParams(location.search);
   const voltouDe = qs.get("assinatura") === "paga" ? qs.get("produto") : null;

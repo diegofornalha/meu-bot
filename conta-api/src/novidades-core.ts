@@ -86,7 +86,7 @@ export const REVISAO_PAGINAS: Readonly<Record<string, string>> = {
   "/guias/automatizar-whatsapp-com-ia": "2026-11-12",
   "/guias/api-oficial-do-whatsapp-ou-numero-proprio": "2026-11-13",
   "/privacidade": "2026-11-17",
-  "/termos": "2026-11-12",
+  "/termos": "2026-11-18",
 };
 
 /** Sitemap com lastmod por URL: a home, /baixar e /novidades mudam a cada release; as outras têm a data de `revisoes`. */

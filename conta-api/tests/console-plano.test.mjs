@@ -1,7 +1,7 @@
 // Painel "Assinar o Pro" do console (public/console/plano-core.js): quando some e quando avisa do prazo atual.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { contagemRegressiva, diasAteOFim, estadoAssinaturaPro } from "../public/console/plano-core.js";
+import { contagemRegressiva, diasAteOFim, estadoAssinaturaPro, pedidoAssinar, promoNaTela, reaisCurto } from "../public/console/plano-core.js";
 
 const pro = { plan: "pro", status: "active" };
 const ativa = { status: "ACTIVE", produto: null };
@@ -25,6 +25,24 @@ test("assinar o Pro: sem Pro valendo o painel aparece sem aviso, mesmo com assin
     assert.deepEqual(estadoAssinaturaPro(l, [ativa]), { pagoAtivo: false, proSemAssinatura: false });
     assert.deepEqual(estadoAssinaturaPro(l, []), { pagoAtivo: false, proSemAssinatura: false });
   }
+});
+
+test("promoção do primeiro mês: a tela só mostra o que veio inteiro da API e ainda está no prazo", () => {
+  const agora = Date.parse("2026-11-18T12:00:00Z");
+  const promo = { precoCentavos: 100, ate: "2026-11-20T12:00:00.000Z", cupom: "PRIMEIROMES" };
+  assert.deepEqual(promoNaTela(promo, agora), promo);
+  assert.equal(promoNaTela(null, agora), null);
+  assert.equal(promoNaTela(undefined, agora), null, "API antiga, sem o campo");
+  assert.equal(promoNaTela({ ...promo, ate: "2026-11-18T11:59:59.000Z" }, agora), null, "prazo acabou com a tela aberta");
+  assert.equal(promoNaTela({ ...promo, cupom: "" }, agora), null);
+  assert.equal(promoNaTela({ ...promo, precoCentavos: "100" }, agora), null);
+  assert.equal(promoNaTela({ ...promo, ate: "lixo" }, agora), null);
+});
+
+test("reaisCurto: valor redondo sem centavos, como o site escreve", () => {
+  assert.equal(reaisCurto(100), "R$ 1");
+  assert.equal(reaisCurto(9700), "R$ 97");
+  assert.equal(reaisCurto(150), "R$ 1,50");
 });
 
 test("contagem regressiva: dias que faltam do teste e do Pro, horas no último dia, e há quanto tempo venceu", () => {
@@ -58,4 +76,13 @@ test("dias até o fim: a lista do admin e a página Plano contam os mesmos dias"
   }
   assert.equal(diasAteOFim({ expiresAt: null, trialEnd: null }, agora), null);
   assert.equal(diasAteOFim({ expiresAt: new Date(agora - 2 * D - 1).toISOString() }, agora), -2);
+});
+
+test("pedido do Assinar: a promoção na tela manda promo; \"Prefiro Pix\" manda semPromo; add-on e preço normal não mandam nenhum", () => {
+  const promo = { precoCentavos: 100, ate: "2026-11-20T12:00:00.000Z", cupom: "PRIMEIROMES" };
+  assert.deepEqual(pedidoAssinar(null, promo), { promo: true });
+  assert.deepEqual(pedidoAssinar(null, promo, true), { semPromo: true });
+  assert.deepEqual(pedidoAssinar(null, null), {});
+  assert.deepEqual(pedidoAssinar(null, null, true), {}, "sem promoção na tela não há do que abrir mão");
+  assert.deepEqual(pedidoAssinar("meu-bot-finance", promo), { produto: "meu-bot-finance" }, "a promoção é só do Pro");
 });

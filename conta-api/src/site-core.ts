@@ -56,6 +56,14 @@ export function llmsPorPagamentos(texto: string, ligados: boolean): string {
   return texto.split("\n").filter((l) => ligados || !l.includes("<!--se-pagamentos-->")).map((l) => l.replace(/\s*<!--se-pagamentos-->/, "")).join("\n");
 }
 
+/**
+ * Arquivos do site que só saem com a promoção do primeiro mês ligada (PROMO_CUPOM); desligada, respondem a 404 do site.
+ * A página não é divulgada: noindex, fora do sitemap e do llms.txt, e só o console (Plano) a linka.
+ */
+export const SO_COM_PROMO: readonly string[] = ["/site/promocao.html"];
+/** O arquivo pedido é da promoção e ela está desligada? Vale para /promocao e para o caminho direto do arquivo. */
+export const paginaDaPromoDesligada = (arquivo: string, promoLigada: boolean): boolean => !promoLigada && SO_COM_PROMO.includes(arquivo);
+
 /** Arquivos do site que só o staging serve (rascunhos em revisão); em produção respondem a 404 do site. */
 export const SO_NO_STAGING: readonly string[] = ["/site/suporte.html"];
 /** O arquivo pedido é um rascunho que este canal não serve? (produção + rascunho = true) */

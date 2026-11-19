@@ -37,6 +37,12 @@ export interface Env {
   ABACATEPAY_ADDONS?: string;
   /** Formas de pagamento da assinatura: "CARD" ou "CARD,PIX" (Pix Automático precisa estar liberado na conta). */
   ABACATEPAY_METODOS?: string;
+  /** Código do cupom da promoção do primeiro mês do Pro na AbacatePay; vazio ou ausente = promoção desligada. */
+  PROMO_CUPOM?: string;
+  /** Quanto sai a primeira cobrança com o cupom, em centavos ("100"): preço cheio menos o desconto fixo do cupom. */
+  PROMO_PRECO_CENTAVOS?: string;
+  /** Por quantos dias depois do fim do teste grátis a promoção vale ("3"). */
+  PROMO_DIAS?: string;
   /** Secret: api_secret do Measurement Protocol do fluxo Web do GA4 (a compra vai ao Analytics pelo servidor). */
   GA_MP_SECRET?: string;
 }
@@ -104,6 +110,8 @@ export interface MaquinaApi { id: string; apelido: string | null; vinculadaPor: 
 /** O que `GET /conta` e `POST /token` devolvem: a conta como o app a mostra. */
 /** Uma assinatura paga da conta, como o console › Plano a mostra: `produto` null é o Pro. */
 export interface ContaAssinatura { id: string; produto: string | null; status: "ACTIVE" | "CANCELLED"; valorCentavos: number | null; valeAte: string | null }
+/** A promoção do primeiro mês a que a conta tem direito agora (console › Plano): o preço, até quando e o código do cupom. */
+export interface PromoApi { precoCentavos: number; ate: string; cupom: string }
 export interface ContaApi {
   id: string;
   email: string;
@@ -130,6 +138,8 @@ export interface ContaApi {
   assinaturas: ContaAssinatura[];
   /** Organizações de que a conta é membro (dona, admin ou membro). */
   orgs: OrgResumo[];
+  /** Primeiro mês do Pro pelo preço da promoção, se a conta tem direito agora; null sem direito ou com a promoção desligada. */
+  promo: PromoApi | null;
 }
 /** `GET /admin/visao`: todas as contas (com licença, devices e máquinas), os pedidos abertos e os totais. Só admin. */
 export interface AdminContaResumo { id: string; email: string; nome: string | null; foto: string | null; admin: "super" | "admin" | null; criadaEm: string; licenca: License; /** Add-ons pagos pela AbacatePay, com o prazo de cada um (os concedidos pelo admin estão em licenca.produtos). */ addonsPagos: { produto: string; expiresAt: string }[]; devices: DeviceApi[]; maquinas: number; maquinaLimite: number; pedidos: number }
