@@ -332,6 +332,18 @@ export function umaPorContaEProduto<A extends { id: string; produto: string | nu
 
 /** A licença como o admin a gravou; estrutural para não depender de tipos.ts (este arquivo é puro). */
 interface LicencaBase { plan: "free" | "pro"; status: "free" | "trialing" | "active" | "expired"; interval: "month" | "year" | null; expiresAt: string | null; produtos: string[] }
+/** O papel de admin de uma conta (tabela `admins`); null = conta comum. */
+export type Papel = "super" | "admin" | null;
+
+/**
+ * A licença de um super admin: o Pro sem prazo. Nunca vence, nunca está em teste, nunca fica expirada, seja o que for
+ * que esteja gravado. Só os prazos e o plano mudam: limite de devices, add-ons, "membro desde" e o resto ficam como
+ * estão. `semPrazo: true` diz às telas para mostrar "∞" no lugar da data. É regra de leitura: nada é gravado, e quem
+ * deixa de ser super admin volta a ter a licença gravada.
+ */
+export function licencaDoSuper<L extends LicencaBase & { trialEnd: string | null }>(l: L): L & { semPrazo: true } {
+  return { ...l, plan: "pro", status: "active", interval: null, trialEnd: null, expiresAt: null, semPrazo: true };
+}
 
 /**
  * A licença que o app e o console recebem: a gravada mais os add-ons pagos que ainda não venceram. O app só libera um
@@ -346,4 +358,13 @@ export function licencaComAddons<L extends LicencaBase>(l: L, pagos: readonly { 
   const vencida = l.status === "expired" || (l.expiresAt !== null && !Number.isNaN(Date.parse(l.expiresAt)) && Date.parse(l.expiresAt) < t);
   if (vencida) return { ...l, plan: "free", status: "free", interval: null, expiresAt: null, produtos: [...new Set(vivos)].sort() };
   return { ...l, produtos: [...new Set([...l.produtos, ...vivos])].sort() };
+}
+
+/**
+ * A licença em vigor de uma conta, a única que decide acesso e que o app, o console e a máquina recebem: a gravada,
+ * com a regra do super admin (`licencaDoSuper`) e os add-ons pagos em dia (`licencaComAddons`). A regra do super vem
+ * antes: sem prazo, a licença dele nunca é "vencida", então os add-ons concedidos pelo admin continuam valendo.
+ */
+export function licencaEmVigor<L extends LicencaBase & { trialEnd: string | null }>(gravada: L, pagos: readonly { produto: string; expiresAt: string }[], papel: Papel, agora: string): L & { semPrazo?: true } {
+  return licencaComAddons<L & { semPrazo?: true }>(papel === "super" ? licencaDoSuper(gravada) : gravada, pagos, agora);
 }

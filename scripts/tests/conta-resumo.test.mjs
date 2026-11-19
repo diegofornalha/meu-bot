@@ -20,3 +20,9 @@ test("resumoPlano: Pro ativo com ou sem prazo; Pro vencido; expirado; free", () 
   assert.deepEqual(resumoPlano(lic({ plan: "pro", status: "expired" }), AGORA), { selo: "free", rotulo: "Free", prazo: "Plano expirado", vencido: true });
   assert.deepEqual(resumoPlano(lic({}), AGORA), { selo: "free", rotulo: "Free", prazo: null, vencido: false });
 });
+test("resumoPlano: super admin (semPrazo) é Pro com \"∞ sem prazo\" e nunca vence", () => {
+  const esperado = { selo: "pro", rotulo: "Pro", prazo: "∞ sem prazo", vencido: false };
+  assert.deepEqual(resumoPlano(lic({ plan: "pro", status: "active", semPrazo: true }), AGORA), esperado);
+  assert.deepEqual(resumoPlano(lic({ plan: "pro", status: "active", expiresAt: "2026-11-01T00:00:00Z", semPrazo: true }), AGORA), esperado, "nem uma data vencida muda");
+  assert.equal(resumoPlano(lic({ plan: "pro", status: "expired", semPrazo: false }), AGORA).vencido, true, "só o true vale");
+});

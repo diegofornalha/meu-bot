@@ -9,7 +9,7 @@
  * `id` é o uuid do `maquina.json` da máquina. Liga só com o secret LICENCA_PRIVATE_KEY; sem ele as rotas respondem 503.
  */
 import type { Env, MaquinaLinha } from "../tipos.js";
-import { auditar, contarLimite, desvincularMaquina, devicesDaConta, fecharPedidosDeLiberar, licencaDaConta, limiteDeMaquinas, maquinaApi, maquinaPorId, maquinasDaConta, trocasDeMaquina, vincularMaquina } from "../db.js";
+import { auditar, contarLimite, desvincularMaquina, devicesDaConta, fecharPedidosDeLiberar, licencaDaConta, limiteDeMaquinas, maquinaApi, maquinaPorId, maquinasDaConta, papelAdmin, trocasDeMaquina, vincularMaquina } from "../db.js";
 import { UUID_RE, agoraIso, janelaMinuto } from "../sessao-core.js";
 import { json, lerJson, type Autenticado } from "../http.js";
 import { extrasAVenda } from "./pagamentos.js";
@@ -32,7 +32,9 @@ const semExtra = (env: Env, limite: number): string => `a sua conta usa a licen�
  * ANTES de qualquer gravação: se não dá para assinar, a máquina não ocupa vaga nem fecha pedido.
  */
 async function assinar(auth: Autenticado, env: Env, maquina: string, agoraMs: number): Promise<Record<string, unknown> | null> {
-  const [licenca, devices] = await Promise.all([licencaDaConta(env.DB, auth.conta, agoraIso(agoraMs)), devicesDaConta(env.DB, auth.conta.id)]);
+  // O papel é lido da tabela agora, não do token (que vale 1 h): esta emissão vale 30 dias na máquina.
+  const papel = await papelAdmin(env.DB, auth.conta.email, env.ADMIN_BOOTSTRAP_EMAIL);
+  const [licenca, devices] = await Promise.all([licencaDaConta(env.DB, auth.conta, papel, agoraIso(agoraMs)), devicesDaConta(env.DB, auth.conta.id)]);
   const p = montarPayload(auth.conta, maquina, licenca, devices, agoraMs);
   try { return licencaJsonV2(p, await assinarLicenca(p, env.LICENCA_PRIVATE_KEY ?? "")); }
   catch (e) { console.log(`[licenca] não deu para assinar: ${e instanceof Error ? e.message : String(e)}`); return null; }

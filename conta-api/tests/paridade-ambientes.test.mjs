@@ -27,7 +27,6 @@ const CAMPOS_IGUAIS_DO_ADDON = ["centavos", "rotulo"];
  */
 const TEMPORARIAS = [
   { addon: "meu-bot-diego", so: "staging", ate: "2026-12-15", motivo: "o produto de produção dos Módulos do Diego ainda não foi criado na AbacatePay", decidir: "crie o produto de produção e ponha o add-on em [vars], tire-o do staging, ou renove a validade aqui com o motivo" },
-  { chave: "PROMO_CUPOM", so: "staging", ate: "2026-12-15", motivo: "a promoção do primeiro mês fica desligada (vazia) em produção até o dono ligar, depois do teste no staging", decidir: "ligue a promoção em produção (mesmo cupom em [vars]), desligue no staging, ou renove a validade aqui com o motivo" },
 ];
 
 const OUTRO = { staging: "producao", producao: "staging" };
@@ -109,19 +108,17 @@ test("paridade: exceção temporária vale até a data e falha depois, dizendo o
   const depois = divergencias(vars, "2026-12-16").join("\n");
   assert.match(depois, /add-on meu-bot-diego só em staging: a exceção temporária venceu em 2026-12-15/);
   assert.match(depois, /Decida: crie o produto de produção/);
-  // PROMO_CUPOM saiu daqui: a promoção foi ligada em produção (#374) e a chave ficou igual nos dois ambientes; a regra
-  // dela continua provada, com valores montados à parte, no teste seguinte.
 });
 
-test("paridade: PROMO_CUPOM só vale preenchido no staging e vazio em produção, até a data", () => {
-  // Montado à parte do valor de hoje no toml: a regra vale com a promoção ligada, desligada ou a chave ainda ausente.
+test("paridade: PROMO_CUPOM tem de ser igual nos dois ambientes (a promoção liga e desliga nos dois juntos)", () => {
+  // Montado à parte do valor de hoje no toml. Enquanto era testada, a promoção ficou ligada só no staging, com uma
+  // exceção temporária; a #374 (18 nov 2026) ligou em produção e a exceção saiu.
   const promo = (p, s) => { const v = varsDoWrangler(TOML); const por = (amb, x) => { const { PROMO_CUPOM: _, ...resto } = v[amb]; return x === undefined ? resto : { ...resto, PROMO_CUPOM: x }; }; return { producao: por("producao", p), staging: por("staging", s) }; };
-  const erros = (v, dia) => divergencias(v, dia).filter((e) => e.includes("PROMO_CUPOM"));
-  assert.deepEqual(erros(promo("", "PRIMEIROMES1"), "2026-11-18"), []);
-  assert.deepEqual(erros(promo(undefined, undefined), "2027-01-01"), [], "chave que não existe não é exceção nem erro");
-  assert.deepEqual(erros(promo("PRIMEIROMES1", "PRIMEIROMES1"), "2027-01-01"), [], "ligada igual nos dois: não é mais exceção");
-  assert.match(erros(promo("", "PRIMEIROMES1"), "2026-12-16")[0], /venceu em 2026-12-15.*Decida: ligue a promoção em produção/);
-  assert.match(erros(promo("PRIMEIROMES1", ""), "2026-11-18")[0], /PROMO_CUPOM difere/, "o contrário (só produção) não é a exceção combinada");
-  assert.match(erros(promo("OUTRO", "PRIMEIROMES1"), "2026-11-18")[0], /PROMO_CUPOM difere/);
-  assert.match(erros(promo(undefined, "PRIMEIROMES1"), "2026-11-18")[0], /PROMO_CUPOM só existe em staging/, "a chave tem de estar declarada nos dois");
+  const erros = (v) => divergencias(v, "2026-11-19").filter((e) => e.includes("PROMO_CUPOM"));
+  assert.deepEqual(erros(promo("PRIMEIROMES1", "PRIMEIROMES1")), [], "ligada nos dois");
+  assert.deepEqual(erros(promo("", "")), [], "desligada nos dois");
+  assert.match(erros(promo("", "PRIMEIROMES1"))[0], /PROMO_CUPOM difere/, "ligada só no staging não vale mais");
+  assert.match(erros(promo("PRIMEIROMES1", ""))[0], /PROMO_CUPOM difere/);
+  assert.match(erros(promo("OUTRO", "PRIMEIROMES1"))[0], /PROMO_CUPOM difere/);
+  assert.match(erros(promo(undefined, "PRIMEIROMES1"))[0], /PROMO_CUPOM só existe em staging/, "a chave tem de estar declarada nos dois");
 });

@@ -1,7 +1,7 @@
 // Painel "Assinar o Pro" do console (public/console/plano-core.js): quando some e quando avisa do prazo atual.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { contagemRegressiva, diasAteOFim, estadoAssinaturaPro, pedidoAssinar, podeAdicionarMaquina, promoNaTela, reaisCurto, vagasDeMaquina } from "../public/console/plano-core.js";
+import { contagemRegressiva, diasAteOFim, estadoAssinaturaPro, fase, pedidoAssinar, promoNaTela, reaisCurto, semPrazo, podeAdicionarMaquina, vagasDeMaquina } from "../public/console/plano-core.js";
 
 const pro = { plan: "pro", status: "active" };
 const ativa = { status: "ACTIVE", produto: null };
@@ -105,4 +105,31 @@ test("adicionar máquina: só com o Pro valendo (pago ou em teste, sem ter venci
   assert.equal(podeAdicionarMaquina({ plan: "pro", status: "expired", expiresAt: "2026-11-01T00:00:00Z", trialEnd: null }, agora), false);
   assert.equal(podeAdicionarMaquina({ plan: "free", status: "free", expiresAt: null, trialEnd: null }, agora), false);
   assert.equal(podeAdicionarMaquina(undefined, agora), false);
+});
+
+// O Pro sem prazo do super admin: a API entrega `semPrazo: true` (licencaDoSuper) e as telas mostram "∞".
+const doSuper = { plan: "pro", status: "active", interval: null, trialEnd: null, expiresAt: null, semPrazo: true };
+
+test("super admin: a contagem regressiva vira \"∞ sem prazo\", sejam quais forem as datas", () => {
+  const agora = Date.parse("2026-11-19T02:00:00Z");
+  assert.deepEqual(contagemRegressiva(doSuper, agora), { texto: "∞ sem prazo", tom: "ok" });
+  assert.deepEqual(contagemRegressiva({ ...doSuper, expiresAt: "2026-11-01T00:00:00Z" }, agora), { texto: "∞ sem prazo", tom: "ok" }, "nem uma data vencida muda");
+  assert.equal(contagemRegressiva({ ...doSuper, semPrazo: undefined }, agora), null, "Pro sem data de conta comum continua sem selo");
+  assert.equal(semPrazo({ ...doSuper, semPrazo: "true" }), false, "só o true da API vale");
+  assert.equal(semPrazo(undefined), false);
+});
+
+test("super admin: na lista do admin a fase é \"Pro · ∞\" e conta como Pro ativo; as outras contas não mudam", () => {
+  const agora = Date.parse("2026-11-19T02:00:00Z"), D = 24 * 3600000;
+  assert.deepEqual(fase(doSuper, agora), { texto: "Pro · ∞", tom: "ok" });
+  assert.match(fase(doSuper, agora).texto, /^Pro ativo|^Pro ·/, "entra no total \"Pro ativo\" do painel");
+  assert.deepEqual(fase({ plan: "pro", status: "active", trialEnd: null, expiresAt: null }, agora), { texto: "Pro ativo", tom: "ok" });
+  assert.deepEqual(fase({ plan: "pro", status: "active", trialEnd: null, expiresAt: new Date(agora + 5 * D - 1).toISOString() }, agora), { texto: "Pro · 5 dias", tom: "ok" });
+  assert.deepEqual(fase({ plan: "pro", status: "trialing", trialEnd: new Date(agora - 2 * D - 1).toISOString(), expiresAt: null }, agora), { texto: "Trial venceu há 2 dias", tom: "mau" });
+  assert.deepEqual(fase({ plan: "pro", status: "expired", trialEnd: null, expiresAt: null }, agora), { texto: "Expirado", tom: "mau" });
+  assert.deepEqual(fase({ plan: "free", status: "free", trialEnd: null, expiresAt: null }, agora), { texto: "Free", tom: "" });
+});
+
+test("super admin: o painel \"Assinar o Pro\" some, sem aviso de prazo, com ou sem assinatura", () => {
+  for (const ass of [[], [ativa], undefined]) assert.deepEqual(estadoAssinaturaPro(doSuper, ass), { pagoAtivo: false, proSemAssinatura: false, semPrazo: true });
 });

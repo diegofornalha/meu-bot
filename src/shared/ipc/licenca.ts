@@ -30,6 +30,11 @@ export interface License {
   pagamento: Pagamento | null;
   updatedAt: string;
   updatedBy: "admin" | "system";
+  /**
+   * Só na licença da CONTA que a API entrega (nunca no licenca.json de uma máquina): a conta é de super admin e o Pro
+   * não tem prazo. A API já manda `status: "active"` e `expiresAt: null`; isto só troca o texto do prazo por "∞".
+   */
+  semPrazo?: true;
 }
 /** Um device registrado na conta (uma entrada do maquinas.json). Pendente = a pessoa "levantou a mão". */
 export interface LicenseDevice {

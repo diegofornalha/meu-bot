@@ -44,6 +44,9 @@ test("parseContaInfo: e-mail em minúsculas, devices e máquinas fora do formato
   assert.equal(parseContaInfo({ ...conta(), id: "x" }), null);
   assert.equal(parseContaInfo({ ...conta(), email: "semarroba" }), null);
   assert.equal(parseContaInfo({ ...conta(), licenca: "lixo" }).licenca.plan, "free", "licença ilegível vira a default");
+  assert.equal("semPrazo" in c.licenca, false, "conta comum: sem o campo");
+  assert.equal(parseContaInfo({ ...conta(), licenca: { ...conta().licenca, semPrazo: true } }, AGORA).licenca.semPrazo, true, "super admin: o Pro sem prazo chega à tela");
+  assert.equal("semPrazo" in parseContaInfo({ ...conta(), licenca: { ...conta().licenca, semPrazo: "sim" } }, AGORA).licenca, false, "só o true da API vale");
   assert.deepEqual({ nomeLogin: c.nomeLogin, perfil: c.perfil, provedores: c.provedores, dadosUso: c.dadosUso }, { nomeLogin: null, perfil: { nomeProprio: null, sobrenome: null }, provedores: [], dadosUso: true }, "API antiga: perfil vazio, dados de uso ligados");
   const d = parseContaInfo({ ...conta(), nomeLogin: "Ana do Google", perfil: { nomeProprio: "Ana", sobrenome: 7, cidade: "Rio" }, provedores: ["google.com", "facebook.com", 3], dadosUso: false }, AGORA);
   assert.equal(d.nomeLogin, "Ana do Google"); assert.deepEqual(d.perfil, { nomeProprio: "Ana", sobrenome: null }, "só nome e sobrenome; o resto cai");

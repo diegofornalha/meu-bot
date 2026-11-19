@@ -179,6 +179,14 @@ export function decidirLiberarDevice(status: string, ativos: number, limite: num
   return { acao: "liberar", novoLimite: ativos + 1 };
 }
 
+/**
+ * O admin inicial (var ADMIN_BOOTSTRAP_EMAIL) é o dono da instalação: entra como super no primeiro login e o perfil
+ * dele não é removido nem rebaixado por outro super admin. Var vazia: ninguém é o admin inicial.
+ */
+export function ehAdminInicial(email: string, bootstrap: string): boolean {
+  const b = bootstrap.trim().toLowerCase();
+  return b !== "" && email === b;
+}
 /** O que o admin pode mudar na licença de uma conta (campos omitidos ficam como estão), como LicensePatch do app. */
 export interface PatchLicenca { plan?: "free" | "pro"; status?: "free" | "trialing" | "active" | "expired"; interval?: "month" | "year" | null; trialEnd?: string | null; expiresAt?: string | null; deviceLimit?: number; maquinaLimit?: number; produtos?: string[]; pagamento?: { instrucoes: string; link: string | null } | null }
 const DATA_RE = /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)?$/;

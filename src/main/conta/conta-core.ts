@@ -85,7 +85,10 @@ export function parsePerfil(raw: unknown): ContaPerfil {
   const r = raw !== null && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
   return { nomeProprio: strOuNull(r.nomeProprio), sobrenome: strOuNull(r.sobrenome) };
 }
-/** A conta como a API devolve; null se faltar o essencial (id, e-mail). A licença passa pelo mesmo parse da máquina. */
+/**
+ * A conta como a API devolve; null se faltar o essencial (id, e-mail). A licença passa pelo mesmo parse da máquina; o
+ * `semPrazo` (Pro sem prazo do super admin) é só da licença da conta, então é lido aqui e não no parse da máquina.
+ */
 export function parseContaInfo(raw: unknown, now: number = Date.now()): ContaInfo | null {
   if (raw === null || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
@@ -98,7 +101,7 @@ export function parseContaInfo(raw: unknown, now: number = Date.now()): ContaInf
     provedores: Array.isArray(r.provedores) ? r.provedores.filter((p): p is string => typeof p === "string" && PROVEDOR_RE.test(p)) : [],
     dadosUso: r.dadosUso !== false,
     admin: r.admin === "super" || r.admin === "admin" ? r.admin : null,
-    licenca: parseLicense(r.licenca, now),
+    licenca: { ...parseLicense(r.licenca, now), ...((r.licenca as { semPrazo?: unknown } | null)?.semPrazo === true ? { semPrazo: true as const } : {}) },
     devices: Array.isArray(r.devices) ? r.devices.map(parseDevice).filter((d): d is ContaDevice => d !== null) : [],
     maquinas: Array.isArray(r.maquinas) ? r.maquinas.map(parseMaquina).filter((m): m is ContaMaquina => m !== null) : [],
     maquinaLimite: typeof r.maquinaLimite === "number" && Number.isInteger(r.maquinaLimite) && r.maquinaLimite >= 1 ? r.maquinaLimite : null,

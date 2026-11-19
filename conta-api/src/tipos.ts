@@ -104,6 +104,8 @@ export interface License {
   pagamento: { instrucoes: string; link: string | null } | null;
   updatedAt: string;
   updatedBy: "admin" | "system";
+  /** Só na licença entregue (nunca gravada): a conta é de super admin e o Pro não tem prazo (licencaDoSuper). As telas mostram "∞". */
+  semPrazo?: true;
 }
 /** Um device da conta como a API o devolve (o app monta o LicenseDevice da tela a partir daqui). */
 export interface DeviceApi {
@@ -151,9 +153,10 @@ export interface ContaApi {
   promo: PromoApi | null;
 }
 /** `GET /admin/visao`: todas as contas (com licença, devices e máquinas), os pedidos abertos e os totais. Só admin. */
-export interface AdminContaResumo { id: string; email: string; nome: string | null; foto: string | null; admin: "super" | "admin" | null; criadaEm: string; licenca: License; /** Add-ons pagos pela AbacatePay, com o prazo de cada um (os concedidos pelo admin estão em licenca.produtos). */ addonsPagos: { produto: string; expiresAt: string }[]; devices: DeviceApi[]; maquinas: number; maquinaLimite: number; pedidos: number }
+export interface AdminContaResumo { id: string; email: string; nome: string | null; foto: string | null; admin: "super" | "admin" | null; criadaEm: string; /** A licença em vigor (para o super admin, o Pro sem prazo). */ licenca: License; /** Só vem para conta de super admin: o que está gravado, que o editor de licença mostra e muda. */ licencaGravada?: License; /** Add-ons pagos pela AbacatePay, com o prazo de cada um (os concedidos pelo admin estão em licenca.produtos). */ addonsPagos: { produto: string; expiresAt: string }[]; devices: DeviceApi[]; maquinas: number; maquinaLimite: number; pedidos: number }
 export interface AdminPedido { id: string; tipo: string; detalhe: string | null; maquinaId: string | null; criadoEm: string; atendidoEm: string | null; atendidoPor: string | null; conta: { id: string; email: string; nome: string | null } }
-export interface AdminPerfil { email: string; papel: "super" | "admin"; criadoEm: string; entrou: boolean }
+/** `fixo`: o admin inicial (ADMIN_BOOTSTRAP_EMAIL), que não é removido nem rebaixado. */
+export interface AdminPerfil { email: string; papel: "super" | "admin"; criadoEm: string; entrou: boolean; fixo: boolean }
 /** Uma assinatura paga (subs_...): `produto` null é o Pro; `valeAte` é o prazo que ela sustenta hoje na conta. */
 export interface AdminAssinatura { id: string; produto: string | null; status: "ACTIVE" | "CANCELLED"; valorCentavos: number | null; criadaEm: string; atualizadaEm: string; valeAte: string | null; ultimoPagamentoEm: string | null; conta: { id: string; email: string; nome: string | null } }
 export interface AdminPagamento { id: string; produto: string | null; valorCentavos: number; primeira: boolean; pagoEm: string; noAnalytics: boolean; conta: { id: string; email: string; nome: string | null } }

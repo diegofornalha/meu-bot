@@ -1,5 +1,5 @@
 import { avisoDepoisDo404, pedeReleitura, visaoVelha } from "./admin-core.js";
-import { contagemRegressiva, diasAteOFim, estadoAssinaturaPro, pedidoAssinar, podeAdicionarMaquina, promoNaTela, reaisCurto, vagasDeMaquina } from "./plano-core.js";
+import { INFINITO, SEM_PRAZO, contagemRegressiva, estadoAssinaturaPro, fase, pedidoAssinar, podeAdicionarMaquina, promoNaTela, reaisCurto, semPrazo, vagasDeMaquina } from "./plano-core.js";
 // Console da conta meu-bot (console.agentesgrok.com/account/* e /organizations/<slug>/members|settings, molde Rambox). Entra pela mesma página de
 // login do app (auth.agentesgrok.com) com esquema=web: o console gera state + PKCE, a página devolve #code&state, e
 // POST /token {grant:"web"} vira um token de acesso de 1 h guardado neste navegador (localStorage: outra aba, inclusive
@@ -448,9 +448,9 @@ function pintarAdminPerfis(v) {
     const tr = el("tr");
     tr.append(el("td", "", p.email));
     const papel = el("td"); const sel = el("select"); for (const [val, t] of [["admin", "admin"], ["super", "super admin"]]) { const o = el("option", "", t); o.value = val; o.selected = val === p.papel; sel.append(o); }
-    sel.disabled = p.email === conta.email; sel.addEventListener("change", () => { void perfilGravar(p.email, sel.value, sel); }); papel.append(sel); tr.append(papel);
+    sel.disabled = p.email === conta.email || p.fixo === true; if (p.fixo === true) sel.title = "O admin inicial é sempre super admin."; sel.addEventListener("change", () => { void perfilGravar(p.email, sel.value, sel); }); papel.append(sel); tr.append(papel);
     tr.append(el("td", "", p.entrou ? "sim" : "ainda não"), el("td", "", data(p.criadoEm)));
-    const td = el("td"); if (p.email !== conta.email) { const b = el("button", "btn btn-ghost", "Remover"); b.type = "button"; b.addEventListener("click", () => { void perfilRemover(p.email, b); }); td.append(b); } tr.append(td);
+    const td = el("td"); if (p.fixo === true) td.append(el("span", "sub", "admin inicial")); else if (p.email !== conta.email) { const b = el("button", "btn btn-ghost", "Remover"); b.type = "button"; b.addEventListener("click", () => { void perfilRemover(p.email, b); }); td.append(b); } tr.append(td);
     tb.append(tr);
   }
 }
@@ -473,14 +473,8 @@ async function perfilRemover(email, botao) {
   await carregarVisao(visaoBusca).catch((e) => mostrarErro(e?.message ?? String(e)));
   if (conta !== null) mostrarConsole(conta);
 }
-/** A fase da conta, para o admin acompanhar: trial (dias restantes), trial vencido, Pro ativo, expirado, free. */
-function fase(l, agora = Date.now()) {
-  const dias = diasAteOFim(l, agora); // a mesma conta da contagem regressiva da página Plano (plano-core.js)
-  if (l.status === "trialing") return dias === null ? { texto: "Trial", tom: "ok" } : dias >= 0 ? { texto: `Trial · ${dias === 0 ? "último dia" : `${dias} dia${dias === 1 ? "" : "s"}`}`, tom: "ok" } : { texto: `Trial venceu há ${-dias} dia${dias === -1 ? "" : "s"}`, tom: "mau" };
-  if (l.status === "active" && l.plan === "pro") return dias !== null && dias < 0 ? { texto: `Pro venceu há ${-dias} dia${dias === -1 ? "" : "s"}`, tom: "mau" } : { texto: dias === null ? "Pro ativo" : `Pro · ${dias} dia${dias === 1 ? "" : "s"}`, tom: "ok" };
-  if (l.status === "expired") return { texto: "Expirado", tom: "mau" };
-  return { texto: "Free", tom: "" };
-}
+/** O "∞" no lugar de uma data: o Pro sem prazo do super admin, com o texto para quem passa o mouse ou usa leitor de tela. */
+const infinito = () => { const s = el("span", "", INFINITO); s.title = SEM_PRAZO; s.setAttribute("role", "img"); s.setAttribute("aria-label", SEM_PRAZO); return s; };
 const contaCelula = (email, nome) => { const td = el("td"); const box = el("div", "conta"); box.append(el("strong", "", nome ?? email)); if (nome) box.append(el("span", "", email)); td.append(box); return td; };
 function pintarAdminTotais(v) {
   const fases = v.contas.map((c) => fase(c.licenca));
@@ -556,7 +550,8 @@ function pintarAdminContas(v) {
     tr.append(contaCelula(c.email, c.nome));
     const plano = el("td"); plano.append(selo(PLANO[l.plan] ?? l.plan, l.plan === "pro" ? "ok" : "")); if (c.admin) plano.append(document.createTextNode(" "), selo(c.admin === "super" ? "super admin" : "admin")); tr.append(plano);
     const f = fase(l); const tdFase = el("td"); tdFase.append(selo(f.texto, f.tom)); tr.append(tdFase);
-    tr.append(el("td", "", l.expiresAt ? data(l.expiresAt) : l.trialEnd ? data(l.trialEnd) : "-"));
+    if (semPrazo(l)) { const tdAte = el("td"); tdAte.append(infinito()); tr.append(tdAte); }
+    else tr.append(el("td", "", l.expiresAt ? data(l.expiresAt) : l.trialEnd ? data(l.trialEnd) : "-"));
     // Add-ons: os pagos com o prazo (vencido fica marcado) e os concedidos pelo admin, que valem junto com a licença.
     const tdAd = el("td"); const pagosC = c.addonsPagos ?? [];
     for (const a of pagosC) {
@@ -587,7 +582,8 @@ async function adminSenha(c, botao) {
 function editorLicenca(tr, c) {
   const existente = tr.nextElementSibling;
   if (existente !== null && existente.classList.contains("editor")) { existente.remove(); return; }
-  const l = c.licenca;
+  // De um super admin a lista traz a licença em vigor (Pro sem prazo) e, à parte, a gravada: o formulário mostra e muda a gravada.
+  const l = c.licencaGravada ?? c.licenca;
   const linha = el("tr", "editor"); const td = el("td"); td.colSpan = 11;
   const form = el("form", "editor-form");
   const campo = (rotulo, input) => { const lb = el("label"); lb.append(el("span", "", rotulo), input); return lb; };
@@ -616,6 +612,7 @@ function editorLicenca(tr, c) {
   const pagosTxt = (c.addonsPagos ?? []).map((a) => `${rotuloProduto(a.produto)} até ${data(a.expiresAt)}`).join(", ");
   const aviso = el("p", "sub", `${pagosTxt ? `Pagos pela AbacatePay (não se mudam aqui): ${pagosTxt}. ` : ""}Vale na conta e em Este Mac; numa máquina por SSH, a pessoa aplica pelo app ("Usar o meu Pro nesta máquina"), ou o admin grava a licença da máquina (meu-bot-admin › Suporte). Senha preenchida: troca no Firebase e desconecta a pessoa de todos os Macs.`);
   form.append(aviso);
+  if (c.admin === "super") form.prepend(el("p", "sub", "Super admin: Pro sem prazo. O que está gravado aqui só volta a valer se a pessoa deixar de ser super admin."));
   form.addEventListener("submit", async (ev) => {
     ev.preventDefault(); salvar.disabled = true;
     const ateIso = ate.value ? `${ate.value}T23:59:59.000Z` : null;
@@ -729,6 +726,8 @@ function pintarOverview(c) {
     cartao("⬢", "Plano", selo(PLANO[l.plan] ?? l.plan, l.plan === "pro" ? "ok" : "")),
     cartao("✓", "Status", document.createTextNode(STATUS[l.status] ?? l.status), selo(l.status === "expired" ? "venceu" : "OK", statusTom(l) || "")),
     cartao("▦", "Membro desde", document.createTextNode(data(l.memberSince))),
+    // A Visão geral não mostra prazo para as outras contas (ele está em Plano); para o super admin, o "∞" aparece já aqui.
+    ...(semPrazo(l) ? [cartao("▦", "Vale até", infinito())] : []),
     cartao("↻", "Ciclo de cobrança", document.createTextNode(l.interval ? CICLO[l.interval] : "-")),
     cartao("▭", "Devices", document.createTextNode(`${ativos} de ${l.deviceLimit}`), ...(pendentes > 0 ? [selo(`${pendentes} pendente${pendentes === 1 ? "" : "s"}`, "mau")] : [])),
     cartao("⌂", "Máquinas", document.createTextNode(String(c.maquinas.length))),
@@ -867,7 +866,7 @@ async function tirarMaquina(m, botao) {
   if (c2) pintarDevices(c2);
 }
 let esperasPagamento = 0;
-/** A promoção do primeiro mês que o painel "Assinar o Pro" está mostrando agora (null = preço normal). */
+/** A promoção do primeiro mês que o painel "Assinar o Pro" está mostrando agora (null = preço normal, ou super admin). */
 let promoMostrada = null;
 const ASSINAR_NORMAL = $("pl-assinar-btn").textContent;
 /** Copia o cupom da promoção; false se o navegador não deixou (a pessoa ainda pode selecionar o código na tela). */
@@ -879,7 +878,7 @@ async function copiarCupom(cupom) { try { await navigator.clipboard.writeText(cu
  * deixa, então a tela não promete isso); quem prefere o Pix tem o caminho do preço normal.
  */
 function pintarPromo(c) {
-  promoMostrada = promoNaTela(c.promo);
+  promoMostrada = semPrazo(c.licenca) ? null : promoNaTela(c.promo);
   const caixa = $("pl-promo"); caixa.hidden = promoMostrada === null; caixa.replaceChildren();
   $("pl-assinar-btn").textContent = promoMostrada === null ? ASSINAR_NORMAL : `Assinar por ${reaisCurto(promoMostrada.precoCentavos)} no primeiro mês`;
   if (promoMostrada === null) return;
@@ -995,12 +994,12 @@ function pintarPlano(c) {
   const falta = contagemRegressiva(l, Date.now());
   $("prazo").textContent = falta === null ? "" : falta.texto;
   $("prazo").className = `selo${falta !== null && falta.tom ? ` ${falta.tom}` : ""}`;
-  $("prazo").title = falta === null ? "" : `Vale até ${data(l.expiresAt ?? l.trialEnd)}`;
+  $("prazo").title = falta === null ? "" : semPrazo(l) ? SEM_PRAZO : `Vale até ${data(l.expiresAt ?? l.trialEnd)}`;
   $("prazo").hidden = falta === null || rota()?.secao !== "plan";
   $("pl-cartoes").replaceChildren(
     cartao("⬢", "Plano", selo(PLANO[l.plan] ?? l.plan, l.plan === "pro" ? "ok" : "")),
     cartao("✓", "Status", document.createTextNode(STATUS[l.status] ?? l.status)),
-    cartao("▦", "Vale até", document.createTextNode(l.expiresAt ? data(l.expiresAt) : l.trialEnd ? `trial até ${data(l.trialEnd)}` : "sem prazo")),
+    cartao("▦", "Vale até", semPrazo(l) ? infinito() : document.createTextNode(l.expiresAt ? data(l.expiresAt) : l.trialEnd ? `trial até ${data(l.trialEnd)}` : "sem prazo")),
     cartao("↻", "Ciclo", document.createTextNode(l.interval ? CICLO[l.interval] : "-")),
     cartao("▭", "Limite de devices", document.createTextNode(String(l.deviceLimit))),
     cartao("⌂", "Máquinas com a licença", document.createTextNode(`${(c.maquinas ?? []).filter(ocupaVaga).length} de ${c.maquinaLimite ?? 1}${vagasDeMaquina(c.maquinaLimite, c.maquinaExtras).detalhe === "" ? "" : ` (${vagasDeMaquina(c.maquinaLimite, c.maquinaExtras).detalhe})`}`)),
@@ -1009,8 +1008,9 @@ function pintarPlano(c) {
   // Assinar pela AbacatePay: só com os pagamentos ligados no Worker (config.js) e enquanto não há Pro pago ativo.
   // Pro ativo sem assinatura (liberado pelo admin, ou assinatura cancelada com o mês ainda valendo) continua podendo
   // assinar: o painel só some para quem tem a assinatura do Pro em andamento e o Pro valendo (plano-core.js).
-  const { pagoAtivo, proSemAssinatura } = estadoAssinaturaPro(l, c.assinaturas);
-  $("pl-assinar").hidden = cfg.pagamentos !== "1" || pagoAtivo;
+  // Super admin (Pro sem prazo) não tem o que assinar: o painel e a promoção somem; os add-ons continuam abaixo.
+  const { pagoAtivo, proSemAssinatura, semPrazo: superSemPrazo } = estadoAssinaturaPro(l, c.assinaturas);
+  $("pl-assinar").hidden = cfg.pagamentos !== "1" || pagoAtivo || superSemPrazo === true;
   $("pl-assinar-ja").hidden = !proSemAssinatura;
   pintarPromo(c);
   $("pl-assinar-ja").textContent = proSemAssinatura ? `Você já tem o Pro${l.expiresAt ? ` até ${data(l.expiresAt)}` : ""}, sem assinatura ativa. Assinando, a cobrança passa a ser mensal e o prazo que você já tem não é encurtado.` : "";

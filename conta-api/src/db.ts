@@ -1,8 +1,8 @@
 /** Acesso ao D1: consultas tipadas, uma função por intenção. O que sai do banco é dado; quem decide é a rota. */
 import type { AdminAssinatura, AdminContaResumo, AdminListaEspera, ContaAssinatura, AdminOrg, MaquinaApi, AdminPagamento, AdminVendas, AdminPedido, AdminPerfil, AdminVisao, CodigoLinha, ContaApi, ContaLinha, DeviceApi, DeviceLinha, License, LicencaLinha, MaquinaLinha, MembroApi, MembroLinha, OrgApi, OrgLinha, OrgResumo, PapelOrg, PerfilApi, PromoApi, SessaoLinha } from "./tipos.js";
-import { agoraIso, nomeExibicao, parseProvedores, provedoresDoLogin, unirProvedores, uuid, type MetodoLogin, type PatchLicenca, type PatchOrg, type PatchPerfil } from "./sessao-core.js";
+import { agoraIso, ehAdminInicial, nomeExibicao, parseProvedores, provedoresDoLogin, unirProvedores, uuid, type MetodoLogin, type PatchLicenca, type PatchOrg, type PatchPerfil } from "./sessao-core.js";
 import type { UsuarioFirebase } from "./firebase.js";
-import { direitoPromo, licencaComAddons, tipoDoExtra, umaPorContaEProduto, type Promo } from "./pagamento-core.js";
+import { direitoPromo, licencaDoSuper, licencaEmVigor, tipoDoExtra, umaPorContaEProduto, type Papel, type Promo } from "./pagamento-core.js";
 import { limiteComExtras, valeAte } from "./licenca-core.js";
 
 export async function contaPorUid(db: D1Database, uid: string): Promise<ContaLinha | null> {
@@ -85,7 +85,7 @@ export async function houveContaApagada(db: D1Database, email: string): Promise<
 export async function papelAdmin(db: D1Database, email: string, bootstrap: string, agora = agoraIso()): Promise<"super" | "admin" | null> {
   const r = await db.prepare("SELECT papel FROM admins WHERE email = ?1").bind(email).first<{ papel: string }>();
   if (r !== null && r !== undefined) return r.papel === "super" ? "super" : "admin";
-  if (email === bootstrap.trim().toLowerCase()) {
+  if (ehAdminInicial(email, bootstrap)) {
     const n = await db.prepare("SELECT COUNT(*) AS n FROM admins").first<{ n: number }>();
     if ((n?.n ?? 0) === 0) { await db.prepare("INSERT INTO admins (email, papel, criado_em) VALUES (?1, 'super', ?2)").bind(email, agora).run(); return "super"; }
   }
@@ -129,10 +129,14 @@ export async function licencaGravada(db: D1Database, conta: ContaLinha): Promise
 export async function addonsPagos(db: D1Database, contaId: string): Promise<{ produto: string; expiresAt: string }[]> {
   return (await db.prepare("SELECT produto, expires_at FROM addons_pagos WHERE conta_id = ?1").bind(contaId).all<{ produto: string; expires_at: string }>()).results.map((r) => ({ produto: r.produto, expiresAt: r.expires_at }));
 }
-/** A licença em vigor, que o app e o console recebem: a gravada mais os add-ons pagos em dia (licencaComAddons). */
-export async function licencaDaConta(db: D1Database, conta: ContaLinha, agora = agoraIso()): Promise<License> {
+/**
+ * A licença em vigor, que o app, o console e a máquina recebem (licencaEmVigor): a gravada, com o Pro sem prazo do
+ * super admin e os add-ons pagos em dia. `papel` é o de `papelAdmin` para esta conta, lido uma vez pela rota: é
+ * obrigatório para nenhum leitor decidir acesso pela licença gravada de um super admin.
+ */
+export async function licencaDaConta(db: D1Database, conta: ContaLinha, papel: Papel, agora = agoraIso()): Promise<License> {
   const [l, pagos] = await Promise.all([licencaGravada(db, conta), addonsPagos(db, conta.id)]);
-  return licencaComAddons(l, pagos, agora);
+  return licencaEmVigor(l, pagos, papel, agora);
 }
 
 export async function devicesDaConta(db: D1Database, contaId: string): Promise<DeviceLinha[]> {
@@ -254,10 +258,11 @@ export async function jaPagouPro(db: D1Database, contaId: string, fora: { pagame
 }
 /**
  * A promoção do primeiro mês para esta conta agora (direitoPromo), ou null. `promo` é a configuração do ambiente
- * (null = desligada). A consulta de "já pagou" só roda para quem passaria nas outras regras.
+ * (null = desligada). A consulta de "já pagou" só roda para quem passaria nas outras regras. Super admin (`papel`) não
+ * tem oferta: a conta dele já tem o Pro sem prazo, mesmo com um teste vencido gravado.
  */
-export async function promoDaConta(db: D1Database, conta: ContaLinha, promo: Promo | null, agoraMs = Date.now(), gravada?: License): Promise<PromoApi | null> {
-  if (promo === null) return null;
+export async function promoDaConta(db: D1Database, conta: ContaLinha, promo: Promo | null, papel: Papel, agoraMs = Date.now(), gravada?: License): Promise<PromoApi | null> {
+  if (promo === null || papel === "super") return null;
   const licenca = gravada ?? await licencaGravada(db, conta);
   const base = { licenca, agoraMs, promoDias: promo.dias, cupom: promo.cupom };
   if (direitoPromo({ ...base, jaPagouPro: false }) === null) return null;
@@ -265,17 +270,17 @@ export async function promoDaConta(db: D1Database, conta: ContaLinha, promo: Pro
   return d === null ? null : { precoCentavos: promo.precoCentavos, ate: d.ate, cupom: promo.cupom };
 }
 /** A conta como o app a vê: licença, devices (com "este"), máquinas, pedidos e o papel de admin. `promo`: a configuração da promoção do primeiro mês no ambiente; só o console (`GET|PATCH /conta`) a passa. */
-export async function montarContaApi(db: D1Database, conta: ContaLinha, admin: "super" | "admin" | null, deviceAtual: string | null, promo: Promo | null = null): Promise<ContaApi> {
+export async function montarContaApi(db: D1Database, conta: ContaLinha, admin: Papel, deviceAtual: string | null, promo: Promo | null = null): Promise<ContaApi> {
   const [gravada, pagos, devices, maquinas, pedidos, orgs, limiteMaq, extras, ass] = await Promise.all([licencaGravada(db, conta), addonsPagos(db, conta.id), devicesDaConta(db, conta.id), maquinasDaConta(db, conta.id), pedidosAbertos(db, conta.id), orgsDaConta(db, conta.id), limiteDeMaquinasComExtras(db, conta.id), extrasPagos(db, conta.id),
     db.prepare("SELECT id, produto, status, valor_centavos FROM assinaturas WHERE conta_id = ?1 ORDER BY criada_em DESC LIMIT 50").bind(conta.id).all<{ id: string; produto: string | null; status: string; valor_centavos: number | null }>()]);
-  const licenca = licencaComAddons(gravada, pagos, agoraIso());
+  const licenca = licencaEmVigor(gravada, pagos, admin, agoraIso());
   const assinaturas: ContaAssinatura[] = ass.results.map((a) => ({ id: a.id, produto: a.produto, status: a.status === "CANCELLED" ? "CANCELLED" : "ACTIVE", valorCentavos: a.valor_centavos, valeAte: a.produto === null ? gravada.expiresAt : tipoDoExtra(a.produto) !== null ? extras.find((x) => x.assinaturaId === a.id)?.expiresAt ?? null : pagos.find((p) => p.produto === a.produto)?.expiresAt ?? null }));
   const ds: DeviceApi[] = devices.map((d) => {
     let apps: DeviceApi["apps"] = {};
     try { const a: unknown = JSON.parse(d.apps); if (a !== null && typeof a === "object") apps = a as DeviceApi["apps"]; } catch { apps = {}; }
     return { id: d.id, alias: d.alias_legado, name: d.name ?? "", user: d.user ?? "", platform: d.platform ?? "", status: d.status === "pending" ? "pending" : "active", requestedAt: d.requested_at, firstSeen: d.first_seen, lastSeen: d.last_seen, apps, este: deviceAtual !== null && (d.id === deviceAtual || d.alias_legado === deviceAtual) };
   });
-  return { id: conta.id, email: conta.email, nome: nomeExibicao(conta), nomeLogin: conta.nome, foto: conta.foto, perfil: perfilDaLinha(conta), provedores: parseProvedores(conta.provedores), dadosUso: conta.dados_uso !== 0, admin, licenca, devices: ds, maquinas: maquinas.map(maquinaApi), maquinaLimite: limiteMaq.limite, maquinaExtras: limiteMaq.extras, pedidos, assinaturas, orgs, promo: await promoDaConta(db, conta, promo, Date.now(), gravada) };
+  return { id: conta.id, email: conta.email, nome: nomeExibicao(conta), nomeLogin: conta.nome, foto: conta.foto, perfil: perfilDaLinha(conta), provedores: parseProvedores(conta.provedores), dadosUso: conta.dados_uso !== 0, admin, licenca, devices: ds, maquinas: maquinas.map(maquinaApi), maquinaLimite: limiteMaq.limite, maquinaExtras: limiteMaq.extras, pedidos, assinaturas, orgs, promo: await promoDaConta(db, conta, promo, admin, Date.now(), gravada) };
 }
 
 // ---- Admin: a visão de todas as contas. `busca` filtra por e-mail ou nome (LIKE, escapado); até 500 contas.
@@ -285,7 +290,7 @@ const deviceApi = (d: DeviceLinha): DeviceApi => {
   return { id: d.id, alias: d.alias_legado, name: d.name ?? "", user: d.user ?? "", platform: d.platform ?? "", status: d.status === "pending" ? "pending" : "active", requestedAt: d.requested_at, firstSeen: d.first_seen, lastSeen: d.last_seen, apps, este: false };
 };
 interface PedidoLinha { id: string; conta_id: string; tipo: string; detalhe: string | null; maquina_id: string | null; criado_em: string; atendido_em: string | null; atendido_por: string | null; email: string; nome: string | null }
-export async function visaoAdmin(db: D1Database, busca: string, comVendas = false, agora = agoraIso()): Promise<AdminVisao> {
+export async function visaoAdmin(db: D1Database, busca: string, adminInicial: string, comVendas = false, agora = agoraIso()): Promise<AdminVisao> {
   const like = `%${busca.replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
   const contas = (await db.prepare("SELECT * FROM contas WHERE apagada_em IS NULL AND (?1 = '' OR email LIKE ?2 ESCAPE '\\' OR nome LIKE ?2 ESCAPE '\\' OR nome_proprio LIKE ?2 ESCAPE '\\' OR sobrenome LIKE ?2 ESCAPE '\\') ORDER BY criada_em DESC LIMIT 500").bind(busca, like).all<ContaLinha>()).results;
   const [licencas, devices, maquinas, pedidosN, admins, pedidos, orgsLinhas] = await Promise.all([
@@ -307,11 +312,17 @@ export async function visaoAdmin(db: D1Database, busca: string, comVendas = fals
   const maq = new Map(maquinas.results.map((m) => [m.conta_id, m.n]));
   const ped = new Map(pedidosN.results.map((m) => [m.conta_id, m.n]));
   const adm = new Map(admins.results.map((a) => [a.email, a.papel === "super" ? "super" as const : "admin" as const]));
-  const resumo: AdminContaResumo[] = contas.map((c) => ({ id: c.id, email: c.email, nome: nomeExibicao(c), foto: c.foto, admin: adm.get(c.email) ?? null, criadaEm: c.criada_em, licenca: licencaDaLinha(lic.get(c.id) ?? null, c.criada_em), addonsPagos: pagos.get(c.id) ?? [], devices: devs.get(c.id) ?? [], maquinas: maq.get(c.id) ?? 0, maquinaLimite: limiteValido(lic.get(c.id)?.maquina_limit), pedidos: ped.get(c.id) ?? 0 }));
-  const todas = busca === "" ? resumo : (await db.prepare("SELECT id, criada_em FROM contas WHERE apagada_em IS NULL").all<{ id: string; criada_em: string }>()).results.map((c) => ({ id: c.id, licenca: licencaDaLinha(lic.get(c.id) ?? null, c.criada_em), devices: devs.get(c.id) ?? [] }));
+  // A licença de cada conta com a regra do super admin (licencaDoSuper), a mesma do app e do console; os add-ons pagos
+  // seguem à parte em `addonsPagos`. De um super admin vai também a gravada, que é o que o editor de licença muda.
+  const licencasDe = (c: { id: string; email: string; criada_em: string }): { licenca: License; licencaGravada?: License } => {
+    const gravada = licencaDaLinha(lic.get(c.id) ?? null, c.criada_em);
+    return adm.get(c.email) === "super" ? { licenca: licencaDoSuper(gravada), licencaGravada: gravada } : { licenca: gravada };
+  };
+  const resumo: AdminContaResumo[] = contas.map((c) => ({ id: c.id, email: c.email, nome: nomeExibicao(c), foto: c.foto, admin: adm.get(c.email) ?? null, criadaEm: c.criada_em, ...licencasDe(c), addonsPagos: pagos.get(c.id) ?? [], devices: devs.get(c.id) ?? [], maquinas: maq.get(c.id) ?? 0, maquinaLimite: limiteValido(lic.get(c.id)?.maquina_limit), pedidos: ped.get(c.id) ?? 0 }));
+  const todas = busca === "" ? resumo : (await db.prepare("SELECT id, email, criada_em FROM contas WHERE apagada_em IS NULL").all<{ id: string; email: string; criada_em: string }>()).results.map((c) => ({ id: c.id, licenca: licencasDe(c).licenca, devices: devs.get(c.id) ?? [] }));
   const totais = { contas: todas.length, pro: todas.filter((c) => c.licenca.plan === "pro").length, devicesPendentes: devices.results.filter((d) => d.status === "pending").length, pedidosAbertos: pedidos.results.length, orgs: orgs.length };
   const emails = new Set((await db.prepare("SELECT email FROM contas WHERE apagada_em IS NULL").all<{ email: string }>()).results.map((c) => c.email));
-  const perfis: AdminPerfil[] = admins.results.map((a) => ({ email: a.email, papel: a.papel === "super" ? "super" : "admin", criadoEm: a.criado_em, entrou: emails.has(a.email) }));
+  const perfis: AdminPerfil[] = admins.results.map((a) => ({ email: a.email, papel: a.papel === "super" ? "super" : "admin", criadoEm: a.criado_em, entrou: emails.has(a.email), fixo: ehAdminInicial(a.email, adminInicial) }));
   return { contas: resumo, perfis, pedidos: pedidos.results.map((p): AdminPedido => ({ id: p.id, tipo: p.tipo, detalhe: p.detalhe, maquinaId: p.maquina_id, criadoEm: p.criado_em, atendidoEm: p.atendido_em, atendidoPor: p.atendido_por, conta: { id: p.conta_id, email: p.email, nome: p.nome } })), orgs, totais, vendas: comVendas ? await vendasAdmin(db, lic, pagos, pedidos.results.filter((p) => p.tipo === "pagamento.revisar").length, agora) : null, listaEspera: comVendas ? await listaEsperaAdmin(db) : null };
 }
 /** Quem paga o quê (super admin): as assinaturas com o prazo que sustentam, os últimos pagamentos e os totais em dia. */
