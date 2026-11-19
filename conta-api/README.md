@@ -54,8 +54,10 @@ O que isso exige de quem mexer aqui:
 envio de e-mail: o convite é o e-mail cadastrado, e o console dá o link para a pessoa; quando aquele e-mail entra (Google
 ou link por e-mail), `aceitarConvites` no `POST /sessao` liga a conta e o membro vira ativo. Papéis: dona (tudo, inclusive
 apagar e promover), admin (convida, remove e muda entre admin↔membro), membro (vê). A organização precisa de pelo menos
-uma dona; uma dona não apaga a própria conta (`DELETE /conta` → 403) sem passar o bastão. **Assentos** (ativos +
-convidados) começam em 5 e só o super admin muda (`PATCH /admin/orgs/:slug` `{assentos}`); `dominio_email` restringe os
+uma dona; uma dona não apaga a própria conta (`DELETE /conta` → 403) sem passar o bastão. **Usuários** (assentos: ativos +
+convidados) começam em 1, a dona. Cada usuário a mais é uma unidade extra paga (`extra-assento`: `extras_pagos` com o
+`org_id` da organização; quem paga é a conta de quem comprou, dona ou admin), e o super admin dá cortesias na coluna
+`assentos` (`PATCH /admin/orgs/:slug` `{assentos}`). O número em vigor é `assentosDaOrg` (inclusos + pagos em dia); `dominio_email` restringe os
 convites a um domínio. Quem não é membro recebe 404 em tudo (a organização não existe para quem está fora); o super admin
 vê todas (`GET /admin/visao` → `orgs`; console › Todas as organizações). Slugs seguem `SLUG_RE` e a lista
 `SLUGS_RESERVADOS` (hosts nossos, `www`, `api`…), porque na próxima versão `<slug>.agentesgrok.com` abre o console da

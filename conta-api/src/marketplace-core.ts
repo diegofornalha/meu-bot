@@ -65,6 +65,13 @@ export const FICHAS: Readonly<Record<string, Ficha>> = {
     inclui: ["Mais 1 Mac com o app na mesma conta", "O Mac pendente entra sozinho"],
     exige: COM_O_PRO,
   },
+  "extra-assento": {
+    slug: "usuario-da-organizacao", tipo: "unidade", nome: "Mais um usuário na organização",
+    resumo: "Mais uma pessoa na sua organização, com o Pro incluído enquanto fizer parte dela.",
+    descricao: "A organização inclui você, que é a dona. Cada assinatura soma um usuário: a pessoa convidada entra com a própria conta e usa o Pro pela organização, sem assinar o dela. A vaga abre assim que o pagamento é confirmado.",
+    inclui: ["Mais 1 usuário na organização", "O Pro para essa pessoa, enquanto fizer parte da organização"],
+    exige: "É preciso ter uma organização, e quem é a dona precisa do Pro ativo.",
+  },
 };
 
 /** Um item à venda no ambiente: a ficha mais o preço. `id` é o nome técnico (o `produto` do checkout; "pro" para o plano). */
