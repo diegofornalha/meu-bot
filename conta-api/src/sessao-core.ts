@@ -322,14 +322,14 @@ export function validaConvite(raw: unknown): { email: string; papel: "admin" | "
 }
 /** Com domínio definido, só e-mails daquele domínio entram (subdomínios não). */
 export const emailNoDominio = (email: string, dominio: string | null): boolean => dominio === null || email.toLowerCase().endsWith(`@${dominio.toLowerCase()}`);
-/** Assentos livres: ativos e convidados ocupam; nunca negativo. */
 /** Quantos usuários toda organização inclui sem pagar: a dona. Os outros são usuários pagos (extra "assento") ou cortesia do super admin. */
 export const ASSENTOS_INCLUSOS = 1;
 /** Teto de usuários de uma organização (o mesmo de validaAssentos). */
 export const ASSENTOS_MAX = 1000;
+/** Assentos livres: ativos e convidados ocupam; nunca negativo. */
 export const assentosLivres = (assentos: number, ocupados: number): number => Math.max(0, assentos - ocupados);
 /** `PATCH /admin/orgs/:slug`: assentos de 1 a 1000. */
-export const validaAssentos = (v: unknown): number | null => (typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= 1000 ? v : null);
+export const validaAssentos = (v: unknown): number | null => (typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= ASSENTOS_MAX ? v : null);
 /**
  * `coflow.agentesgrok.com` → "coflow": o host de uma organização (PR do subdomínio). Hosts nossos (auth., console.,
  * www.…) e nomes reservados dão null; o site (`siteHost`) é o domínio-base.
