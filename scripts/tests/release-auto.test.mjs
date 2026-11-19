@@ -211,18 +211,18 @@ test("site: a home deste commit passa na conferência de conteúdo com o TRIAL_D
 });
 
 test("site: conferência no ar por canal", () => {
-  const ok = { "/": 200, "/obrigado": 200, "/robots.txt": 200, "/sitemap.xml": 200, "/llms.txt": 200 };
+  const ok = { "/": 200, "/obrigado": 200, "/marketplace": 200, "/robots.txt": 200, "/sitemap.xml": 200, "/llms.txt": 200 };
   const dl = { versao: "0.83.0", nome: "meu-bot-0.83.0-arm64.dmg", url: "https://x/y.dmg" };
   assert.deepEqual(faltasDoSite({ canal: "producao", health: { ok: true, canal: "producao" }, download: dl, paginas: ok }), []);
-  assert.deepEqual(faltasDoSite({ canal: "staging", health: { ok: true, canal: "staging" }, download: { ...dl, versao: "0.84.0-staging.1" }, paginas: { "/": 200, "/obrigado": 200 } }), [], "staging não precisa de sitemap");
+  assert.deepEqual(faltasDoSite({ canal: "staging", health: { ok: true, canal: "staging" }, download: { ...dl, versao: "0.84.0-staging.1" }, paginas: { "/": 200, "/obrigado": 200, "/marketplace": 200 } }), [], "staging não precisa de sitemap");
   assert.equal(faltasDoSite({ canal: "producao", health: { ok: true, canal: "staging" }, download: dl, paginas: ok }).length, 1, "canal trocado");
   assert.equal(faltasDoSite({ canal: "producao", health: { ok: true, canal: "producao" }, download: { ...dl, versao: "0.84.0-staging.1" }, paginas: ok }).length, 1, "produção nunca entrega staging");
   assert.equal(faltasDoSite({ canal: "producao", health: null, download: null, paginas: { ...ok, "/obrigado": 500 } }).length, 3);
 });
 
 test("site: só desfaz o deploy quando o próprio Worker respondeu errado", () => {
-  const ok = { "/": 200, "/obrigado": 200, "/robots.txt": 200, "/sitemap.xml": 200, "/llms.txt": 200 };
-  const semRede = { "/": 0, "/obrigado": 0, "/robots.txt": 0, "/sitemap.xml": 0, "/llms.txt": 0 };
+  const ok = { "/": 200, "/obrigado": 200, "/marketplace": 200, "/robots.txt": 200, "/sitemap.xml": 200, "/llms.txt": 200 };
+  const semRede = { "/": 0, "/obrigado": 0, "/marketplace": 0, "/robots.txt": 0, "/sitemap.xml": 0, "/llms.txt": 0 };
   assert.equal(desfazDeploy({ canal: "producao", health: null, statusHealth: 0, paginas: semRede }), false, "Mac sem rede: não desfaz");
   assert.equal(desfazDeploy({ canal: "producao", health: { ok: true, canal: "producao" }, statusHealth: 200, paginas: ok }), false, "só o download (GitHub) falhou");
   assert.equal(desfazDeploy({ canal: "producao", health: { ok: true, canal: "staging" }, statusHealth: 200, paginas: ok }), true, "canal trocado");

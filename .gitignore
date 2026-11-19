@@ -20,3 +20,6 @@ node_modules
 .claude/.rebuild-lock/
 # hook de lembrete de PR (scripts/hooks/pr-lembrete.sh): um carimbo por branch+commit já conferido
 .claude/.pr-check-*
+
+# Estado local do wrangler (D1 e cache do miniflare de testes e do wrangler dev)
+.wrangler/

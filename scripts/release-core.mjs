@@ -388,7 +388,7 @@ export function varsDoWrangler(toml) {
 }
 
 /** Páginas que têm de responder 200 em cada canal (o staging fica fora dos buscadores pelo cabeçalho, sem sitemap). */
-export const PAGINAS_DO_SITE = { staging: ["/", "/obrigado"], producao: ["/", "/obrigado", "/robots.txt", "/sitemap.xml", "/llms.txt"] };
+export const PAGINAS_DO_SITE = { staging: ["/", "/obrigado", "/marketplace"], producao: ["/", "/obrigado", "/marketplace", "/robots.txt", "/sitemap.xml", "/llms.txt"] };
 
 /**
  * O que está errado no site no ar (lista vazia = conferido). `health` = corpo JSON de /health (ou null),
