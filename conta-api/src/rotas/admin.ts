@@ -5,12 +5,13 @@
  * (rotas/maquinas.ts). Tudo fica na auditoria.
  */
 import type { Env, TipoVenda } from "../tipos.js";
-import { apagarConta, ativarDevice, atenderPedido, auditoriaAdmin, marcarVendaOculta, encerrarAddonPago, encerrarExtraPago, auditar, contaPorId, contarSupers, devicesDaConta, gravarLicenca, licencaGravada, removerDevice, gravarPerfil, gravarProvedor, removerPerfil, revogarSessoesDaConta, visaoAdmin } from "../db.js";
+import { apagarConta, assinaturasOcultas, ativarDevice, atenderPedido, auditoriaAdmin, zerarAuditoria, marcarVendaOculta, encerrarAddonPago, encerrarExtraPago, auditar, contaPorId, contarSupers, devicesDaConta, gravarLicenca, licencaGravada, removerDevice, gravarPerfil, gravarProvedor, removerPerfil, revogarSessoesDaConta, visaoAdmin } from "../db.js";
 import { consultarFirebase, definirSenhaFirebase } from "../firebase-admin.js";
 import { DEVICE_ID_RE, UUID_RE, decidirLiberarDevice, ehAdminInicial, validaBusca, validaEmail, validaPapel, validaPatchLicenca, validaSenhaNova } from "../sessao-core.js";
 import { json, lerJson, type Autenticado } from "../http.js";
 import { assinaturaIdValido } from "../pagamento-core.js";
 import { enviarEmailSenha, impedimentosDeApagar } from "./conta.js";
+import { cancelarNaAbacate, pagamentosLigados } from "./pagamentos.js";
 
 export async function getAdminVisao(auth: Autenticado, env: Env, url: URL): Promise<Response> {
   if (auth.claims.adm === null) return json({ erro: "só admin" }, 403);
@@ -130,6 +131,26 @@ export async function deleteAdminConta(auth: Autenticado, env: Env, id: string):
 export async function getAdminAuditoria(auth: Autenticado, env: Env): Promise<Response> {
   if (auth.claims.adm !== "super") return json({ erro: "só o super admin" }, 403);
   return json(await auditoriaAdmin(env.DB));
+}
+/**
+ * `POST /admin/auditoria/zerar` (super admin, só no staging): zera a tela Auditoria para recomeçar do zero depois de
+ * uma rodada de testes. Cancela na AbacatePay a cobrança de cada assinatura oculta ainda ativa e apaga o que a tela
+ * mostra (`zerarAuditoria`). A assinatura que a AbacatePay não confirmou que parou de cobrar fica, com os pagamentos
+ * dela, e a resposta diz quantas foram. Sobra uma linha no registro: quem zerou e o que saiu.
+ * Em produção responde 403: lá o registro é o rastro das vendas e das contas de verdade.
+ */
+export async function postZerarAuditoria(auth: Autenticado, env: Env): Promise<Response> {
+  if (auth.claims.adm !== "super") return json({ erro: "só o super admin" }, 403);
+  if (env.CANAL !== "staging") return json({ erro: "zerar a auditoria só existe no staging" }, 403);
+  const semCobranca: string[] = []; let naoCanceladas = 0;
+  for (const a of await assinaturasOcultas(env.DB)) {
+    if (a.status === "CANCELLED") { semCobranca.push(a.id); continue; }
+    const res = pagamentosLigados(env) ? await cancelarNaAbacate(env, a.id) : "erro";
+    if (res === "cancelada" || res === "ja-cancelada") semCobranca.push(a.id); else naoCanceladas++;
+  }
+  const z = await zerarAuditoria(env.DB, semCobranca);
+  await auditar(env.DB, auth.conta.email, "auditoria.zerada", auth.conta.id, `${z.registro} ação(ões), ${z.assinaturas} assinatura(s), ${z.pagamentos} pagamento(s) e ${z.contas} conta(s) apagada(s) saíram${naoCanceladas > 0 ? `; ${naoCanceladas} assinatura(s) ficaram: a AbacatePay não confirmou o cancelamento` : ""}`);
+  return json({ ok: true, ...z, naoCanceladas });
 }
 /**
  * `POST /admin/vendas/(assinaturas|pagamentos)/:id/(ocultar|mostrar)`: o super admin tira uma linha da tela

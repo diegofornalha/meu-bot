@@ -7,12 +7,14 @@
  *   o checkout é de UMA máquina extra (ABACATEPAY_EXTRAS): exige o Pro valendo e pode ser pedido mais de uma vez;
  * - `POST /conta/assinatura/cancelar` (logado, `{id: "subs_…"}`): cancela na AbacatePay a assinatura da própria conta;
  *   o acesso continua até o fim do período já pago;
+ * - `DELETE /admin/vendas/assinaturas/:id` (super admin): cancela a cobrança na AbacatePay e apaga a assinatura daqui
+ *   (sai da tela Assinaturas e da receita); os pagamentos dela ficam gravados, ocultos;
  * - `POST /pagamentos/abacatepay` (webhook, sem login): confere secret e assinatura, grava o evento uma vez só, libera o
  *   Pro na cobrança paga e manda a compra ao GA4 (Measurement Protocol) com o client_id guardado no checkout.
  * Liga só com ABACATEPAY_KEY, ABACATEPAY_WEBHOOK_SECRET e ABACATEPAY_PRODUTO; sem eles, as duas rotas respondem 503.
  */
 import type { Env } from "../tipos.js";
-import { addonsPagos, auditar, contaPorId, contarLimite, jaPagouPro, licencaDaConta, licencaGravada, limiteDeMaquinas, papelAdmin, promoDaConta } from "../db.js";
+import { addonsPagos, auditar, contaPorId, contarLimite, jaPagouPro, licencaDaConta, licencaGravada, limiteDeMaquinas, papelAdmin, promoDaConta, removerAssinatura } from "../db.js";
 import { agoraIso, janelaMinuto, uuid } from "../sessao-core.js";
 import { json, lerJson, type Autenticado } from "../http.js";
 import { gaIds } from "../analytics-core.js";
@@ -119,6 +121,49 @@ export async function postAssinatura(auth: Autenticado, env: Env, req: Request):
 }
 
 /**
+ * Pede à AbacatePay que pare de cobrar a assinatura `id` e lê a resposta (`resultadoCancelamento`); `fora` quando ela
+ * não respondeu. Só `cancelada` e `ja-cancelada` garantem que não há mais cobrança.
+ */
+export async function cancelarNaAbacate(env: Env, id: string): Promise<ReturnType<typeof resultadoCancelamento> | "fora"> {
+  let r: Response; let resp: unknown;
+  try {
+    r = await fetch(`${API}/subscriptions/cancel`, { method: "POST", headers: { authorization: `Bearer ${env.ABACATEPAY_KEY}`, "content-type": "application/json" }, body: JSON.stringify({ id }) });
+    resp = await r.json().catch(() => null);
+  } catch (e) { console.log(`[pagamento] AbacatePay fora (cancelar): ${e instanceof Error ? e.message : String(e)}`); return "fora"; }
+  const res = resultadoCancelamento(r.status, resp);
+  if (res === "sem-permissao") console.log(`[pagamento] cancelar recusado: HTTP ${r.status} (a chave precisa do escopo SUBSCRIPTION:DELETE)`);
+  if (res === "erro") console.log(`[pagamento] cancelar recusado: HTTP ${r.status} ${JSON.stringify((resp as { error?: unknown } | null)?.error ?? null).slice(0, 200)}`);
+  return res;
+}
+
+/**
+ * O super admin remove uma assinatura (console › Assinaturas › Remover): a cobrança para na AbacatePay e a linha é
+ * apagada daqui, então sai da lista e da receita mensal de vez. Serve para compra de teste e para venda desfeita por
+ * fora (reembolso combinado direto com a pessoa). Sem a confirmação de que a AbacatePay não cobra mais, nada é apagado.
+ * Os pagamentos dela não são apagados, só ocultos (`removerAssinatura`). O acesso já pago (licença, add-on, máquina
+ * extra) não muda aqui: quem tira é o admin, pelas ações de sempre.
+ */
+export async function deleteAdminAssinatura(auth: Autenticado, env: Env, id: string): Promise<Response> {
+  if (auth.claims.adm !== "super") return json({ erro: "só o super admin" }, 403);
+  if (!assinaturaIdValido(id)) return json({ erro: "assinatura inválida" }, 400);
+  const linha = await env.DB.prepare("SELECT conta_id, produto, status, valor_centavos FROM assinaturas WHERE id = ?1").bind(id).first<{ conta_id: string; produto: string | null; status: string; valor_centavos: number | null }>();
+  if (linha === null) return json({ erro: "essa assinatura não existe (ou já foi removida)" }, 404);
+  let cobranca = "já estava cancelada aqui";
+  if (linha.status !== "CANCELLED") {
+    if (!pagamentosLigados(env)) return json({ erro: "este ambiente está sem a chave da AbacatePay: não dá para cancelar a cobrança, então nada foi removido" }, 503);
+    const res = await cancelarNaAbacate(env, id);
+    if (res === "fora") return json({ erro: "a AbacatePay não respondeu; nada foi removido, tente de novo" }, 502);
+    if (res === "sem-permissao") return json({ erro: "a chave da AbacatePay não pode cancelar (falta o escopo SUBSCRIPTION:DELETE); nada foi removido" }, 502);
+    if (res === "erro") return json({ erro: "a AbacatePay não cancelou a cobrança; nada foi removido, tente de novo" }, 502);
+    cobranca = res === "cancelada" ? "cancelada na AbacatePay" : "a AbacatePay já não cobrava";
+  }
+  const pagamentos = await removerAssinatura(env.DB, id, auth.conta.email);
+  if (pagamentos === null) return json({ erro: "essa assinatura não existe (ou já foi removida)" }, 404);
+  await auditar(env.DB, auth.conta.email, "assinatura.removida", linha.conta_id, `${id} · ${linha.produto ?? "Pro"} · ${linha.valor_centavos ?? 0} centavos/mês · ${cobranca} · ${pagamentos} pagamento(s) oculto(s)`);
+  return json({ ok: true, pagamentosOcultos: pagamentos });
+}
+
+/**
  * Cancelar pela própria pessoa (console › Suas assinaturas). Só a assinatura ACTIVE desta conta; a AbacatePay para de
  * cobrar e aqui só a assinatura muda: o Pro (ou o add-on) continua até o `expires_at` já pago, como no webhook
  * `subscription.cancelled`, que pode chegar depois e não muda mais nada.
@@ -131,14 +176,10 @@ export async function postCancelarAssinatura(auth: Autenticado, env: Env, req: R
   if (!assinaturaIdValido(id)) return json({ erro: "assinatura inválida" }, 400);
   const linha = await env.DB.prepare("SELECT id, produto FROM assinaturas WHERE id = ?1 AND conta_id = ?2 AND status = 'ACTIVE'").bind(id, auth.conta.id).first<{ id: string; produto: string | null }>();
   if (linha === null) return json({ erro: "não achei essa assinatura ativa na sua conta" }, 404);
-  let r: Response; let resp: unknown;
-  try {
-    r = await fetch(`${API}/subscriptions/cancel`, { method: "POST", headers: { authorization: `Bearer ${env.ABACATEPAY_KEY}`, "content-type": "application/json" }, body: JSON.stringify({ id }) });
-    resp = await r.json().catch(() => null);
-  } catch (e) { console.log(`[pagamento] AbacatePay fora (cancelar): ${e instanceof Error ? e.message : String(e)}`); return json({ erro: "o pagamento não respondeu; tente de novo" }, 502); }
-  const res = resultadoCancelamento(r.status, resp);
-  if (res === "sem-permissao") { console.log(`[pagamento] cancelar recusado: HTTP ${r.status} (a chave precisa do escopo SUBSCRIPTION:DELETE)`); return json({ erro: "o cancelamento por aqui ainda não está ligado; fale com o suporte, que cancela para você" }, 502); }
-  if (res === "erro") { console.log(`[pagamento] cancelar recusado: HTTP ${r.status} ${JSON.stringify((resp as { error?: unknown } | null)?.error ?? null).slice(0, 200)}`); return json({ erro: "não deu para cancelar agora; tente de novo" }, 502); }
+  const res = await cancelarNaAbacate(env, id);
+  if (res === "fora") return json({ erro: "o pagamento não respondeu; tente de novo" }, 502);
+  if (res === "sem-permissao") return json({ erro: "o cancelamento por aqui ainda não está ligado; fale com o suporte, que cancela para você" }, 502);
+  if (res === "erro") return json({ erro: "não deu para cancelar agora; tente de novo" }, 502);
   const mudou = await env.DB.prepare("UPDATE assinaturas SET status = 'CANCELLED', atualizada_em = ?1 WHERE id = ?2 AND conta_id = ?3 AND status = 'ACTIVE'").bind(agoraIso(), id, auth.conta.id).run();
   if ((mudou.meta.changes ?? 0) > 0) await auditar(env.DB, auth.conta.email, "assinatura.cancelada", auth.conta.id, `${id} · ${linha.produto ?? "Pro"} · pelo console${res === "ja-cancelada" ? " (já estava cancelada na AbacatePay)" : ""}`);
   return json({ ok: true });

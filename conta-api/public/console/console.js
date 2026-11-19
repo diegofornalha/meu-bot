@@ -245,6 +245,26 @@ async function pintarAuditoria() {
 }
 $("audit-busca").addEventListener("input", filtrarAuditoria);
 $("audit-recarregar").addEventListener("click", () => { void pintarAuditoria(); });
+// "Zerar" só existe no staging (a API recusa em produção): recomeça a auditoria depois de uma rodada de testes.
+// Dois cliques: o segundo confirma, em até 5 s.
+$("audit-zerar").hidden = cfg.canal !== "staging";
+$("audit-zerar").addEventListener("click", (ev) => { void zerarAuditoria(ev.currentTarget); });
+async function zerarAuditoria(botao) {
+  if (botao.dataset.confirma !== "1") {
+    botao.dataset.confirma = "1"; botao.textContent = "Confirmar: apagar tudo desta tela";
+    setTimeout(() => { if (!botao.disabled) { delete botao.dataset.confirma; botao.textContent = "Zerar"; } }, 5000);
+    return;
+  }
+  const s = sessaoGuardada(); if (s === null) return;
+  botao.disabled = true; mostrarErro(null);
+  const r = await api("POST", "/admin/auditoria/zerar", {}, s.acesso);
+  botao.disabled = false; delete botao.dataset.confirma; botao.textContent = "Zerar";
+  if (r.status !== 200) { mostrarErro(erroDe(r)); return; }
+  await pintarAuditoria();
+  // As assinaturas apagadas saem também da lista de cada conta e dos totais do admin.
+  await carregarVisao(visaoBusca).catch(() => undefined);
+  if (r.corpo?.naoCanceladas > 0) mostrarErro(`${r.corpo.naoCanceladas} assinatura(s) ficaram: a AbacatePay não confirmou o cancelamento. Tente zerar de novo.`);
+}
 // ---- janelas de suporte (/support-window): o último resumo de cada pessoa que o meu-bot-admin-gestao leu
 let janelas = [];
 const marca = (ok) => (ok === true ? "✓" : ok === false ? "✗" : "•");
@@ -576,6 +596,30 @@ function botaoOcultar(tipo, id) {
   b.addEventListener("click", () => { void vendaOculta(tipo, id, true, b); });
   const td = el("td"); td.append(b); return td;
 }
+/**
+ * A célula "Remover" de uma assinatura: cancela a cobrança na AbacatePay e apaga a assinatura daqui (sai da lista e da
+ * receita, sem volta). Dois cliques: o segundo confirma, em até 5 s.
+ */
+function botaoRemoverAssinatura(a) {
+  const b = el("button", "btn btn-ghost btn-small", "Remover"); b.type = "button";
+  b.title = "Cancela a cobrança na AbacatePay e apaga a assinatura daqui: sai desta lista e da receita mensal, sem volta. Os pagamentos dela vão para a Auditoria. O acesso já pago não muda.";
+  b.addEventListener("click", () => { void removerAssinatura(a, b); });
+  const td = el("td"); td.append(b); return td;
+}
+async function removerAssinatura(a, botao) {
+  if (botao.dataset.confirma !== "1") {
+    botao.dataset.confirma = "1"; botao.textContent = "Confirmar: cancelar e apagar";
+    setTimeout(() => { if (botao.isConnected && !botao.disabled) { delete botao.dataset.confirma; botao.textContent = "Remover"; } }, 5000);
+    return;
+  }
+  const s = sessaoGuardada(); if (s === null) return;
+  botao.disabled = true; mostrarErro(null);
+  const r = await api("DELETE", `/admin/vendas/assinaturas/${encodeURIComponent(a.id)}`, undefined, s.acesso);
+  // 404: já foi removida (outra aba, outro super admin); reler mostra o estado de agora.
+  if (r.status !== 200 && r.status !== 404) { botao.disabled = false; delete botao.dataset.confirma; botao.textContent = "Remover"; mostrarErro(erroDe(r)); return; }
+  await carregarVisao(visaoBusca).catch((e) => mostrarErro(e?.message ?? String(e)));
+  if (conta !== null) mostrarConsole(conta);
+}
 function pintarAdminVendas(v) {
   const vd = v.vendas; if (!vd) return;
   $("ad-vendas-totais").replaceChildren(...cartoesVendas(vd));
@@ -590,7 +634,7 @@ function pintarAdminVendas(v) {
     const s = situacaoDe(a); const tr = el("tr");
     const tdP = el("td"); tdP.append(selo(rotuloProduto(a.produto), a.produto === null ? "ok" : ""));
     const tdS = el("td"); tdS.append(selo(s.texto, s.tom));
-    tr.append(contaCelula(a.conta.email, a.conta.nome), tdP, tdS, el("td", "", `${reais(a.valorCentavos)}/mês`), el("td", "", data(a.criadaEm)), el("td", "", a.ultimoPagamentoEm ? dataHora(a.ultimoPagamentoEm) : "-"), el("td", "", a.valeAte ? data(a.valeAte) : "-"), botaoOcultar("assinaturas", a.id));
+    tr.append(contaCelula(a.conta.email, a.conta.nome), tdP, tdS, el("td", "", `${reais(a.valorCentavos)}/mês`), el("td", "", data(a.criadaEm)), el("td", "", a.ultimoPagamentoEm ? dataHora(a.ultimoPagamentoEm) : "-"), el("td", "", a.valeAte ? data(a.valeAte) : "-"), botaoRemoverAssinatura(a));
     tb.append(tr);
   }
   pintarListaEspera(v.listaEspera);
