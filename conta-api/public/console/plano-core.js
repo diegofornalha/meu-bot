@@ -89,8 +89,10 @@ export function fase(l, agora = Date.now()) {
  * (se o prazo acabou, a API recusa em vez de abrir o preço cheio sem avisar), ou `semPromo: true` quando a pessoa
  * escolheu pagar por Pix, sem o desconto (o cupom só vale no cartão).
  */
-export function pedidoAssinar(produto, promoMostrada, semPromo = false) {
+export function pedidoAssinar(produto, promoMostrada, semPromo = false, cupom = null) {
   if (produto !== null && produto !== undefined) return { produto };
+  // "Tenho um cupom": o código digitado vale no lugar da promoção da tela (a API confere e calcula o primeiro mês).
+  if (typeof cupom === "string" && cupom !== "") return { cupom };
   if (promoMostrada === null || promoMostrada === undefined) return {};
   return semPromo ? { semPromo: true } : { promo: true };
 }
@@ -256,4 +258,10 @@ export function oQueAContaTem(conta, nomes = {}) {
   if (mq > 0) out.push(`${mq} máquina${mq === 1 ? "" : "s"} extra${mq === 1 ? "" : "s"}`);
   if (dv > 0) out.push(`${dv} Mac${dv === 1 ? "" : "s"} extra${dv === 1 ? "" : "s"}`);
   return out;
+}
+
+/** O código que a pessoa digitou em "Tenho um cupom", como a API o espera (aparado, maiúsculo); null se não parece um cupom. */
+export function cupomDigitado(v) {
+  const t = typeof v === "string" ? v.trim().toUpperCase() : "";
+  return /^[A-Z0-9][A-Z0-9_-]{2,39}$/.test(t) ? t : null;
 }

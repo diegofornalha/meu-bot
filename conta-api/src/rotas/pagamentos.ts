@@ -18,7 +18,7 @@ import { limiteDeDevicesComExtras, promoverDevicesPendentes, addonsPagos, audita
 import { DEVICE_LIMITE_MAX, agoraIso, janelaMinuto, uuid } from "../sessao-core.js";
 import { json, lerJson, type Autenticado } from "../http.js";
 import { gaIds } from "../analytics-core.js";
-import { assinaturaIdValido, clientIdDeReserva, clientIdValido, compraGa4, decidir, detalheLiberar, lerAddons, lerEvento, lerExtras, lerPromo, metodosSemPix, pedidoDoCheckout, precoDaCobranca, voltaDoCheckout, refValida, resultadoCancelamento, sessionIdValido, validoAte, webhookConfere, tipoDoExtra, type Decisao, type OfertaAddon, type OfertaExtra, type Promo } from "../pagamento-core.js";
+import { assinaturaIdValido, clientIdDeReserva, clientIdValido, compraGa4, decidir, detalheLiberar, lerAddons, lerEvento, lerExtras, lerPromo, metodosSemPix, pedidoDoCheckout, precoComCupom, precoDaCobranca, validaCupom, voltaDoCheckout, refValida, resultadoCancelamento, sessionIdValido, validoAte, webhookConfere, tipoDoExtra, type Decisao, type OfertaAddon, type OfertaExtra, type Promo } from "../pagamento-core.js";
 import { MAQUINA_LIMITE_MAX } from "../licenca-core.js";
 import { itensDoMarketplace, type ItemMarketplace } from "../marketplace-core.js";
 
@@ -39,6 +39,22 @@ const metodos = (env: Env): string[] => { const m = (env.ABACATEPAY_METODOS ?? "
 
 /** Quantos checkouts por conta por minuto (cada clique em "Assinar" cria um). */
 const LIMITE_POR_MIN = 5;
+
+/**
+ * Lê o cupom na AbacatePay (`GET /coupons/get`, escopo COUPON:READ) e diz quanto sai a primeira cobrança do Pro com
+ * ele; ou o motivo, com o status para a tela. Chave sem o escopo, ou a AbacatePay fora, não vira "cupom inválido".
+ */
+async function lerCupom(env: Env, codigo: string): Promise<{ centavos: number } | { erro: string; status: number }> {
+  let r: Response; let corpo: { data?: unknown } | null;
+  try {
+    r = await fetch(`${API}/coupons/get?id=${encodeURIComponent(codigo)}`, { headers: { authorization: `Bearer ${env.ABACATEPAY_KEY}` } });
+    corpo = (await r.json().catch(() => null)) as { data?: unknown } | null;
+  } catch (e) { console.log(`[pagamento] AbacatePay fora ao ler cupom: ${e instanceof Error ? e.message : String(e)}`); return { erro: "não consegui conferir o cupom agora; tente de novo", status: 502 }; }
+  if (r.status === 404) return { erro: "não achei este cupom; confira o código", status: 404 };
+  if (!r.ok) { console.log(`[pagamento] ler cupom recusado: HTTP ${r.status}`); return { erro: "não consegui conferir o cupom agora; fale com a gente", status: 502 }; }
+  const p = precoComCupom(corpo?.data ?? null, preco(env));
+  return "erro" in p ? { erro: p.erro, status: 409 } : p;
+}
 
 export async function postAssinatura(auth: Autenticado, env: Env, req: Request): Promise<Response> {
   if (!pagamentosLigados(env)) return json({ erro: "a assinatura pelo site ainda não está ligada; fale com o suporte" }, 503);
@@ -80,13 +96,31 @@ export async function postAssinatura(auth: Autenticado, env: Env, req: Request):
   // checkout não abre pelo preço cheio sem a pessoa saber.
   // `semPromo: true`: a pessoa abriu mão do desconto para pagar por Pix (o cupom só vale no cartão). O checkout sai sem
   // a marca da promoção, então o webhook exige o preço cheio.
-  const promo = item === null && corpo?.semPromo !== true ? await promoDaConta(env.DB, auth.conta, promoLigada(env), papel, agoraMs) : null;
-  if (item === null && corpo?.promo === true && promo === null) return json({ erro: "o primeiro mês com desconto não vale mais para esta conta; o Pro sai pelo preço normal. Toque em Assinar de novo para continuar", promoAcabou: true }, 409);
+  // "Tenho um cupom": a pessoa digitou um código no console. Só no Pro e só na primeira assinatura da conta (o webhook
+  // só aceita o valor com desconto de quem nunca pagou). O cupom da promoção do primeiro mês tem o preço na
+  // configuração; qualquer outro é lido na AbacatePay agora, para a tela dizer na hora se ele existe e quanto sai.
+  const digitado = corpo?.cupom === undefined || corpo?.cupom === null || corpo?.cupom === "" ? null : validaCupom(corpo.cupom);
+  if (corpo?.cupom !== undefined && corpo?.cupom !== null && corpo?.cupom !== "" && digitado === null) return json({ erro: "este código de cupom não tem a forma de um cupom" }, 400);
+  let cupom: { codigo: string; centavos: number } | null = null;
+  if (digitado !== null) {
+    if (item !== null) return json({ erro: "o cupom vale só para a assinatura do Pro" }, 400);
+    if (await jaPagouPro(env.DB, auth.conta.id)) return json({ erro: "o cupom vale só na primeira assinatura do Pro desta conta" }, 409);
+    const daPromo = promoLigada(env);
+    if (daPromo !== null && daPromo.cupom.toUpperCase() === digitado) cupom = { codigo: daPromo.cupom, centavos: daPromo.precoCentavos };
+    else {
+      const lido = await lerCupom(env, digitado);
+      if ("erro" in lido) return json({ erro: lido.erro }, lido.status);
+      cupom = { codigo: digitado, centavos: lido.centavos };
+    }
+  }
+  const promo = cupom !== null ? null : item === null && corpo?.semPromo !== true ? await promoDaConta(env.DB, auth.conta, promoLigada(env), papel, agoraMs) : null;
+  if (cupom === null && item === null && corpo?.promo === true && promo === null) return json({ erro: "o primeiro mês com desconto não vale mais para esta conta; o Pro sai pelo preço normal. Toque em Assinar de novo para continuar", promoAcabou: true }, 409);
   const ref = `mb_${uuid()}`;
   const agora = agoraIso();
-  await env.DB.prepare("INSERT INTO pagamento_checkouts (ref, conta_id, checkout_id, ga_client_id, ga_session_id, criado_em, produto, promo) VALUES (?1, ?2, NULL, ?3, ?4, ?5, ?6, ?7)")
-    .bind(ref, auth.conta.id, clientIdValido(corpo?.gaClientId), sessionIdValido(corpo?.gaSessionId), agora, item?.nome ?? null, promo === null ? 0 : 1).run();
-  const envio = pedidoDoCheckout(promo, metodos(env));
+  await env.DB.prepare("INSERT INTO pagamento_checkouts (ref, conta_id, checkout_id, ga_client_id, ga_session_id, criado_em, produto, promo, cupom, cupom_centavos) VALUES (?1, ?2, NULL, ?3, ?4, ?5, ?6, ?7, ?8, ?9)")
+    .bind(ref, auth.conta.id, clientIdValido(corpo?.gaClientId), sessionIdValido(corpo?.gaSessionId), agora, item?.nome ?? null, promo === null ? 0 : 1, cupom?.codigo ?? null, cupom?.centavos ?? null).run();
+  // Com cupom (da promoção ou digitado): só cartão, o código em `coupons` e uma tentativa só.
+  const envio = pedidoDoCheckout(cupom !== null ? { cupom: cupom.codigo } : promo, metodos(env));
   const volta = voltaDoCheckout(env.CONSOLE_ORIGIN, item?.nome ?? null);
   // Uma tentativa por lista de métodos: com Pix pedido e o Pix Automático ainda não liberado na loja, a AbacatePay
   // recusa a assinatura inteira; aí vale tentar de novo só com cartão, em vez de deixar o "Assinar" quebrado.
@@ -122,11 +156,11 @@ export async function postAssinatura(auth: Autenticado, env: Env, req: Request):
   if (!r.ok || url === null) {
     console.log(`[pagamento] criar assinatura${promo === null ? "" : " com o cupom da promoção"} recusado: HTTP ${r.status} ${JSON.stringify(resp?.error ?? null).slice(0, 200)}`);
     // Com a promoção, a recusa não vira um checkout pelo preço cheio: a pessoa veio pelo primeiro mês com desconto.
-    return json({ erro: promo === null ? "não deu para abrir o pagamento agora; tente de novo" : "a promoção não pôde ser aplicada agora; tente de novo ou fale com a gente" }, 502);
+    return json({ erro: cupom !== null ? "não deu para abrir o pagamento com este cupom agora; tente de novo ou fale com a gente" : promo === null ? "não deu para abrir o pagamento agora; tente de novo" : "a promoção não pôde ser aplicada agora; tente de novo ou fale com a gente" }, 502);
   }
   await env.DB.prepare("UPDATE pagamento_checkouts SET checkout_id = ?1 WHERE ref = ?2").bind(bill, ref).run();
-  await auditar(env.DB, auth.conta.email, "assinatura.checkout", auth.conta.id, item === null ? `${bill ?? "-"}${promo === null ? "" : " · promoção do primeiro mês"}` : `${item.nome} · ${bill ?? "-"}`);
-  return json({ url, promo: promo !== null });
+  await auditar(env.DB, auth.conta.email, "assinatura.checkout", auth.conta.id, item === null ? `${bill ?? "-"}${cupom !== null ? ` · cupom ${cupom.codigo} (primeira cobrança ${cupom.centavos} centavos)` : promo === null ? "" : " · promoção do primeiro mês"}` : `${item.nome} · ${bill ?? "-"}`);
+  return json({ url, promo: promo !== null, ...(cupom === null ? {} : { cupom: { codigo: cupom.codigo, centavos: cupom.centavos } }) });
 }
 
 /**
@@ -216,9 +250,9 @@ export async function postWebhookAbacate(req: Request, env: Env, url: URL, esper
   const doEvento = refValida(refEv) ? await checkoutPor(env, refEv) : null;
   // Checkout criado com a promoção: a PRIMEIRA cobrança exige o preço da promoção, se a conta nunca pagou o Pro; as
   // renovações e todo o resto, o preço cheio (precoDaCobranca). A consulta de "já pagou" só roda nesse caso.
-  const daPromo = doEvento !== null && doEvento.promo === 1 && doEvento.produto === null && e.evento === "subscription.completed";
+  const daPromo = doEvento !== null && (doEvento.promo === 1 || doEvento.cupom_centavos !== null) && doEvento.produto === null && e.evento === "subscription.completed";
   const pagouAntes = daPromo ? await jaPagouPro(env.DB, doEvento.conta_id, { pagamentoId: e.pagamento?.id ?? "", assinaturaId: e.assinatura?.id ?? "" }) : false;
-  const exigido = precoDaCobranca({ evento: e.evento, checkout: doEvento === null ? null : { produto: doEvento.produto, promo: doEvento.promo === 1 }, precoPro: preco(env), addons: lerAddons(env.ABACATEPAY_ADDONS), extras: lerExtras(env.ABACATEPAY_EXTRAS), promoCentavos: promoLigada(env)?.precoCentavos ?? null, jaPagouPro: pagouAntes });
+  const exigido = precoDaCobranca({ evento: e.evento, checkout: doEvento === null ? null : { produto: doEvento.produto, promo: doEvento.promo === 1, cupomCentavos: doEvento.cupom_centavos }, precoPro: preco(env), addons: lerAddons(env.ABACATEPAY_ADDONS), extras: lerExtras(env.ABACATEPAY_EXTRAS), promoCentavos: promoLigada(env)?.precoCentavos ?? null, jaPagouPro: pagouAntes });
   const d = decidir(e, env.CANAL === "staging" ? "staging" : "producao", exigido);
   // Se aplicar falhar no meio, o registro do evento sai: assim a nova tentativa da AbacatePay é processada, em vez
   // de cair em "repetido" e o pagamento nunca ser aplicado.
@@ -235,9 +269,9 @@ export async function postWebhookAbacate(req: Request, env: Env, url: URL, esper
   return json({ ok: true });
 }
 
-interface CheckoutLinha { ref: string; conta_id: string; ga_client_id: string | null; ga_session_id: string | null; produto: string | null; /** 1 = criado com o cupom da promoção do primeiro mês. */ promo: number }
+interface CheckoutLinha { ref: string; conta_id: string; ga_client_id: string | null; ga_session_id: string | null; produto: string | null; /** 1 = criado com o cupom da promoção do primeiro mês. */ promo: number; /** Cupom digitado no console e quanto a primeira cobrança sai com ele; null sem cupom digitado. */ cupom: string | null; cupom_centavos: number | null }
 const checkoutPor = (env: Env, ref: string | null): Promise<CheckoutLinha | null> =>
-  ref === null ? Promise.resolve(null) : env.DB.prepare("SELECT ref, conta_id, ga_client_id, ga_session_id, produto, promo FROM pagamento_checkouts WHERE ref = ?1").bind(ref).first<CheckoutLinha>();
+  ref === null ? Promise.resolve(null) : env.DB.prepare("SELECT ref, conta_id, ga_client_id, ga_session_id, produto, promo, cupom, cupom_centavos FROM pagamento_checkouts WHERE ref = ?1").bind(ref).first<CheckoutLinha>();
 
 /** Executa a decisão e devolve uma linha curta para `webhook_eventos.resultado` (e o log). */
 async function aplicar(env: Env, d: Decisao, devMode: boolean, agora: string, espera: (p: Promise<unknown>) => void): Promise<string> {
@@ -277,10 +311,10 @@ async function aplicar(env: Env, d: Decisao, devMode: boolean, agora: string, es
     .bind(conta.id, atual.memberSince, atual.trialEnd, ate, atual.deviceLimit, JSON.stringify(atual.produtos), agora).run();
   // `assinaturas.valor_centavos` é o valor do mês (a tela "Suas assinaturas" e a receita mensal do admin leem dali): na
   // promoção, a primeira cobrança sai com desconto mas a assinatura vale o preço cheio. O que entrou de fato está em `pagamentos`.
-  const comDesconto = ck.promo === 1 && d.primeira && d.valor < preco(env);
+  const comDesconto = (ck.promo === 1 || ck.cupom_centavos !== null) && d.primeira && d.valor < preco(env);
   await env.DB.prepare("INSERT INTO assinaturas (id, conta_id, ref, status, metodo, valor_centavos, criada_em, atualizada_em) VALUES (?1, ?2, ?3, 'ACTIVE', ?6, ?4, ?5, ?5) ON CONFLICT(id) DO UPDATE SET status = 'ACTIVE', metodo = COALESCE(excluded.metodo, assinaturas.metodo), atualizada_em = excluded.atualizada_em")
     .bind(d.assinaturaId, conta.id, ck.ref, comDesconto ? preco(env) : d.valor, agora, d.metodo).run();
-  await auditar(env.DB, quem, d.primeira ? "assinatura.paga" : "assinatura.renovada", conta.id, `${d.pagamentoId} · ${d.valor} centavos${comDesconto ? " (promoção do primeiro mês)" : ""} · até ${ate}`);
+  await auditar(env.DB, quem, d.primeira ? "assinatura.paga" : "assinatura.renovada", conta.id, `${d.pagamentoId} · ${d.valor} centavos${comDesconto ? (ck.cupom !== null ? ` (cupom ${ck.cupom})` : " (promoção do primeiro mês)") : ""} · até ${ate}`);
   espera(enviarCompraGa(env, ck, d.pagamentoId, d.valor, d.primeira));
   return `Pro liberado até ${ate}`;
 }

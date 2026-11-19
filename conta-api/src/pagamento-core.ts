@@ -283,6 +283,33 @@ export function direitoPromo(p: { licenca: { plan: string; status: string; trial
  * (`metodosSemPix`). Com direito: só cartão (a AbacatePay só aceita cupom em assinatura no cartão), o cupom em
  * `coupons` e uma tentativa só.
  */
+/**
+ * O código de cupom que a pessoa digitou no console ("Tenho um cupom"), em maiúsculas; null se não tem a forma de um
+ * código (letras, números, `_` e `-`, de 3 a 40). Quem diz se ele existe e quanto desconta é a AbacatePay.
+ */
+export function validaCupom(v: unknown): string | null {
+  const t = typeof v === "string" ? v.trim().toUpperCase() : "";
+  return /^[A-Z0-9][A-Z0-9_-]{2,39}$/.test(t) ? t : null;
+}
+/**
+ * Quanto sai a primeira cobrança com um cupom da AbacatePay (`GET /coupons/get`): `FIXED` desconta centavos,
+ * `PERCENTAGE` vem em centésimos de ponto percentual (1000 = 10%). Arredonda para baixo: o webhook exige "pelo menos"
+ * este valor, e um centavo de arredondamento da AbacatePay não pode mandar a compra para a revisão. Devolve o motivo
+ * quando o cupom não serve: desligado, esgotado, fora da forma, ou desconto que zera a cobrança.
+ */
+export function precoComCupom(cupom: unknown, precoCheio: number): { centavos: number } | { erro: string } {
+  const c = cupom !== null && typeof cupom === "object" ? (cupom as Record<string, unknown>) : null;
+  if (c === null) return { erro: "não consegui ler este cupom" };
+  if (c.status !== "ACTIVE") return { erro: "este cupom não está mais ativo" };
+  const max = c.maxRedeems, usados = c.redeemsCount;
+  if (typeof max === "number" && max >= 0 && typeof usados === "number" && usados >= max) return { erro: "este cupom já foi usado todas as vezes que podia" };
+  const d = c.discount;
+  if (typeof d !== "number" || !Number.isInteger(d) || d <= 0) return { erro: "não consegui ler o desconto deste cupom" };
+  const centavos = c.discountKind === "FIXED" ? precoCheio - d : c.discountKind === "PERCENTAGE" ? Math.floor((precoCheio * (10000 - d)) / 10000) : NaN;
+  if (!Number.isInteger(centavos)) return { erro: "não consegui ler o desconto deste cupom" };
+  if (centavos < 1 || centavos >= precoCheio) return { erro: "este cupom não se aplica à assinatura do Pro" };
+  return { centavos };
+}
 export function pedidoDoCheckout(promo: { cupom: string } | null, metodos: readonly string[]): { methods: string[]; coupons?: string[]; tentarSemPix: boolean } {
   return promo === null ? { methods: [...metodos], tentarSemPix: true } : { methods: ["CARD"], coupons: [promo.cupom], tentarSemPix: false };
 }
@@ -293,10 +320,14 @@ export function pedidoDoCheckout(promo: { cupom: string } | null, metodos: reado
  * o preço da promoção. Renovação, add-on, checkout sem a marca da promoção e conta que já pagou antes (dois checkouts
  * da promoção abertos na mesma janela) continuam no preço cheio: pagos com menos, vão para a revisão do admin.
  */
-export function precoDaCobranca(p: { evento: string; checkout: { produto: string | null; promo: boolean } | null; precoPro: number; addons: readonly OfertaAddon[]; extras?: readonly OfertaExtra[]; promoCentavos: number | null; jaPagouPro: boolean }): number {
+export function precoDaCobranca(p: { evento: string; checkout: { produto: string | null; promo: boolean; /** Quanto a primeira cobrança sai com o cupom digitado no console; null ou ausente = checkout sem cupom digitado. */ cupomCentavos?: number | null } | null; precoPro: number; addons: readonly OfertaAddon[]; extras?: readonly OfertaExtra[]; promoCentavos: number | null; jaPagouPro: boolean }): number {
   const cheio = precoExigido(p.checkout?.produto, p.precoPro, p.addons, p.extras ?? []);
   const naPromo = p.checkout !== null && p.checkout.promo && (p.checkout.produto === null || p.checkout.produto === "") && p.evento === "subscription.completed" && !p.jaPagouPro && p.promoCentavos !== null && p.promoCentavos > 0;
-  return naPromo ? Math.min(p.promoCentavos as number, cheio) : cheio;
+  if (naPromo) return Math.min(p.promoCentavos as number, cheio);
+  // Cupom digitado no console: a mesma exceção, com o valor calculado quando o checkout foi criado.
+  const cupom = p.checkout?.cupomCentavos;
+  const comCupom = p.checkout !== null && (p.checkout.produto === null || p.checkout.produto === "") && p.evento === "subscription.completed" && !p.jaPagouPro && typeof cupom === "number" && Number.isInteger(cupom) && cupom > 0;
+  return comCupom ? Math.min(cupom, cheio) : cheio;
 }
 
 /**
