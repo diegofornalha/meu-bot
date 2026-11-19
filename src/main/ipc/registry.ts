@@ -6,6 +6,8 @@
 import { ipcMain } from "electron";
 import { ADMIN_READONLY_MSG, NOT_ADMIN_MSG, SEM_CAPACIDADE_MSG, type AdminChannel, type ClientChannel, type MacChannel, type SharedChannel } from "./ipc-policy";
 import { caps } from "../app/variant";
+import { gestaoLiberada } from "../conta/conta";
+import { SEM_PAPEL_GESTAO } from "../conta/conta-core";
 import type { CapDePlataforma } from "../app/variant-core";
 
 export type InvokeHandler = (event: Electron.IpcMainInvokeEvent, payload: unknown) => unknown;
@@ -22,8 +24,12 @@ const refusing = (message: string): InvokeHandler => () => { throw new Error(mes
 export const handleShared = (channel: SharedChannel, fn: InvokeHandler): void => register(channel, fn);
 export const handleClient = (channel: ClientChannel, fn: InvokeHandler): void =>
   register(channel, caps().chat ? fn : refusing(ADMIN_READONLY_MSG));
+/**
+ * Só no meu-bot-admin-gestao, e só com uma conta de admin ou super admin logada (gestaoLiberada, conferido a cada
+ * chamada): é o ponto único por onde a tela da gestão pede algo às máquinas das pessoas.
+ */
 export const handleAdmin = (channel: AdminChannel, fn: InvokeHandler): void =>
-  register(channel, caps().supportAdmin ? fn : refusing(NOT_ADMIN_MSG));
+  register(channel, caps().supportAdmin ? (event, payload) => { if (!gestaoLiberada()) throw new Error(SEM_PAPEL_GESTAO); return fn(event, payload); } : refusing(NOT_ADMIN_MSG));
 /** Contas deste Mac: só no meu-bot-admin-mac. */
 export const handleMac = (channel: MacChannel, fn: InvokeHandler): void =>
   register(channel, caps().usuariosMac ? fn : refusing(NOT_ADMIN_MSG));

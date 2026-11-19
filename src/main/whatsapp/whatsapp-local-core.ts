@@ -21,9 +21,11 @@ export const LOCAL_WA_HOST = "local";
  * Os trechos de systemd dos scripts já saem sozinhos sem /run/systemd/system; o restart cai em `openclaw gateway
  * restart`, que no Mac é o launchd.
  */
-export const LOCAL_SH_PRELUDE = `export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
-[ -s "$HOME/.local/share/meu-bot/whatsapp-agente" ] || { mkdir -p "$HOME/.local/share/meu-bot" && echo openclaw > "$HOME/.local/share/meu-bot/whatsapp-agente"; } 2>/dev/null || true
-command -v timeout >/dev/null 2>&1 || timeout() {
+/** PATH com o que o OpenClaw instala no Mac (~/.local, ~/.openclaw) e o Homebrew: sessão sem login (app de GUI, `ssh host bash -s`) tem PATH mínimo. */
+const MACOS_PATH_SH = `export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+`;
+/** As ferramentas que os scripts esperam do Linux e o macOS não tem: `timeout`, `tail --pid` e `stat -c` (ver o comentário acima). */
+const MACOS_FERRAMENTAS_SH = `command -v timeout >/dev/null 2>&1 || timeout() {
   _t=$1; shift
   perl -e 'my $t = shift; my $pid = fork(); die "fork" unless defined $pid; if ($pid == 0) { exec @ARGV or exit 127 } $SIG{ALRM} = sub { kill "TERM", $pid; sleep 1; kill "KILL", $pid; exit 124 }; alarm $t; waitpid($pid, 0); exit($? & 127 ? 128 + ($? & 127) : $? >> 8)' "$_t" "$@"
 }
@@ -49,6 +51,20 @@ stat() {
 export -f stat tail 2>/dev/null; command -v timeout >/dev/null 2>&1 && [ "$(type -t timeout)" = function ] && export -f timeout
 true
 `;
+/** Só no host "local": sem escolha de agente gravada, o OpenClaw (no Mac o Hermes não atende o WhatsApp). */
+const AGENTE_PADRAO_SH = `[ -s "$HOME/.local/share/meu-bot/whatsapp-agente" ] || { mkdir -p "$HOME/.local/share/meu-bot" && echo openclaw > "$HOME/.local/share/meu-bot/whatsapp-agente"; } 2>/dev/null || true
+`;
+export const LOCAL_SH_PRELUDE = `${MACOS_PATH_SH}${AGENTE_PADRAO_SH}${MACOS_FERRAMENTAS_SH}`;
 
 /** O script completo para o `bash -s` local. */
 export const scriptLocal = (script: string): string => `${LOCAL_SH_PRELUDE}${script}`;
+
+/**
+ * O script para uma máquina por SSH. A máquina pode ser um Mac (este Mac como pessoa do suporte, pelo alias de SSH, ou
+ * o Mac de alguém): aí valem os mesmos ajustes do host "local", menos a escolha de agente, que é da máquina. Sem eles,
+ * `timeout 25 openclaw …` respondia "command not found" e o app lia "gateway fora do ar" com o gateway rodando. Em
+ * Linux o bloco não roda.
+ */
+export const scriptRemoto = (script: string): string => `if [ "$(uname -s 2>/dev/null)" = Darwin ]; then
+${MACOS_PATH_SH}${MACOS_FERRAMENTAS_SH}fi
+${script}`;

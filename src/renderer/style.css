@@ -1248,6 +1248,8 @@ table.fin-abc tr.fin-abc-C td.fin-abc-tag { color: #757575; }
 .modulo-cartoes { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-top: 12px; }
 .modulo-cartao { display: flex; flex-direction: column; gap: 6px; text-align: left; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: inherit; cursor: pointer; }
 .modulo-cartao:hover { border-color: var(--accent); }
+/* Cartão que não abre ficha (o CRM, em "Já incluído"): os botões ficam dentro dele. */
+.modulo-cartao-fixo, .modulo-cartao-fixo:hover { cursor: default; border-color: var(--line); }
 .modulo-cartao-topo { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .modulo-cartao-desc { margin: 0; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .modulo-avatar { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); font-weight: 700; font-size: 18px; }

@@ -15,6 +15,7 @@ import { hermesPausaPluginSh, lerPausaPlugin, versaoDoPluginYaml, type PausaPlug
 import { HERMES_PIPER_VOICE, HERMES_PY_SH, HERMES_RESTART_SH, HERMES_VENV_PY_SH, HERMES_VOZ_ID_SH, hermesAudioPatch, hermesConfigSetSh, hermesPmExtraSh, hermesSttLigarSh, hermesVozLocalSh } from "../whatsapp/whatsapp-hermes-core";
 import { sshHostInfo } from "./sshConfig";
 import { scriptLocal } from "../whatsapp/whatsapp-local-core";
+import { STATUSLINE_SH } from "./statusline-probe-core";
 import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -135,7 +136,7 @@ function probeScript(port: number): string {
     `C=$(command -v claude 2>/dev/null); [ -z "$C" ] && [ -x "$HOME/.local/bin/claude" ] && C="$HOME/.local/bin/claude"; echo "claude=$C"`,
     `{ grep -q '"oauthAccount"' "$HOME/.claude.json" 2>/dev/null || grep -q '"chave"' "$HOME/.local/share/meu-bot/claude-global.json" 2>/dev/null; } && echo login=1 || echo login=0`,
     // Status line nossa: o statusline.sh que grava o cache de limites lido em /v1/meu-bot/status.
-    `grep -q ratelimits.json "$HOME/.claude/statusline.sh" 2>/dev/null && echo statusline=1 || echo statusline=0`,
+    STATUSLINE_SH,
     // Guarda do WhatsApp (plugin meu-bot-guarda do OpenClaw): a cópia que o install-guarda.sh registra por --link.
     `[ -f "$HOME/.local/share/meu-bot/guarda/index.js" ] && echo guarda=1 || echo guarda=0`,
     // Versão instalada com sucesso (o instalador grava .ok no fim); sem .ok = instalação antiga ou incompleta → atualiza.
@@ -241,6 +242,7 @@ export async function probeHost(host: string, port: number): Promise<HostProbe> 
     systemd: kv.get("systemd") === "1",
     grokPod: kv.get("grokpod") === "1",
     statusLine: kv.get("statusline") === "1",
+    statusLineAlheia: kv.get("statusline") === "outra",
     guarda: kv.get("gateway") === "openclaw" ? kv.get("guarda") === "1" : null,
     guardaVersion: kv.get("guardaver") || null,
     hermesPausa: kv.get("gateway") === "hermes" ? (kv.get("hpausaver") ?? "") !== "" : null,
@@ -461,7 +463,7 @@ export async function installAudio(host: string, setup: AudioSetup, onLine?: (li
 /** A status line nossa está instalada no host (a mesma checagem da sondagem; neste Mac, com as settings gerenciadas)? */
 export async function statusLineInstalled(host: string): Promise<boolean> {
   if (host === LOCAL_HOST) return localStatusLine();
-  const r = await run("ssh", [...sshBase(host), "--", host, `grep -q ratelimits.json "$HOME/.claude/statusline.sh" 2>/dev/null && echo statusline=1 || echo statusline=0`], 25_000);
+  const r = await run("ssh", [...sshBase(host), "--", host, STATUSLINE_SH], 25_000);
   if (r.code !== 0) throw new Error(lastLine(r.stderr) || "não consegui entrar na máquina");
   return r.stdout.includes("statusline=1");
 }

@@ -233,3 +233,12 @@ test("limite de disco: Salvar sem editar mantém o % que o campo mostra (não vi
   assert.equal(textoDoLimite("5", umPorCento, disco), "5");
   assert.equal(textoDoLimite("", umPorCento, disco), "");
 });
+
+test("healthLines: status line do meu-bot, de outra origem (a global de um Mac) e ausente são três estados", () => {
+  const linha = (p) => healthLines({ probe: { ...probe, ...p }, whatsapp: null, progress: null, share, xai: null }, fmt).find((l) => /status line/.test(l.text));
+  assert.deepEqual(linha({ statusLine: true }), { text: "status line instalada", ok: true });
+  assert.deepEqual(linha({ statusLine: false, statusLineAlheia: true }), { text: "status line de outra origem: aparece no terminal, mas os limites do Claude não chegam ao meu-bot", ok: null });
+  assert.deepEqual(linha({ statusLine: false }), { text: "sem status line", ok: false });
+  assert.deepEqual(linha({ statusLine: true, statusLineAlheia: true }), { text: "status line instalada", ok: true });
+});
+
