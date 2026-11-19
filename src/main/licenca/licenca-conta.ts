@@ -56,7 +56,7 @@ export async function usarProDaConta(host: string, reler: () => Promise<LicenseV
     const v = verificaLicencaAssinada(r.arquivo, { maquina: id });
     if (!v.ok) { log(`[licenca] ${host}: a licença que a API mandou não confere (${v.motivo})`); return { ok: false, erro: "a licença que chegou da sua conta não confere; atualize o meu-bot e tente de novo" }; }
     await gravarJsonRemoto(host, LICENCA_CONTA_PATH, r.arquivo);
-    renovadaEm.set(host, Date.now());
+    renovadaEm.set(host, Date.now()); recusadaPor.delete(host);
     log(`[licenca] ${host}: licença da conta gravada (máquina ${id.slice(0, 8)}, vale até ${v.payload.exp})`);
     return { ok: true, view: await reler() };
   } catch (e) { return { ok: false, erro: e instanceof Error ? e.message : String(e) }; }
@@ -70,6 +70,7 @@ export async function tirarProDaConta(host: string, reler: () => Promise<License
     if (atual === null) return { ok: false, erro: "a máquina não respondeu; tente de novo" };
     const r = await runSsh(host, `rm -f "${LICENCA_CONTA_PATH}"\n`, 20_000);
     if (r.code !== 0) return { ok: false, erro: "não consegui apagar a licença da máquina; tente de novo" };
+    recusadaPor.delete(host);
     if (atual.maquina !== null) { const t = await tirarLicencaDaMaquina(atual.maquina, true); if (!t.ok) log(`[licenca] ${host}: apagada da máquina, mas a conta não abriu a vaga (${t.erro})`); }
     log(`[licenca] ${host}: licença da conta tirada da máquina`);
     return { ok: true, view: await reler() };
@@ -78,6 +79,12 @@ export async function tirarProDaConta(host: string, reler: () => Promise<License
 
 /** Uma conferência por máquina a cada 6 h por sessão do app: a renovação não pode pesar em cada leitura da licença. */
 const renovadaEm = new Map<string, number>();
+/**
+ * Por que a conta recusou renovar a licença desta máquina (409: a conta usa a licença em mais máquinas do que o plano
+ * cobre). Fica até a próxima renovação dar certo, a máquina sair da conta ou o app fechar; a tela da conta o mostra.
+ */
+const recusadaPor = new Map<string, string>();
+export const avisoDaRenovacao = (host: string): string | null => recusadaPor.get(host) ?? null;
 const ENTRE_CONFERENCIAS_MS = 6 * 60 * 60 * 1000;
 /**
  * Ao ler a licença da janela: se a máquina usa a licença DESTA conta e a emissão já tem dias, pede outra e grava.
@@ -100,6 +107,7 @@ export async function renovarSePreciso(host: string, now: number = Date.now()): 
     if (r.ok) {
       if (!verificaLicencaAssinada(r.arquivo, { maquina: atual.maquina, now }).ok) return false;
       await gravarJsonRemoto(host, LICENCA_CONTA_PATH, r.arquivo);
+      recusadaPor.delete(host);
       log(`[licenca] ${host}: licença da conta renovada`);
       return true;
     }
@@ -110,12 +118,15 @@ export async function renovarSePreciso(host: string, now: number = Date.now()): 
       const t = await tirarLicencaDaMaquina(atual.maquina, true);
       if (!t.ok) log(`[licenca] ${host}: arquivo apagado, mas a conta não abriu a vaga (${t.erro})`);
       log(`[licenca] ${host}: a conta não leva mais a licença a esta máquina; arquivo apagado`);
+      recusadaPor.delete(host);
       return true;
     }
     log(`[licenca] ${host}: não renovei agora (${r.status}: ${r.erro})`);
     // 409: a conta usa a licença em mais máquinas do que o plano cobre (uma máquina extra venceu) e esta ficou de fora.
     // Tentar de novo a cada leitura só gastaria o limite de emissões por minuto: a próxima conferência é no intervalo normal.
-    if (r.status !== 409) renovadaEm.delete(host);
+    // O motivo fica guardado e a janela relê a licença para a tela da conta mostrá-lo (devolve true só na primeira vez).
+    if (r.status === 409) { const novo = recusadaPor.get(host) !== r.erro; recusadaPor.set(host, r.erro); return novo; }
+    renovadaEm.delete(host);
     return false;
   } catch (e) { log(`[licenca] ${host}: renovação falhou (${e instanceof Error ? e.message : String(e)})`); renovadaEm.delete(host); return false; }
 }

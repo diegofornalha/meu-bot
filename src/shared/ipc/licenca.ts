@@ -59,6 +59,8 @@ export interface LicenseView {
   deviceLimit: number;
   /** De onde vem o plano em vigor nesta máquina: o que o admin gravou, ou a licença da conta da pessoa. Ausente em backend antigo. */
   origem?: "admin" | "conta";
+  /** A conta recusou renovar a licença desta máquina (ela ficou fora do limite de máquinas): o motivo, como a API o disse. A licença já gravada vale até vencer. */
+  avisoRenovacao?: string;
 }
 /**
  * "Usar o meu Pro nesta máquina" e "Tirar": `semVaga` traz os nomes das máquinas que já usam a licença da conta

@@ -5,10 +5,11 @@
  * (rotas/maquinas.ts). Tudo fica na auditoria.
  */
 import type { Env, TipoVenda } from "../tipos.js";
-import { apagarConta, ativarDevice, atenderPedido, auditoriaAdmin, marcarVendaOculta, encerrarAddonPago, auditar, contaPorId, contarSupers, devicesDaConta, gravarLicenca, licencaGravada, removerDevice, gravarPerfil, gravarProvedor, removerPerfil, revogarSessoesDaConta, visaoAdmin } from "../db.js";
+import { apagarConta, ativarDevice, atenderPedido, auditoriaAdmin, marcarVendaOculta, encerrarAddonPago, encerrarExtraPago, auditar, contaPorId, contarSupers, devicesDaConta, gravarLicenca, licencaGravada, removerDevice, gravarPerfil, gravarProvedor, removerPerfil, revogarSessoesDaConta, visaoAdmin } from "../db.js";
 import { consultarFirebase, definirSenhaFirebase } from "../firebase-admin.js";
 import { DEVICE_ID_RE, UUID_RE, decidirLiberarDevice, ehAdminInicial, validaBusca, validaEmail, validaPapel, validaPatchLicenca, validaSenhaNova } from "../sessao-core.js";
 import { json, lerJson, type Autenticado } from "../http.js";
+import { assinaturaIdValido } from "../pagamento-core.js";
 import { enviarEmailSenha, impedimentosDeApagar } from "./conta.js";
 
 export async function getAdminVisao(auth: Autenticado, env: Env, url: URL): Promise<Response> {
@@ -61,6 +62,14 @@ export async function postEncerrarAddon(auth: Autenticado, env: Env, id: string,
   if (!UUID_RE.test(id) || !/^meu-bot-[a-z0-9-]{1,30}$/.test(produto)) return json({ erro: "id da conta ou nome do add-on fora do formato" }, 400);
   if (!(await encerrarAddonPago(env.DB, id, produto))) return json({ erro: "esta conta não tem esse add-on pago em dia" }, 404);
   await auditar(env.DB, auth.conta.email, "addon.encerrado", id, produto);
+  return json({ ok: true });
+}
+/** `POST /admin/contas/:id/extras/:assinatura/encerrar`: encerra agora uma máquina extra paga (reembolso ou disputa); a vaga sai do limite da conta. */
+export async function postEncerrarExtra(auth: Autenticado, env: Env, id: string, assinatura: string): Promise<Response> {
+  if (auth.claims.adm === null) return json({ erro: "só admin" }, 403);
+  if (!UUID_RE.test(id) || !assinaturaIdValido(assinatura)) return json({ erro: "id da conta ou da assinatura fora do formato" }, 400);
+  if (!(await encerrarExtraPago(env.DB, id, assinatura))) return json({ erro: "esta conta não tem essa máquina extra paga em dia" }, 404);
+  await auditar(env.DB, auth.conta.email, "extra.encerrado", id, assinatura);
   return json({ ok: true });
 }
 /** `DELETE /admin/contas/:id/devices/:device`: tira o device da conta (abre a vaga) e encerra as sessões dele. */

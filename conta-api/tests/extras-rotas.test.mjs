@@ -94,7 +94,16 @@ test("máquina extra: o webhook abre a vaga, a renovação estende, cada assinat
   assert.equal((await chamar("POST", "/conta/maquinas", { id: M3, apelido: "terceira" }, ta)).status, 200);
 
   // Encerrada pelo admin (reembolso): a cobrança seguinte não a devolve, vira pedido de revisão.
-  await DB.prepare("UPDATE extras_pagos SET expires_at = ?1, encerrado_em = ?1 WHERE assinatura_id = 'subs_m2'").bind(new Date(Date.now() - 1000).toISOString()).run();
+  const tadm = await assinarJwt({ sub: A, sid: "s", dev: null, adm: "super", iat: s, exp: s + 3600 }, HMAC);
+  assert.equal((await chamar("POST", `/admin/contas/${A}/extras/subs_m2/encerrar`, {}, ta)).status, 403, "só admin encerra");
+  assert.equal((await chamar("POST", `/admin/contas/${A}/extras/subs_naoexiste/encerrar`, {}, tadm)).status, 404);
+  assert.equal((await chamar("POST", `/admin/contas/${B}/extras/subs_m2/encerrar`, {}, tadm)).status, 404, "a assinatura é de outra conta");
+  r = await chamar("GET", "/admin/visao", undefined, tadm);
+  assert.deepEqual(r.corpo.contas.find((x) => x.id === A).extrasPagos.map((x) => [x.assinaturaId, x.tipo]).sort(), [["subs_m1", "maquina"], ["subs_m2", "maquina"]]);
+  assert.equal((await chamar("POST", `/admin/contas/${A}/extras/subs_m2/encerrar`, {}, tadm)).status, 200);
+  assert.notEqual((await extra("subs_m2")).encerrado_em, null);
+  assert.equal((await chamar("POST", `/admin/contas/${A}/extras/subs_m2/encerrar`, {}, tadm)).status, 404, "já encerrada");
+  await new Promise((ok) => setTimeout(ok, 5));
   w = await webhook({ evento: "subscription.renewed", ref: R2, subs: "subs_m2" });
   assert.match(w.resultado, /^revisar: cobrança de extra-maquina encerrado pelo admin/);
   assert.equal((await DB.prepare("SELECT COUNT(*) AS n FROM pedidos WHERE conta_id = ?1 AND tipo = 'pagamento.revisar'").bind(A).first()).n, 2, "o pagamento abaixo do preço e esta cobrança");

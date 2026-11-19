@@ -32,6 +32,8 @@ const reais = (centavos) => (typeof centavos === "number" ? (centavos / 100).toL
 /** As unidades extras à venda (config.js): hoje a máquina extra. Cada assinatura é uma unidade. */
 const EXTRAS = (() => { try { const a = JSON.parse(cfg.extras ?? "[]"); return Array.isArray(a) ? a.filter((x) => x && typeof x.tipo === "string" && typeof x.nome === "string" && typeof x.rotulo === "string" && Number.isInteger(x.centavos)) : []; } catch { return []; } })();
 const EXTRA_MAQUINA = EXTRAS.find((x) => x.tipo === "maquina") ?? null;
+/** O nome de cada tipo de extra na lista do admin (vale mesmo com o catálogo vazio, para extras já pagos). */
+const ROTULO_EXTRA = { maquina: "Máquina extra" };
 const rotuloProduto = (p) => (p === null || p === undefined ? "Pro" : ADDONS.find((a) => a.nome === p)?.rotulo ?? EXTRAS.find((x) => x.nome === p)?.rotulo ?? p);
 /** Situação de uma assinatura: cancelada; em dia (ativa com prazo no futuro); atrasada (ativa sem renovar). */
 const situacaoDe = (a, agora = Date.now()) => (a.status === "CANCELLED" ? { chave: "cancelada", texto: "Cancelada", tom: "" } : a.valeAte && Date.parse(a.valeAte) > agora ? { chave: "em-dia", texto: "Em dia", tom: "ok" } : { chave: "atrasada", texto: "Atrasada", tom: "mau" });
@@ -617,10 +619,17 @@ function pintarAdminContas(v) {
     for (const a of pagosC) {
       const emDia = Date.parse(a.expiresAt) > Date.now();
       tdAd.append(selo(`${rotuloProduto(a.produto)} · ${emDia ? "pago até" : "venceu em"} ${data(a.expiresAt)}`, emDia ? "ok" : "mau"), document.createTextNode(" "));
-      if (emDia) { const b = el("button", "btn btn-ghost", "Encerrar"); b.type = "button"; b.title = "Encerra agora o acesso a este add-on pago (reembolso ou disputa). A assinatura na AbacatePay é cancelada à parte."; b.addEventListener("click", () => { void encerrarAddon(c, a, b); }); tdAd.append(b, document.createTextNode(" ")); }
+      if (emDia) { const b = el("button", "btn btn-ghost", "Encerrar"); b.type = "button"; b.title = "Encerra agora o acesso a este add-on pago (reembolso ou disputa). A assinatura na AbacatePay é cancelada à parte."; b.addEventListener("click", () => { void encerrarPago(c, `addons/${encodeURIComponent(a.produto)}`, b); }); tdAd.append(b, document.createTextNode(" ")); }
+    }
+    // Máquinas extras pagas: uma por assinatura, cada uma com o seu prazo e o seu Encerrar.
+    const extrasC = c.extrasPagos ?? [];
+    for (const x of extrasC) {
+      const emDia = Date.parse(x.expiresAt) > Date.now();
+      tdAd.append(selo(`${ROTULO_EXTRA[x.tipo] ?? x.tipo} · ${emDia ? "paga até" : "venceu em"} ${data(x.expiresAt)}`, emDia ? "ok" : "mau"), document.createTextNode(" "));
+      if (emDia) { const b = el("button", "btn btn-ghost", "Encerrar"); b.type = "button"; b.title = "Encerra agora esta máquina extra paga (reembolso ou disputa): a vaga sai do limite da conta. A assinatura na AbacatePay é cancelada à parte."; b.addEventListener("click", () => { void encerrarPago(c, `extras/${encodeURIComponent(x.assinaturaId)}`, b); }); tdAd.append(b, document.createTextNode(" ")); }
     }
     for (const p of l.produtos) tdAd.append(selo(`${rotuloProduto(p)} · concedido`), document.createTextNode(" "));
-    if (pagosC.length === 0 && l.produtos.length === 0) tdAd.textContent = "-";
+    if (pagosC.length === 0 && extrasC.length === 0 && l.produtos.length === 0) tdAd.textContent = "-";
     tr.append(tdAd);
     const dv = el("td", "", `${ativos}/${l.deviceLimit}`); if (pend > 0) dv.append(document.createTextNode(" "), selo(`${pend} pendente${pend === 1 ? "" : "s"}`, "mau")); tr.append(dv);
     tr.append(el("td", "", String(c.maquinas)), el("td", "", String(c.pedidos)), el("td", "", data(c.criadaEm)));
@@ -736,7 +745,8 @@ function pintarAdminDevices(v) {
   }
 }
 /** "Encerrar" um add-on pago: dois cliques (o segundo confirma, em até 5 s), porque a pessoa perde o acesso na hora. */
-async function encerrarAddon(c, a, botao) {
+/** Encerrar um add-on pago (`addons/<produto>`) ou uma máquina extra paga (`extras/<assinatura>`), com confirmação em dois toques. */
+async function encerrarPago(c, caminho, botao) {
   if (botao.dataset.confirma !== "1") {
     botao.dataset.confirma = "1"; botao.textContent = "Confirmar encerramento";
     setTimeout(() => { if (botao.isConnected && !botao.disabled) { delete botao.dataset.confirma; botao.textContent = "Encerrar"; } }, 5000);
@@ -744,7 +754,7 @@ async function encerrarAddon(c, a, botao) {
   }
   const s = sessaoGuardada(); if (s === null) return;
   botao.disabled = true; mostrarErro(null);
-  const r = await api("POST", `/admin/contas/${encodeURIComponent(c.id)}/addons/${encodeURIComponent(a.produto)}/encerrar`, {}, s.acesso);
+  const r = await api("POST", `/admin/contas/${encodeURIComponent(c.id)}/${caminho}/encerrar`, {}, s.acesso);
   if (r.status !== 200) { botao.disabled = false; delete botao.dataset.confirma; botao.textContent = "Encerrar"; await falhaAdmin(r, c); return; }
   await depoisDeDevice();
 }

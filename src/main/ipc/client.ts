@@ -11,7 +11,7 @@ import type { CrmPipelineExtras, AudioSetup, ClaudeLoginEvent, LicenseView, Clau
 import { conversationToMarkdown, conversationTitle, slugify } from "../conversa/export";
 import { atualizarContaClaude, conferirContaClaude, criarContaClaude, deleteBackendSession, fetchAccountStatus, fetchAlertPrefs, fetchBackendSession, fetchContasClaude, limiaresContasClaude, log, removerContaClaude, reordenarContasClaude, runBackendTurn, saveAlertPrefs, usarAgoraContaClaude } from "../maquina/backend";
 import { lerLicenca, lerLicencaDaMaquina } from "../licenca/licenca-maquina";
-import { renovarSePreciso, tirarProDaConta, usarProDaConta } from "../licenca/licenca-conta";
+import { avisoDaRenovacao, renovarSePreciso, tirarProDaConta, usarProDaConta } from "../licenca/licenca-conta";
 import { assertAcesso, assertFinance } from "../licenca/acesso";
 import { telaAcordar, telaStatus, telaUrl } from "../maquina/tela";
 import { abrirInspector } from "../inspector/inspector";
@@ -771,7 +771,9 @@ export function registerClientIpc(): void {
     void browserSincronizarCrm(h.host, lic); // a extensão do CRM acompanha a licença relida (admin liberou o Pro com o app aberto)
     // A licença da conta nesta máquina vale 30 dias: renova em segundo plano; se o arquivo mudou, a janela relê.
     void renovarSePreciso(h.host).then((mudou) => { if (mudou && !h.win.isDestroyed()) h.win.webContents.send("license:changed", {}); });
-    return lic.view;
+    // A conta recusou renovar a licença daqui (máquina fora do limite): a tela da conta mostra o motivo.
+    const aviso = avisoDaRenovacao(h.host);
+    return lic.view === null || aviso === null ? lic.view : { ...lic.view, avisoRenovacao: aviso };
   });
   // Avisos de segurança desta máquina (alertas.json, via backend): um Mac novo usou o meu-bot dela.
   handleClient("alerts:get", (event) => { const h = hostFromEvent(event); if (h === null) throw new Error("origem inválida"); return fetchAlertPrefs(h.host); });
