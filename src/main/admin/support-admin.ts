@@ -10,7 +10,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { app } from "electron";
-import type { Abertura, AdminAction, AdminHealth, BotChat, BotMessage, LicensePatch, LicenseView, SupportPerson, SupportProgress, SupportShare, PlanName } from "../../shared/ipc";
+import type { Abertura, AdminAction, AdminHealth, AtribuirMaquinaResultado, BotChat, BotMessage, LicensePatch, LicenseView, SupportPerson, SupportProgress, SupportShare, PlanName } from "../../shared/ipc";
 import { applyLicensePatch, parseLicense } from "../licenca/licenca";
 import { LICENSE_PATH, MACHINES_PATH, readLicencaComPistasSsh, readLicenseViewSsh as readLicenseView, readPlanoEmVigorSsh } from "../licenca/licenca-maquina";
 import { BACKEND_DIR_SH } from "../maquina/backend-dir-core";
@@ -29,13 +29,15 @@ import { claudeAuthStatus } from "../agente/claudeLogin";
 import { closeTunnel } from "../maquina/tunnel";
 import { broadcast } from "../app/windows";
 import { xaiAuthInfo } from "../agente/xaiLogin";
-import { getBackendPort, isValidHost, setBackendPortForHost, settingsView } from "../app/settings";
+import { getBackendPort, getHostNames, isValidHost, setBackendPortForHost, settingsView } from "../app/settings";
 import { log } from "../maquina/backend";
 import net from "node:net";
 import { PRODUTOS } from "../app/variant-core";
 import { ABERTURAS_ARQUIVO_SH, ZERAR_ABERTURAS_SH, parseAberturas } from "./aberturas-core";
 import { resumoDaSaude } from "./suporte-resumo-core";
-import { enviarResumoSuporte, gestaoLiberada, lerContaDoAdmin } from "../conta/conta";
+import { atribuirMaquinaNaConta, enviarResumoSuporte, gestaoLiberada, lerContaDoAdmin } from "../conta/conta";
+import { emailDeConta } from "../conta/conta-core";
+import { idDaMaquina } from "../licenca/licenca-conta";
 
 /** `superAdmin`: este app lê a central de auditoria (página Auditoria). `backupDestinatario`: chave age pública do super admin (backups). */
 interface AdminConfig { admin: string; superAdmin: boolean; backupDestinatario: string; inbox: { alias: string } }
@@ -476,6 +478,21 @@ async function fetchJson(host: string, remotePath: string): Promise<Record<strin
 
 /** Grava um JSON na máquina da pessoa de forma atômica (maquina/json-remoto.ts). */
 const writeJson = gravarJsonRemoto;
+
+/**
+ * Atribui a máquina à conta desse e-mail (ou desfaz): ela passa a aparecer no console da pessoa como "Em uso · licença
+ * do admin". Não mexe na licença gravada na máquina nem em vaga. A máquina ganha o `maquina.json` se ainda não tem.
+ */
+export async function atribuirMaquina(host: string, emailCru: unknown, desfazer: boolean): Promise<AtribuirMaquinaResultado> {
+  const email = emailDeConta(emailCru);
+  if (email === null) return { ok: false, erro: "informe o e-mail da conta" };
+  let id: string;
+  try { id = await idDaMaquina(host); } catch (e) { return { ok: false, erro: e instanceof Error ? e.message : String(e) }; }
+  const r = await atribuirMaquinaNaConta(id, email, getHostNames()[host] ?? null, desfazer);
+  // A API já gravou: a auditoria da máquina é melhor esforço e não transforma o que deu certo em erro na tela.
+  if (r.ok) await registrar(host, desfazer ? "maquina.desatribuir" : "maquina.atribuir", email, id).catch((e: unknown) => { log(`[suporte] ${host}: atribuição gravada, mas não entrou na auditoria da máquina (${e instanceof Error ? e.message : String(e)})`); });
+  return r;
+}
 
 /** meu-bot-admin: muda a licença da pessoa (plano, status, validade, limite). Grava licenca.json por SSH. */
 export async function setLicense(host: string, patch: LicensePatch): Promise<LicenseView> {

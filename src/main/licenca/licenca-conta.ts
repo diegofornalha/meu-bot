@@ -27,7 +27,7 @@ export async function lerLicencaDaContaNaMaquina(host: string): Promise<{ maquin
   return { maquina: idDe(json(maq)), arquivo: json(lic) };
 }
 /** O id desta máquina, criando o `maquina.json` na primeira vez (sem sobrescrever um que outro app tenha criado no mesmo instante). */
-async function idDaMaquina(host: string): Promise<string> {
+export async function idDaMaquina(host: string): Promise<string> {
   const novo = JSON.stringify({ id: randomUUID() });
   const script = `set -e\numask 077\nmkdir -p "$HOME/.local/share/meu-bot"\nF="${MAQUINA_PATH}"\n[ -s "$F" ] || (set -C; printf '%s' '${novo}' > "$F") 2>/dev/null || true\ncat "$F"\n`;
   const r = await runSsh(host, script, 20_000);

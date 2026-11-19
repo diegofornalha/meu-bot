@@ -290,10 +290,28 @@ export async function marcarMaquinaVista(db: D1Database, contaId: string, id: st
 export async function esquecerMaquinaVista(db: D1Database, contaId: string, id: string): Promise<boolean> {
   return ((await db.prepare("DELETE FROM maquinas_vistas WHERE conta_id = ?1 AND id = ?2").bind(contaId, id).run()).meta.changes ?? 0) > 0;
 }
-/** As máquinas vistas desde `desde` que não estão em `maquinas` desta conta (essas já saem em `maquinasDaConta`). */
+/**
+ * O admin atribuiu a máquina à conta (gestão): entra na lista da conta como "licença do admin" e fica até alguém
+ * desfazer. Se o app da pessoa já a tinha avisado, a linha só ganha o carimbo do admin.
+ */
+export async function atribuirMaquina(db: D1Database, contaId: string, id: string, apelido: string | null, admin: string, agora = agoraIso()): Promise<void> {
+  await db.prepare("INSERT INTO maquinas_vistas (conta_id, id, apelido, origem, vista_em, atribuida_por) VALUES (?1, ?2, ?3, 'admin', ?4, ?5) ON CONFLICT(conta_id, id) DO UPDATE SET apelido = COALESCE(excluded.apelido, maquinas_vistas.apelido), vista_em = excluded.vista_em, atribuida_por = excluded.atribuida_por").bind(contaId, id, apelido, agora, admin).run();
+}
+/** Desfaz a atribuição do admin; false se a máquina não estava atribuída a esta conta. A linha sai da lista da conta. */
+export async function desatribuirMaquina(db: D1Database, contaId: string, id: string): Promise<boolean> {
+  return ((await db.prepare("DELETE FROM maquinas_vistas WHERE conta_id = ?1 AND id = ?2 AND atribuida_por IS NOT NULL").bind(contaId, id).run()).meta.changes ?? 0) > 0;
+}
+/** A conta a que o admin atribuiu a máquina por último; null se nenhuma. */
+export async function contaAtribuidaDaMaquina(db: D1Database, id: string): Promise<string | null> {
+  return (await db.prepare("SELECT conta_id FROM maquinas_vistas WHERE id = ?1 AND atribuida_por IS NOT NULL ORDER BY vista_em DESC LIMIT 1").bind(id).first<{ conta_id: string }>())?.conta_id ?? null;
+}
+/**
+ * As máquinas em uso que não estão em `maquinas` desta conta (essas já saem em `maquinasDaConta`): as que o app avisou
+ * desde `desde` e as que o admin atribuiu (estas não vencem).
+ */
 export async function maquinasVistasDaConta(db: D1Database, contaId: string, desde: string): Promise<MaquinaVistaApi[]> {
-  const r = await db.prepare("SELECT v.id, v.apelido, v.origem, v.vista_em FROM maquinas_vistas v WHERE v.conta_id = ?1 AND v.vista_em > ?2 AND NOT EXISTS (SELECT 1 FROM maquinas m WHERE m.id = v.id AND m.conta_id = v.conta_id) ORDER BY v.vista_em DESC LIMIT 50").bind(contaId, desde).all<{ id: string; apelido: string | null; origem: string; vista_em: string }>();
-  return r.results.map((x) => ({ id: x.id, apelido: x.apelido, origem: x.origem === "conta" ? "conta" : "admin", vistaEm: x.vista_em }));
+  const r = await db.prepare("SELECT v.id, v.apelido, v.origem, v.vista_em, v.atribuida_por FROM maquinas_vistas v WHERE v.conta_id = ?1 AND (v.vista_em > ?2 OR v.atribuida_por IS NOT NULL) AND NOT EXISTS (SELECT 1 FROM maquinas m WHERE m.id = v.id AND m.conta_id = v.conta_id) ORDER BY v.vista_em DESC LIMIT 50").bind(contaId, desde).all<{ id: string; apelido: string | null; origem: string; vista_em: string; atribuida_por: string | null }>();
+  return r.results.map((x) => ({ id: x.id, apelido: x.apelido, origem: x.origem === "conta" ? "conta" : "admin", vistaEm: x.vista_em, atribuida: x.atribuida_por !== null }));
 }
 const limiteValido = (n: unknown): number => (typeof n === "number" && Number.isInteger(n) && n >= 1 ? n : 1);
 /** As unidades extras pagas da conta (extras_pagos), vencidas ou não; `tipo` filtra (ex.: "maquina"). */

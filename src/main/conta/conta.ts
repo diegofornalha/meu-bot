@@ -9,7 +9,7 @@
 import { app, safeStorage, shell } from "electron";
 import fs from "node:fs";
 import path from "node:path";
-import type { ContaDaPessoa, ContaView } from "../../shared/ipc";
+import type { AtribuirMaquinaResultado, ContaDaPessoa, ContaView } from "../../shared/ipc";
 import { marcar } from "../app/depuracao";
 import { broadcast } from "../app/windows";
 import { caps, produto } from "../app/variant";
@@ -19,7 +19,7 @@ import { log } from "../maquina/tunnel";
 import { refreshPickerIfOpen, sendToPicker } from "../maquina/picker";
 import { parseRetornoAuth } from "./deep-link-core";
 import { deviceIdentidade, devicePedido } from "./device";
-import { FOTO_MAX, URLS, deveRenovar, erroDaApi, novoLogin, parseContaInfo, parseLoginPendente, parsePrefs, parseSessao, retornoConfere, sessaoAcabou, urlDeLogin, type ContaPrefs, type LoginPendente, type SessaoGuardada, acessoGestao, parseContaDoAdmin, rotaDaContaAdmin, type PistasDaConta } from "./conta-core";
+import { FOTO_MAX, URLS, deveRenovar, erroDaApi, novoLogin, parseContaInfo, parseLoginPendente, parsePrefs, parseSessao, retornoConfere, sessaoAcabou, urlDeLogin, type ContaPrefs, type LoginPendente, type SessaoGuardada, acessoGestao, parseAtribuicao, parseContaDoAdmin, rotaDaContaAdmin, type PistasDaConta } from "./conta-core";
 
 const ARQ = (): string => path.join(app.getPath("userData"), "conta.bin");
 const ARQ_LOGIN = (): string => path.join(app.getPath("userData"), "conta-login.json");
@@ -148,6 +148,18 @@ export async function lerContaDoAdmin(pistas: PistasDaConta): Promise<ContaDaPes
   if (token === null) return { estado: "sem-resposta", motivo: "a sessão do admin não vale mais: entre de novo" };
   const r = await api("GET", rota, null, token);
   return parseContaDoAdmin(r.status, r.corpo);
+}
+
+/**
+ * meu-bot-admin-gestao: atribui a máquina (uuid do maquina.json dela) à conta desse e-mail, ou desfaz
+ * (`POST|DELETE /admin/maquinas/:id/conta`). Só exibição no console da pessoa; não emite licença. Nunca lança.
+ */
+export async function atribuirMaquinaNaConta(id: string, email: string, apelido: string | null, desfazer = false): Promise<AtribuirMaquinaResultado> {
+  if (lerSessao()?.conta.admin == null) return { ok: false, erro: "entre com a conta de admin" };
+  const token = await tokenDeAcesso();
+  if (token === null) return { ok: false, erro: "a sessão do admin não vale mais: entre de novo" };
+  const r = await api(desfazer ? "DELETE" : "POST", `/admin/maquinas/${id}/conta`, desfazer ? { email } : { email, apelido }, token);
+  return parseAtribuicao(r.status, r.corpo);
 }
 
 /** "Entrar": abre a página de login no navegador do sistema e fica esperando o deep link. */

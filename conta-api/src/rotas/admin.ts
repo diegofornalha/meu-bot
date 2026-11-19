@@ -2,14 +2,16 @@
  * Rotas do admin (Bearer com `adm`): `GET /admin/visao?busca=` (todas as contas, com licença, devices e máquinas; os
  * pedidos abertos; os totais), `PATCH /admin/contas/:id/licenca` (plano, status, prazo, limite de devices, add-ons,
  * pagamento, limite de máquinas), `DELETE /admin/contas/:id` (só super) e `POST /admin/pedidos/:id/atender`. Vincular máquina é da própria pessoa
- * (rotas/maquinas.ts). Tudo fica na auditoria.
+ * (rotas/maquinas.ts); o admin só ATRIBUI uma máquina a uma conta (`POST|DELETE /admin/maquinas/:id/conta {email}`),
+ * para ela aparecer no console da pessoa como "licença do admin": não emite licença nem ocupa vaga. Tudo fica na auditoria.
  */
 import type { Env, TipoVenda } from "../tipos.js";
-import { apagarConta, limiteDeDevicesComExtras, contaPorEmail, maquinaPorId, montarContaApi, assinaturasOcultas, ativarDevice, atenderPedido, auditoriaAdmin, zerarAuditoria, marcarVendaOculta, papelAdmin, encerrarAddonPago, encerrarExtraPago, auditar, contaPorId, contarSupers, devicesDaConta, gravarLicenca, licencaGravada, removerDevice, gravarPerfil, gravarProvedor, removerPerfil, revogarSessoesDaConta, visaoAdmin } from "../db.js";
+import { apagarConta, atribuirMaquina, desatribuirMaquina, contaAtribuidaDaMaquina, limiteDeDevicesComExtras, contaPorEmail, maquinaPorId, montarContaApi, assinaturasOcultas, ativarDevice, atenderPedido, auditoriaAdmin, zerarAuditoria, marcarVendaOculta, papelAdmin, encerrarAddonPago, encerrarExtraPago, auditar, contaPorId, contarSupers, devicesDaConta, gravarLicenca, licencaGravada, removerDevice, gravarPerfil, gravarProvedor, removerPerfil, revogarSessoesDaConta, visaoAdmin } from "../db.js";
 import { consultarFirebase, definirSenhaFirebase } from "../firebase-admin.js";
 import { DEVICE_ID_RE, UUID_RE, decidirLiberarDevice, ehAdminInicial, validaBusca, validaEmail, validaPapel, validaPatchLicenca, validaSenhaNova } from "../sessao-core.js";
 import { json, lerJson, type Autenticado } from "../http.js";
 import { assinaturaIdValido } from "../pagamento-core.js";
+import { validaApelido } from "../licenca-core.js";
 import { enviarEmailSenha, impedimentosDeApagar } from "./conta.js";
 import { cancelarNaAbacate, catalogoAddons, pagamentosLigados } from "./pagamentos.js";
 import { limiteDoPapel } from "../pagamento-core.js";
@@ -33,16 +35,19 @@ export async function getAdminConta(auth: Autenticado, env: Env, url: URL): Prom
   const email = validaEmail(p.get("email"));
   if (maquina === null && id === null && email === null) return json({ erro: "informe maquina, id ou email" }, 400);
   let achada: { conta: NonNullable<Awaited<ReturnType<typeof contaPorId>>>; por: "maquina" | "id" | "email" } | null = null;
+  let atribuida = false;
   if (maquina !== null) {
     const m = await maquinaPorId(env.DB, maquina);
-    const c = m === null || m.conta_id === null ? null : await contaPorId(env.DB, m.conta_id);
-    if (c !== null) achada = { conta: c, por: "maquina" };
+    // Vinculada (usa a licença da conta) vale primeiro; senão, a conta a que o admin atribuiu a máquina.
+    const dona = m !== null && m.conta_id !== null ? m.conta_id : await contaAtribuidaDaMaquina(env.DB, maquina);
+    const c = dona === null ? null : await contaPorId(env.DB, dona);
+    if (c !== null) { achada = { conta: c, por: "maquina" }; atribuida = !(m !== null && m.conta_id !== null); }
   }
   if (achada === null && id !== null) { const c = await contaPorId(env.DB, id); if (c !== null) achada = { conta: c, por: "id" }; }
   if (achada === null && email !== null) { const c = await contaPorEmail(env.DB, email); if (c !== null) achada = { conta: c, por: "email" }; }
   if (achada === null) return json({ erro: "nenhuma conta com essas pistas", semConta: true }, 404);
   const papel = await papelAdmin(env.DB, achada.conta.email, env.ADMIN_BOOTSTRAP_EMAIL);
-  return json({ achadaPor: achada.por, conta: await montarContaApi(env.DB, achada.conta, papel, catalogoAddons(env), null) });
+  return json({ achadaPor: achada.por, ...(atribuida ? { atribuida: true } : {}), conta: await montarContaApi(env.DB, achada.conta, papel, catalogoAddons(env), null) });
 }
 export async function postAtenderPedido(auth: Autenticado, env: Env, id: string): Promise<Response> {
   if (auth.claims.adm === null) return json({ erro: "só admin" }, 403);
@@ -225,5 +230,32 @@ export async function deletePerfil(auth: Autenticado, env: Env, emailRaw: string
   if (!(await removerPerfil(env.DB, email))) return json({ erro: "esse e-mail não é admin" }, 404);
   if ((await contarSupers(env.DB)) === 0) { await gravarPerfil(env.DB, email, "super"); return json({ erro: "era o último super admin; não removido" }, 400); }
   await auditar(env.DB, auth.conta.email, "perfil.removido", auth.conta.id, email);
+  return json({ ok: true });
+}
+
+/** `POST /admin/maquinas/:id/conta {email, apelido}`: a máquina passa a aparecer no console da conta desse e-mail. */
+export async function postAtribuirMaquina(auth: Autenticado, env: Env, id: string, req: Request): Promise<Response> {
+  if (auth.claims.adm === null) return json({ erro: "só admin" }, 403);
+  if (!UUID_RE.test(id)) return json({ erro: "id da máquina fora do formato" }, 400);
+  const corpo = (await lerJson(req)) as Record<string, unknown> | null;
+  const email = validaEmail(corpo?.email);
+  if (email === null) return json({ erro: "informe o e-mail da conta" }, 400);
+  const conta = await contaPorEmail(env.DB, email);
+  if (conta === null) return json({ erro: `nenhuma conta com o e-mail ${email}`, semConta: true }, 404);
+  const apelido = validaApelido(corpo?.apelido);
+  await atribuirMaquina(env.DB, conta.id, id, apelido, auth.conta.email);
+  await auditar(env.DB, auth.conta.email, "maquina.atribuida", conta.id, `${id} · ${apelido ?? "-"}`);
+  return json({ ok: true, conta: { id: conta.id, email: conta.email, nome: conta.nome } });
+}
+/** `DELETE /admin/maquinas/:id/conta {email}`: desfaz a atribuição; a máquina sai da lista da conta. */
+export async function deleteAtribuirMaquina(auth: Autenticado, env: Env, id: string, req: Request): Promise<Response> {
+  if (auth.claims.adm === null) return json({ erro: "só admin" }, 403);
+  if (!UUID_RE.test(id)) return json({ erro: "id da máquina fora do formato" }, 400);
+  const corpo = (await lerJson(req)) as Record<string, unknown> | null;
+  const email = validaEmail(corpo?.email);
+  if (email === null) return json({ erro: "informe o e-mail da conta" }, 400);
+  const conta = await contaPorEmail(env.DB, email);
+  if (conta === null || !(await desatribuirMaquina(env.DB, conta.id, id))) return json({ erro: "esta máquina não está atribuída a essa conta" }, 404);
+  await auditar(env.DB, auth.conta.email, "maquina.desatribuida", conta.id, id);
   return json({ ok: true });
 }

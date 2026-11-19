@@ -21,7 +21,7 @@ import { postSair, postSessao, postSessaoConsole } from "./rotas/sessao.js";
 import { postToken } from "./rotas/token.js";
 import { deleteConta, getConta, patchConta, postSenha } from "./rotas/conta.js";
 import { getSuporteResumos, postSuporteResumo } from "./rotas/suporte.js";
-import { deleteAdminConta, deleteDevice, deletePerfil, getAdminAuditoria, postVendaOculta, postZerarAuditoria, getAdminConta, getAdminFirebase, getAdminVisao, patchLicenca, postAdminSenha, postAtenderPedido, postEncerrarAddon, postEncerrarExtra, postLiberarDevice, putAdminSenha, putPerfil } from "./rotas/admin.js";
+import { deleteAdminConta, deleteDevice, deletePerfil, getAdminAuditoria, postVendaOculta, postZerarAuditoria, getAdminConta, getAdminFirebase, getAdminVisao, patchLicenca, postAdminSenha, postAtenderPedido, postEncerrarAddon, postEncerrarExtra, postLiberarDevice, putAdminSenha, putPerfil, postAtribuirMaquina, deleteAtribuirMaquina } from "./rotas/admin.js";
 import { downloadMac, downloadWindows, REPO } from "./release-github.js";
 import { GUIAS, lerReleases, novidadesHtml, sitemapXml } from "./novidades-core.js";
 import { CSP_ADS, CSP_GA, gaIds } from "./analytics-core.js";
@@ -141,6 +141,7 @@ async function api(req: Request, env: Env, url: URL, espera: (p: Promise<unknown
     const firebaseAdmin = /^GET \/admin\/contas\/([A-Za-z0-9-]{1,40})\/firebase$/.exec(rota);
     const renovarLicenca = /^POST \/conta\/maquinas\/([a-f0-9-]{36})\/licenca$/.exec(rota);
     const tirarMaquina = /^DELETE \/conta\/maquinas\/([a-f0-9-]{36})$/.exec(rota);
+    const atribuirMaquina = /^(POST|DELETE) \/admin\/maquinas\/([a-f0-9-]{36})\/conta$/.exec(rota);
     const maquinaVista = /^(POST|DELETE) \/conta\/maquinas\/([a-f0-9-]{36})\/visto$/.exec(rota);
     const perfil = /^(PUT|DELETE) \/admin\/perfis\/([^/]{3,200})$/.exec(rota);
     const org = /^(GET|PATCH|DELETE) \/orgs\/([a-z0-9-]{1,40})$/.exec(rota);
@@ -168,6 +169,7 @@ async function api(req: Request, env: Env, url: URL, espera: (p: Promise<unknown
     else if (rota === "POST /sessao/console") res = await postSessaoConsole(auth, env, req);
     else if (rota === "GET /admin/visao") res = await getAdminVisao(auth, env, url);
     else if (rota === "GET /admin/conta") res = await getAdminConta(auth, env, url);
+    else if (atribuirMaquina !== null) res = atribuirMaquina[1] === "POST" ? await postAtribuirMaquina(auth, env, atribuirMaquina[2]!, req) : await deleteAtribuirMaquina(auth, env, atribuirMaquina[2]!, req);
     else if (rota === "POST /admin/suporte") res = await postSuporteResumo(auth, env, req);
     else if (removerVenda !== null) res = await deleteAdminAssinatura(auth, env, removerVenda[1]!);
     else if (vendaOculta !== null) res = await postVendaOculta(auth, env, vendaOculta[1] === "assinaturas" ? "assinaturas" : "pagamentos", vendaOculta[2]!, vendaOculta[3] === "ocultar");

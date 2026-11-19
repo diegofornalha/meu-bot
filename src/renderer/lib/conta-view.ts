@@ -4,7 +4,7 @@
  * e `fimDoPlano` são porte linha a linha de lá, e o teste scripts/tests/conta-view.test.mjs roda os dois sobre a mesma
  * tabela de casos. Mudou um, mude o outro. Puro, sem DOM.
  */
-import type { ContaDaPessoa, License, LicenseView } from "../../shared/ipc";
+import type { Abertura, ContaDaPessoa, License, LicenseView } from "../../shared/ipc";
 import { PLAN_LABEL, STATUS_LABEL, fmtDate, produtoLabel, type AddonRotulo, type HealthLine } from "./admin-view.js";
 
 export const INFINITO = "∞", SEM_PRAZO = "sem prazo (super admin)", TODOS_ADDONS = "todos os add-ons, os de hoje e os que vierem (super admin)", SEM_LIMITE = "sem limite (super admin)";
@@ -84,7 +84,18 @@ export function diferencasDaConta(c: Extract<ContaDaPessoa, { estado: "ok" }>, v
 }
 /** O texto do bloco quando não há conta para mostrar. */
 export function contaSemDadosTexto(c: Exclude<ContaDaPessoa, { estado: "ok" }>, quem: string): string {
-  if (c.estado === "sem-ligacao") return `Esta máquina ainda não está ligada a uma conta meu-bot: ${quem} não entrou com a conta no app nem usou "Usar o meu Pro nesta máquina". Vale só a licença gravada aqui embaixo.`;
+  if (c.estado === "sem-ligacao") return `Esta máquina ainda não está ligada a uma conta meu-bot: ${quem} não entrou com a conta no app nem usou "Usar o meu Pro nesta máquina". Vale só a licença gravada aqui embaixo. Se você sabe de quem ela é, atribua pelo e-mail.`;
   if (c.estado === "nao-achada") return "A máquina aponta para uma conta que a API não tem (apagada, ou de outro ambiente: o Gestão lê só a produção).";
   return `Não consegui ler a conta agora: ${c.motivo}.`;
+}
+
+/**
+ * O que o bloco "Atribuir a uma conta" da gestão mostra: a máquina já está atribuída (o e-mail, com "Desfazer"), ou o
+ * campo para atribuir, já com o e-mail mais provável (a conta lida, senão o da abertura mais recente do app). Máquina
+ * que usa a licença da própria conta já está ligada a ela: não há o que atribuir.
+ */
+export function atribuicaoDaTela(conta: ContaDaPessoa | undefined, aberturas: readonly Abertura[] | null | undefined): { modo: "atribuida"; email: string } | { modo: "atribuir"; sugestao: string } | { modo: "ligada"; email: string } {
+  if (conta?.estado === "ok" && conta.achadaPor === "maquina") return conta.atribuida === true ? { modo: "atribuida", email: conta.conta.email } : { modo: "ligada", email: conta.conta.email };
+  const daAbertura = (aberturas ?? []).find((a) => a.conta !== "")?.conta ?? "";
+  return { modo: "atribuir", sugestao: conta?.estado === "ok" ? conta.conta.email : daAbertura };
 }
