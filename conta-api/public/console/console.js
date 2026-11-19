@@ -578,6 +578,21 @@ async function adminSenha(c, botao) {
   const texto = botao.textContent; botao.textContent = "E-mail enviado";
   setTimeout(() => { botao.textContent = texto; botao.disabled = false; }, 8000);
 }
+/** Super admin apaga a conta `c` (mesma exclusão do perfil): o primeiro clique pede a confirmação, o segundo apaga. */
+async function adminExcluirConta(c, botao) {
+  if (botao.dataset.confirma !== "1") {
+    botao.dataset.confirma = "1"; botao.textContent = `Confirmar: excluir ${c.email}`;
+    setTimeout(() => { if (botao.isConnected && !botao.disabled) { delete botao.dataset.confirma; botao.textContent = "Excluir conta"; } }, 5000);
+    return;
+  }
+  const s = sessaoGuardada(); if (s === null) return;
+  botao.disabled = true; mostrarErro(null);
+  const r = await api("DELETE", `/admin/contas/${encodeURIComponent(c.id)}`, undefined, s.acesso);
+  if (r.status !== 200) { botao.disabled = false; delete botao.dataset.confirma; botao.textContent = "Excluir conta"; await falhaAdmin(r, c); return; }
+  ga.evento("conta_apagada_pelo_admin");
+  await carregarVisao(visaoBusca).catch((e) => mostrarErro(e?.message ?? String(e)));
+  if (conta !== null) mostrarConsole(conta);
+}
 /**
  * Linha de edição abaixo da conta: plano, status, vale até, limite de devices e de máquinas. Salva com PATCH.
  * Add-ons concedidos e "Como pagar" não se editam aqui (a pessoa assina sozinha pela AbacatePay): o PATCH não os manda,
@@ -606,6 +621,13 @@ function editorLicenca(tr, c) {
   const superAdmin = conta !== null && conta.admin === "super";
   const senha = input("senha", "password", "", superAdmin ? "nova senha (em branco: não muda)" : "só o super admin define"); senha.autocomplete = "new-password"; senha.minLength = 8; senha.maxLength = 128; senha.disabled = !superAdmin;
   form.append(campo("Senha", senha));
+  // Ao lado da senha, só para o super admin: o mesmo "Apagar conta" do perfil, na conta de qualquer pessoa.
+  if (superAdmin) {
+    const excluir = el("button", "btn btn-ghost btn-small btn-perigo", "Excluir conta"); excluir.type = "button";
+    if (c.admin !== null && c.admin !== undefined) { excluir.disabled = true; excluir.title = "Esta conta tem perfil de acesso: remova o perfil (Perfis de acesso) antes de excluir."; }
+    else { excluir.title = `Apaga a conta de ${c.email}: ela some daqui e a pessoa sai de todos os Macs. Licença, pagamentos, pedidos e auditoria ficam guardados.`; excluir.addEventListener("click", () => { void adminExcluirConta(c, excluir); }); }
+    form.append(excluir);
+  }
   const salvar = el("button", "btn btn-primary", "Salvar"); salvar.type = "submit";
   const emailSenha = el("button", "btn btn-ghost", "E-mail de senha"); emailSenha.type = "button"; emailSenha.title = `Manda a ${c.email} o e-mail para criar ou redefinir a senha (o mesmo de "Esqueci a senha").`; emailSenha.addEventListener("click", () => { void adminSenha(c, emailSenha); });
   const cancelar = el("button", "btn btn-ghost", "Cancelar"); cancelar.type = "button"; cancelar.addEventListener("click", () => linha.remove());

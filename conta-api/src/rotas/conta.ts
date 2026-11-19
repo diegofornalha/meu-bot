@@ -26,11 +26,20 @@ export async function patchConta(auth: Autenticado, env: Env, req: Request): Pro
   return json(await montarContaApi(env.DB, nova, adm, auth.claims.dev, promoLigada(env)));
 }
 
+/**
+ * O que impede apagar uma conta, pela própria pessoa (`DELETE /conta`) ou pelo super admin (`DELETE /admin/contas/:id`):
+ * ter perfil de acesso (admin), ou ser dona de organização (os nomes).
+ */
+export async function impedimentosDeApagar(env: Env, conta: ContaLinha): Promise<{ admin: boolean; donaDe: string[] }> {
+  const admin = (await papelAdmin(env.DB, conta.email, env.ADMIN_BOOTSTRAP_EMAIL)) !== null;
+  const donaDe = (await orgsDaConta(env.DB, conta.id)).filter((o) => o.papel === "dona").map((o) => o.nome);
+  return { admin, donaDe };
+}
 /** Apagar a própria conta. Admin não apaga a sua (o super admin tira o perfil de acesso antes): evita um super órfão. */
 export async function deleteConta(auth: Autenticado, env: Env): Promise<Response> {
-  if ((await papelAdmin(env.DB, auth.conta.email, env.ADMIN_BOOTSTRAP_EMAIL)) !== null) return json({ erro: "um admin não apaga a própria conta; peça ao super admin para remover seu perfil de acesso antes" }, 403);
-  const donaDe = (await orgsDaConta(env.DB, auth.conta.id)).filter((o) => o.papel === "dona");
-  if (donaDe.length > 0) return json({ erro: `você é dona de ${donaDe.map((o) => o.nome).join(", ")}: promova outra dona ou apague a organização antes` }, 403);
+  const { admin, donaDe } = await impedimentosDeApagar(env, auth.conta);
+  if (admin) return json({ erro: "um admin não apaga a própria conta; peça ao super admin para remover seu perfil de acesso antes" }, 403);
+  if (donaDe.length > 0) return json({ erro: `você é dona de ${donaDe.join(", ")}: promova outra dona ou apague a organização antes` }, 403);
   await apagarConta(env.DB, auth.conta);
   await auditar(env.DB, auth.conta.email, "conta.apagada", auth.conta.id, null);
   return json({ ok: true });
