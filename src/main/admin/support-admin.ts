@@ -442,18 +442,21 @@ export async function readShare(host: string): Promise<SupportShare> {
 /** Saúde da máquina da pessoa: a sondagem do seletor + (se ela deixa) o WhatsApp e o progresso nos tutoriais. */
 export async function adminHealth(host: string): Promise<AdminHealth> {
   const share = await readShare(host);
-  const [probe, wa, progress, xai, lida, aberturas] = await Promise.all([
+  // A conta como o console a mostra só depende da licença e das aberturas (as pistas): lê a API assim que as duas
+  // chegam, sem esperar a sondagem e o WhatsApp. Pistas da mais forte para a mais fraca; o e-mail é só o que o app
+  // dela declarou na abertura mais recente (aberturas vêm da mais nova para a mais antiga).
+  const daConta = Promise.all([readLicencaComPistasSsh(host).catch(() => null), readAberturas(host)]).then(async ([lida, aberturas]) => ({
+    lida, aberturas,
+    conta: await lerContaDoAdmin({ maquina: lida?.pistas.maquina ?? null, id: lida?.pistas.contaId ?? null, email: (aberturas ?? []).find((a) => a.conta !== "")?.conta ?? null }),
+  }));
+  const [probe, wa, progress, xai, { lida, aberturas, conta }] = await Promise.all([
     probeHost(host, getBackendPort(host)),
     share.whatsapp ? whatsappStatus(host).catch(() => null) : Promise.resolve(null),
     share.progress ? readProgress(host) : Promise.resolve(null),
     xaiAuthInfo(host).catch(() => null),
-    readLicencaComPistasSsh(host).catch(() => null),
-    readAberturas(host),
+    daConta,
   ]);
   const license = lida?.view ?? null;
-  // A conta como o console a mostra. Pistas da mais forte para a mais fraca; o e-mail é só o que o app dela declarou
-  // na abertura mais recente (aberturas vêm da mais nova para a mais antiga).
-  const conta = await lerContaDoAdmin({ maquina: lida?.pistas.maquina ?? null, id: lida?.pistas.contaId ?? null, email: (aberturas ?? []).find((a) => a.conta !== "")?.conta ?? null });
   if (license !== null) rememberPlan(host, license.license.plan);
   const h: AdminHealth = { probe, whatsapp: wa, progress, share, xai, license, aberturas, conta, ...(host === aliasDoEsteMac() ? { appsDoMac: await appsDoMac() } : {}) };
   void enviarResumo(host, h);
