@@ -72,7 +72,7 @@ No celular de verdade ou no modo de dispositivo do navegador (o site decide pelo
 
 | O que fazer | Onde | Resultado esperado |
 |---|---|---|
-| Abrir a home num Mac | `site-staging.agentesgrok.com` | Faixa "Staging: versão em revisão da home…", selo "staging" ao lado da marca, título com " · staging". Botão do topo "Testar grátis por 3 dias"; a página fala em "3 dias" em todo lugar (o número é o `TRIAL_DIAS`) e nunca em 14. |
+| Abrir a home num Mac | `site-staging.agentesgrok.com` | Faixa "Staging: o mesmo site da produção, em conferência. O site de produção é agentesgrok.com." (só na home), selo "staging" ao lado da marca e título com " · staging" (em todas as páginas do site). Fora isso, planos, preços, botões e respostas são os da produção: o HTML servido é o mesmo. Botão do topo "Testar grátis por 3 dias"; a página fala em "3 dias" em todo lugar (o número é o `TRIAL_DIAS`) e nunca em 14. |
 | Tocar em "Testar grátis por 3 dias" | home, Mac | Vai para `/obrigado` e, em menos de 1 segundo, o download começa sozinho. A linha da versão mostra a release de **staging** (na produção, a estável). |
 | Abrir a home no celular | home | O botão de baixar some. Aparece o cartão "Você está no celular" com "Falar com a gente no WhatsApp", "Mandar o link para o meu Mac" e "Mandar por e-mail". O botão fixo do rodapé vira "Falar no WhatsApp". O botão flutuante do WhatsApp some. |
 | Abrir a home no Windows | home | Cartão da lista de espera: "Avise-me quando sair para Windows", campo de e-mail ou WhatsApp, e "Tenho um Mac: mandar o link para mim". Nenhum botão de baixar o app do Mac. |
@@ -80,6 +80,16 @@ No celular de verdade ou no modo de dispositivo do navegador (o site decide pelo
 | Mesma visita, tocar em "Falar com a gente no WhatsApp" | home, celular | A mensagem pronta termina com "(ref: empresario)". Sem `utm_content`, a referência é a campanha: "(ref: teste)". |
 | Sem campanha, no celular | home sem query | O link para o Mac é `https://agentesgrok.com/?utm_source=celular`, e a mensagem do WhatsApp não tem "(ref: …)". |
 | Abrir `/promocao` | site | Página "Primeiro mês do Pro por R$ 1" com as regras (existe porque a promoção está ligada). Fora do menu e do sitemap. |
+| Ver um ramo antes do merge | neste Mac, não no staging | O staging é sempre a `origin/main`: `node scripts/site-publicar.mjs --so-staging` recusa qualquer outro commit (saída 1, sem deploy) e diz o caminho (abrir a PR, mesclar, o staging recebe sozinho). O ramo se vê no Worker local, de dentro de `conta-api` no worktree do ramo, com o comando abaixo da tabela; abre em `http://localhost:8787`. Serve para página, texto, estilo e rota; não para login, pagamento nem dados (banco local vazio, sem secrets). |
+
+O Worker local do ramo (copiado da skill `publicar-site`, seção "Ver um ramo antes do merge", que explica as duas
+flags obrigatórias e os limites):
+
+```bash
+npx wrangler dev --env staging --host site-staging.agentesgrok.com --upstream-protocol https \
+  --persist-to "${TMPDIR:-/tmp}/meu-bot-wrangler-dev"
+# abre em http://localhost:8787 (outra porta: --port <n>)
+```
 
 Dois cuidados: o link "para o meu Mac" aponta sempre para `https://agentesgrok.com/` (está fixo em `celular.js`),
 então abrir esse link leva à **produção**; e os botões do WhatsApp abrem a conversa com o número real da Coflow: confira
@@ -150,8 +160,10 @@ Logado no console do staging com perfil de acesso (admin ou super admin).
 
 ## 6. Analytics do ensaio
 
-A propriedade de ensaio é a do `GA_ID` do staging no `wrangler.toml` (`G-FCKW62SB1K`; o README do `conta-api` a chama
-de **agentesintegrados**, fluxo "agentesgrok-site-staging"). No staging todo evento leva `ambiente: staging` e
+A propriedade de ensaio se identifica pelo ID de medição `G-FCKW62SB1K` (o `GA_ID` do staging no `wrangler.toml`) e
+pelo número da propriedade, **485491921**; o fluxo é `agentesgrok-site-staging`. Os nomes variam: na tela do Google
+Analytics a conta aparece como "AgentesGrokStaging" e a propriedade como "agentesgrokstaging"; o README do `conta-api`
+ainda a chama de "agentesintegrados". Na dúvida, vale o ID e o número. No staging todo evento leva `ambiente: staging` e
 `debug_mode`: aparece na hora em Administrador › DebugView. Confira ali, um fluxo de cada vez.
 
 | O que fazer | Onde | Evento esperado |
@@ -188,9 +200,12 @@ diferença reprova o `npm test` do `conta-api`, antes de todo deploy.
 | Analytics | `debug_mode` em todo evento | sem | para o DebugView mostrar na hora |
 | Download do Mac | a release de staging | a estável | cada site entrega o app do seu canal |
 | Buscadores | `x-robots-tag: noindex, nofollow` | indexado | o staging não compete com o site |
-| Home | faixa, selo e título "staging" | sem | para ninguém confundir |
-| Home, conteúdo só do staging | planos "Ensaio: grátis para beta testers", a resposta "nesta versão de ensaio nada muda" e o rascunho `/suporte` | planos de R$ 97 | é o que a PR `site-staging-espelho` tira; enquanto ela não entra, a seção de preços e essa resposta da home **não** são prova da produção |
-| "Zerar a Auditoria" | existe (super admin) | responde 403 | em produção o registro é o rastro das vendas |
+| Site | faixa na home, selo "staging" ao lado da marca e " · staging" no título (`site.js`) | sem | para ninguém confundir; o HTML servido é o mesmo nos dois, e não há página só do staging |
+| Console e login | a palavra "staging" ao lado da marca | sem | idem |
+| "Zerar a Auditoria" | o botão aparece para o super admin (`console.js`) | botão escondido, e a rota responde 403 | em produção o registro é o rastro das vendas |
+
+O rascunho `public/site/suporte.html` fica no repositório, mas nenhum ambiente o serve: `/suporte` dá a 404 do site
+nos dois.
 
 ## 8. Serviços de fora do repositório
 
