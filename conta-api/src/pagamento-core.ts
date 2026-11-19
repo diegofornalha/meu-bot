@@ -313,8 +313,29 @@ export function precoComCupom(cupom: unknown, precoCheio: number): { centavos: n
   if (typeof d !== "number" || !Number.isInteger(d) || d <= 0) return { erro: "não consegui ler o desconto deste cupom" };
   const centavos = c.discountKind === "FIXED" ? precoCheio - d : c.discountKind === "PERCENTAGE" ? Math.floor((precoCheio * (10000 - d)) / 10000) : NaN;
   if (!Number.isInteger(centavos)) return { erro: "não consegui ler o desconto deste cupom" };
-  if (centavos < 1 || centavos >= precoCheio) return { erro: "este cupom não se aplica à assinatura do Pro" };
+  // A AbacatePay recusa no checkout o cupom que deixaria o total entre R$ 0,01 e R$ 0,99 (documentação de cupons).
+  if (centavos < 100 || centavos >= precoCheio) return { erro: "este cupom não se aplica à assinatura do Pro" };
   return { centavos };
+}
+/** Quantos cupons um checkout aceita de uma vez ("Tenho um cupom" sem código): os de menor preço primeiro. */
+export const CUPONS_POR_CHECKOUT = 20;
+/**
+ * "Tenho um cupom" sem digitar o código no console: a pessoa vai direto à página de pagamento e digita lá. O checkout
+ * aceita os cupons ativos da loja que servem ao Pro (`lista`, de `GET /coupons/list`; pode vir vazia se a chave não
+ * tem o escopo) mais o da promoção do primeiro mês, que tem o preço na configuração. `centavos` é o menor preço que a
+ * primeira cobrança pode ter com qualquer um deles: é o que o webhook exige. null sem nenhum cupom que sirva.
+ */
+export function cuponsDoCheckout(lista: unknown, promo: Promo | null, precoCheio: number): { codigos: string[]; centavos: number } | null {
+  const achados = new Map<string, number>();
+  for (const c of Array.isArray(lista) ? lista : []) {
+    const id = validaCupom(c !== null && typeof c === "object" ? (c as { id?: unknown }).id : null);
+    const p = precoComCupom(c, precoCheio);
+    if (id !== null && !("erro" in p)) achados.set(id, p.centavos);
+  }
+  // O preço da promoção vem da configuração e vale mesmo que a AbacatePay não tenha respondido a lista.
+  if (promo !== null && promo.precoCentavos >= 1 && promo.precoCentavos < precoCheio) achados.set(promo.cupom.toUpperCase(), Math.min(promo.precoCentavos, achados.get(promo.cupom.toUpperCase()) ?? promo.precoCentavos));
+  const ordenados = [...achados.entries()].sort((a, b) => a[1] - b[1]).slice(0, CUPONS_POR_CHECKOUT);
+  return ordenados.length === 0 ? null : { codigos: ordenados.map(([id]) => id), centavos: ordenados[0]![1] };
 }
 export function pedidoDoCheckout(promo: { cupom: string } | null, metodos: readonly string[]): { methods: string[]; coupons?: string[]; tentarSemPix: boolean } {
   return promo === null ? { methods: [...metodos], tentarSemPix: true } : { methods: ["CARD"], coupons: [promo.cupom], tentarSemPix: false };
