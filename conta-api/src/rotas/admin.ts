@@ -4,8 +4,8 @@
  * pagamento, limite de máquinas), `DELETE /admin/contas/:id` (só super) e `POST /admin/pedidos/:id/atender`. Vincular máquina é da própria pessoa
  * (rotas/maquinas.ts). Tudo fica na auditoria.
  */
-import type { Env } from "../tipos.js";
-import { apagarConta, ativarDevice, atenderPedido, encerrarAddonPago, encerrarExtraPago, auditar, contaPorId, contarSupers, devicesDaConta, gravarLicenca, licencaGravada, removerDevice, gravarPerfil, gravarProvedor, removerPerfil, revogarSessoesDaConta, visaoAdmin } from "../db.js";
+import type { Env, TipoVenda } from "../tipos.js";
+import { apagarConta, ativarDevice, atenderPedido, auditoriaAdmin, marcarVendaOculta, encerrarAddonPago, encerrarExtraPago, auditar, contaPorId, contarSupers, devicesDaConta, gravarLicenca, licencaGravada, removerDevice, gravarPerfil, gravarProvedor, removerPerfil, revogarSessoesDaConta, visaoAdmin } from "../db.js";
 import { consultarFirebase, definirSenhaFirebase } from "../firebase-admin.js";
 import { DEVICE_ID_RE, UUID_RE, decidirLiberarDevice, ehAdminInicial, validaBusca, validaEmail, validaPapel, validaPatchLicenca, validaSenhaNova } from "../sessao-core.js";
 import { json, lerJson, type Autenticado } from "../http.js";
@@ -124,6 +124,22 @@ export async function deleteAdminConta(auth: Autenticado, env: Env, id: string):
   if (donaDe.length > 0) return json({ erro: `${conta.email} é dona de ${donaDe.join(", ")}: promova outra dona ou apague a organização antes` }, 403);
   await apagarConta(env.DB, conta);
   await auditar(env.DB, auth.conta.email, "conta.apagada", conta.id, `pelo super admin; era ${conta.email}`);
+  return json({ ok: true });
+}
+/** `GET /admin/auditoria`: as contas apagadas e as últimas ações registradas, só para o super admin (console › Auditoria). */
+export async function getAdminAuditoria(auth: Autenticado, env: Env): Promise<Response> {
+  if (auth.claims.adm !== "super") return json({ erro: "só o super admin" }, 403);
+  return json(await auditoriaAdmin(env.DB));
+}
+/**
+ * `POST /admin/vendas/(assinaturas|pagamentos)/:id/(ocultar|mostrar)`: o super admin tira uma linha da tela
+ * Assinaturas ou a traz de volta. Só visualização (`marcarVendaOculta`); as duas ações ficam na auditoria.
+ */
+export async function postVendaOculta(auth: Autenticado, env: Env, tipo: TipoVenda, id: string, ocultar: boolean): Promise<Response> {
+  if (auth.claims.adm !== "super") return json({ erro: "só o super admin" }, 403);
+  const r = await marcarVendaOculta(env.DB, tipo, id, ocultar ? auth.conta.email : null);
+  if (r === null) return json({ erro: ocultar ? "não existe ou já está oculta" : "não existe ou não está oculta" }, 404);
+  await auditar(env.DB, auth.conta.email, ocultar ? "venda.ocultada" : "venda.mostrada", r.contaId, `${tipo} ${id}`);
   return json({ ok: true });
 }
 /** `GET /admin/contas/:id/firebase`: o que o Firebase sabe desta conta (uid e e-mail), para o super admin diagnosticar. */

@@ -71,6 +71,20 @@ test("super admin apaga a conta de outra pessoa: some da lista, o histórico fic
     r = await chamar("GET", "/admin/visao", undefined, ts);
     assert.deepEqual(r.corpo.contas.map((c) => c.id).sort(), [A, D, S].sort());
 
+    // A Auditoria (só super admin) mostra o que as telas escondem: a conta apagada, com o e-mail que tinha e quem apagou.
+    assert.equal((await chamar("GET", "/admin/auditoria", undefined, ta)).status, 403, "admin comum não vê");
+    assert.equal((await chamar("GET", "/admin/auditoria", undefined, tc)).status, 401, "a conta apagada não entra mais");
+    r = await chamar("GET", "/admin/auditoria", undefined, ts);
+    assert.equal(r.status, 200);
+    assert.equal(r.corpo.apagadas.length, 1);
+    const { criadaEm, apagadaEm, ...apagada } = r.corpo.apagadas[0];
+    assert.deepEqual(apagada, { id: C, email: "comum@exemplo.com", apagadaPor: "super@exemplo.com", plan: "pro", status: "active", expiresAt: "2099-01-01T00:00:00.000Z", pagoCentavos: 0 });
+    assert.equal(criadaEm, agora); assert.equal(apagadaEm, linha.apagada_em);
+    const acao = r.corpo.registro.find((a) => a.acao === "conta.apagada");
+    assert.deepEqual([acao.quem, acao.conta, acao.detalhe], ["super@exemplo.com", { id: C, email: "comum@exemplo.com", apagada: true }, "pelo super admin; era comum@exemplo.com"]);
+    assert.deepEqual(r.corpo.registro.find((a) => a.acao === "org.criada").conta, { id: D, email: "dona@exemplo.com", apagada: false }, "conta viva: o próprio e-mail");
+    assert.equal(r.corpo.registro[0].id > r.corpo.registro.at(-1).id, true, "das mais novas para as antigas");
+
     // Apagar de novo: a conta não existe mais (404, que faz o console reler a lista).
     assert.equal((await chamar("DELETE", `/admin/contas/${C}`, undefined, ts)).status, 404);
   } finally { await px.dispose(); rmSync(persist, { recursive: true, force: true }); }

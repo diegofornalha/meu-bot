@@ -159,6 +159,16 @@ export interface AdminPedido { id: string; tipo: string; detalhe: string | null;
 export interface AdminPerfil { email: string; papel: "super" | "admin"; criadoEm: string; entrou: boolean; fixo: boolean }
 /** Uma assinatura paga (subs_...): `produto` null é o Pro; `valeAte` é o prazo que ela sustenta hoje na conta. */
 export interface AdminAssinatura { id: string; produto: string | null; status: "ACTIVE" | "CANCELLED"; valorCentavos: number | null; criadaEm: string; atualizadaEm: string; valeAte: string | null; ultimoPagamentoEm: string | null; conta: { id: string; email: string; nome: string | null } }
+/** Uma conta apagada, como o super admin a vê na Auditoria: o e-mail que ela tinha, quem apagou e o que ficou guardado. */
+export interface AdminContaApagada { id: string; email: string; criadaEm: string; apagadaEm: string; /** E-mail de quem apagou (o da própria conta = a própria pessoa); null sem registro. */ apagadaPor: string | null; plan: string | null; status: string | null; expiresAt: string | null; pagoCentavos: number }
+/** Uma linha da tabela `auditoria`; `conta` é a conta afetada, com o e-mail original mesmo depois de apagada. */
+export interface AdminRegistro { id: number; quando: string; quem: string; acao: string; detalhe: string | null; conta: { id: string; email: string | null; apagada: boolean } | null }
+/** `GET /admin/auditoria`: as contas apagadas (até 200), as vendas ocultadas (até 500 de cada lista) e as ações mais recentes (até 500), das mais novas para as antigas. */
+export interface AdminAuditoria { apagadas: AdminContaApagada[]; ocultas: AdminVendaOculta[]; registro: AdminRegistro[] }
+/** As duas listas da tela Assinaturas de onde o super admin oculta linhas. */
+export type TipoVenda = "assinaturas" | "pagamentos";
+/** Uma assinatura ou um pagamento que o super admin tirou da tela Assinaturas; `quando` é a criação ou o pagamento. */
+export interface AdminVendaOculta { tipo: TipoVenda; id: string; produto: string | null; valorCentavos: number | null; quando: string; ocultaEm: string; ocultaPor: string | null; conta: { id: string; email: string } }
 export interface AdminPagamento { id: string; produto: string | null; valorCentavos: number; primeira: boolean; pagoEm: string; noAnalytics: boolean; conta: { id: string; email: string; nome: string | null } }
 /** Quem paga o quê: só o super admin recebe (para o admin comum vem null). */
 export interface AdminVendas { assinaturas: AdminAssinatura[]; pagamentos: AdminPagamento[]; totais: { proPago: number; addons: Record<string, number>; mensalCentavos: number; aRevisar: number } }
