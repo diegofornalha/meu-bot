@@ -137,12 +137,12 @@ test("super admin: o painel \"Assinar o Pro\" some, sem aviso de prazo, com ou s
 test("add-on pago: a tela diz os dois passos (ativo na conta; liberado ou não na máquina) pelo estado do pedido de liberação", () => {
   const PAGO = "Pagamento confirmado: o Finanças está ativo nesta conta.";
   const aberta = [{ produto: "meu-bot-finance", aberta: true }], fechada = [{ produto: "meu-bot-finance", aberta: false }];
-  const falta = { estado: "falta-maquina", texto: `${PAGO} Falta um passo para ele aparecer no app: a liberação na sua máquina. O pedido já está com o suporte, e você será avisado quando estiver liberado.` };
+  const falta = { estado: "falta-maquina", texto: `${PAGO} Falta um passo para ele aparecer no app: a liberação na sua máquina. O pedido já está com o suporte. Quando for liberado, ele aparece na página Módulos do app.` };
   // Pedido aberto: aparece na volta do pagamento e continua aparecendo depois, enquanto o admin não atende.
   assert.deepEqual(avisoAddonPago("Finanças", "meu-bot-finance", aberta, true), falta);
   assert.deepEqual(avisoAddonPago("Finanças", "meu-bot-finance", aberta, false), falta);
-  // Pedido atendido: na volta do pagamento diz que já está na máquina; fora dela, o painel some.
-  assert.deepEqual(avisoAddonPago("Finanças", "meu-bot-finance", fechada, true), { estado: "liberado", texto: `${PAGO} Ele já foi liberado na sua máquina.` });
+  // Pedido atendido: na volta do pagamento diz que o suporte marcou a liberação como feita; fora dela, o painel some.
+  assert.deepEqual(avisoAddonPago("Finanças", "meu-bot-finance", fechada, true), { estado: "liberado", texto: `${PAGO} O suporte já marcou a liberação na sua máquina como feita: ele deve aparecer na página Módulos do app. Se não aparecer, fale com o suporte.` });
   assert.equal(avisoAddonPago("Finanças", "meu-bot-finance", fechada, false), null);
   // Sem pedido conhecido (API antiga sem o campo, add-on concedido pelo admin): não afirma em que pé está a máquina.
   const semPedido = { estado: "sem-pedido", texto: `${PAGO} Ele aparece no app depois de liberado na sua máquina; se não aparecer, fale com o suporte.` };
@@ -153,6 +153,7 @@ test("add-on pago: a tela diz os dois passos (ativo na conta; liberado ou não n
   // O pedido de um add-on não fala pelo outro, e `aberta` fora da forma não vira "falta" nem "liberado".
   assert.equal(avisoAddonPago("Módulos do Diego", "meu-bot-diego", aberta, false), null);
   assert.equal(avisoAddonPago("Finanças", "meu-bot-finance", [{ produto: "meu-bot-finance", aberta: "sim" }], true).estado, "sem-pedido");
-  // Nenhum texto promete prazo nem diz que é automático.
+  // Nenhum texto promete prazo, aviso (não há envio automático) nem diz que é automático; e o atendido não afirma o estado da máquina.
+  for (const l of [aberta, fechada, []]) assert.doesNotMatch(avisoAddonPago("Finanças", "meu-bot-finance", l, true).texto, /avisad|já foi liberado|já está na/i);
   for (const l of [aberta, fechada, []]) assert.doesNotMatch(avisoAddonPago("Finanças", "meu-bot-finance", l, true).texto, /automátic|minuto|hora|segundo|em breve|na hora|\bdia/i);
 });

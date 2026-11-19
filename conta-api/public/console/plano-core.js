@@ -118,16 +118,17 @@ export function podeAdicionarMaquina(licenca, agoraMs = Date.now()) {
  * ("Liberar na máquina"). `liberacoes` é o `conta.liberacoes` da API ({produto, aberta}, um item por add-on que teve
  * esse pedido). O Pro não passa por aqui: ele não tem o segundo passo.
  * - pedido aberto: o painel aparece sempre (não só na volta do pagamento), dizendo o que falta e com quem está;
- * - pedido atendido: só na volta do pagamento (`voltou`), dizendo que já foi liberado na máquina;
+ * - pedido atendido: só na volta do pagamento (`voltou`), dizendo que o suporte marcou a liberação como feita (o
+ *   "Atender" do admin só fecha o pedido: a tela não afirma o estado da máquina);
  * - sem pedido conhecido (API antiga, add-on concedido pelo admin): só na volta do pagamento, sem afirmar em que pé
  *   está a máquina.
- * Devolve null quando não há o que mostrar. Nenhum texto promete prazo.
+ * Devolve null quando não há o que mostrar. Nenhum texto promete prazo nem aviso (não existe envio automático).
  */
 export function avisoAddonPago(rotulo, nome, liberacoes, voltou) {
   const l = (Array.isArray(liberacoes) ? liberacoes : []).find((x) => x && x.produto === nome) ?? null;
   const pago = `Pagamento confirmado: o ${rotulo} está ativo nesta conta.`;
-  if (l !== null && l.aberta === true) return { estado: "falta-maquina", texto: `${pago} Falta um passo para ele aparecer no app: a liberação na sua máquina. O pedido já está com o suporte, e você será avisado quando estiver liberado.` };
+  if (l !== null && l.aberta === true) return { estado: "falta-maquina", texto: `${pago} Falta um passo para ele aparecer no app: a liberação na sua máquina. O pedido já está com o suporte. Quando for liberado, ele aparece na página Módulos do app.` };
   if (voltou !== true) return null;
-  if (l !== null && l.aberta === false) return { estado: "liberado", texto: `${pago} Ele já foi liberado na sua máquina.` };
+  if (l !== null && l.aberta === false) return { estado: "liberado", texto: `${pago} O suporte já marcou a liberação na sua máquina como feita: ele deve aparecer na página Módulos do app. Se não aparecer, fale com o suporte.` };
   return { estado: "sem-pedido", texto: `${pago} Ele aparece no app depois de liberado na sua máquina; se não aparecer, fale com o suporte.` };
 }
