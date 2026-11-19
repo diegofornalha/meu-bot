@@ -157,3 +157,16 @@ test("add-on pago: a tela diz os dois passos (ativo na conta; liberado ou não n
   for (const l of [aberta, fechada, []]) assert.doesNotMatch(avisoAddonPago("Finanças", "meu-bot-finance", l, true).texto, /avisad|já foi liberado|já está na/i);
   for (const l of [aberta, fechada, []]) assert.doesNotMatch(avisoAddonPago("Finanças", "meu-bot-finance", l, true).texto, /automátic|minuto|hora|segundo|em breve|na hora|\bdia/i);
 });
+
+test("oferta do Pro: a vaga do painel abre a Visão geral, o painel nasce na vaga do Plano e mostra de R$ 997 por R$ 97", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const html = await readFile(new URL("../public/console/index.html", import.meta.url), "utf8");
+  const visao = html.slice(html.indexOf('<section data-secao="overview"'), html.indexOf('<section data-secao="profile"'));
+  assert.ok(visao.indexOf('id="ov-assinar-vaga"') > 0 && visao.indexOf('id="ov-assinar-vaga"') < visao.indexOf('id="ov-cartoes"'));
+  assert.match(html, /id="pl-assinar-vaga"><div class="painel" id="pl-assinar" hidden>/);
+  assert.match(html, /De <s>R\$ 997<\/s> por <strong>R\$ 97<\/strong> por mês/);
+  assert.equal(html.split('id="pl-assinar"').length, 2);
+  const js = await readFile(new URL("../public/console/console.js", import.meta.url), "utf8");
+  assert.match(js, /pintarAssinar\(c, "ov-assinar-vaga"\)/);
+  assert.match(js, /pintarAssinar\(c, "pl-assinar-vaga"\)/);
+});
