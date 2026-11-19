@@ -873,6 +873,7 @@ function cartao(ico, rotulo, ...valor) {
 }
 const statusTom = (l) => (l.status === "active" || l.status === "trialing" ? "ok" : l.status === "expired" ? "mau" : "");
 function pintarOverview(c) {
+  pintarAssinar(c, "ov-assinar-vaga");
   const l = c.licenca, ativos = c.devices.filter((d) => d.status !== "pending").length, pendentes = c.devices.length - ativos;
   $("ov-cartoes").replaceChildren(
     cartao("⬢", "Plano", selo(PLANO[l.plan] ?? l.plan, l.plan === "pro" ? "ok" : "")),
@@ -1145,6 +1146,20 @@ async function cancelarAssinatura(a, sim, nao, aviso) {
   if (c) pintarPlano(c);
   $("pl-assinaturas-aviso").textContent = r.status === 200 ? `Assinatura do ${rotuloProduto(a.produto)} cancelada.${a.valeAte ? ` O acesso continua até ${data(a.valeAte)}.` : ""}` : `Não cancelou: ${erroDe(r)}.`;
 }
+/**
+ * O painel "Assinar o Pro" é um só e aparece em duas páginas: no topo da Visão geral (a primeira coisa que a pessoa vê
+ * ao abrir o console) e no Plano (onde a página /promocao e o atendimento mandam procurar). Cada página o puxa para a
+ * sua vaga ao ser pintada.
+ */
+function pintarAssinar(c, vaga) {
+  const l = c.licenca, estado = estadoAssinaturaPro(l, c.assinaturas);
+  $(vaga).append($("pl-assinar"));
+  $("pl-assinar").hidden = cfg.pagamentos !== "1" || estado.pagoAtivo || estado.semPrazo === true;
+  $("pl-assinar-ja").hidden = !estado.proSemAssinatura;
+  pintarPromo(c);
+  $("pl-assinar-ja").textContent = estado.proSemAssinatura ? `Você já tem o Pro${l.expiresAt ? ` até ${data(l.expiresAt)}` : ""}, sem assinatura ativa. Assinando, a cobrança passa a ser mensal e o prazo que você já tem não é encurtado.` : "";
+  return estado;
+}
 function pintarPlano(c) {
   const l = c.licenca;
   // Contagem regressiva no cabeçalho, ao lado do "lido às": quanto falta do teste ou do Pro (plano-core.js).
@@ -1166,11 +1181,7 @@ function pintarPlano(c) {
   // Pro ativo sem assinatura (liberado pelo admin, ou assinatura cancelada com o mês ainda valendo) continua podendo
   // assinar: o painel só some para quem tem a assinatura do Pro em andamento e o Pro valendo (plano-core.js).
   // Super admin (Pro sem prazo) não tem o que assinar: o painel e a promoção somem; os add-ons continuam abaixo.
-  const { pagoAtivo, proSemAssinatura, semPrazo: superSemPrazo } = estadoAssinaturaPro(l, c.assinaturas);
-  $("pl-assinar").hidden = cfg.pagamentos !== "1" || pagoAtivo || superSemPrazo === true;
-  $("pl-assinar-ja").hidden = !proSemAssinatura;
-  pintarPromo(c);
-  $("pl-assinar-ja").textContent = proSemAssinatura ? `Você já tem o Pro${l.expiresAt ? ` até ${data(l.expiresAt)}` : ""}, sem assinatura ativa. Assinando, a cobrança passa a ser mensal e o prazo que você já tem não é encurtado.` : "";
+  const { pagoAtivo } = pintarAssinar(c, "pl-assinar-vaga");
   const qs = new URLSearchParams(location.search);
   const voltouDe = qs.get("assinatura") === "paga" ? qs.get("produto") : null;
   const voltou = qs.get("assinatura") === "paga" && voltouDe === null;
