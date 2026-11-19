@@ -30,7 +30,7 @@ import { postListaEspera } from "./rotas/lista.js";
 import { postLeadRef, rotaLeads } from "./rotas/leads.js";
 import { deleteDeviceDaConta } from "./rotas/devices.js";
 import { deleteMaquina, deleteMaquinaVista, postMaquina, postMaquinaVista, postRenovarLicenca } from "./rotas/maquinas.js";
-import { marketplaceDoEnv, addonsAVenda, extrasAVenda, pagamentosLigados, deleteAdminAssinatura, postAssinatura, postCancelarAssinatura, postWebhookAbacate, promoLigada } from "./rotas/pagamentos.js";
+import { marketplaceDoEnv, addonsAVenda, extrasAVenda, pagamentosLigados, cupomPixLigado, deleteAdminAssinatura, postAssinatura, postCancelarAssinatura, postWebhookAbacate, promoLigada } from "./rotas/pagamentos.js";
 import { itemPorSlug } from "./marketplace-core.js";
 import { REVISAO_MARKETPLACE, llmsDoMarketplace, paginaDoMarketplace } from "./marketplace-pagina.js";
 import { deleteMembro, deleteOrg, getOrg, getOrgPublico, getOrgs, patchAdminOrg, patchMembro, patchOrg, postMembro, postOrg } from "./rotas/orgs.js";
@@ -109,7 +109,7 @@ const cspDoConsole = (env: Env): string => ["default-src 'self'", `script-src 's
  */
 async function consolePagina(req: Request, env: Env, url: URL): Promise<Response> {
   if (url.pathname === "/robots.txt") return comCabecalhos(robotsFechado(), {});
-  if (url.pathname === "/config.js") return comCabecalhos(configJs({ api: env.API_ORIGIN, auth: env.AUTH_ORIGIN, console: env.CONSOLE_ORIGIN, site: env.SITE_ORIGIN, canal: env.CANAL, ga: gaDoEnv(env), pagamentos: pagamentosLigados(env) ? "1" : "", addons: JSON.stringify(addonsAVenda(env).map((a) => ({ nome: a.nome, rotulo: a.rotulo, centavos: a.centavos }))), extras: JSON.stringify(extrasAVenda(env).map((x) => ({ tipo: x.tipo, nome: x.nome, rotulo: x.rotulo, centavos: x.centavos, ...(x.deCentavos === undefined ? {} : { deCentavos: x.deCentavos }) }))), marketplace: JSON.stringify(marketplaceDoEnv(env)) }), {});
+  if (url.pathname === "/config.js") return comCabecalhos(configJs({ api: env.API_ORIGIN, auth: env.AUTH_ORIGIN, console: env.CONSOLE_ORIGIN, site: env.SITE_ORIGIN, canal: env.CANAL, ga: gaDoEnv(env), pagamentos: pagamentosLigados(env) ? "1" : "", cupomPix: cupomPixLigado(env) ? "1" : "", addons: JSON.stringify(addonsAVenda(env).map((a) => ({ nome: a.nome, rotulo: a.rotulo, centavos: a.centavos }))), extras: JSON.stringify(extrasAVenda(env).map((x) => ({ tipo: x.tipo, nome: x.nome, rotulo: x.rotulo, centavos: x.centavos, ...(x.deCentavos === undefined ? {} : { deCentavos: x.deCentavos }) }))), marketplace: JSON.stringify(marketplaceDoEnv(env)) }), {});
   const caminho = /\.[a-z0-9]{1,8}$/i.test(url.pathname) && !url.pathname.endsWith(".html") ? url.pathname : "/console/index.html";
   const res = await env.ASSETS.fetch(new Request(new URL(caminho, url.origin).toString(), { method: "GET", headers: req.headers }));
   // Tudo sem cache: o console muda junto com a API, e um JS velho de 5 min já mostrou tela errada depois de um deploy.

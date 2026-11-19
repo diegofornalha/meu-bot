@@ -36,6 +36,8 @@ export interface Env {
   ABACATEPAY_WEBHOOK_SECRET?: string;
   /** O produto de assinatura (prod_..., ciclo MONTHLY) criado na AbacatePay. */
   ABACATEPAY_PRODUTO?: string;
+  /** Produto AVULSO (sem ciclo) do primeiro mês do Pro por Pix, com cupom; vazio = esse caminho fica desligado. */
+  ABACATEPAY_PRODUTO_PRIMEIRO_MES?: string;
   /** Preço do Pro em centavos ("9700"): pagamento abaixo disso vai para revisão em vez de liberar. */
   ABACATEPAY_PRECO_CENTAVOS?: string;
   /** Apps vendidos à parte, cada um com produto mensal e preço próprios (JSON; a forma está em lerAddons, pagamento-core.ts). */

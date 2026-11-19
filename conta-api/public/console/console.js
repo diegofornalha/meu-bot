@@ -1,5 +1,5 @@
 import { avisoDepoisDo404, pedeReleitura, visaoVelha } from "./admin-core.js";
-import { INFINITO, SEM_LIMITE, SEM_PRAZO, TODOS_ADDONS, avisoAddonPago, contagemRegressiva, addonsNaVisaoGeral, estadoAssinaturaPro, fase, linhasDeMaquinas, deParaDoExtra, assinaturasDoItem, bloqueioDeOrg, estadoDoItem, itemGa, ofertaDoProAparece, resumoDeUso, semDevices, oQueAContaTem, pagoChegou, assinaturasAtivasDe, pedidoAssinar, podeAdicionarMaquina, promoNaTela, reaisCurto, semPrazo, vagaDoAssinar, vagasDeDevice, vagasDeMaquina } from "./plano-core.js";
+import { INFINITO, SEM_LIMITE, SEM_PRAZO, TODOS_ADDONS, avisoAddonPago, contagemRegressiva, addonsNaVisaoGeral, estadoAssinaturaPro, fase, linhasDeMaquinas, deParaDoExtra, assinaturasDoItem, bloqueioDeOrg, estadoDoItem, itemGa, ofertaDoProAparece, resumoDeUso, semDevices, oQueAContaTem, pagoChegou, assinaturasAtivasDe, pedidoAssinar, podeAdicionarMaquina, promoNaTela, reaisCurto, semPrazo, vagaDoAssinar, voltaDoPagamento, vagasDeDevice, vagasDeMaquina } from "./plano-core.js";
 // Console da conta meu-bot (console.agentesgrok.com/account/* e /organizations/<slug>/members|settings, molde Rambox). Entra pela mesma página de
 // login do app (auth.agentesgrok.com) com esquema=web: o console gera state + PKCE, a página devolve #code&state, e
 // POST /token {grant:"web"} vira um token de acesso de 1 h guardado neste navegador (localStorage: outra aba, inclusive
@@ -1095,7 +1095,7 @@ function pintarPromo(c) {
   promoMostrada = semPrazo(c.licenca) ? null : promoNaTela(c.promo);
   const caixa = $("pl-promo"); caixa.hidden = promoMostrada === null; caixa.replaceChildren();
   // Com a promoção do primeiro mês já na tela, o cupom é o dela: o "Tenho um cupom" some para não haver dois caminhos.
-  $("pl-cupom-abrir").hidden = promoMostrada !== null;
+  $("pl-cupom-abrir").hidden = promoMostrada !== null; if (promoMostrada !== null) $("pl-cupom-escolha").hidden = true;
   $("pl-assinar-btn").textContent = promoMostrada === null ? ASSINAR_NORMAL : `Assinar por ${reaisCurto(promoMostrada.precoCentavos)} no primeiro mês`;
   if (promoMostrada === null) return;
   const { precoCentavos, ate, cupom } = promoMostrada;
@@ -1125,12 +1125,12 @@ async function assinar(produto = null, btn = $("pl-assinar-btn"), aviso = $("pl-
   // Desabilita ANTES de copiar: a cópia pode demorar (o navegador pede permissão) e um segundo clique abriria outro checkout.
   btn.disabled = true;
   const copiou = pedido.promo === true ? await copiarCupom(promoMostrada.cupom) : false;
-  aviso.textContent = copiou ? "Cupom copiado. Abrindo a página de pagamento…" : pedido.cupom === true ? "Abrindo a página de pagamento… Lá, digite o código em \"Código do cupom\" e toque em Aplicar." : "Abrindo a página de pagamento…";
+  aviso.textContent = copiou ? "Cupom copiado. Abrindo a página de pagamento…" : pedido.pix === true ? "Conferindo o cupom e abrindo o Pix…" : pedido.cupom === true ? "Abrindo a página de pagamento… Lá, digite o código em \"Código do cupom\" e toque em Aplicar." : "Abrindo a página de pagamento…";
   const v = typeof ga.visita === "function" ? await ga.visita() : { clientId: null, sessionId: null };
   const r = await api("POST", "/conta/assinatura", { gaClientId: v.clientId, gaSessionId: v.sessionId, ...pedido }, s.acesso);
   // Unidade extra: guarda quantas a conta já tinha, para a volta do pagamento saber quando a nova chegou (pagoChegou).
   if (r.status === 200 && produto !== null && conta !== null) { try { sessionStorage.setItem(`mb-antes-${produto}`, String(assinaturasAtivasDe(conta.assinaturas, produto))); } catch { /* sem sessionStorage: a tela espera o tempo todo */ } }
-  if (r.status === 200 && r.corpo && typeof r.corpo.url === "string") { ga.evento("checkout_iniciado", { plano: produto ?? "chip-coflow", ...(r.corpo.promo === true ? { promo: "primeiro-mes" } : {}), ...(r.corpo.cupom ? { promo: "cupom" } : {}) }); location.assign(r.corpo.url); return; }
+  if (r.status === 200 && r.corpo && typeof r.corpo.url === "string") { ga.evento("checkout_iniciado", { plano: produto ?? "chip-coflow", ...(r.corpo.promo === true ? { promo: "primeiro-mes" } : {}), ...(r.corpo.cupom ? { promo: r.corpo.pix === true ? "cupom-pix" : "cupom" } : {}) }); location.assign(r.corpo.url); return; }
   btn.disabled = false;
   // O prazo acabou com a tela aberta: repinta o painel com o preço normal e mantém o aviso da API.
   if (pedido.promo === true && r.corpo && r.corpo.promoAcabou === true) { const c2 = await lerConta().catch(() => null); if (c2) pintarPlano(c2); }
@@ -1352,9 +1352,11 @@ function pintarPlano(c) {
   const { pagoAtivo } = pintarAssinar(c);
   const qs = new URLSearchParams(location.search);
   const voltou = qs.get("assinatura") === "paga" && !qs.get("produto");
-  if (voltou) $("pl-assinar-aviso").textContent = pagoAtivo ? "Pagamento confirmado: o Pro está ativo." : "Recebemos você de volta. Assim que a AbacatePay confirmar o pagamento, o Pro aparece aqui (costuma levar alguns segundos).";
+  // O aviso da volta fica fora do painel "Assinar": depois de pagar, o painel some (o Pro está valendo).
+  const volta = voltou ? voltaDoPagamento(l, c.assinaturas, data) : null;
+  $("pl-voltou").hidden = volta === null; $("pl-voltou").textContent = volta === null ? "" : volta.texto;
   pintarAssinaturas(c);
-  const esperando = voltou && !pagoAtivo;
+  const esperando = volta !== null && volta.esperar;
   if (esperando && esperasPagamento < 10) { esperasPagamento++; setTimeout(() => { void lerConta().then((c2) => { if (c2) pintarPlano(c2); }).catch(() => undefined); }, 3000); }
   const pg = l.pagamento;
   $("pl-pagamento").hidden = !pg;
@@ -1368,7 +1370,22 @@ function pintarSuporte(c) {
 // ---- arranque
 $("pl-assinar-btn").addEventListener("click", () => { void assinar(); });
 // "Tenho um cupom": vai direto à página de pagamento (só cartão), onde a pessoa digita o código em "Código do cupom".
-$("pl-cupom-abrir").addEventListener("click", () => { void assinar(null, $("pl-cupom-abrir"), $("pl-cupom-aviso"), false, true); });
+// Com o Pix do cupom ligado (config.js), "Tenho um cupom" abre a escolha Cartão ou Pix; sem ele, vai direto ao cartão.
+$("pl-cupom-abrir").addEventListener("click", () => {
+  if (cfg.cupomPix !== "1") { void assinar(null, $("pl-cupom-abrir"), $("pl-cupom-aviso"), false, true); return; }
+  $("pl-cupom-escolha").hidden = !$("pl-cupom-escolha").hidden;
+});
+// Cartão: direto ao checkout da AbacatePay, onde a pessoa digita o código.
+$("pl-cupom-cartao").addEventListener("click", () => { void assinar(null, $("pl-cupom-cartao"), $("pl-cupom-aviso"), false, true); });
+// Pix: o código é conferido pelo nosso servidor (a AbacatePay não aceita cupom em assinatura por Pix).
+$("pl-cupom-pix-abrir").addEventListener("click", () => { $("pl-cupom-pix").hidden = false; $("pl-cupom-codigo").focus(); });
+const pagarComPix = () => {
+  const codigo = $("pl-cupom-codigo").value.trim();
+  if (codigo === "") { $("pl-cupom-aviso").textContent = "Digite o código do cupom."; $("pl-cupom-codigo").focus(); return; }
+  void assinar(null, $("pl-cupom-pix-btn"), $("pl-cupom-aviso"), false, { pix: codigo });
+};
+$("pl-cupom-pix-btn").addEventListener("click", pagarComPix);
+$("pl-cupom-codigo").addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); pagarComPix(); } });
 // Tema: o seletor mostra a escolha guardada (tema.js já a aplicou no <html>) e troca na hora.
 if (window.MEU_BOT_TEMA) { $("tema").value = window.MEU_BOT_TEMA.atual(); $("tema").addEventListener("change", () => window.MEU_BOT_TEMA.definir($("tema").value)); }
 for (const id of ["ad-vendas-produto", "ad-vendas-situacao"]) $(id).addEventListener("change", () => { if (visao !== null) pintarAdminVendas(visao); });

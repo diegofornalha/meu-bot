@@ -132,6 +132,8 @@ code { padding: 2px 6px; border-radius: 6px; background: var(--codigo); border: 
 .promo code { font-size: 15px; font-weight: 600; user-select: all; }
 .promo .btn-small { margin-left: 4px; }
 #pl-cupom-abrir { margin-left: 10px; }
+#pl-cupom-codigo { padding: 7px 9px; border-radius: 8px; border: 1px solid var(--borda); background: var(--cartao); color: var(--texto); font: inherit; font-size: 14px; text-transform: uppercase; max-width: 100%; }
+#pl-voltou { margin: 0 0 12px; }
 .promo-link { background: none; border: 0; padding: 0; font: inherit; color: inherit; text-decoration: underline; cursor: pointer; }
 .btn-perigo { color: var(--mau); border-color: var(--mau); }
 .btn-perigo:disabled { color: var(--sub); border-color: var(--borda); }

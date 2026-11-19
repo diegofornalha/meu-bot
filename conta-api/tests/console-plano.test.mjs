@@ -1,7 +1,7 @@
 // Painel "Assinar o Pro" do console (public/console/plano-core.js): quando some e quando avisa do prazo atual.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addonsNaVisaoGeral, assinaturasDoItem, estadoDoItem, itemGa, resumoDeUso, semDevices, assinaturasAtivasDe, oQueAContaTem, pagoChegou, deParaDoExtra, avisoAddonPago, contagemRegressiva, diasAteOFim, estadoAssinaturaPro, fase, linhasDeMaquinas, ofertaDoProAparece, pedidoAssinar, promoNaTela, reaisCurto, semPrazo, podeAdicionarMaquina, vagaDoAssinar, vagasDeDevice, vagasDeMaquina } from "../public/console/plano-core.js";
+import { addonsNaVisaoGeral, assinaturasDoItem, estadoDoItem, itemGa, resumoDeUso, semDevices, assinaturasAtivasDe, oQueAContaTem, pagoChegou, deParaDoExtra, avisoAddonPago, contagemRegressiva, diasAteOFim, estadoAssinaturaPro, fase, linhasDeMaquinas, ofertaDoProAparece, pedidoAssinar, promoNaTela, reaisCurto, semPrazo, podeAdicionarMaquina, vagaDoAssinar, voltaDoPagamento, vagasDeDevice, vagasDeMaquina } from "../public/console/plano-core.js";
 
 const pro = { plan: "pro", status: "active" };
 const ativa = { status: "ACTIVE", produto: null };
@@ -353,4 +353,20 @@ test("Nova organização: a tela diz por que não dá para criar e para onde ir"
   const cheio = bloqueioDeOrg({ limite: 1, donaDe: 1, motivo: "no-limite" });
   assert.match(cheio.texto, /já tem uma organização/); assert.equal(cheio.ir.caminho, "/account/support");
   assert.match(bloqueioDeOrg({ limite: 3, donaDe: 3, motivo: "no-limite" }).texto, /3 organizações/);
+});
+
+test("tenho um cupom: Cartão manda cupom: true; Pix manda o código para o nosso servidor conferir", () => {
+  assert.deepEqual(pedidoAssinar(null, null, false, true), { cupom: true });
+  assert.deepEqual(pedidoAssinar(null, null, false, { pix: " primeiromes1 " }), { cupom: true, pix: true, codigo: "primeiromes1" });
+  assert.deepEqual(pedidoAssinar(null, null, false, { pix: "  " }), {}, "sem código não é pedido de Pix");
+  assert.deepEqual(pedidoAssinar("meu-bot-finance", null, false, { pix: "X1Y2" }), { produto: "meu-bot-finance" });
+});
+
+test("volta do pagamento: assinatura confirma; Pro sem assinatura (primeiro mês por Pix) diz até quando e segue esperando", () => {
+  const dia = (iso) => iso.slice(0, 10);
+  assert.deepEqual(voltaDoPagamento({ plan: "pro", status: "active", expiresAt: "2026-12-22T00:00:00Z" }, [{ status: "ACTIVE", produto: null }], dia), { texto: "Pagamento confirmado: o Pro está ativo.", esperar: false });
+  const pix = voltaDoPagamento({ plan: "pro", status: "active", expiresAt: "2026-12-22T00:00:00Z" }, [], dia);
+  assert.match(pix.texto, /^O Pro está ativo até 2026-12-22\./); assert.equal(pix.esperar, true);
+  const antes = voltaDoPagamento({ plan: "pro", status: "trialing", trialEnd: "2026-11-21T00:00:00Z" }, [], dia);
+  assert.match(antes.texto, /^Recebemos você de volta/); assert.equal(antes.esperar, true);
 });
