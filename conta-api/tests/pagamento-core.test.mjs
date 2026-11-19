@@ -1,7 +1,7 @@
 // Assinatura do Pro pela AbacatePay: conferência do webhook, leitura do evento, decisão, prazo e a compra do GA4.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { voltaDoCheckout, assinaturaIdValido, resultadoCancelamento, CHAVE_HMAC_ABACATEPAY, clientIdDeReserva, clientIdValido, compraGa4, decidir, hmacBase64, iguais, lerAddons, lerEvento, licencaComAddons, licencaDoSuper, limiteDoPapel, licencaEmVigor, metodosSemPix, precoExigido, precoDaCobranca, pedidoDoCheckout, direitoPromo, lerPromo, refValida, sessionIdValido, validoAte, webhookConfere, umaPorContaEProduto, lerExtras, tipoDoExtra } from "../dist/pagamento-core.js";
+import { voltaDoCheckout, assinaturaIdValido, resultadoCancelamento, CHAVE_HMAC_ABACATEPAY, clientIdDeReserva, clientIdValido, compraGa4, decidir, hmacBase64, iguais, lerAddons, lerEvento, licencaComAddons, licencaDoSuper, limiteDoPapel, licencaEmVigor, metodosSemPix, precoExigido, precoDaCobranca, pedidoDoCheckout, direitoPromo, lerPromo, refValida, sessionIdValido, validoAte, webhookConfere, umaPorContaEProduto, lerExtras, tipoDoExtra, precoComCupom, validaCupom } from "../dist/pagamento-core.js";
 
 const SECRET = "s".repeat(40);
 const REF = "mb_123e4567-e89b-12d3-a456-426614174000";
@@ -418,4 +418,30 @@ test("voltaDoCheckout: o Pro volta para o Plano; add-on e unidade extra voltam p
   assert.deepEqual(voltaDoCheckout(C, null), { concluiu: `${C}/account/plan?assinatura=paga`, desistiu: `${C}/account/plan` });
   assert.deepEqual(voltaDoCheckout(C, "meu-bot-finance"), { concluiu: `${C}/account/marketplace?assinatura=paga&produto=meu-bot-finance`, desistiu: `${C}/account/marketplace` });
   assert.equal(voltaDoCheckout(C, "extra-maquina").concluiu, `${C}/account/marketplace?assinatura=paga&produto=extra-maquina`);
+});
+
+test("tenho um cupom: código digitado, preço da primeira cobrança e o que o webhook exige", () => {
+  assert.equal(validaCupom("  primeiromes1 "), "PRIMEIROMES1");
+  for (const ruim of ["", "ab", "com espaço", "x".repeat(41), "-COMECA", 12, null, "çupom"]) assert.equal(validaCupom(ruim), null, String(ruim));
+
+  const fixo = { id: "PRIMEIROMES1", status: "ACTIVE", discountKind: "FIXED", discount: 9600, maxRedeems: -1, redeemsCount: 0 };
+  assert.deepEqual(precoComCupom(fixo, 9700), { centavos: 100 });
+  assert.deepEqual(precoComCupom({ ...fixo, discountKind: "PERCENTAGE", discount: 1000 }, 9700), { centavos: 8730 });
+  assert.deepEqual(precoComCupom({ ...fixo, discountKind: "PERCENTAGE", discount: 3333 }, 9700), { centavos: 6466 }, "arredonda para baixo");
+  assert.match(precoComCupom({ ...fixo, status: "INACTIVE" }, 9700).erro, /não está mais ativo/);
+  assert.match(precoComCupom({ ...fixo, maxRedeems: 5, redeemsCount: 5 }, 9700).erro, /todas as vezes/);
+  assert.match(precoComCupom({ ...fixo, discount: 9700 }, 9700).erro, /não se aplica/, "desconto que zera a cobrança");
+  assert.match(precoComCupom({ ...fixo, discountKind: "PERCENTAGE", discount: 10000 }, 9700).erro, /não se aplica/);
+  assert.match(precoComCupom({ ...fixo, discount: 0 }, 9700).erro, /desconto/);
+  assert.match(precoComCupom({ ...fixo, discountKind: "OUTRO" }, 9700).erro, /desconto/);
+  assert.match(precoComCupom(null, 9700).erro, /não consegui ler/);
+
+  const base = { evento: "subscription.completed", checkout: { produto: null, promo: false, cupomCentavos: 8730 }, precoPro: 9700, addons: [], promoCentavos: 100, jaPagouPro: false };
+  assert.equal(precoDaCobranca(base), 8730, "primeira cobrança de quem nunca pagou: o valor com o cupom");
+  assert.equal(precoDaCobranca({ ...base, jaPagouPro: true }), 9700, "conta que já pagou o Pro: preço cheio");
+  assert.equal(precoDaCobranca({ ...base, evento: "subscription.renewed" }), 9700, "renovação: preço cheio");
+  assert.equal(precoDaCobranca({ ...base, checkout: { produto: "meu-bot-finance", promo: false, cupomCentavos: 100 } }), Number.MAX_SAFE_INTEGER, "cupom não vale em add-on (fora do catálogo: inatingível)");
+  assert.equal(precoDaCobranca({ ...base, checkout: { produto: null, promo: false, cupomCentavos: null } }), 9700);
+  assert.equal(precoDaCobranca({ ...base, checkout: { produto: null, promo: false, cupomCentavos: 99999 } }), 9700, "nunca acima do cheio");
+  assert.equal(precoDaCobranca({ ...base, checkout: { produto: null, promo: false, cupomCentavos: 0 } }), 9700, "valor inválido não libera de graça");
 });

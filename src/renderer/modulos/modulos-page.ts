@@ -14,6 +14,7 @@ import { el } from "../lib/dom.js";
 import { carregando } from "../lib/carregando.js";
 import type { PageTab } from "../lib/pages-types.js";
 import { ipcErrorText } from "../lib/ipc-error.js";
+import { CAMINHO_MARKETPLACE } from "../lib/pro.js";
 import { passoFeito, situacao, tempoDesde } from "./modulos-ficha.js";
 import { cartaoCrm, type CrmCartaoEstado } from "./modulos-crm.js";
 
@@ -22,7 +23,7 @@ export interface ModulosPageDeps {
   definePage(id: string, title: string, panel: HTMLElement, render: () => void): PageTab;
   openPage(page: PageTab): void;
   armConfirm(btn: HTMLButtonElement, label: string, run: () => void): void;
-  api: Pick<MeuBotApi, "modulosAbrirPagina" | "modulosPlanilha" | "modulosAtualizarFonte" | "modulosListar" | "modulosLigar" | "modulosDesligar" | "modulosTestar" | "modulosCredenciais" | "modulosOpcoes" | "openExternal" | "on">;
+  api: Pick<MeuBotApi, "modulosAbrirPagina" | "modulosPlanilha" | "modulosAtualizarFonte" | "modulosListar" | "modulosLigar" | "modulosDesligar" | "modulosTestar" | "modulosCredenciais" | "modulosOpcoes" | "openExternal" | "contaAbrirConsole" | "on">;
   /** Leva uma pergunta pronta ao chat do agente (o mesmo caminho dos tutoriais). */
   goToChat(message: string, hint: string): Promise<void>;
   /** Máquina desta janela (as marcações dos primeiros passos são por máquina); lida na hora, não na montagem. */
@@ -40,7 +41,7 @@ export interface ModulosPageDeps {
 }
 
 type Aba = "geral" | "ferramentas" | "guia" | "passos";
-const MSG_LICENCA = (rotulo: string): string => `Os módulos ainda não estão liberados nesta máquina: peça ao admin para incluir o add-on "${rotulo}" na licença dela (no meu-bot-admin, Suporte › Conta e licença).`;
+const MSG_LICENCA = (rotulo: string): string => `Os módulos ainda não estão liberados nesta máquina. Se você ainda não contratou o "${rotulo}", ele está no Marketplace do site; se já contratou, peça ao admin para incluir o add-on na licença dela (no meu-bot-admin, Suporte › Conta e licença).`;
 
 export function mountModulosPage(deps: ModulosPageDeps): { open: () => void; repintarLista: () => void; pedirPlanilha: (a: { id: string; rotulo: string; link: string; aba: string; tipo: string }) => void } {
   const panel = el("section", "acervo-panel modulos-panel"); panel.hidden = true;
@@ -429,8 +430,14 @@ export function mountModulosPage(deps: ModulosPageDeps): { open: () => void; rep
     // O selo é só "módulos": a página junta o que já vem no meu-bot e os produtos, e cada bloco leva o seu nome.
     const temProdutos = deps.temProdutos();
     body.append(el("span", "tut-badge", "módulos"), el("h2", "", "Módulos"), el("p", "", temProdutos ? "Cada módulo é uma peça à parte: ligue só o que for usar. As chaves ficam na máquina, só com você." : "O que já vem com o meu-bot nesta máquina."));
+    // O que mais dá para contratar fica no console da conta (abre logado, no navegador).
+    const mk = el("button", "btn btn-ghost btn-small", "Ver o Marketplace"); mk.type = "button";
+    mk.title = "Abre no site o que dá para somar à sua conta: apps, máquinas e Macs a mais";
+    // Falha ao abrir (sem navegador padrão, IPC fora): o motivo aparece ao lado do botão, em vez de o clique não fazer nada.
+    mk.addEventListener("click", () => { mk.nextElementSibling?.classList.contains("mk-erro") && mk.nextElementSibling.remove(); void deps.api.contaAbrirConsole(CAMINHO_MARKETPLACE).catch((e: unknown) => { mk.after(el("p", "hint bad-hint mk-erro", `Não consegui abrir o Marketplace: ${ipcErrorText(e)}`)); }); });
     head.append(body);
     panel.append(head);
+    if (!temProdutos) body.append(mk);
     // Sem produto de módulos nesta máquina: só o que já vem no meu-bot, sem "Atualizar módulos" e sem lista para ler.
     if (!temProdutos) {
       if (deps.crm !== null) panel.append(blocoIncluido(deps.crm));
@@ -441,7 +448,7 @@ export function mountModulosPage(deps: ModulosPageDeps): { open: () => void; rep
     b.disabled = baixando || lendo || ocupado !== null;
     b.title = "Confere o repositório de cada produto de módulos (git pull) e relê o estado na máquina";
     b.addEventListener("click", () => { void atualizar(); });
-    body.append(b);
+    body.append(b, document.createTextNode(" "), mk);
     if (baixando) panel.append(carregando("Conferindo os repositórios dos módulos…"));
     if (erro !== null) panel.append(el("p", "hint bad-hint", erro));
     if (deps.crm !== null) panel.append(blocoIncluido(deps.crm));

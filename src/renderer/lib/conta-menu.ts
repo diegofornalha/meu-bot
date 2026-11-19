@@ -6,6 +6,7 @@
 import type { ContaView } from "../../shared/ipc";
 import { el } from "./dom.js";
 import { resumoPlano } from "./conta-resumo.js";
+import { CAMINHO_MARKETPLACE } from "./pro.js";
 
 export interface ContaMenuApi { contaEntrar(): Promise<ContaView>; contaCancelar(): Promise<ContaView>; contaSair(): Promise<ContaView>; contaAbrirConsole(caminho: string): Promise<void>; openExternal(url: string): Promise<void> }
 export interface ItemExtra { ico: string; texto: string; acao: () => void; atalho?: string }
@@ -70,7 +71,7 @@ export function montarMenuConta(botoes: HTMLButtonElement[], deps: ContaMenuDeps
       if (c.nome !== null) topo.append(el("span", "cm-email", c.email));
       m.append(topo);
       if (r.prazo !== null) m.append(item(r.vencido ? "⚠" : "🎁", r.prazo, `cm-trial${r.vencido ? " vencido" : ""}`, () => externo("/account/plan")));
-      m.append(item("👤", "Perfil", "", () => externo("/account/profile")), item("▤", "Plano e pagamento", "", () => externo("/account/plan")), item("▭", "Devices", "", () => externo("/account/devices")));
+      m.append(item("👤", "Perfil", "", () => externo("/account/profile")), item("▤", "Plano e pagamento", "", () => externo("/account/plan")), item("⊞", "Marketplace", "", () => externo(CAMINHO_MARKETPLACE)), item("▭", "Devices", "", () => externo("/account/devices")));
       for (const o of c.orgs) m.append(item("▣", o.nome, "", () => externo(`/organizations/${o.slug}/members`)));
       // Super admin: as Janelas de suporte (visão geral de todas as pessoas: VPS, usuários e este Mac) no site; o resto do
       // console fica a um clique de lá. Admin comum segue com o console.

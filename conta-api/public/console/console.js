@@ -1,5 +1,5 @@
 import { avisoDepoisDo404, pedeReleitura, visaoVelha } from "./admin-core.js";
-import { INFINITO, SEM_LIMITE, SEM_PRAZO, TODOS_ADDONS, avisoAddonPago, contagemRegressiva, addonsNaVisaoGeral, estadoAssinaturaPro, fase, linhasDeMaquinas, deParaDoExtra, assinaturasDoItem, estadoDoItem, itemGa, ofertaDoProAparece, resumoDeUso, semDevices, oQueAContaTem, pagoChegou, assinaturasAtivasDe, pedidoAssinar, podeAdicionarMaquina, promoNaTela, reaisCurto, semPrazo, vagaDoAssinar, vagasDeDevice, vagasDeMaquina } from "./plano-core.js";
+import { INFINITO, SEM_LIMITE, SEM_PRAZO, TODOS_ADDONS, avisoAddonPago, contagemRegressiva, cupomDigitado, addonsNaVisaoGeral, estadoAssinaturaPro, fase, linhasDeMaquinas, deParaDoExtra, assinaturasDoItem, estadoDoItem, itemGa, ofertaDoProAparece, resumoDeUso, semDevices, oQueAContaTem, pagoChegou, assinaturasAtivasDe, pedidoAssinar, podeAdicionarMaquina, promoNaTela, reaisCurto, semPrazo, vagaDoAssinar, vagasDeDevice, vagasDeMaquina } from "./plano-core.js";
 // Console da conta meu-bot (console.agentesgrok.com/account/* e /organizations/<slug>/members|settings, molde Rambox). Entra pela mesma página de
 // login do app (auth.agentesgrok.com) com esquema=web: o console gera state + PKCE, a página devolve #code&state, e
 // POST /token {grant:"web"} vira um token de acesso de 1 h guardado neste navegador (localStorage: outra aba, inclusive
@@ -1089,6 +1089,8 @@ async function copiarCupom(cupom) { try { await navigator.clipboard.writeText(cu
 function pintarPromo(c) {
   promoMostrada = semPrazo(c.licenca) ? null : promoNaTela(c.promo);
   const caixa = $("pl-promo"); caixa.hidden = promoMostrada === null; caixa.replaceChildren();
+  // Com a promoção do primeiro mês já na tela, o cupom é o dela: o "Tenho um cupom" some para não haver dois caminhos.
+  $("pl-cupom-abrir").hidden = promoMostrada !== null; if (promoMostrada !== null) $("pl-cupom").hidden = true;
   $("pl-assinar-btn").textContent = promoMostrada === null ? ASSINAR_NORMAL : `Assinar por ${reaisCurto(promoMostrada.precoCentavos)} no primeiro mês`;
   if (promoMostrada === null) return;
   const { precoCentavos, ate, cupom } = promoMostrada;
@@ -1111,19 +1113,19 @@ function pintarPromo(c) {
  * página da AbacatePay. Com a promoção na tela, copia o cupom antes (ainda dentro do clique, senão o navegador recusa);
  * `semPromo` é o "Prefiro pagar com Pix".
  */
-async function assinar(produto = null, btn = $("pl-assinar-btn"), aviso = $("pl-assinar-aviso"), semPromo = false) {
+async function assinar(produto = null, btn = $("pl-assinar-btn"), aviso = $("pl-assinar-aviso"), semPromo = false, cupom = null) {
   const s = sessaoGuardada();
   if (s === null) { void entrar(); return; }
-  const pedido = pedidoAssinar(produto, promoMostrada, semPromo);
+  const pedido = pedidoAssinar(produto, promoMostrada, semPromo, cupom);
   // Desabilita ANTES de copiar: a cópia pode demorar (o navegador pede permissão) e um segundo clique abriria outro checkout.
   btn.disabled = true;
-  const copiou = pedido.promo === true ? await copiarCupom(promoMostrada.cupom) : false;
+  const copiou = typeof pedido.cupom === "string" ? await copiarCupom(pedido.cupom) : pedido.promo === true ? await copiarCupom(promoMostrada.cupom) : false;
   aviso.textContent = copiou ? "Cupom copiado. Abrindo a página de pagamento…" : "Abrindo a página de pagamento…";
   const v = typeof ga.visita === "function" ? await ga.visita() : { clientId: null, sessionId: null };
   const r = await api("POST", "/conta/assinatura", { gaClientId: v.clientId, gaSessionId: v.sessionId, ...pedido }, s.acesso);
   // Unidade extra: guarda quantas a conta já tinha, para a volta do pagamento saber quando a nova chegou (pagoChegou).
   if (r.status === 200 && produto !== null && conta !== null) { try { sessionStorage.setItem(`mb-antes-${produto}`, String(assinaturasAtivasDe(conta.assinaturas, produto))); } catch { /* sem sessionStorage: a tela espera o tempo todo */ } }
-  if (r.status === 200 && r.corpo && typeof r.corpo.url === "string") { ga.evento("checkout_iniciado", { plano: produto ?? "chip-coflow", ...(r.corpo.promo === true ? { promo: "primeiro-mes" } : {}) }); location.assign(r.corpo.url); return; }
+  if (r.status === 200 && r.corpo && typeof r.corpo.url === "string") { ga.evento("checkout_iniciado", { plano: produto ?? "chip-coflow", ...(r.corpo.promo === true ? { promo: "primeiro-mes" } : {}), ...(r.corpo.cupom ? { promo: "cupom" } : {}) }); location.assign(r.corpo.url); return; }
   btn.disabled = false;
   // O prazo acabou com a tela aberta: repinta o painel com o preço normal e mantém o aviso da API.
   if (pedido.promo === true && r.corpo && r.corpo.promoAcabou === true) { const c2 = await lerConta().catch(() => null); if (c2) pintarPlano(c2); }
@@ -1360,6 +1362,15 @@ function pintarSuporte(c) {
 
 // ---- arranque
 $("pl-assinar-btn").addEventListener("click", () => { void assinar(); });
+// "Tenho um cupom": abre o campo; o código digitado vai para a API, que confere o cupom e abre o pagamento no cartão.
+$("pl-cupom-abrir").addEventListener("click", () => { $("pl-cupom").hidden = !$("pl-cupom").hidden; if (!$("pl-cupom").hidden) $("pl-cupom-codigo").focus(); });
+const assinarComCupom = () => {
+  const codigo = cupomDigitado($("pl-cupom-codigo").value);
+  if (codigo === null) { $("pl-cupom-aviso").textContent = "Digite o código do cupom (letras e números, sem espaços)."; $("pl-cupom-codigo").focus(); return; }
+  void assinar(null, $("pl-cupom-btn"), $("pl-cupom-aviso"), false, codigo);
+};
+$("pl-cupom-btn").addEventListener("click", assinarComCupom);
+$("pl-cupom-codigo").addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); assinarComCupom(); } });
 // Tema: o seletor mostra a escolha guardada (tema.js já a aplicou no <html>) e troca na hora.
 if (window.MEU_BOT_TEMA) { $("tema").value = window.MEU_BOT_TEMA.atual(); $("tema").addEventListener("change", () => window.MEU_BOT_TEMA.definir($("tema").value)); }
 for (const id of ["ad-vendas-produto", "ad-vendas-situacao"]) $(id).addEventListener("change", () => { if (visao !== null) pintarAdminVendas(visao); });

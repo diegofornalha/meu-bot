@@ -66,7 +66,7 @@ export function browserAccess(view: LicenseView | null, host: string, exige: Pla
 export type ProModule = "navegador" | "crm" | "finance" | "google" | "computador";
 const MODULE_TEXT: Record<ProModule, { name: string; pitch: string; back: string }> = {
   navegador: { name: "Navegador", pitch: "Um navegador dentro do meu-bot, com abas, cookies separados por máquina e extensões do Chrome (como o Streak CRM no Gmail). E o agente da conversa pode navegar por você.", back: "a aba volta a abrir" },
-  finance: { name: "Financeiro", pitch: "Seu financeiro no WhatsApp: o agente lança os gastos que você conta ou fotografa, categoriza sozinho e só pede o que depende de você.", back: "a página Finanças abre" },
+  finance: { name: "Finanças", pitch: "Seu financeiro no WhatsApp: o agente lança os gastos que você conta ou fotografa, categoriza sozinho e só pede o que depende de você.", back: "a página Finanças abre" },
   google: { name: "Conta Google", pitch: "A conta Google da máquina dentro do meu-bot: o agente lê o Gmail, a Agenda e as planilhas por você, e o backup dos seus dados vai para o seu Drive.", back: "a página Conta Google abre" },
   computador: { name: "Computador", pitch: "A tela da máquina do seu bot, ao vivo dentro do meu-bot: você vê o que o agente está fazendo, sem abrir nada.", back: "a tela aparece aqui" },
   crm: { name: "CRM pelo WhatsApp", pitch: "O agente da máquina anota no seu Streak CRM, pela API, o que acontece nas conversas do WhatsApp: cria e atualiza boxes, campos e comentários, e pede sua confirmação antes de mudar de etapa.", back: "o tutorial continua" },
@@ -114,6 +114,8 @@ export function fraseDaLicencaDaConta(onde: string, avisoRenovacao: string | und
 
 /** Página do console onde se assina (a cobrança é pela AbacatePay, no conta-api). O main monta o endereço do canal e entra logado (`contaAbrirConsole`). */
 export const CAMINHO_ASSINATURA = "/account/plan";
+/** Página do console com o que dá para somar à conta (apps, máquinas e Macs a mais): a vitrine e a página de cada item. */
+export const CAMINHO_MARKETPLACE = "/account/marketplace";
 /**
  * Sem nada gravado pelo admin na licença, o aviso de plano mostra o caminho padrão: assinar pelo site. O admin só
  * precisa preencher "Como pagar" em caso especial (Pix direto, preço combinado). Sem link: o botão abre o console.
