@@ -7,7 +7,9 @@ import { FICHAS, ITEM_PRO, PRO_DE_CENTAVOS, itemPorSlug, itensDoMarketplace } fr
 import { lerAddons, lerExtras, TIPOS_EXTRA, nomeDoExtra } from "../dist/pagamento-core.js";
 
 const toml = readFileSync(new URL("../wrangler.toml", import.meta.url), "utf8");
-const AMBIENTES = { producao: varsDoWrangler(toml, "producao"), staging: varsDoWrangler(toml, "staging") };
+const AMBIENTES = varsDoWrangler(toml);
+// Guarda contra teste vazio: os dois ambientes têm de trazer o catálogo.
+for (const [amb, vars] of Object.entries(AMBIENTES)) assert.ok(lerAddons(vars.ABACATEPAY_ADDONS).length > 0 && Number(vars.ABACATEPAY_PRECO_CENTAVOS) > 0, `${amb}: catálogo não lido do wrangler.toml`);
 
 test("fichas: slug único e na forma de caminho, textos preenchidos", () => {
   const slugs = Object.values(FICHAS).map((f) => f.slug);
