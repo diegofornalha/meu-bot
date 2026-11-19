@@ -60,3 +60,15 @@ test("sitemapXml: o mapa padrão (REVISAO_PAGINAS) dá lastmod a todas as págin
   assert.equal((xml.match(/<lastmod>/g) || []).length, 16);
   for (const [caminho, data] of Object.entries(REVISAO_PAGINAS)) assert.match(xml, new RegExp(`<loc>https://agentesgrok\\.com${caminho}</loc>\\s*<lastmod>${data}</lastmod>`), caminho);
 });
+
+test("REVISAO_PAGINAS: Termos e Privacidade têm a mesma data que dizem na página", async () => {
+  const { readFileSync } = await import("node:fs");
+  const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+  for (const [caminho, arquivo] of [["/termos", "termos.html"], ["/privacidade", "privacidade.html"]]) {
+    const html = readFileSync(new URL(`../public/site/${arquivo}`, import.meta.url), "utf8");
+    const m = /Última revisão: (\d{1,2}) de ([a-zç]+) de (\d{4})/.exec(html);
+    assert.ok(m, arquivo);
+    const iso = `${m[3]}-${String(MESES.indexOf(m[2]) + 1).padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+    assert.equal(REVISAO_PAGINAS[caminho], iso, caminho);
+  }
+});
