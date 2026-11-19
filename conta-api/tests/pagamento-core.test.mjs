@@ -322,13 +322,15 @@ test("checkout: com o teste EM VIGOR não há promoção (preço cheio, métodos
   assert.equal(cobranca("subscription.completed", 9700, false).acao, "liberar");
 });
 
-test("lerExtras: só a máquina extra na forma certa entra; vazio, tipo desconhecido e campo fora da forma não vendem nada", () => {
+test("lerExtras: só máquina e device na forma certa entram; vazio, tipo desconhecido e campo fora da forma não vendem nada", () => {
   const ok = '{"maquina":{"produto":"prod_abc12345","centavos":9700,"rotulo":"Máquina extra"}}';
   assert.deepEqual(lerExtras(ok), [{ tipo: "maquina", nome: "extra-maquina", produto: "prod_abc12345", centavos: 9700, rotulo: "Máquina extra" }]);
   assert.deepEqual(lerExtras(""), []);
   assert.deepEqual(lerExtras(undefined), []);
   assert.deepEqual(lerExtras("lixo"), []);
-  assert.deepEqual(lerExtras('{"device":{"produto":"prod_abc12345","centavos":4700,"rotulo":"Device extra"}}'), [], "device ainda não é vendido: o limite dele não bloqueia nada");
+  assert.deepEqual(lerExtras('{"device":{"produto":"prod_abc12345","centavos":4700,"rotulo":"Device extra"}}'), [{ tipo: "device", nome: "extra-device", produto: "prod_abc12345", centavos: 4700, rotulo: "Device extra" }]);
+  assert.deepEqual(lerExtras('{"chip":{"produto":"prod_abc12345","centavos":4700,"rotulo":"Chip extra"}}'), [], "tipo que o servidor não sabe aplicar não se vende");
+  assert.equal(tipoDoExtra("extra-device"), "device");
   assert.deepEqual(lerExtras('{"maquina":{"produto":"errado","centavos":9700,"rotulo":"Máquina extra"}}'), []);
   assert.deepEqual(lerExtras('{"maquina":{"produto":"prod_abc12345","centavos":0,"rotulo":"Máquina extra"}}'), []);
   assert.equal(tipoDoExtra("extra-maquina"), "maquina");

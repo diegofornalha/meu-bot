@@ -5,7 +5,7 @@
  * (rotas/maquinas.ts). Tudo fica na auditoria.
  */
 import type { Env, TipoVenda } from "../tipos.js";
-import { apagarConta, contaPorEmail, maquinaPorId, montarContaApi, assinaturasOcultas, ativarDevice, atenderPedido, auditoriaAdmin, zerarAuditoria, marcarVendaOculta, papelAdmin, encerrarAddonPago, encerrarExtraPago, auditar, contaPorId, contarSupers, devicesDaConta, gravarLicenca, licencaGravada, removerDevice, gravarPerfil, gravarProvedor, removerPerfil, revogarSessoesDaConta, visaoAdmin } from "../db.js";
+import { apagarConta, limiteDeDevicesComExtras, contaPorEmail, maquinaPorId, montarContaApi, assinaturasOcultas, ativarDevice, atenderPedido, auditoriaAdmin, zerarAuditoria, marcarVendaOculta, papelAdmin, encerrarAddonPago, encerrarExtraPago, auditar, contaPorId, contarSupers, devicesDaConta, gravarLicenca, licencaGravada, removerDevice, gravarPerfil, gravarProvedor, removerPerfil, revogarSessoesDaConta, visaoAdmin } from "../db.js";
 import { consultarFirebase, definirSenhaFirebase } from "../firebase-admin.js";
 import { DEVICE_ID_RE, UUID_RE, decidirLiberarDevice, ehAdminInicial, validaBusca, validaEmail, validaPapel, validaPatchLicenca, validaSenhaNova } from "../sessao-core.js";
 import { json, lerJson, type Autenticado } from "../http.js";
@@ -72,17 +72,18 @@ export async function postLiberarDevice(auth: Autenticado, env: Env, id: string,
   const conta = await contaPorId(env.DB, id);
   if (conta === null) return json({ erro: "conta não existe" }, 404);
   const corpo = (await lerJson(req)) as Record<string, unknown> | null;
-  const [devices, licenca, papel] = await Promise.all([devicesDaConta(env.DB, conta.id), licencaGravada(env.DB, conta), papelAdmin(env.DB, conta.email, env.ADMIN_BOOTSTRAP_EMAIL)]);
+  const [devices, vigor, papel] = await Promise.all([devicesDaConta(env.DB, conta.id), limiteDeDevicesComExtras(env.DB, conta), papelAdmin(env.DB, conta.email, env.ADMIN_BOOTSTRAP_EMAIL)]);
   const device = devices.find((d) => d.id === deviceId);
   if (device === undefined) return json({ erro: "device não existe nesta conta" }, 404);
-  const d = decidirLiberarDevice(device.status, devices.filter((x) => x.status !== "pending").length, limiteDoPapel(licenca.deviceLimit, papel), corpo?.subirLimite === true);
+  // O limite que vale é o gravado mais os devices extras pagos em dia; ao subir, grava-se só a parte do admin.
+  const d = decidirLiberarDevice(device.status, devices.filter((x) => x.status !== "pending").length, limiteDoPapel(vigor.limite, papel), corpo?.subirLimite === true);
   if ("erro" in d) return json({ erro: d.erro, noLimite: true }, 409);
-  if (d.acao === "ja-ativo") return json({ ok: true, deviceLimit: licenca.deviceLimit });
+  if (d.acao === "ja-ativo") return json({ ok: true, deviceLimit: vigor.limite });
   // Ativa antes de subir o limite: se o device sumiu no meio (removido por outro admin), o limite não muda à toa.
   if (!(await ativarDevice(env.DB, conta.id, deviceId))) return json({ erro: "device não existe nesta conta" }, 404);
-  if (d.novoLimite !== null) await gravarLicenca(env.DB, conta, { deviceLimit: d.novoLimite });
-  await auditar(env.DB, auth.conta.email, "device.liberado", conta.id, `${deviceId}${d.novoLimite !== null ? ` · limite ${licenca.deviceLimit} → ${d.novoLimite}` : ""}`);
-  return json({ ok: true, deviceLimit: d.novoLimite ?? licenca.deviceLimit });
+  if (d.novoLimite !== null) await gravarLicenca(env.DB, conta, { deviceLimit: d.novoLimite - vigor.extras });
+  await auditar(env.DB, auth.conta.email, "device.liberado", conta.id, `${deviceId}${d.novoLimite !== null ? ` · limite ${vigor.limite} → ${d.novoLimite}` : ""}`);
+  return json({ ok: true, deviceLimit: d.novoLimite ?? vigor.limite });
 }
 /** `POST /admin/contas/:id/addons/:produto/encerrar`: encerra agora um add-on pago (reembolso ou disputa). */
 export async function postEncerrarAddon(auth: Autenticado, env: Env, id: string, produto: string): Promise<Response> {
@@ -92,11 +93,11 @@ export async function postEncerrarAddon(auth: Autenticado, env: Env, id: string,
   await auditar(env.DB, auth.conta.email, "addon.encerrado", id, produto);
   return json({ ok: true });
 }
-/** `POST /admin/contas/:id/extras/:assinatura/encerrar`: encerra agora uma máquina extra paga (reembolso ou disputa); a vaga sai do limite da conta. */
+/** `POST /admin/contas/:id/extras/:assinatura/encerrar`: encerra agora uma unidade extra paga, máquina ou device (reembolso ou disputa); a vaga sai do limite da conta. */
 export async function postEncerrarExtra(auth: Autenticado, env: Env, id: string, assinatura: string): Promise<Response> {
   if (auth.claims.adm === null) return json({ erro: "só admin" }, 403);
   if (!UUID_RE.test(id) || !assinaturaIdValido(assinatura)) return json({ erro: "id da conta ou da assinatura fora do formato" }, 400);
-  if (!(await encerrarExtraPago(env.DB, id, assinatura))) return json({ erro: "esta conta não tem essa máquina extra paga em dia" }, 404);
+  if (!(await encerrarExtraPago(env.DB, id, assinatura))) return json({ erro: "esta conta não tem esse extra pago em dia" }, 404);
   await auditar(env.DB, auth.conta.email, "extra.encerrado", id, assinatura);
   return json({ ok: true });
 }

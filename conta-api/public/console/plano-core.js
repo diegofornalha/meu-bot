@@ -104,6 +104,15 @@ export function vagasDeMaquina(limite, extras) {
   return { total, inclusas, extras: pagas, detalhe };
 }
 
+/**
+ * As vagas de device da conta, como `vagasDeMaquina`: `limite` é o total em vigor (licenca.deviceLimit, que a API já
+ * entrega somado) e `extras` quantas delas são devices extras pagos.
+ */
+export function vagasDeDevice(limite, extras) {
+  const v = vagasDeMaquina(limite, extras);
+  return { ...v, detalhe: v.extras === 0 ? "" : `${v.inclusas} incluso${v.inclusas === 1 ? "" : "s"} + ${v.extras} extra${v.extras === 1 ? "" : "s"}` };
+}
+
 /** A máquina extra vale junto com o Pro: só quem tem o Pro valendo (pago ou em teste, sem ter vencido) pode adicionar. O super admin não: já não tem limite. */
 export function podeAdicionarMaquina(licenca, agoraMs = Date.now()) {
   if (semPrazo(licenca)) return false; // super admin: máquinas sem limite, nada a comprar

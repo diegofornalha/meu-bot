@@ -178,8 +178,11 @@ export function lerAddons(bruto: string | undefined): OfertaAddon[] {
   return out.sort((x, y) => x.nome.localeCompare(y.nome));
 }
 
-/** O que se vende por unidade, além do que o Pro inclui. Só o que o servidor sabe aplicar entra aqui: hoje a máquina. */
-export const TIPOS_EXTRA = ["maquina"] as const;
+/**
+ * O que se vende por unidade, além do que o Pro inclui. Só o que o servidor sabe aplicar entra aqui: a máquina (mais
+ * uma máquina com a licença) e o device (mais um Mac com o app na conta).
+ */
+export const TIPOS_EXTRA = ["maquina", "device"] as const;
 export type TipoExtra = (typeof TIPOS_EXTRA)[number];
 /**
  * Uma unidade extra vendida à parte: cada assinatura paga soma 1 ao limite da conta enquanto vale (extras_pagos).

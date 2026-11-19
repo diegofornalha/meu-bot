@@ -14,8 +14,8 @@
  * Liga só com ABACATEPAY_KEY, ABACATEPAY_WEBHOOK_SECRET e ABACATEPAY_PRODUTO; sem eles, as duas rotas respondem 503.
  */
 import type { Env } from "../tipos.js";
-import { addonsPagos, auditar, contaPorId, contarLimite, jaPagouPro, licencaDaConta, licencaGravada, limiteDeMaquinas, papelAdmin, promoDaConta, removerAssinatura } from "../db.js";
-import { agoraIso, janelaMinuto, uuid } from "../sessao-core.js";
+import { limiteDeDevicesComExtras, promoverDevicesPendentes, addonsPagos, auditar, contaPorId, contarLimite, jaPagouPro, licencaDaConta, licencaGravada, limiteDeMaquinas, papelAdmin, promoDaConta, removerAssinatura } from "../db.js";
+import { DEVICE_LIMITE_MAX, agoraIso, janelaMinuto, uuid } from "../sessao-core.js";
 import { json, lerJson, type Autenticado } from "../http.js";
 import { gaIds } from "../analytics-core.js";
 import { assinaturaIdValido, clientIdDeReserva, clientIdValido, compraGa4, decidir, detalheLiberar, lerAddons, lerEvento, lerExtras, lerPromo, metodosSemPix, pedidoDoCheckout, precoDaCobranca, refValida, resultadoCancelamento, sessionIdValido, validoAte, webhookConfere, tipoDoExtra, type Decisao, type OfertaAddon, type OfertaExtra, type Promo } from "../pagamento-core.js";
@@ -52,13 +52,15 @@ export async function postAssinatura(auth: Autenticado, env: Env, req: Request):
   // O super admin já tem o Pro, todos os add-ons e máquinas sem limite: não assina nada. Lido da tabela, não do token de 1 h.
   const papel = await papelAdmin(env.DB, auth.conta.email, env.ADMIN_BOOTSTRAP_EMAIL);
   if (extra !== null) {
-    if (papel === "super") return json({ erro: "sua conta de super admin já usa a licença em quantas máquinas quiser" }, 409);
-    // Máquina extra só serve a quem tem o Pro valendo (a licença que a máquina recebe é a do Pro). Não há "já tem":
-    // cada assinatura é uma máquina a mais, até o teto.
+    const device = extra.tipo === "device";
+    if (papel === "super") return json({ erro: device ? "sua conta de super admin já usa quantos devices quiser" : "sua conta de super admin já usa a licença em quantas máquinas quiser" }, 409);
+    // A unidade extra só serve a quem tem o Pro valendo (a máquina recebe a licença do Pro; o device a mais usa o
+    // mesmo plano). Não há "já tem": cada assinatura é uma unidade a mais, até o teto.
     const l = await licencaDaConta(env.DB, auth.conta, papel, catalogoAddons(env));
     const valendo = l.plan === "pro" && (l.status === "active" || l.status === "trialing") && (l.expiresAt === null || Date.parse(l.expiresAt) > agoraMs);
-    if (!valendo) return json({ erro: "a máquina extra vale junto com o Pro; assine o Pro primeiro" }, 409);
-    if (await limiteDeMaquinas(env.DB, auth.conta.id, agoraMs) >= MAQUINA_LIMITE_MAX) return json({ erro: `a conta já está no máximo de ${MAQUINA_LIMITE_MAX} máquinas; fale com o suporte` }, 409);
+    if (!valendo) return json({ erro: `${device ? "o device extra" : "a máquina extra"} vale junto com o Pro; assine o Pro primeiro` }, 409);
+    // `l.deviceLimit` já é o limite em vigor (o gravado mais os devices extras em dia).
+    if (device ? l.deviceLimit >= DEVICE_LIMITE_MAX : await limiteDeMaquinas(env.DB, auth.conta.id, agoraMs) >= MAQUINA_LIMITE_MAX) return json({ erro: `a conta já está no máximo de ${device ? `${DEVICE_LIMITE_MAX} devices` : `${MAQUINA_LIMITE_MAX} máquinas`}; fale com o suporte` }, 409);
   } else if (addon === null) {
     if (papel === "super") return json({ erro: "sua conta de super admin já tem o Pro sem prazo" }, 409);
     const l = await licencaDaConta(env.DB, auth.conta, papel, catalogoAddons(env));
@@ -324,6 +326,14 @@ async function liberarExtra(env: Env, ck: CheckoutLinha, produto: string, d: Ext
   await env.DB.prepare("INSERT INTO assinaturas (id, conta_id, ref, status, metodo, valor_centavos, criada_em, atualizada_em, produto) VALUES (?1, ?2, ?3, 'ACTIVE', ?7, ?4, ?5, ?5, ?6) ON CONFLICT(id) DO UPDATE SET status = 'ACTIVE', metodo = COALESCE(excluded.metodo, assinaturas.metodo), atualizada_em = excluded.atualizada_em")
     .bind(d.assinaturaId, ck.conta_id, ck.ref, d.valor, agora, produto, d.metodo).run();
   await auditar(env.DB, quem, d.primeira ? "extra.pago" : "extra.renovado", ck.conta_id, `${produto} · ${d.assinaturaId} · ${d.pagamentoId} · ${d.valor} centavos · até ${ate}`);
+  // Device extra pago: o Mac que esperava na fila entra sozinho, o pedido mais antigo primeiro.
+  if (tipo === "device") {
+    const conta = await contaPorId(env.DB, ck.conta_id);
+    if (conta !== null) {
+      const promovidos = await promoverDevicesPendentes(env.DB, conta.id, (await limiteDeDevicesComExtras(env.DB, conta)).limite);
+      for (const id of promovidos) await auditar(env.DB, quem, "device.liberado", conta.id, `${id} · device extra ${d.assinaturaId}`);
+    }
+  }
   const rotulo = lerExtras(env.ABACATEPAY_EXTRAS).find((x) => x.nome === produto)?.rotulo ?? produto;
   espera(enviarCompraGa(env, ck, d.pagamentoId, d.valor, d.primeira, { id: `${produto}-mensal`, nome: `${rotulo} mensal` }));
   return `${produto} liberado até ${ate}`;

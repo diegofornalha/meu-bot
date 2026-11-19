@@ -1,6 +1,6 @@
 /** Acesso ao D1: consultas tipadas, uma função por intenção. O que sai do banco é dado; quem decide é a rota. */
 import type { AdminAssinatura, AdminAuditoria, AdminContaResumo, AdminVendaOculta, TipoVenda, AdminListaEspera, ContaAssinatura, AdminOrg, MaquinaApi, AdminPagamento, AdminVendas, AdminPedido, AdminPerfil, AdminVisao, CodigoLinha, ContaApi, ContaLinha, DeviceApi, DeviceLinha, License, LicencaLinha, MaquinaLinha, MembroApi, MembroLinha, OrgApi, OrgLinha, OrgResumo, PapelOrg, PerfilApi, PromoApi, SessaoLinha } from "./tipos.js";
-import { agoraIso, ehAdminInicial, nomeExibicao, parseProvedores, provedoresDoLogin, unirProvedores, uuid, type MetodoLogin, type PatchLicenca, type PatchOrg, type PatchPerfil } from "./sessao-core.js";
+import { DEVICE_LIMITE_MAX, agoraIso, ehAdminInicial, nomeExibicao, parseProvedores, provedoresDoLogin, unirProvedores, uuid, type MetodoLogin, type PatchLicenca, type PatchOrg, type PatchPerfil } from "./sessao-core.js";
 import type { UsuarioFirebase } from "./firebase.js";
 import { direitoPromo, liberacoesPorAddon, licencaDoSuper, licencaEmVigor, tipoDoExtra, umaPorContaEProduto, type Liberacao, type Papel, type Promo } from "./pagamento-core.js";
 import { limiteComExtras, valeAte } from "./licenca-core.js";
@@ -214,8 +214,32 @@ export async function addonsPagos(db: D1Database, contaId: string): Promise<{ pr
  * ambiente (`catalogoAddons`), que o super admin tem todos.
  */
 export async function licencaDaConta(db: D1Database, conta: ContaLinha, papel: Papel, catalogo: readonly string[], agora = agoraIso()): Promise<License> {
-  const [l, pagos] = await Promise.all([licencaGravada(db, conta), addonsPagos(db, conta.id)]);
-  return licencaEmVigor(l, pagos, papel, catalogo, agora);
+  const [l, pagos, devices] = await Promise.all([licencaGravada(db, conta), addonsPagos(db, conta.id), extrasPagos(db, conta.id, "device")]);
+  const vigor = licencaEmVigor(l, pagos, papel, catalogo, agora);
+  return { ...vigor, deviceLimit: limiteComExtras(vigor.deviceLimit, devices, Date.parse(agora), DEVICE_LIMITE_MAX).limite };
+}
+/**
+ * Quantos devices a conta pode ter ativos agora: o que o admin gravou (licencas.device_limit) mais os devices extras
+ * pagos em dia. `extras` é quantas vagas são pagas. É o limite que `licencaDaConta` e `montarContaApi` entregam.
+ */
+export async function limiteDeDevicesComExtras(db: D1Database, conta: ContaLinha, agoraMs = Date.now()): Promise<{ limite: number; extras: number }> {
+  const [l, pagos] = await Promise.all([licencaGravada(db, conta), extrasPagos(db, conta.id, "device")]);
+  return limiteComExtras(l.deviceLimit, pagos, agoraMs, DEVICE_LIMITE_MAX);
+}
+/**
+ * Promove a ativos os devices pendentes que cabem em `limite`, do pedido mais antigo para o mais novo (um device extra
+ * acabou de ser pago, ou o limite subiu). Devolve os ids promovidos.
+ */
+export async function promoverDevicesPendentes(db: D1Database, contaId: string, limite: number): Promise<string[]> {
+  const todos = await devicesDaConta(db, contaId);
+  let ativos = todos.filter((d) => d.status !== "pending").length;
+  const fila = todos.filter((d) => d.status === "pending").sort((a, b) => (a.requested_at ?? a.first_seen).localeCompare(b.requested_at ?? b.first_seen) || a.id.localeCompare(b.id));
+  const promovidos: string[] = [];
+  for (const d of fila) {
+    if (ativos >= limite) break;
+    if (await ativarDevice(db, contaId, d.id)) { promovidos.push(d.id); ativos++; }
+  }
+  return promovidos;
 }
 
 export async function devicesDaConta(db: D1Database, contaId: string): Promise<DeviceLinha[]> {
@@ -357,14 +381,15 @@ export async function promoDaConta(db: D1Database, conta: ContaLinha, promo: Pro
 export async function montarContaApi(db: D1Database, conta: ContaLinha, admin: Papel, catalogo: readonly string[], deviceAtual: string | null, promo: Promo | null = null): Promise<ContaApi> {
   const [gravada, pagos, devices, maquinas, pedidos, liberacoes, orgs, limiteMaq, extras, ass] = await Promise.all([licencaGravada(db, conta), addonsPagos(db, conta.id), devicesDaConta(db, conta.id), maquinasDaConta(db, conta.id), pedidosAbertos(db, conta.id), liberacoesDaConta(db, conta.id), orgsDaConta(db, conta.id), limiteDeMaquinasComExtras(db, conta.id), extrasPagos(db, conta.id),
     db.prepare("SELECT id, produto, status, valor_centavos FROM assinaturas WHERE conta_id = ?1 ORDER BY criada_em DESC LIMIT 50").bind(conta.id).all<{ id: string; produto: string | null; status: string; valor_centavos: number | null }>()]);
-  const licenca = licencaEmVigor(gravada, pagos, admin, catalogo, agoraIso());
+  const limiteDev = limiteComExtras(gravada.deviceLimit, extras.filter((x) => x.tipo === "device"), Date.now(), DEVICE_LIMITE_MAX);
+  const licenca = { ...licencaEmVigor(gravada, pagos, admin, catalogo, agoraIso()), deviceLimit: limiteDev.limite };
   const assinaturas: ContaAssinatura[] = ass.results.map((a) => ({ id: a.id, produto: a.produto, status: a.status === "CANCELLED" ? "CANCELLED" : "ACTIVE", valorCentavos: a.valor_centavos, valeAte: a.produto === null ? gravada.expiresAt : tipoDoExtra(a.produto) !== null ? extras.find((x) => x.assinaturaId === a.id)?.expiresAt ?? null : pagos.find((p) => p.produto === a.produto)?.expiresAt ?? null }));
   const ds: DeviceApi[] = devices.map((d) => {
     let apps: DeviceApi["apps"] = {};
     try { const a: unknown = JSON.parse(d.apps); if (a !== null && typeof a === "object") apps = a as DeviceApi["apps"]; } catch { apps = {}; }
     return { id: d.id, alias: d.alias_legado, name: d.name ?? "", user: d.user ?? "", platform: d.platform ?? "", status: d.status === "pending" ? "pending" : "active", requestedAt: d.requested_at, firstSeen: d.first_seen, lastSeen: d.last_seen, apps, este: deviceAtual !== null && (d.id === deviceAtual || d.alias_legado === deviceAtual) };
   });
-  return { id: conta.id, email: conta.email, nome: nomeExibicao(conta), nomeLogin: conta.nome, foto: conta.foto, perfil: perfilDaLinha(conta), provedores: parseProvedores(conta.provedores), dadosUso: conta.dados_uso !== 0, admin, licenca, devices: ds, maquinas: maquinas.map(maquinaApi), maquinaLimite: limiteMaq.limite, maquinaExtras: limiteMaq.extras, pedidos, liberacoes, assinaturas, orgs, promo: await promoDaConta(db, conta, promo, admin, Date.now(), gravada) };
+  return { id: conta.id, email: conta.email, nome: nomeExibicao(conta), nomeLogin: conta.nome, foto: conta.foto, perfil: perfilDaLinha(conta), provedores: parseProvedores(conta.provedores), dadosUso: conta.dados_uso !== 0, admin, licenca, devices: ds, maquinas: maquinas.map(maquinaApi), maquinaLimite: limiteMaq.limite, maquinaExtras: limiteMaq.extras, deviceExtras: limiteDev.extras, pedidos, liberacoes, assinaturas, orgs, promo: await promoDaConta(db, conta, promo, admin, Date.now(), gravada) };
 }
 
 // ---- Admin: a visão de todas as contas. `busca` filtra por e-mail ou nome (LIKE, escapado); até 500 contas.
