@@ -53,3 +53,14 @@ export function contagemRegressiva(licenca, agoraMs) {
   if (falta <= DIA) { const h = Math.ceil(falta / HORA); return { texto: h <= 1 ? `falta menos de 1 hora ${de}` : `faltam ${h} horas ${de}`, tom: "mau" }; }
   return { texto: `faltam ${diasAteOFim(licenca, agoraMs)} dias ${de}`, tom: "ok" };
 }
+
+/**
+ * O que o "Assinar" manda à API além dos ids do GA4. Add-on: só o `produto`. Pro com a promoção na tela: `promo: true`
+ * (se o prazo acabou, a API recusa em vez de abrir o preço cheio sem avisar), ou `semPromo: true` quando a pessoa
+ * escolheu pagar por Pix, sem o desconto (o cupom só vale no cartão).
+ */
+export function pedidoAssinar(produto, promoMostrada, semPromo = false) {
+  if (produto !== null && produto !== undefined) return { produto };
+  if (promoMostrada === null || promoMostrada === undefined) return {};
+  return semPromo ? { semPromo: true } : { promo: true };
+}

@@ -2,7 +2,8 @@
  * Assinatura do Pro e dos add-ons (apps vendidos à parte, ABACATEPAY_ADDONS) pela AbacatePay:
  * - `POST /conta/assinatura` (logado): cria o checkout de assinatura e devolve a `url` da página de pagamento; com
  *   `{produto: "meu-bot-finance"}` no corpo o checkout é do add-on, sem ele é do Pro; conta com direito à promoção do
- *   primeiro mês (PROMO_CUPOM, direitoPromo) recebe o checkout do Pro só no cartão e com o cupom;
+ *   primeiro mês (PROMO_CUPOM, direitoPromo) recebe o checkout do Pro só no cartão e com o cupom, a não ser que peça
+ *   `{semPromo: true}` (quem prefere o Pix: preço cheio, métodos normais, sem cupom);
  * - `POST /conta/assinatura/cancelar` (logado, `{id: "subs_…"}`): cancela na AbacatePay a assinatura da própria conta;
  *   o acesso continua até o fim do período já pago;
  * - `POST /pagamentos/abacatepay` (webhook, sem login): confere secret e assinatura, grava o evento uma vez só, libera o
@@ -49,7 +50,9 @@ export async function postAssinatura(auth: Autenticado, env: Env, req: Request):
   // Promoção do primeiro mês: só o Pro, nunca um add-on. Quem decide o direito é este servidor (a AbacatePay não
   // limita cupom por cliente). Se a tela mostrou a promoção (`promo: true`) e o direito acabou nesse meio-tempo, o
   // checkout não abre pelo preço cheio sem a pessoa saber.
-  const promo = addon === null ? await promoDaConta(env.DB, auth.conta, promoLigada(env), agoraMs) : null;
+  // `semPromo: true`: a pessoa abriu mão do desconto para pagar por Pix (o cupom só vale no cartão). O checkout sai sem
+  // a marca da promoção, então o webhook exige o preço cheio.
+  const promo = addon === null && corpo?.semPromo !== true ? await promoDaConta(env.DB, auth.conta, promoLigada(env), agoraMs) : null;
   if (addon === null && corpo?.promo === true && promo === null) return json({ erro: "o primeiro mês com desconto não vale mais para esta conta; o Pro sai pelo preço normal. Toque em Assinar de novo para continuar", promoAcabou: true }, 409);
   const ref = `mb_${uuid()}`;
   const agora = agoraIso();
