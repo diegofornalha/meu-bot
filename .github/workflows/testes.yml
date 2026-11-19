@@ -34,7 +34,7 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       # Os testes do Worker (conta-api) têm pacote próprio. Sem este passo eles só rodavam antes de cada publicação
-      # do site, e uma PR podia ser mesclada com eles quebrados (aconteceu em 19 nov 2026, #374).
+      # do site, e uma PR podia ser mesclada com eles quebrados (aconteceu em 18 nov 2026, #374).
       - run: npm ci
         working-directory: conta-api
       - run: npm test

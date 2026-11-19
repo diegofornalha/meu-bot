@@ -112,7 +112,7 @@ test("paridade: exceção temporária vale até a data e falha depois, dizendo o
 
 test("paridade: PROMO_CUPOM tem de ser igual nos dois ambientes (a promoção liga e desliga nos dois juntos)", () => {
   // Montado à parte do valor de hoje no toml. Enquanto era testada, a promoção ficou ligada só no staging, com uma
-  // exceção temporária; em 19 nov 2026 ela ligou em produção e a exceção saiu.
+  // exceção temporária; a #374 (18 nov 2026) ligou em produção e a exceção saiu.
   const promo = (p, s) => { const v = varsDoWrangler(TOML); const por = (amb, x) => { const { PROMO_CUPOM: _, ...resto } = v[amb]; return x === undefined ? resto : { ...resto, PROMO_CUPOM: x }; }; return { producao: por("producao", p), staging: por("staging", s) }; };
   const erros = (v) => divergencias(v, "2026-11-19").filter((e) => e.includes("PROMO_CUPOM"));
   assert.deepEqual(erros(promo("PRIMEIROMES1", "PRIMEIROMES1")), [], "ligada nos dois");
