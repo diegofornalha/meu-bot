@@ -33,6 +33,16 @@ export interface CrmCartaoVista {
   log: string[];
 }
 
+/**
+ * A página Módulos nesta janela: aparece com um produto de módulos (o fixo do app ou um add-on em vigor na licença da
+ * máquina) ou numa máquina por SSH, que é onde o CRM existe. Em "Este Mac" sem produto ela não aparece: lá o cartão do
+ * CRM só teria um aviso. `temProdutos` diz se há blocos de produto para ler; sem eles a página é só o "Já incluído".
+ */
+export function paginaModulos(e: { produtoFixo: boolean; addonEmVigor: boolean; remoto: boolean }): { visivel: boolean; temProdutos: boolean } {
+  const temProdutos = e.produtoFixo || e.addonEmVigor;
+  return { visivel: temProdutos || e.remoto, temProdutos };
+}
+
 export const CRM_SO_SSH = "O CRM funciona nas máquinas por SSH.";
 const n = (q: number, um: string, varios: string): string => (q === 1 ? `1 ${um}` : `${q} ${varios}`);
 

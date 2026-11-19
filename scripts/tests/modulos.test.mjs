@@ -157,6 +157,14 @@ test("ficha do módulo (renderer): selo, tempo e passos pelo estado", async () =
   assert.equal(passoFeito({ id: "m", conclui: "manual" }, base, ["m"]), true);
 });
 
+test("página Módulos (renderer): abre com produto de módulos ou em máquina por SSH; Este Mac sem produto fica de fora", async () => {
+  const { paginaModulos } = await import("../../dist/renderer/modulos/modulos-crm.js");
+  assert.deepEqual(paginaModulos({ produtoFixo: true, addonEmVigor: false, remoto: false }), { visivel: true, temProdutos: true }, "produto fixo do app, até em Este Mac");
+  assert.deepEqual(paginaModulos({ produtoFixo: false, addonEmVigor: true, remoto: true }), { visivel: true, temProdutos: true }, "add-on com módulos em vigor");
+  assert.deepEqual(paginaModulos({ produtoFixo: false, addonEmVigor: false, remoto: true }), { visivel: true, temProdutos: false }, "só o CRM: máquina por SSH sem produto");
+  assert.deepEqual(paginaModulos({ produtoFixo: false, addonEmVigor: false, remoto: false }), { visivel: false, temProdutos: false }, "Este Mac sem produto");
+});
+
 test("cartão do CRM em Já incluído (renderer): situação, plano, Este Mac e números", async () => {
   const { cartaoCrm, CRM_SO_SSH } = await import("../../dist/renderer/modulos/modulos-crm.js");
   const info = { available: true, installed: true, configured: false, streakKey: false, motor: null, pipelineKey: null, pipelineName: null, silencioMin: 10, criarSemPerguntar: false, savedAt: null };

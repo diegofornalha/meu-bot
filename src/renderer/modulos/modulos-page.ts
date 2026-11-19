@@ -31,6 +31,11 @@ export interface ModulosPageDeps {
    * O CRM do meu-bot, para o cartão do bloco "Já incluído": o estado é o do guia do CRM (crm-guia.ts), montado no
    * renderer; instalar, abrir e configurar são os mesmos caminhos do guia. null = app sem máquina para instalar.
    */
+  /**
+   * Há produto de módulos nesta máquina (o fixo do app ou um add-on em vigor)? Sem nenhum, a página é só o "Já incluído":
+   * não consulta os módulos (o main responde com erro quando a máquina não tem produto) nem oferece atualizá-los.
+   */
+  temProdutos(): boolean;
   crm: { estado(): CrmCartaoEstado; atualizar(): Promise<void>; instalar(): Promise<void>; abrirNoGmail(): void; configurar(): void } | null;
 }
 
@@ -80,8 +85,9 @@ export function mountModulosPage(deps: ModulosPageDeps): { open: () => void; rep
   /** Confere o repositório de cada produto (clone na primeira vez, pull depois) e relê a máquina. */
   async function atualizar(): Promise<void> {
     if (baixando) return;
-    baixando = true; erro = null; render();
     void deps.crm?.atualizar().then(repintarLista, repintarLista);
+    if (!deps.temProdutos()) { listas = null; erro = null; render(); return; }
+    baixando = true; erro = null; render();
     try { listas = await deps.api.modulosAtualizarFonte(); } catch (e) { erro = ipcErrorText(e); }
     baixando = false; render();
   }
@@ -421,14 +427,21 @@ export function mountModulosPage(deps: ModulosPageDeps): { open: () => void; rep
     const head = el("div", "guide-head");
     const body = el("div", "tut-body");
     // O selo é só "módulos": a página junta o que já vem no meu-bot e os produtos, e cada bloco leva o seu nome.
-    body.append(el("span", "tut-badge", "módulos"), el("h2", "", "Módulos"), el("p", "", "Cada módulo é uma peça à parte: ligue só o que for usar. As chaves ficam na máquina, só com você."));
+    const temProdutos = deps.temProdutos();
+    body.append(el("span", "tut-badge", "módulos"), el("h2", "", "Módulos"), el("p", "", temProdutos ? "Cada módulo é uma peça à parte: ligue só o que for usar. As chaves ficam na máquina, só com você." : "O que já vem com o meu-bot nesta máquina."));
+    head.append(body);
+    panel.append(head);
+    // Sem produto de módulos nesta máquina: só o que já vem no meu-bot, sem "Atualizar módulos" e sem lista para ler.
+    if (!temProdutos) {
+      if (deps.crm !== null) panel.append(blocoIncluido(deps.crm));
+      else panel.append(el("p", "hint", "Esta máquina não tem módulos."));
+      return;
+    }
     const b = el("button", "btn btn-ghost btn-small", "Atualizar módulos"); b.type = "button";
     b.disabled = baixando || lendo || ocupado !== null;
     b.title = "Confere o repositório de cada produto de módulos (git pull) e relê o estado na máquina";
     b.addEventListener("click", () => { void atualizar(); });
     body.append(b);
-    head.append(body);
-    panel.append(head);
     if (baixando) panel.append(carregando("Conferindo os repositórios dos módulos…"));
     if (erro !== null) panel.append(el("p", "hint bad-hint", erro));
     if (deps.crm !== null) panel.append(blocoIncluido(deps.crm));
@@ -439,7 +452,11 @@ export function mountModulosPage(deps: ModulosPageDeps): { open: () => void; rep
     for (const x of listas) panel.append(blocoDoProduto(x));
   }
   /** O estado do CRM mudou (consulta, instalação, progresso): repinta a lista se ela está na tela; a ficha não mostra o CRM. */
-  function repintarLista(): void { if (!panel.hidden && aberto === null) render(); }
+  function repintarLista(): void {
+    // A licença chegou (ou mudou) depois de a página abrir: os produtos que passaram a existir são lidos agora.
+    if (page !== null && deps.temProdutos() && listas === null && !lendo && !baixando && erro === null) { void atualizar(); return; }
+    if (!panel.hidden && aberto === null) render();
+  }
 
   return {
     pedirPlanilha,
