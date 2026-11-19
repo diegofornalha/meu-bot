@@ -103,6 +103,19 @@ export async function marcarVendaOculta(db: D1Database, tipo: TipoVenda, id: str
   const r = await db.prepare(`UPDATE ${tabela} SET oculta_em = ?2, oculta_por = ?3 WHERE id = ?1 AND oculta_em IS ${quem === null ? "NOT NULL" : "NULL"} RETURNING conta_id`).bind(id, quem === null ? null : agora, quem).first<{ conta_id: string }>();
   return r === null ? null : { contaId: r.conta_id };
 }
+/**
+ * Apaga a assinatura `id` (quem chama já garantiu que a AbacatePay não cobra mais) e oculta os pagamentos dela em nome
+ * de `quem`. Os pagamentos não são apagados: a linha de cada um é o que impede liberar o acesso de novo se o mesmo
+ * pagamento chegar outra vez, e é o que diz que a conta já pagou o Pro (a promoção do primeiro mês não volta).
+ * Devolve quantos pagamentos ocultou, ou null se a assinatura não existe.
+ */
+export async function removerAssinatura(db: D1Database, id: string, quem: string, agora = agoraIso()): Promise<number | null> {
+  const [pgs, ass] = await db.batch([
+    db.prepare("UPDATE pagamentos SET oculta_em = ?2, oculta_por = ?3 WHERE assinatura_id = ?1 AND oculta_em IS NULL AND EXISTS (SELECT 1 FROM assinaturas WHERE id = ?1)").bind(id, agora, quem),
+    db.prepare("DELETE FROM assinaturas WHERE id = ?1").bind(id),
+  ]);
+  return (ass?.meta.changes ?? 0) === 0 ? null : pgs?.meta.changes ?? 0;
+}
 /** Todas as sessões (apps) da conta saem; os tokens de acesso de 1 h ainda valem até vencer. */
 export async function revogarSessoesDaConta(db: D1Database, contaId: string, agora = agoraIso()): Promise<void> {
   await db.prepare("UPDATE sessoes SET revogada_em = ?2 WHERE conta_id = ?1 AND revogada_em IS NULL").bind(contaId, agora).run();
