@@ -18,8 +18,8 @@ merge", abaixo.
 2. **O staging recebe sozinho:** o agente da release (`scripts/release-auto.mjs`, a cada 10 min) vê que `conta-api/`
    mudou entre o commit que está no staging e o `origin/main` e roda `node scripts/site-publicar.mjs --so-staging`
    (`=== site staging ok` em `~/Library/Logs/meu-bot-release.log`; o Mac avisa). Falhou: tenta de novo em 1 h.
-3. **Conferir** o staging no ar: `node scripts/site-publicar.mjs --conferir` e, na mão, o que a mudança alterou (o
-   roteiro `docs/STAGING.md`, quando existir).
+3. **Conferir** o staging no ar: `node scripts/site-publicar.mjs --conferir` e, na mão, o roteiro
+   `docs/STAGING.md`, nas seções que a mudança toca (seção "Roteiro", abaixo).
 4. **Aprovar o commit:** `node scripts/site-publicar.mjs --aprovar <sha> [--roteiro <arquivo>]`. Só aceita o `<sha>`
    inteiro que o `/health` do staging mostra; grava sha, data e o roteiro conferido em
    `~/Library/Application Support/meu-bot-release/site-aprovado.json`. Não publica nada.
@@ -102,6 +102,14 @@ npx wrangler dev --env staging --host site-staging.agentesgrok.com --upstream-pr
 - **`--persist-to` fora do repositório:** sem ele o wrangler grava o estado em `conta-api/.wrangler/`.
 
 Commit de ramo nunca chega à produção (o `--producao` recusa o que não está no `origin/main`).
+
+## Roteiro
+
+A aprovação da produção pede o roteiro conferido: `docs/STAGING.md` (uma linha por fluxo, com o resultado esperado).
+Confira no staging as seções que a mudança toca, copie o bloco "Registro da conferência" do fim dele para um arquivo
+fora do repositório, preencha (data, commit do staging, quem conferiu, itens não conferidos e por quê) e aprove com
+esse arquivo: `node scripts/site-publicar.mjs --aprovar <sha> --roteiro <arquivo>`. Sem o registro preenchido, não
+rode o `--aprovar`. As contas de teste nos estados que o roteiro usa saem de `node scripts/staging-contas.mjs --help`.
 
 ## Ao terminar
 
