@@ -16,26 +16,31 @@ const DIFERENTES = {
   GA_ID: "medição: uma propriedade do Google Analytics por ambiente, para o staging não sujar os números da produção",
   ABACATEPAY_PRODUTO: "produto do Pro: a loja de produção e o Modo Teste da AbacatePay têm ids próprios",
 };
-/** ABACATEPAY_ADDONS é JSON: os nomes dos add-ons e estes campos têm de ser iguais; só `produto` (id da AbacatePay) difere. */
-const ADDONS = "ABACATEPAY_ADDONS";
+/**
+ * ABACATEPAY_ADDONS e ABACATEPAY_EXTRAS são catálogos em JSON (vazio = nada à venda): os nomes dos itens e estes campos
+ * têm de ser iguais; só `produto` (id da AbacatePay) difere.
+ */
+const ADDONS = "ABACATEPAY_ADDONS", EXTRAS = "ABACATEPAY_EXTRAS";
+const CATALOGOS = { [ADDONS]: "add-on", [EXTRAS]: "extra" };
 const CAMPOS_IGUAIS_DO_ADDON = ["centavos", "rotulo"];
 
 /**
  * Diferenças aceitas por um tempo, com validade: até `ate` (AAAA-MM-DD, inclusive) o teste aceita; depois FALHA e a
- * mensagem diz o que decidir. `addon` = add-on que existe só no ambiente `so`; `chave` = var preenchida só no
- * ambiente `so` (no outro, vazia). Cada uma só vale na forma descrita: outra diferença na mesma chave reprova.
+ * mensagem diz o que decidir. `addon` = item que existe só no ambiente `so` (do catálogo `catalogo`; sem ele, o dos
+ * add-ons); `chave` = var preenchida só no ambiente `so` (no outro, vazia). Cada uma só vale na forma descrita: outra diferença na mesma chave reprova.
  */
 const TEMPORARIAS = [
   { addon: "meu-bot-diego", so: "staging", ate: "2026-12-15", motivo: "o produto de produção dos Módulos do Diego ainda não foi criado na AbacatePay", decidir: "crie o produto de produção e ponha o add-on em [vars], tire-o do staging, ou renove a validade aqui com o motivo" },
+  { catalogo: EXTRAS, addon: "maquina", so: "staging", ate: "2026-12-15", motivo: "a compra da máquina extra está sendo provada no staging antes de criar o produto de produção na AbacatePay", decidir: "crie o produto de produção e ponha o extra em [vars], tire-o do staging, ou renove a validade aqui com o motivo" },
 ];
 
 const OUTRO = { staging: "producao", producao: "staging" };
 const vencida = (t, hoje) => hoje > t.ate;
 const textoDaVencida = (t, oQue) => `${oQue}: a exceção temporária venceu em ${t.ate} (${t.motivo}). Decida: ${t.decidir}`;
-const lerAddons = (bruto, ambiente, erros) => {
-  if (bruto === undefined) return {};
+const lerCatalogo = (chave, bruto, ambiente, erros) => {
+  if (bruto === undefined || bruto === "") return {};
   try { const o = JSON.parse(bruto); if (o !== null && typeof o === "object" && !Array.isArray(o)) return o; } catch { /* cai no erro */ }
-  erros.push(`${ADDONS} de ${ambiente} não é um objeto JSON`);
+  erros.push(`${chave} de ${ambiente} não é um objeto JSON`);
   return {};
 };
 
@@ -47,23 +52,25 @@ function divergencias(vars, hoje) {
   for (const k of new Set([...Object.keys(producao), ...Object.keys(staging)])) {
     const p = producao[k], s = staging[k];
     if (p === undefined || s === undefined) { erros.push(`${k} só existe em ${p === undefined ? "staging" : "produção"}: os dois ambientes declaram as mesmas chaves`); continue; }
-    if (k === ADDONS || k in DIFERENTES || p === s) continue;
+    if (k in CATALOGOS || k in DIFERENTES || p === s) continue;
     const t = tempDaChave(k);
     const naForma = t !== null && vars[t.so][k] !== "" && vars[OUTRO[t.so]][k] === "";
     if (naForma && !vencida(t, hoje)) continue;
     erros.push(naForma ? textoDaVencida(t, `${k} preenchida só em ${t.so}`) : `${k} difere: produção "${p}", staging "${s}". Iguale, ou diga o motivo em DIFERENTES (ou em TEMPORARIAS, com validade)`);
   }
-  const ap = lerAddons(producao[ADDONS], "produção", erros), as = lerAddons(staging[ADDONS], "staging", erros);
-  for (const nome of new Set([...Object.keys(ap), ...Object.keys(as)])) {
-    const so = ap[nome] === undefined ? "staging" : as[nome] === undefined ? "producao" : null;
-    if (so !== null) {
-      const t = TEMPORARIAS.find((x) => x.addon === nome && x.so === so) ?? null;
-      if (t === null) erros.push(`add-on ${nome} só existe em ${so}: os dois ambientes vendem os mesmos add-ons`);
-      else if (vencida(t, hoje)) erros.push(textoDaVencida(t, `add-on ${nome} só em ${so}`));
-      continue;
+  for (const [chave, item] of Object.entries(CATALOGOS)) {
+    const ap = lerCatalogo(chave, producao[chave], "produção", erros), as = lerCatalogo(chave, staging[chave], "staging", erros);
+    for (const nome of new Set([...Object.keys(ap), ...Object.keys(as)])) {
+      const so = ap[nome] === undefined ? "staging" : as[nome] === undefined ? "producao" : null;
+      if (so !== null) {
+        const t = TEMPORARIAS.find((x) => (x.catalogo ?? ADDONS) === chave && x.addon === nome && x.so === so) ?? null;
+        if (t === null) erros.push(`${item} ${nome} só existe em ${so}: os dois ambientes vendem os mesmos itens`);
+        else if (vencida(t, hoje)) erros.push(textoDaVencida(t, `${item} ${nome} só em ${so}`));
+        continue;
+      }
+      for (const campo of CAMPOS_IGUAIS_DO_ADDON) if (ap[nome][campo] !== as[nome][campo]) erros.push(`${item} ${nome}: ${campo} difere (produção ${JSON.stringify(ap[nome][campo])}, staging ${JSON.stringify(as[nome][campo])}); só o produto pode diferir`);
+      for (const campo of new Set([...Object.keys(ap[nome]), ...Object.keys(as[nome])])) if (campo !== "produto" && !CAMPOS_IGUAIS_DO_ADDON.includes(campo) && JSON.stringify(ap[nome][campo]) !== JSON.stringify(as[nome][campo])) erros.push(`${item} ${nome}: ${campo} difere entre os ambientes; só o produto pode diferir`);
     }
-    for (const campo of CAMPOS_IGUAIS_DO_ADDON) if (ap[nome][campo] !== as[nome][campo]) erros.push(`add-on ${nome}: ${campo} difere (produção ${JSON.stringify(ap[nome][campo])}, staging ${JSON.stringify(as[nome][campo])}); só o produto pode diferir`);
-    for (const campo of new Set([...Object.keys(ap[nome]), ...Object.keys(as[nome])])) if (campo !== "produto" && !CAMPOS_IGUAIS_DO_ADDON.includes(campo) && JSON.stringify(ap[nome][campo]) !== JSON.stringify(as[nome][campo])) erros.push(`add-on ${nome}: ${campo} difere entre os ambientes; só o produto pode diferir`);
   }
   return erros;
 }
@@ -100,6 +107,18 @@ test("paridade: valor diferente, chave num ambiente só e add-on desigual reprov
   assert.match(divergencias(addons({ "meu-bot-finance": finance, "meu-bot-novo": finance }), dia).join("\n"), /add-on meu-bot-novo só existe em staging/);
   assert.match(divergencias(addons({}), dia).join("\n"), /add-on meu-bot-finance só existe em producao/);
   assert.match(divergencias(com("staging", ADDONS, "lixo"), dia).join("\n"), /não é um objeto JSON/);
+  // O catálogo de extras segue a mesma régua: preço e rótulo iguais, só o produto difere, vazio = nada à venda.
+  const maq = { produto: "prod_aaaaaaaa", centavos: 9700, rotulo: "Máquina extra" };
+  const extras = (p, s) => { const v = com("staging", EXTRAS, s); return { ...v, producao: { ...v.producao, [EXTRAS]: p } }; };
+  const sobreExtras = (v, d = dia) => divergencias(v, d).filter((e) => e.includes("extra") || e.includes(EXTRAS));
+  assert.deepEqual(sobreExtras(extras("", "")), [], "nada à venda nos dois");
+  assert.deepEqual(sobreExtras(extras(JSON.stringify({ maquina: maq }), JSON.stringify({ maquina: { ...maq, produto: "prod_bbbbbbbb" } }))), [], "o id do produto pode diferir");
+  assert.match(sobreExtras(extras(JSON.stringify({ maquina: maq }), JSON.stringify({ maquina: { ...maq, centavos: 4700 } }))).join("\n"), /extra maquina: centavos difere/);
+  assert.match(sobreExtras(extras(JSON.stringify({ maquina: maq }), "")).join("\n"), /extra maquina só existe em producao/);
+  assert.match(sobreExtras(extras("", JSON.stringify({ device: maq }))).join("\n"), /extra device só existe em staging/);
+  assert.deepEqual(sobreExtras(extras("", JSON.stringify({ maquina: maq }))), [], "máquina extra só no staging: exceção temporária, enquanto se prova a compra");
+  assert.match(sobreExtras(extras("", JSON.stringify({ maquina: maq })), "2026-12-16").join("\n"), /extra maquina só em staging: a exceção temporária venceu/);
+  assert.match(sobreExtras(extras("lixo", "")).join("\n"), /ABACATEPAY_EXTRAS de produção não é um objeto JSON/);
 });
 
 test("paridade: exceção temporária vale até a data e falha depois, dizendo o que decidir", () => {
