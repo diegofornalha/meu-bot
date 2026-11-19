@@ -17,6 +17,16 @@ let crmErro: string | null = null;
 let crmBusy = false;
 let crmLog: string[] = [];
 let crmMsg: { text: string; bad: boolean } | null = null;
+/** Instalação em andamento e o erro da última: o que o cartão do CRM na página Módulos mostra (o guia usa crmBusy e crmMsg). */
+let crmInstalando = false;
+let crmInstErro: string | null = null;
+/** Quem mais mostra o CRM (o cartão da página Módulos) repinta junto com o guia. */
+const crmOuvintes: (() => void)[] = [];
+export function aoMudarCrm(f: () => void): void { crmOuvintes.push(f); }
+function pintarCrm(): void { ctx.paintGuide(); for (const f of crmOuvintes) f(); }
+/** A parte do estado que não está em crmState/crmLocalState: consulta que falhou e a instalação. */
+export const crmSituacao = (): { erroConsulta: string | null; instalando: boolean; log: readonly string[]; erroInstalacao: string | null } =>
+  ({ erroConsulta: crmErro, instalando: crmInstalando, log: crmLog, erroInstalacao: crmInstErro });
 let crmDiag: CrmDiag | null = null;
 let crmKeyDraft = "";
 /** meu-bot-crm: pipelines do CRM da máquina e o padrão do WhatsApp (tutorial 17, passo "Criar o primeiro pipeline"). */
@@ -90,15 +100,29 @@ export async function refreshCrm(): Promise<void> {
   if (!ctx.caps.install || ctx.windowHost === "" || ctx.windowHost === "local") return;
   try { crmState = await window.meuBot.crmInfo(); crmErro = null; } catch (err) { crmErro = ipcErrorText(err); /* fica o estado que havia */ }
   if (ctx.crmProprio()) { try { crmLocalState = await window.meuBot.crmLocal(); } catch { /* backend fora: fica o que havia */ } }
-  ctx.paintGuide();
+  pintarCrm();
   void crmAutoPipeline();
 }
 async function crmDo(run: () => Promise<unknown>, okText: string | null): Promise<void> {
   if (crmBusy) return;
-  crmBusy = true; crmMsg = null; ctx.paintGuide();
+  crmBusy = true; crmMsg = null; pintarCrm();
   try { const r = await run(); if (r !== null && typeof r === "object" && "available" in (r as object)) crmState = r as CrmInfo; crmMsg = okText === null ? null : { text: okText, bad: false }; }
   catch (err) { crmMsg = { text: /ASSINATURA_REQUIRED/.test(ipcErrorText(err)) ? `A assinatura do ${ctx.caps.produto} não está ativa nesta máquina.` : /PRO_REQUIRED/.test(ipcErrorText(err)) ? "Esta máquina não tem o plano Pro." : ipcErrorText(err), bad: true }; }
-  finally { crmBusy = false; ctx.paintGuide(); }
+  finally { crmBusy = false; pintarCrm(); }
+}
+/**
+ * Instala o CRM na máquina (IPC crm:install → installCrm, no main). Um caminho só: o passo "Instalar" do guia e o
+ * cartão do CRM na página Módulos chamam esta função.
+ */
+export async function instalarCrm(): Promise<void> {
+  if (crmBusy) return;
+  crmLog = []; crmInstErro = null; crmInstalando = true;
+  try {
+    await crmDo(async () => { const r = await window.meuBot.installCrm(); if (!r.ok) throw new Error(r.log.at(-1) ?? "a instalação falhou"); return window.meuBot.crmInfo(); }, "Máquina pronta: o plugin do CRM está no OpenClaw.");
+    crmInstErro = crmMsg?.bad === true ? crmMsg.text : null;
+  } finally { crmInstalando = false; pintarCrm(); }
+  // Instalou: os pipelines do CRM próprio passam a existir; relê para o guia e para o cartão.
+  if (crmInstErro === null && crmState?.installed === true) await refreshCrm();
 }
 /** Passo 1: o plano (mesmo gate do Navegador, texto do CRM). */
 export function renderCrmPro(container: HTMLElement): void {
@@ -129,7 +153,7 @@ export function renderCrmInstall(container: HTMLElement): void {
   const inst = crmState?.installed === true;
   if (inst && !crmBusy) row.append(el("span", "audio-ok", "✓ instalado nesta máquina"));
   const b = el("button", `btn ${inst ? "btn-ghost" : "btn-primary"} btn-small`, crmBusy ? "Instalando…" : inst ? "Reinstalar" : "Instalar"); b.type = "button"; b.disabled = crmBusy || crmState === null;
-  b.addEventListener("click", () => { crmLog = []; void crmDo(async () => { const r = await window.meuBot.installCrm(); if (!r.ok) throw new Error(r.log.at(-1) ?? "a instalação falhou"); return window.meuBot.crmInfo(); }, "Máquina pronta: o plugin do CRM está no OpenClaw."); });
+  b.addEventListener("click", () => { void instalarCrm(); });
   row.append(b); box.append(row);
   if (crmState === null) box.append(esperaOuFalha({ erro: crmErro, chave: "guia-crm", tentar: () => { crmErro = null; ctx.paintGuide(); void refreshCrm(); } }));
   if (crmBusy && crmLog.length > 0) box.append(el("pre", "admin-logs", crmLog.join("\n")));
@@ -244,5 +268,5 @@ export function ligarCrmGuia(): void {
     "crm-gmail": (txt) => renderNavOpen(txt, "https://mail.google.com/"),
     "crm-importar": (txt) => { txt.append(el("p", "hint", "Na conversa, peça por exemplo: \"importa do Streak o pipeline Parceiros\" e cole a chave quando o agente pedir. Ele usa o importador da máquina; a chave não fica gravada.")); },
   });
-  window.meuBot.on("crm:progress", ({ line }) => { crmLog = [...crmLog, line].slice(-6); if (crmBusy) ctx.paintGuide(); });
+  window.meuBot.on("crm:progress", ({ line }) => { crmLog = [...crmLog, line].slice(-6); if (crmBusy) pintarCrm(); });
 }
