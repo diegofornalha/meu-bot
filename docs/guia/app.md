@@ -495,7 +495,7 @@ Regras novas:
   e, se tiver extensão do Gmail, a pasta de build. Nada mais; nenhum `if (variant === …)`.
 - Planos: `pro` e `personalizado` liberam os módulos Pro (Navegador, CRM pelo WhatsApp) e, desde 22 out, o CRM
   próprio no Gmail (`crmProprioOk`); o produto `meu-bot-crm` contratado por cima do plano gratuito também libera o
-  CRM. O admin muda o plano em Suporte › Conta e licença.
+  CRM. O admin muda o plano em Suporte › Conta e licença. No mesmo card, "Atribuir a esta conta" liga a máquina a um e-mail: ela aparece no console da pessoa como "Em uso · licença do admin", sem mudar a licença nem ocupar vaga.
 - Empacotar o meu-bot: `npm run dist`
   (encadeia `build:extensao`). `./instalar.sh`.
 - O `localBackend.ts` passou a copiar todos os módulos que o `server.js` exige (antes só `server.js` e

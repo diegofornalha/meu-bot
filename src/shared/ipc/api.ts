@@ -14,7 +14,7 @@ import type { LicensePatch, LicenseView, PlanoDaContaResultado } from "./licenca
 import type { ModuloPaginaAberta, ModuloPlanilhaResultado, ModuloResultado, ModuloTeste, ModulosLista } from "./modulos";
 import type { BackendStatusEvent, InstallBackendResult, TailscaleSshResult } from "./maquina";
 import type { BrowserAgentState, BrowserExtensionInfo, BrowserOpenInfo, NavFavorito, NavWhatsappInfo, NavWorkspaces } from "./navegador";
-import type { MotorNovoUsuario, AdminAction, AdminHealth, AuditoriaVisao, UsuariosVisao, PrepararId, PrepararVisao, BackupIndiceView, BackupRestauracao, BotChat, BotMenuAction, BotMessage, ProdutoMvp, SupportInfo, SupportProgress, SupportShare, CgEstado, LpEstado, LpAviso } from "./suporte";
+import type { MotorNovoUsuario, AdminAction, AdminHealth, AtribuirMaquinaResultado, AuditoriaVisao, UsuariosVisao, PrepararId, PrepararVisao, BackupIndiceView, BackupRestauracao, BotChat, BotMenuAction, BotMessage, ProdutoMvp, SupportInfo, SupportProgress, SupportShare, CgEstado, LpEstado, LpAviso } from "./suporte";
 import type { TypingChoice, WaMarkPatch, WhatsappAlvo, WhatsappArchive, WhatsappChat, WhatsappEvent, WhatsappGroupAgent, WhatsappGroupArchive, WhatsappGroupMenuAction, WhatsappGroupPatch, WhatsappGroups, WhatsappMenuAction, WhatsappAgente, WhatsappReplyChoice, WhatsappStatus, WhatsappThreadMessage } from "./whatsapp";
 
 export interface MainEvents {
@@ -666,6 +666,8 @@ export interface MeuBotAdminApi {
   removeDevice(deviceId: string): Promise<LicenseView>;
   /** meu-bot-admin: zera o histórico de aberturas do app na máquina da pessoa (aberturas.jsonl); fica no registro. */
   adminAberturasZerar(): Promise<void>;
+  /** Gestão: atribui a máquina desta janela à conta desse e-mail (ela aparece no console da pessoa), ou desfaz. */
+  adminMaquinaAtribuir(email: string, desfazer?: boolean): Promise<AtribuirMaquinaResultado>;
 }
 
 /** O que o renderer vê em `window.meuBot`: os três grupos juntos (o main recusa o que não é da variante). */

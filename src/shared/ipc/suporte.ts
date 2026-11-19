@@ -91,7 +91,7 @@ export interface ContaAddonPago { produto: string; valeAte: string | null }
  * "sem-ligacao". Com pista e sem conta na API: "nao-achada". API fora ou sessão sem valer: "sem-resposta".
  */
 export type ContaDaPessoa =
-  | { estado: "ok"; conta: ContaInfo; maquinaExtras: number; addonsPagos: ContaAddonPago[]; achadaPor: "maquina" | "id" | "email"; lidaEm: string }
+  | { estado: "ok"; conta: ContaInfo; maquinaExtras: number; addonsPagos: ContaAddonPago[]; achadaPor: "maquina" | "id" | "email"; lidaEm: string; /** O admin atribuiu esta máquina à conta (não é a licença da conta que roda nela). */ atribuida?: boolean }
   | { estado: "sem-ligacao" }
   | { estado: "nao-achada" }
   | { estado: "sem-resposta"; motivo: string };
@@ -218,3 +218,5 @@ export interface ProdutosJanelaApi {
   exportar(nome: string): Promise<{ json: string; checklist: string[] }>;
   catalogo(): Promise<ProdutosCatalogo>;
 }
+/** Resultado de atribuir (ou desfazer) uma máquina a uma conta pela gestão. `conta`: a conta que a API achou pelo e-mail. */
+export type AtribuirMaquinaResultado = { ok: true; conta: { email: string; nome: string | null } | null } | { ok: false; erro: string };

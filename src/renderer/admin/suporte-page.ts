@@ -13,7 +13,7 @@ import { ipcErrorText } from "../lib/ipc-error.js";
 import { cacheAgeText, type Cached } from "../lib/cache.js";
 import { actionResultText, dateInputToIso, deviceParts, healthLines, isoToDateInput, licenseSummary, progressEmptyText, progressLines, progressUpdatedText, transcriptionNote, visibleActions, usoResumo, aberturaTexto, USO_VAZIO_TEXTO, ESTE_MAC_MAQUINA, ESTE_MAC_BACKEND_TEXTO, produtoLabel, type HealthLine, type AddonRotulo } from "../lib/admin-view.js";
 import type { ContaDaPessoa, LicensePatch, LicenseView } from "../../shared/ipc";
-import { contaLinhas, contaSemDadosTexto, diferencasDaConta } from "../lib/conta-view.js";
+import { atribuicaoDaTela, contaLinhas, contaSemDadosTexto, diferencasDaConta } from "../lib/conta-view.js";
 
 export interface SuportePageDeps {
   /** Catálogo de add-ons (caps.addons): rótulos e o que dá para incluir na licença. */
@@ -26,7 +26,7 @@ export interface SuportePageDeps {
   /** Botão de dois cliques (o segundo confirma). */
   armConfirm(btn: HTMLButtonElement, label: string, run: () => void): void;
   fmtPhone(digits: string | null): string;
-  api: Pick<MeuBotApi, "adminHealth" | "adminLogs" | "adminAberturasZerar" | "adminAction" | "setLicense" | "approveDevice" | "removeDevice" | "adminProdutos" | "adminBackupListar" | "adminBackupCriar" | "adminBackupConferir" | "adminBackupRestaurar" | "adminBackupWhatsapp" | "on">;
+  api: Pick<MeuBotApi, "adminHealth" | "adminLogs" | "adminAberturasZerar" | "adminMaquinaAtribuir" | "adminAction" | "setLicense" | "approveDevice" | "removeDevice" | "adminProdutos" | "adminBackupListar" | "adminBackupCriar" | "adminBackupConferir" | "adminBackupRestaurar" | "adminBackupWhatsapp" | "on">;
   /** A saúde trouxe o WhatsApp da máquina (null = ela não compartilha ou não tem): o renderer atualiza a lateral. */
   onWhatsapp(status: WhatsappStatus | null): void;
   /** O plano da conta (do card de licença): o renderer pinta o selo "PRO" no canto superior. */
@@ -41,10 +41,10 @@ export interface SuportePage {
   refreshHealth(): Promise<void>;
 }
 
-interface State { /** Nomes dos MVPs registrados em Produtos (botões "＋ produto" do card de licença); lidos ao abrir. */ mvps: string[]; health: AdminHealth | null; /** Quando a saúde na tela foi lida de verdade (null = veio do cache ou ainda não leu). */ healthAt: number | null; healthErr: string | null; logs: string | null; busy: AdminAction | "health" | "logs" | null; msg: { text: string; bad: boolean } | null; /** Mudança de licença em andamento. */ licBusy: boolean; licMsg: { text: string; bad: boolean } | null; /** Zerar das aberturas em andamento, e o erro dele. */ usoBusy: boolean; usoErr: string | null; /** A API da conta não respondeu na última leitura (a tela segue com a conta lida antes). */ contaErro: string | null; /** O admin desligou o suporte nesta janela (só "Religar" no este Mac, nada nas outras). */ desligado: boolean }
+interface State { /** Nomes dos MVPs registrados em Produtos (botões "＋ produto" do card de licença); lidos ao abrir. */ mvps: string[]; health: AdminHealth | null; /** Quando a saúde na tela foi lida de verdade (null = veio do cache ou ainda não leu). */ healthAt: number | null; healthErr: string | null; logs: string | null; busy: AdminAction | "health" | "logs" | null; msg: { text: string; bad: boolean } | null; /** Mudança de licença em andamento. */ licBusy: boolean; licMsg: { text: string; bad: boolean } | null; /** Zerar das aberturas em andamento, e o erro dele. */ /** "Atribuir a uma conta": pedido em curso e o que ele respondeu. */ atribBusy: boolean; atribMsg: { text: string; bad: boolean } | null; usoBusy: boolean; usoErr: string | null; /** A API da conta não respondeu na última leitura (a tela segue com a conta lida antes). */ contaErro: string | null; /** O admin desligou o suporte nesta janela (só "Religar" no este Mac, nada nas outras). */ desligado: boolean }
 
 export function mountSuportePage(deps: SuportePageDeps): SuportePage {
-  const state: State = { mvps: [], health: null, healthAt: null, healthErr: null, logs: null, busy: null, msg: null, licBusy: false, licMsg: null, usoBusy: false, usoErr: null, contaErro: null, desligado: false };
+  const state: State = { mvps: [], health: null, healthAt: null, healthErr: null, logs: null, busy: null, msg: null, licBusy: false, licMsg: null, usoBusy: false, usoErr: null, contaErro: null, atribBusy: false, atribMsg: null, desligado: false };
   // A saúde da última vez aparece na hora (com a idade); a consulta real troca por baixo.
   const cachedHealth = deps.cache.read<AdminHealth>("health");
   if (cachedHealth !== null) { state.health = cachedHealth.value; state.healthAt = cachedHealth.at; deps.onWhatsapp(cachedHealth.value.whatsapp); deps.onPlan(cachedHealth.value.license?.license.plan ?? null); }
@@ -82,6 +82,18 @@ export function mountSuportePage(deps: SuportePageDeps): SuportePage {
       state.licMsg = { text: `${label}: feito`, bad: false };
     } catch (err) { state.licMsg = { text: ipcErrorText(err), bad: true }; }
     finally { state.licBusy = false; render(); }
+  }
+
+  /** Atribui a máquina à conta desse e-mail (ou desfaz) e relê a saúde: o bloco da conta passa a mostrar o resultado. */
+  async function atribuir(email: string, desfazer: boolean): Promise<void> {
+    if (state.atribBusy) return;
+    state.atribBusy = true; state.atribMsg = null; render();
+    try {
+      const r = await deps.api.adminMaquinaAtribuir(email, desfazer);
+      state.atribMsg = r.ok ? { text: desfazer ? `Desfeito: a máquina saiu do console de ${email}.` : `Atribuída a ${r.conta?.nome ? `${r.conta.nome} (${r.conta.email})` : r.conta?.email ?? email}. Aparece no console da pessoa como "Em uso · licença do admin".`, bad: false } : { text: `Não deu certo: ${r.erro}`, bad: true };
+      if (r.ok) { try { state.health = await deps.api.adminHealth(); state.healthAt = Date.now(); deps.cache.write("health", state.health); } catch { /* a saúde relê no próximo "Atualizar" */ } }
+    } catch (err) { state.atribMsg = { text: ipcErrorText(err), bad: true }; }
+    finally { state.atribBusy = false; render(); }
   }
 
   /** Zera o histórico de aberturas na máquina e esvazia o card na hora (a próxima abertura do app volta a anotar). */
@@ -151,6 +163,24 @@ export function mountSuportePage(deps: SuportePageDeps): SuportePage {
         const lida = new Date(conta.lidaEm).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
         bloco.append(el("p", "hint", state.contaErro !== null ? `Lido às ${lida}. Agora a API da conta não respondeu: ${state.contaErro}.` : `Lido da API da conta às ${lida}. "Atualizar" lê de novo.`));
       } else bloco.append(el("p", "hint", contaSemDadosTexto(conta, who)));
+      // Atribuir a máquina a uma conta: só exibição no console da pessoa; a licença gravada aqui embaixo não muda.
+      const at = atribuicaoDaTela(conta, hp?.aberturas);
+      if (at.modo !== "ligada") {
+        const linha = el("div", "actions");
+        if (at.modo === "atribuida") {
+          linha.append(el("span", "hint", `Atribuída a ${at.email}.`));
+          const desf = el("button", "btn btn-ghost btn-small", state.atribBusy ? "Desfazendo…" : "Desfazer"); desf.type = "button"; desf.disabled = state.atribBusy;
+          desf.addEventListener("click", () => deps.armConfirm(desf, "Confirmar: desfazer", () => { void atribuir(at.email, true); }));
+          linha.append(desf);
+        } else {
+          const campo = el("input", "input") as HTMLInputElement; campo.type = "email"; campo.placeholder = "e-mail da conta"; campo.value = at.sugestao; campo.disabled = state.atribBusy; campo.setAttribute("aria-label", "E-mail da conta a que esta máquina pertence");
+          const btn = el("button", "btn btn-ghost btn-small", state.atribBusy ? "Atribuindo…" : "Atribuir a esta conta"); btn.type = "button"; btn.disabled = state.atribBusy;
+          btn.addEventListener("click", () => { const v = campo.value.trim(); if (v === "") { campo.focus(); return; } void atribuir(v, false); });
+          linha.append(campo, btn);
+        }
+        bloco.append(linha);
+        if (state.atribMsg !== null) bloco.append(el("p", state.atribMsg.bad ? "error" : "hint", state.atribMsg.text));
+      }
       lc.append(bloco, el("span", "hint", "Licença gravada nesta máquina"));
     }
     if (hp === null) lc.append(carregando("Consultando a licença…", "suporte-licenca"));

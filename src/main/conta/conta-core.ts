@@ -5,7 +5,7 @@
  */
 import { createHash, randomBytes } from "node:crypto";
 import type { Canal } from "../app/variant-core";
-import type { ContaAddonPago, ContaDaPessoa, ContaDevice, ContaInfo, ContaMaquina, ContaOrg, ContaPerfil } from "../../shared/ipc";
+import type { ContaAddonPago, ContaDaPessoa, ContaDevice, ContaInfo, ContaMaquina, ContaOrg, ContaPerfil, AtribuirMaquinaResultado } from "../../shared/ipc";
 import { DEVICE_ID_RE, parseLicense, UUID_RE } from "../licenca/licenca";
 
 /** Página de login e API, por canal: o staging nunca fala com a produção (conta e D1 separados). */
@@ -161,7 +161,7 @@ export function parseContaDoAdmin(status: number, corpo: unknown, now: number = 
     if (x.status !== "ACTIVE" || typeof x.produto !== "string" || !/^meu-bot-[a-z0-9-]{1,40}$/.test(x.produto)) return [];
     return [{ produto: x.produto, valeAte: iso(x.valeAte) }];
   });
-  return { estado: "ok", conta, maquinaExtras: typeof extras === "number" && Number.isInteger(extras) && extras >= 0 ? extras : 0, addonsPagos, achadaPor: por, lidaEm: new Date(now).toISOString() };
+  return { estado: "ok", conta, maquinaExtras: typeof extras === "number" && Number.isInteger(extras) && extras >= 0 ? extras : 0, addonsPagos, achadaPor: por, lidaEm: new Date(now).toISOString(), ...(r!.atribuida === true ? { atribuida: true } : {}) };
 }
 /** 401 da API: a sessão não vale mais (vencida, revogada, conta apagada): o app sai sozinho e pede para entrar de novo. */
 export const sessaoAcabou = (status: number): boolean => status === 401;
@@ -187,3 +187,20 @@ export function papelParaGestao<P extends "super" | "admin" | null>(confirmado: 
 }
 export const SEM_PAPEL_GESTAO = "Esta conta não tem acesso à gestão: só admin ou super admin. Saia e entre com uma conta de admin.";
 
+
+/** O e-mail de uma conta, como a gestão o digita: aparado e minúsculo; null se não tem a forma de um e-mail. */
+export function emailDeConta(v: unknown): string | null {
+  const t = typeof v === "string" ? v.trim().toLowerCase() : "";
+  return /^[^\s@]{1,100}@[^\s@]{1,100}\.[^\s@]{1,50}$/.test(t) ? t : null;
+}
+/** A resposta de `POST|DELETE /admin/maquinas/:id/conta` para a tela da gestão. */
+export function parseAtribuicao(status: number, corpo: unknown): AtribuirMaquinaResultado {
+  const r = corpo !== null && typeof corpo === "object" ? (corpo as Record<string, unknown>) : null;
+  if (status === 200) {
+    const c = r?.conta !== null && typeof r?.conta === "object" ? (r.conta as Record<string, unknown>) : null;
+    return { ok: true, conta: c !== null && typeof c.email === "string" ? { email: c.email, nome: typeof c.nome === "string" && c.nome !== "" ? c.nome : null } : null };
+  }
+  // 404 sem texto de erro é a rota que ainda não existe na API publicada.
+  if (status === 404 && typeof r?.erro !== "string") return { ok: false, erro: "a API da conta ainda não tem a atribuição de máquina (aguarda publicação)" };
+  return { ok: false, erro: erroDaApi(status, corpo) };
+}

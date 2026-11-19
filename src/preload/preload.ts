@@ -339,6 +339,7 @@ const adminApi: MeuBotAdminApi = {
   approveDevice: (deviceId: string) => ipcRenderer.invoke("admin:license-approve", { deviceId }),
   removeDevice: (deviceId: string) => ipcRenderer.invoke("admin:license-revoke", { deviceId }),
   adminAberturasZerar: () => ipcRenderer.invoke("admin:aberturas-zerar", {}),
+  adminMaquinaAtribuir: (email: string, desfazer = false) => ipcRenderer.invoke("admin:maquina-atribuir", { email, desfazer }),
   adminProdutos: () => ipcRenderer.invoke("admin:produtos-list", {}),
   adminAuditoriaVisivel: () => ipcRenderer.invoke("admin:auditoria-visivel", {}),
   adminAuditoria: () => ipcRenderer.invoke("admin:auditoria", {}),

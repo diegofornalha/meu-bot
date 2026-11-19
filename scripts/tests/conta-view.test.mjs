@@ -6,7 +6,7 @@ import { createRequire } from "node:module";
 import * as app from "../../dist/renderer/lib/conta-view.js";
 import * as web from "../../conta-api/public/console/plano-core.js";
 
-const { parseContaDoAdmin, rotaDaContaAdmin } = createRequire(import.meta.url)("../../dist/main/conta/conta-core.js");
+const { parseContaDoAdmin, rotaDaContaAdmin, parseAtribuicao, emailDeConta } = createRequire(import.meta.url)("../../dist/main/conta/conta-core.js");
 const AGORA = Date.parse("2026-11-19T12:00:00Z");
 const em = (dias, horas = 0) => new Date(AGORA + dias * 864e5 + horas * 36e5).toISOString();
 const lic = (o) => ({ plan: "free", status: "free", trialEnd: null, expiresAt: null, ...o });
@@ -101,4 +101,24 @@ test("contaLinhas e diferencasDaConta: o que o admin lê na página Suporte", ()
   assert.deepEqual(app.diferencasDaConta(c, null), []);
   assert.match(app.contaSemDadosTexto({ estado: "sem-ligacao" }, "Ana"), /ainda não está ligada a uma conta/);
   assert.match(app.contaSemDadosTexto({ estado: "sem-resposta", motivo: "tempo esgotado" }, "Ana"), /tempo esgotado/);
+});
+
+test("gestão, atribuir máquina: o bloco mostra a atribuída, sugere o e-mail e some para quem usa a licença da conta", () => {
+  const ok = (por, atribuida) => ({ estado: "ok", conta: { email: "diego@exemplo.com" }, achadaPor: por, ...(atribuida ? { atribuida: true } : {}) });
+  assert.deepEqual(app.atribuicaoDaTela(ok("maquina", true), null), { modo: "atribuida", email: "diego@exemplo.com" });
+  assert.deepEqual(app.atribuicaoDaTela(ok("maquina", false), null), { modo: "ligada", email: "diego@exemplo.com" });
+  assert.deepEqual(app.atribuicaoDaTela(ok("email", false), null), { modo: "atribuir", sugestao: "diego@exemplo.com" }, "conta provável: vira a sugestão");
+  assert.deepEqual(app.atribuicaoDaTela({ estado: "sem-ligacao" }, [{ conta: "" }, { conta: "ana@exemplo.com" }]), { modo: "atribuir", sugestao: "ana@exemplo.com" });
+  assert.deepEqual(app.atribuicaoDaTela(undefined, null), { modo: "atribuir", sugestao: "" });
+});
+
+test("gestão, atribuir máquina: e-mail digitado e resposta da API", () => {
+  assert.equal(emailDeConta("  Diego@Exemplo.COM "), "diego@exemplo.com");
+  assert.equal(emailDeConta("sem arroba"), null);
+  assert.deepEqual(parseAtribuicao(200, { ok: true, conta: { id: "x", email: "d@e.com", nome: "Diego" } }), { ok: true, conta: { email: "d@e.com", nome: "Diego" } });
+  assert.deepEqual(parseAtribuicao(200, { ok: true }), { ok: true, conta: null }, "desfazer não traz a conta");
+  assert.deepEqual(parseAtribuicao(404, { erro: "nenhuma conta com o e-mail x@y.com", semConta: true }), { ok: false, erro: "nenhuma conta com o e-mail x@y.com" });
+  assert.match(parseAtribuicao(404, null).erro, /aguarda publicação/, "API publicada antes da rota");
+  assert.equal(parseAtribuicao(403, { erro: "só admin" }).erro, "só admin");
+  assert.equal(parseContaDoAdmin(200, { achadaPor: "maquina", atribuida: true, conta: null }).estado, "sem-resposta");
 });

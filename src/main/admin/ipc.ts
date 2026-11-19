@@ -10,7 +10,7 @@ import { isSupportAlias } from "../suporte/support-code";
 import type { LicensePatch } from "../../shared/ipc";
 import { caps } from "../app/variant";
 import { iniciarVarreduraSuporte } from "./support-admin";
-import { adminAction, adminBotChats, adminBotDelete, adminBotThread, adminHealth, adminLogs, approveDevice, removeDevice, setLicense, zerarAberturas } from "./support-admin";
+import { adminAction, adminBotChats, adminBotDelete, adminBotThread, adminHealth, adminLogs, approveDevice, atribuirMaquina, removeDevice, setLicense, zerarAberturas } from "./support-admin";
 import { hostFromEvent, windowFromEvent } from "../ipc/context";
 import { handleAdmin } from "../ipc/registry";
 import { listProdutos } from "./produtos";
@@ -129,4 +129,9 @@ export function registerAdminIpc(): void {
     return removeDevice(adminHost(event), id);
   });
   handleAdmin("admin:aberturas-zerar", (event) => zerarAberturas(adminHost(event)));
+  // A máquina aparece no console da conta desse e-mail como "licença do admin" (só exibição; a API confere o papel).
+  handleAdmin("admin:maquina-atribuir", (event, payload: unknown) => {
+    const p = payload as { email?: unknown; desfazer?: unknown } | null;
+    return atribuirMaquina(adminHost(event), p?.email, p?.desfazer === true);
+  });
 }
