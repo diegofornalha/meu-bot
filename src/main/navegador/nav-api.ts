@@ -17,7 +17,7 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import type { WebContents } from "electron";
-import { DONO_LEGADO, abasParaRecarregar, decidirAbrir, donoTexto, escolherAba, limpar, parseDono, podeFechar, tomar, abasDe, type Dono, type Posse, type Tipo } from "./nav-donos-core";
+import { DONO_SEM_IDENTIDADE, abasParaRecarregar, decidirAbrir, donoTexto, escolherAba, limpar, parseDono, podeFechar, tomar, abasDe, type Dono, type Posse, type Tipo } from "./nav-donos-core";
 import { browserActiveWcId, browserAsk, browserDonos, browserConsole, browserExtensions, browserFavoriteAdd, browserFavoriteRemove, browserFavorites, browserServiceWorkers, browserWebContents } from "./browser";
 import { log } from "../maquina/tunnel";
 import { registrarAcao } from "../app/depuracao";
@@ -235,7 +235,7 @@ async function handle(host: string, req: http.IncomingMessage, res: http.ServerR
     const chunks: Buffer[] = []; for await (const c of req) chunks.push(c as Buffer);
     try { body = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}") as Req; } catch { return send(400, { erro: "JSON inválido" }); }
   }
-  const dono = parseDono(req.headers["x-meu-bot-dono"]) ?? DONO_LEGADO;
+  const dono = parseDono(req.headers["x-meu-bot-dono"]) ?? DONO_SEM_IDENTIDADE;
   // Primeira vez de cada conversa: registra quem é (no WhatsApp mostra se veio a chave da sessão ou um id por processo).
   if (dono !== null && !vistos.has(dono.id)) { vistos.add(dono.id); log(`[navegador ${host}] conversa nova usando o Navegador: ${dono.origem} · ${dono.id} · ${dono.rotulo}`); }
   const t0 = Date.now();

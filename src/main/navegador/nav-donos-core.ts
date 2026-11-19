@@ -28,10 +28,12 @@ export function parseDono(header: unknown): Dono | null {
 }
 
 /**
- * Pedido sem identidade (backend antigo na máquina, antes de reinstalar): conta como uma conversa só, para também ter as
- * próprias abas e respeitar as dos outros (o WhatsApp, principalmente).
+ * Pedido sem identidade (sem o cabeçalho `X-Meu-Bot-Dono`: um servidor antigo do Navegador na máquina, ou alguém
+ * chamando o canal direto): conta como uma conversa só, para também ter as próprias abas e respeitar as dos outros
+ * (o WhatsApp, principalmente). O selo diz "sem identificação"; antes dizia "legado", que sugeria um backend velho
+ * rodando quando quase sempre é só um chamador que não se apresentou. O id é lido em `navDonoView` (renderer).
  */
-export const DONO_LEGADO: Dono = { id: "meu-bot:legado", rotulo: "meu-bot (backend antigo)", origem: "meu-bot" };
+export const DONO_SEM_IDENTIDADE: Dono = { id: "meu-bot:sem-identificacao", rotulo: "sem identificação", origem: "meu-bot" };
 
 /** Tira do mapa as abas fechadas e as posses vencidas. */
 export function limpar(posses: Map<number, Posse>, vivas: readonly number[], agora: number): void {

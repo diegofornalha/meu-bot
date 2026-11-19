@@ -401,6 +401,8 @@ let navDonos: Record<number, DonoInfo> = {};
  */
 export function navDonoView(d: DonoInfo): { icone: string; nome: string; curto: string; sessao: string | null } {
   if (d.origem === "claude-code") return { icone: "✳️", nome: d.rotulo, curto: "", sessao: null };
+  // Quem chamou sem se identificar (DONO_SEM_IDENTIDADE, nav-donos-core.ts): o selo diz isso, não um pedaço do id.
+  if (d.id === "meu-bot:sem-identificacao") return { icone: "❔", nome: d.rotulo, curto: "", sessao: null };
   if (d.origem === "meu-bot") { const conv = d.id.replace(/^meu-bot:/, ""); return { icone: "🤖", nome: d.rotulo, curto: conv.slice(0, 8), sessao: null }; }
   const grupo = ctx.waGroups?.grupos.find((g) => g.sessionKey === d.id);
   if (grupo !== undefined) return { icone: "📱", nome: ctx.waGroupTitle(grupo), curto: grupo.sessionId?.slice(0, 8) ?? "", sessao: grupo.sessionId };
