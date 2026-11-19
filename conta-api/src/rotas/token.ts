@@ -49,7 +49,10 @@ export async function postToken(req: Request, env: Env): Promise<Response> {
     const papel = await papelAdmin(env.DB, conta.email, env.ADMIN_BOOTSTRAP_EMAIL);
     const [licenca, todos] = await Promise.all([licencaDaConta(env.DB, conta, papel, catalogoAddons(env)), devicesDaConta(env.DB, conta.id)]);
     const ativos = todos.filter((x) => x.status !== "pending" && x.id !== atual?.id).length;
-    const status = admitirDevice(atual, ativos, limiteDoPapel(licenca.deviceLimit, papel));
+    // Para o device já ativo: quantos ativos entraram na conta antes dele (os mais antigos ficam quando o limite cai).
+    const maisAntigos = atual === null ? 0 : todos.filter((x) => x.status !== "pending" && x.id !== atual.id && (x.first_seen < atual.first_seen || (x.first_seen === atual.first_seen && x.id < atual.id))).length;
+    const status = admitirDevice(atual, ativos, limiteDoPapel(licenca.deviceLimit, papel), maisAntigos);
+    if (atual !== null && atual.status !== "pending" && status === "pending") await auditar(env.DB, conta.email, "device.pedido", conta.id, `${d.name || d.id} · voltou a esperar vaga: o limite caiu para ${licenca.deviceLimit}`, agora);
     await gravarDevice(env.DB, conta.id, { ...d, status }, atual, agora, conta.dados_uso !== 0);
     if (atual === null) await auditar(env.DB, conta.email, status === "pending" ? "device.pedido" : "device.novo", conta.id, `${d.name || d.id} · ${d.app} ${d.versao}`, agora);
     const familia = uuid();

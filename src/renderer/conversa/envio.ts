@@ -3,6 +3,9 @@ import { TUTORIAIS } from "../lib/tutoriais.js";
 import type { Tab } from "../renderer.js";
 import { ctx } from "../app/ctx.js";
 import { backendStatusVisto, offerBackendInstall } from "./backend-falta.js";
+import { CAMINHO_DEVICE, DEVICE_PENDENTE_TEXTO, DEVICE_PENDENTE_TITULO, ehDevicePendente, resultadoDaConferencia } from "../lib/device-pendente.js";
+import { ipcErrorText } from "../lib/ipc-error.js";
+import { el } from "../lib/dom.js";
 import { avisoLimiteNoChat } from "../lib/contas-claude.js";
 
 export async function sendText(tab: Tab, raw: string): Promise<void> {
@@ -98,7 +101,8 @@ export function ligarEnvio(): void {
     if (tab.renderTimer !== null) { clearTimeout(tab.renderTimer); ctx.flushRender(tab); }
     if (tab.currentAssistant !== null && tab.pendingText === "") tab.currentAssistant.remove();
     const limite = avisoLimiteNoChat(e.code);
-    ctx.addNotice(tab, limite !== null ? `${limite.title}. ${limite.text}` : e.message, limite !== null ? "warn" : "error");
+    if (ehDevicePendente(e.code)) avisarDevicePendente(tab);
+    else ctx.addNotice(tab, limite !== null ? `${limite.title}. ${limite.text}` : e.message, limite !== null ? "warn" : "error");
     ctx.offerClaudeLogin(tab, e.message);
     offerBackendInstall(tab, e.message);
     markUnread(tab);
@@ -114,4 +118,27 @@ export function ligarEnvio(): void {
     // Outra janela salvou: fonte/tema/notificações valem para todas; o modelo padrão vem resolvido pela máquina.
     ctx.applySettings({ ...view, backendModelForHost: ctx.settings?.backendModelForHost ?? view.backendModelForHost });
   });
+}
+
+/**
+ * O backend recusou o chat porque este Mac passou do limite de devices: o aviso explica e traz os dois caminhos,
+ * adicionar um device no console e conferir se a vaga já abriu (reemite a licença da conta na máquina e apresenta o Mac).
+ */
+function avisarDevicePendente(tab: Tab): void {
+  const box = el("div", "notice notice-warn");
+  const resultado = el("p", "hint"); resultado.setAttribute("role", "status");
+  const adicionar = el("button", "btn btn-primary btn-small", "Adicionar um device"); adicionar.type = "button";
+  adicionar.addEventListener("click", () => { void window.meuBot.contaAbrirConsole(CAMINHO_DEVICE).catch((err: unknown) => { resultado.textContent = ipcErrorText(err); }); });
+  const conferir = el("button", "btn btn-ghost btn-small", "Já adicionei: conferir"); conferir.type = "button";
+  conferir.addEventListener("click", () => {
+    conferir.disabled = true; resultado.textContent = "Conferindo…";
+    void window.meuBot.planoConferirDevice()
+      .then((r) => { resultado.textContent = resultadoDaConferencia(r.status).texto; })
+      .catch((err: unknown) => { resultado.textContent = ipcErrorText(err); })
+      .finally(() => { conferir.disabled = false; });
+  });
+  const acoes = el("div", "notice-actions"); acoes.append(adicionar, conferir);
+  box.append(el("strong", "", DEVICE_PENDENTE_TITULO), el("p", "", DEVICE_PENDENTE_TEXTO), acoes, resultado);
+  tab.messagesEl.appendChild(box);
+  ctx.scrollToBottom(tab, false);
 }

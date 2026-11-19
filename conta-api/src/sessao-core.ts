@@ -160,12 +160,13 @@ export function validaPedidoToken(raw: unknown): PedidoToken | { erro: string } 
 }
 
 /**
- * Admissão de um device (cópia de admitDevice do backend-colima/licenca.js): o ativo continua ativo; o novo e o que
- * estava pendente entram quando cabem no limite (`ativos` não conta o próprio), senão ficam pendentes. Assim o Mac
- * que esperava entra sozinho no próximo login depois de o limite subir.
+ * Admissão de um device (mesma regra de admitDevice do backend-colima/licenca.js). Novo ou pendente: entra se cabe no
+ * limite (`ativos` = os outros ativos da conta). Ativo: continua enquanto está entre os `limite` ativos mais antigos
+ * (`ativosMaisAntigos` = quantos ativos entraram antes dele); quando o limite cai (um device extra venceu), os mais
+ * novos voltam a esperar.
  */
-export function admitirDevice(conhecido: { status: string } | null, ativos: number, limite: number): "active" | "pending" {
-  if (conhecido !== null && conhecido.status !== "pending") return "active";
+export function admitirDevice(conhecido: { status: string } | null, ativos: number, limite: number, ativosMaisAntigos = 0): "active" | "pending" {
+  if (conhecido !== null && conhecido.status !== "pending") return ativosMaisAntigos < limite ? "active" : "pending";
   return ativos < limite ? "active" : "pending";
 }
 

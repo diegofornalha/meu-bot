@@ -191,6 +191,8 @@ body.dragging webview, body.dragging .term-box, body.dragging iframe { pointer-e
 .notice { align-self: center; font-size: calc(var(--chat-font) - 2px); color: var(--muted); text-align: center; max-width: 90%; }
 .notice-error { color: var(--bad); }
 .notice-warn { color: var(--warn); }
+/* Aviso com botões (o Mac acima do limite de devices): os botões ficam centralizados embaixo do texto. */
+.notice-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 6px; }
 
 /* Markdown dentro das respostas */
 .msg-assistant > :first-child { margin-top: 0; }

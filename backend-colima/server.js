@@ -302,9 +302,11 @@ async function announceMachine(m) {
   const now = new Date().toISOString();
   const known = all[m.id];
   const license = ensureLicense();
-  // Device ativo continua ativo; novo, ou pendente, entra ativo se cabe no limite, senão "pending" (mão levantada).
+  // Novo, ou pendente, entra ativo se cabe no limite, senão "pending" (mão levantada); ativo continua enquanto está
+  // entre os mais antigos que cabem (o limite caiu: um device extra venceu).
   const status = licenca.admitDevice(license, all, m.id);
   // O Mac que esperava vaga entrou sozinho (o limite subiu): fica no log, já que não passa pela mão do admin.
+  if (known && licenca.deviceStatus(known) === 'active' && status === 'pending') log(`device ${m.id} (${m.name}) voltou a esperar vaga: o limite caiu para ${license.deviceLimit} e ele é dos mais novos`);
   if (known && licenca.deviceStatus(known) === 'pending' && status === 'active') log(`device ${m.id} (${m.name}) liberado sozinho: passou a caber no limite de ${license.deviceLimit}`);
   const prev = known || {};
   all[m.id] = {
@@ -1037,7 +1039,7 @@ const server = http.createServer(async (req, res) => {
     if (/^[a-f0-9]{12}$/.test(devId)) {
       const entry = (readJson(MACHINES_FILE, {}) || {})[devId];
       if (entry && licenca.deviceStatus(entry) === 'pending') {
-        return json(res, 403, { error: { message: 'device aguardando liberação do admin (limite do plano)', type: 'forbidden', code: 'device_pending' } });
+        return json(res, 403, { error: { message: 'este Mac passou do limite de devices do plano: adicione um device na conta ou peça ao admin', type: 'forbidden', code: 'device_pending' } });
       }
     }
     chatCompletions(req, res).catch((e) => { log(`falha inesperada: ${e.stack || e.message}`); if (!res.headersSent) json(res, 500, { error: { message: e.message, type: 'server_error' } }); else { try { res.end(); } catch (_) {} } });

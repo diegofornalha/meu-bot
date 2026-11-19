@@ -116,15 +116,23 @@ function activeCount(machines, exceptId = null) {
 }
 
 /**
- * Decide o status de um device ao se apresentar. Device ativo continua ativo (não vira pendente de novo). Device
- * novo, ou que estava pendente, entra "active" se cabe no deviceLimit, senão "pending" (mão levantada): quando o
- * limite sobe (o admin subiu, ou a conta ganhou um device extra), o Mac que esperava entra sozinho na próxima abertura.
+ * Decide o status de um device ao se apresentar.
+ * - Novo, ou pendente: entra "active" se cabe no deviceLimit, senão "pending" (mão levantada). Quando o limite sobe (o
+ *   admin subiu, ou a conta ganhou um device extra), o Mac que esperava entra sozinho na próxima abertura.
+ * - Ativo: continua ativo enquanto está entre os `deviceLimit` ativos mais antigos (por firstSeen). Quando o limite
+ *   cai (um device extra venceu ou foi cancelado), ficam os que entraram há mais tempo e os mais novos voltam a
+ *   esperar: sem isso, bastaria pagar um mês de device extra e cancelar para ficar com a vaga para sempre.
+ *   Registro antigo sem firstSeen conta como o mais antigo.
  */
 function admitDevice(license, machines, id) {
   const lic = parseLicense(license);
   const all = machines && typeof machines === 'object' ? machines : {};
   const known = all[id];
-  if (known && deviceStatus(known) === 'active') return 'active';
+  if (known && deviceStatus(known) === 'active') {
+    const desde = (e) => (e && typeof e.firstSeen === 'string' ? e.firstSeen : '');
+    const ativos = Object.entries(all).filter(([, e]) => deviceStatus(e) === 'active').sort((a, b) => desde(a[1]).localeCompare(desde(b[1])) || a[0].localeCompare(b[0]));
+    return ativos.findIndex(([k]) => k === id) < lic.deviceLimit ? 'active' : 'pending';
+  }
   return activeCount(all, id) < lic.deviceLimit ? 'active' : 'pending';
 }
 

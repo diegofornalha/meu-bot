@@ -78,7 +78,10 @@ test("admitirDevice: ativo continua ativo; novo e pendente entram quando cabem n
   assert.equal(admitirDevice(null, 1, 2), "active");
   assert.equal(admitirDevice({ status: "pending" }, 1, 2), "active", "pendente entra sozinho quando o limite passa a caber");
   assert.equal(admitirDevice({ status: "pending" }, 2, 2), "pending", "sem vaga, continua pendente");
-  assert.equal(admitirDevice({ status: "active" }, 9, 1), "active", "ativo não vira pendente ao reaparecer");
+  assert.equal(admitirDevice({ status: "active" }, 9, 1), "active", "o ativo mais antigo fica, mesmo com a conta acima do limite");
+  assert.equal(admitirDevice({ status: "active" }, 2, 2, 1), "active", "o 2º mais antigo cabe no limite 2");
+  assert.equal(admitirDevice({ status: "active" }, 2, 2, 2), "pending", "o limite caiu (device extra venceu): o mais novo volta a esperar");
+  assert.equal(admitirDevice({ status: "active" }, 2, Infinity, 2), "active", "super admin não tem limite");
 });
 
 test("janelaMinuto: minuto corrente em ISO", () => {
