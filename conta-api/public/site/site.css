@@ -88,9 +88,17 @@ h2 { font-size: 20px; margin: 0 0 12px; }
 .lista-aviso.ruim { color: #b3261e; }
 #hash-windows { word-break: break-all; font-size: 13px; }
 
-/* Marketplace: um cartão por item à venda e a linha do preço. */
-.marketplace .mk-item { border: 1px solid var(--borda, rgba(127,127,127,.25)); border-radius: 16px; padding: 4px 22px 14px; margin: 18px 0; }
-.marketplace .mk-item h2 { margin-top: 6px; }
-.marketplace .mk-tipo { color: var(--sub); font-size: 13px; letter-spacing: .06em; text-transform: uppercase; margin: 16px 0 0; }
+/* Marketplace: grade de cartões no desenho da página Módulos do app, e a linha do preço na página do item. */
+main.marketplace { max-width: 980px; }
+.marketplace .mk-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 18px; margin: 24px 0; }
+.marketplace a.mk-cartao { display: flex; flex-direction: column; gap: 4px; border: 1px solid var(--borda); border-radius: 18px; padding: 22px; background: var(--cartao); color: var(--texto); text-decoration: none; }
+.marketplace a.mk-cartao:hover, .marketplace a.mk-cartao:focus-visible { border-color: var(--primario); outline: none; }
+.marketplace .mk-topo { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.marketplace .mk-avatar { width: 54px; height: 54px; border-radius: 14px; border: 1px solid var(--borda); display: grid; place-items: center; font-weight: 700; font-size: 21px; }
+.marketplace .mk-tipo { color: var(--sub); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; border: 1px solid var(--borda); border-radius: 999px; padding: 4px 12px; }
+.marketplace a.mk-cartao h2 { font-family: inherit; font-weight: 700; letter-spacing: 0; font-size: 19px; margin: 4px 0 0; }
+.marketplace a.mk-cartao p { color: var(--sub); font-size: 15px; margin: 4px 0 0; }
+.marketplace a.mk-cartao .mk-preco { color: var(--texto); font-size: 16px; margin-top: 10px; }
+.marketplace .mk-mais { color: var(--primario); font-weight: 600; margin-top: 12px; }
 .marketplace .mk-preco { font-size: 20px; }
 .marketplace .mk-preco s { opacity: .6; }

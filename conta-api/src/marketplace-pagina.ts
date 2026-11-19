@@ -18,20 +18,28 @@ const esc = (s: string): string => s.replace(/&/g, "&amp;").replace(/</g, "&lt;"
 export const reais = (centavos: number): string => `R$ ${centavos % 100 === 0 ? String(centavos / 100) : (centavos / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const precoHtml = (i: ItemMarketplace): string => (i.deCentavos !== null ? `De <s>${reais(i.deCentavos)}</s> por <strong>${reais(i.centavos)}</strong> por mês` : `<strong>${reais(i.centavos)}</strong> por mês`);
 const TIPO = { plano: "Plano", app: "App", unidade: "Extra" } as const;
-/** Onde o botão de contratar leva: o Pro se assina na página Plano do console; o resto, no Marketplace do console. O site redireciona /account* para o console do ambiente. */
-export const caminhoDeContratar = (i: ItemMarketplace): string => (i.id === ITEM_PRO ? "/account/plan" : "/account/marketplace");
+/** Onde o botão de contratar leva: o Pro se assina na página Plano do console; o resto, na página do próprio item no Marketplace do console (é lá que fica o painel de contratar). O site redireciona /account* para o console do ambiente. */
+export const caminhoDeContratar = (i: ItemMarketplace): string => (i.id === ITEM_PRO ? "/account/plan" : `/account/marketplace/${i.slug}`);
 
+/** A letra do avatar do cartão: a inicial do nome, sem o "Mais um(a)" das unidades extras. */
+const inicial = (nome: string): string => esc(nome.replace(/^Mais uma? /, "").slice(0, 1).toUpperCase());
+/**
+ * A vitrine: uma grade de cartões no desenho da página Módulos do app (avatar, tipo, nome, resumo e preço). O cartão
+ * inteiro é o link para a página do item; ninguém compra daqui.
+ */
 export function corpoDaLista(itens: readonly ItemMarketplace[]): string {
-  const cartao = (i: ItemMarketplace): string => `    <article class="mk-item">
-      <p class="mk-tipo">${TIPO[i.tipo]}</p>
-      <h2><a href="/marketplace/${i.slug}">${esc(i.nome)}</a></h2>
-      <p>${esc(i.resumo)}</p>
-      <p class="mk-preco">${precoHtml(i)}</p>
-      <p><a class="btn btn-ghost" href="/marketplace/${i.slug}" data-mk="ver" data-item="${esc(i.id)}">Ver detalhes</a></p>
-    </article>`;
+  const cartao = (i: ItemMarketplace): string => `      <a class="mk-cartao" href="/marketplace/${i.slug}" data-mk="ver" data-item="${esc(i.id)}">
+        <span class="mk-topo"><span class="mk-avatar" aria-hidden="true">${inicial(i.nome)}</span><span class="mk-tipo">${TIPO[i.tipo]}</span></span>
+        <h2>${esc(i.nome)}</h2>
+        <p>${esc(i.resumo)}</p>
+        <p class="mk-preco">${precoHtml(i)}</p>
+        <span class="mk-mais">Saber mais →</span>
+      </a>`;
   return `<h1>Marketplace</h1>
-    <p class="meta">O que dá para somar ao meu-bot. O Pro é a base; os apps e os extras são assinaturas mensais à parte, que você contrata e cancela pelo console da conta.</p>
-${itens.map(cartao).join("\n")}`;
+    <p class="meta">O que dá para somar ao meu-bot. O Pro é a base; os apps e os extras são assinaturas mensais à parte, que você contrata e cancela pelo console da conta. Toque num item para saber mais.</p>
+    <div class="mk-grade">
+${itens.map(cartao).join("\n")}
+    </div>`;
 }
 
 export function corpoDoItem(i: ItemMarketplace): string {

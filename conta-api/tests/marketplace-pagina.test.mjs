@@ -42,7 +42,8 @@ test("item: título, descrição e canônico próprios; Product com Offer em rea
   assert.ok(html.includes(`<link rel="canonical" href="${SITE_CANONICO}/marketplace/financas">`));
   assert.ok(html.includes(`<meta property="og:url" content="${SITE_CANONICO}/marketplace/financas">`));
   assert.ok(!html.includes(LISTA.titulo) && !html.includes(LISTA.descricao), "nada da lista sobra no cabeçalho");
-  assert.ok(html.includes('href="/account/marketplace" data-mk="contratar" data-item="meu-bot-finance"'));
+  assert.ok(html.includes('href="/account/marketplace/financas" data-mk="contratar" data-item="meu-bot-finance"'), "o botão leva à página do item no console");
+  assert.equal(caminhoDeContratar(fin), "/account/marketplace/financas");
   const produto = jsonLd(html)["@graph"].find((x) => x["@type"] === "Product");
   assert.deepEqual([produto.name, produto.offers.price, produto.offers.priceCurrency, produto.offers.priceSpecification.unitCode], ["Finanças", (fin.centavos / 100).toFixed(2), "BRL", "MON"]);
   assert.equal(caminhoDeContratar(PROD[0]), "/account/plan", "o Pro se assina no Plano");

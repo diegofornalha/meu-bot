@@ -1,7 +1,7 @@
 // Painel "Assinar o Pro" do console (public/console/plano-core.js): quando some e quando avisa do prazo atual.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addonsNaVisaoGeral, assinaturasAtivasDe, oQueAContaTem, pagoChegou, deParaDoExtra, avisoAddonPago, contagemRegressiva, diasAteOFim, estadoAssinaturaPro, fase, linhasDeMaquinas, ofertaDoProAparece, pedidoAssinar, promoNaTela, reaisCurto, semPrazo, podeAdicionarMaquina, vagaDoAssinar, vagasDeDevice, vagasDeMaquina } from "../public/console/plano-core.js";
+import { addonsNaVisaoGeral, estadoDoItem, assinaturasAtivasDe, oQueAContaTem, pagoChegou, deParaDoExtra, avisoAddonPago, contagemRegressiva, diasAteOFim, estadoAssinaturaPro, fase, linhasDeMaquinas, ofertaDoProAparece, pedidoAssinar, promoNaTela, reaisCurto, semPrazo, podeAdicionarMaquina, vagaDoAssinar, vagasDeDevice, vagasDeMaquina } from "../public/console/plano-core.js";
 
 const pro = { plan: "pro", status: "active" };
 const ativa = { status: "ACTIVE", produto: null };
@@ -235,7 +235,7 @@ test("Marketplace: a seção existe no menu, recebe os painéis de compra e o Pl
   const html = await readFile(new URL("../public/console/index.html", import.meta.url), "utf8");
   assert.match(html, /<a href="\/account\/marketplace" data-secao="marketplace">/);
   const mk = html.slice(html.indexOf('<section data-secao="marketplace"'), html.indexOf('<section data-secao="support"'));
-  for (const id of ["mk-tem", "mk-assinar-vaga", "pl-extras", "pl-addons", "mk-vazio"]) assert.ok(mk.includes(`id="${id}"`), id);
+  for (const id of ["mk-lista", "mk-tem", "mk-grade", "mk-ficha", "mk-assinar-vaga", "pl-extras", "pl-addons"]) assert.ok(mk.includes(`id="${id}"`), id);
   const plano = html.slice(html.indexOf('<section data-secao="plan"'), html.indexOf('<section data-secao="marketplace"'));
   assert.ok(!plano.includes('id="pl-extras"') && !plano.includes('id="pl-addons"'));
   assert.match(plano, /href="\/account\/marketplace"/);
@@ -265,4 +265,27 @@ test("Marketplace: o que a conta tem", () => {
   assert.deepEqual(oQueAContaTem({ licenca: { plan: "pro", status: "trialing", produtos: [] } }, nomes), ["Pro (teste grátis)"]);
   assert.deepEqual(oQueAContaTem({ licenca: { plan: "free", status: "expired", produtos: [] } }, nomes), []);
   assert.deepEqual(oQueAContaTem(undefined), []);
+});
+
+test("Marketplace: o selo de cada item para a conta", () => {
+  const AGORA = Date.now(), em = (d) => new Date(AGORA + d * 86400000).toISOString();
+  const pro = { tipo: "plano", id: "pro" }, fin = { tipo: "app", id: "meu-bot-finance" }, maq = { tipo: "unidade", id: "extra-maquina" }, mac = { tipo: "unidade", id: "extra-device" };
+  const ativa = { licenca: { plan: "pro", status: "active", expiresAt: em(20), produtos: ["meu-bot-finance"] }, maquinaExtras: 2, deviceExtras: 0, liberacoes: [] };
+  assert.deepEqual([pro, fin, maq, mac].map((i) => estadoDoItem(ativa, i).texto), ["Você tem", "Você tem", "Você tem 2", "Disponível"]);
+  assert.equal(estadoDoItem({ ...ativa, liberacoes: [{ produto: "meu-bot-finance", aberta: true }] }, fin).chave, "falta-liberar");
+  const teste = { licenca: { plan: "pro", status: "trialing", trialEnd: em(2), produtos: [] } };
+  assert.deepEqual([pro, fin, maq].map((i) => estadoDoItem(teste, i).chave), ["teste", "disponivel", "disponivel"]);
+  const free = { licenca: { plan: "free", status: "expired", produtos: [] } };
+  assert.deepEqual([pro, fin, maq, mac].map((i) => estadoDoItem(free, i).chave), ["disponivel", "disponivel", "precisa-pro", "precisa-pro"]);
+  const sup = { licenca: { plan: "pro", status: "active", semPrazo: true, produtos: [] } };
+  for (const i of [pro, fin, maq, mac]) assert.equal(estadoDoItem(sup, i).chave, "tem");
+  assert.equal(estadoDoItem(undefined, fin).chave, "disponivel");
+});
+
+test("Marketplace: a vitrine não vende, leva à página do item; o endereço do item existe no console", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const js = await readFile(new URL("../public/console/console.js", import.meta.url), "utf8");
+  assert.match(js, /\/account\\\/marketplace\\\/\(\[a-z0-9-\]\{1,60\}\)/, "rota /account/marketplace/<slug>");
+  const vitrine = js.slice(js.indexOf('$("mk-grade").replaceChildren'), js.indexOf("const e = estadoDoItem(c, item), ficha"));
+  assert.ok(vitrine.length > 100 && !vitrine.includes("assinar("), "nenhum botão de compra na vitrine");
 });
