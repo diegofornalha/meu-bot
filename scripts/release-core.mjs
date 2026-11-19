@@ -1,6 +1,8 @@
 // Regras da release, puras (testadas em scripts/tests/release-core.test.mjs): qual o próximo build staging, se um
 // commit pode virar release estável e quais produtos cada canal publica. O release.mjs só executa.
 
+import { join } from "node:path";
+
 const STAGING = /^v(\d+\.\d+\.\d+)-staging\.(\d+)$/;
 
 /** Próximo N do staging de `versao`, pelas tags que já existem (v0.2.0-staging.1, .2 → 3). */
@@ -236,7 +238,29 @@ export function dependenciasDesalinhadas(lock, instalada) {
   return erradas;
 }
 
-// ── Site (Worker conta-api): acompanha a estável sem esperar ninguém (scripts/site-publicar.mjs) ───────────────────
+// ── Site (Worker conta-api): main → staging → produção, nessa ordem e no mesmo histórico ────────────────────────────
+// O staging acompanha a main sozinho (agente da release); a produção só recebe o commit que está no staging e que o
+// dono aprovou (scripts/site-publicar.mjs --aprovar <sha>, depois --producao).
+
+/** Pasta do estado do agente da release (estado.json, trava, segurar-estavel) e da aprovação do site. */
+export const dirDoEstado = ({ env, home }) => env.MEU_BOT_RELEASE_DIR ?? join(home, "Library", "Application Support", "meu-bot-release");
+/** A aprovação do site, dentro da pasta de estado: { sha, aprovadoEm, roteiro }. */
+export const ARQUIVO_APROVACAO = "site-aprovado.json";
+
+/** Onde cada ambiente do site responde: `site` é a home, `conta` é a API (o /health). */
+export const SITE_NO_AR = {
+  staging: { site: "https://site-staging.agentesgrok.com", conta: "https://conta-staging.agentesgrok.com" },
+  producao: { site: "https://agentesgrok.com", conta: "https://conta.agentesgrok.com" },
+};
+
+const SHA = /^[0-9a-f]{40}$/;
+/** É um sha completo de commit (40 hexadecimais minúsculos)? */
+export const ehSha = (v) => typeof v === "string" && SHA.test(v);
+/**
+ * O commit que o /health diz estar no ar. null = desconhecido: o ambiente não respondeu, ou foi publicado antes do
+ * portão ou à mão (sem a variável COMMIT). Desconhecido não é erro, só não prova nada.
+ */
+export const commitNoAr = (health) => (ehSha(health?.commit) ? health.commit : null);
 
 const ESTAVEL = /^v(\d+)\.(\d+)\.(\d+)$/;
 /** A estável mais nova entre `tags` (ex.: "v0.83.0"), ou null. */
@@ -251,17 +275,101 @@ export function estavelMaisNova(tags) {
 }
 
 /**
- * O que a rodada faz com o site. `siteDe` = a estável que o site já acompanhou (estado do agente).
- * - `marcar`: só anota a estável (primeira rodada do agente, ou conta-api não mudou desde `siteDe`);
- * - `publicar`: saiu estável nova (pelo agente ou à mão) e conta-api mudou;
- * - `nada`: site em dia, ou a última tentativa falhou há menos de `esperaMs`.
+ * O staging do site acompanha a main: o que a rodada faz com ele.
+ * `main` = sha do origin/main; `stagingDe` = commit publicado no staging (o /health dele quando responde, senão o
+ * estado do agente; null = desconhecido); `mudouSite` = conta-api/ difere entre `stagingDe` e `main` (null = não deu
+ * para comparar).
+ * - `publicar`: o staging não tem o conta-api da main (ou não dá para provar que tem);
+ * - `nada`: staging em dia, ou a última tentativa falhou há menos de `esperaMs`.
  */
-export function decideSite({ ultimaEstavel, siteDe = null, mudouSite, falhouEm = null, agora, esperaMs }) {
+export function decideSiteStaging({ main, stagingDe = null, mudouSite = null, falhouEm = null, agora, esperaMs }) {
+  if (stagingDe === main) return { acao: "nada" };
+  if (stagingDe !== null && mudouSite === false) return { acao: "nada" };
+  if (falhouEm !== null && agora - falhouEm < esperaMs) return { acao: "nada", motivo: "a última publicação do site falhou há pouco" };
+  if (stagingDe === null) return { acao: "publicar", motivo: "não sei qual commit está no staging do site" };
+  if (mudouSite === null) return { acao: "publicar", motivo: `não consegui comparar conta-api com o commit ${stagingDe.slice(0, 12)} do staging` };
+  return { acao: "publicar", motivo: `conta-api mudou na main desde o commit ${stagingDe.slice(0, 12)} do staging` };
+}
+
+/**
+ * Saiu estável nova: o que a rodada faz com a PRODUÇÃO do site. Ela não é mais publicada sozinha; o agente só avisa
+ * que há o que aprovar. `siteDe` = a estável que o site já acompanhou (estado do agente).
+ * - `marcar`: só anota a estável (primeira rodada do agente, ou conta-api não mudou desde `siteDe`);
+ * - `avisar`: saiu estável nova (pelo agente ou à mão) e conta-api mudou: avisa uma vez e anota a estável;
+ * - `nada`: já anotada.
+ */
+export function decideSite({ ultimaEstavel, siteDe = null, mudouSite }) {
   if (ultimaEstavel === null || siteDe === ultimaEstavel) return { acao: "nada" };
   if (siteDe === null) return { acao: "marcar", motivo: `primeira rodada: o site já estava no ar quando a ${ultimaEstavel} saiu` };
   if (!mudouSite) return { acao: "marcar", motivo: `conta-api não mudou desde a ${siteDe}` };
-  if (falhouEm !== null && agora - falhouEm < esperaMs) return { acao: "nada", motivo: "a última publicação do site falhou há pouco" };
-  return { acao: "publicar", motivo: `${ultimaEstavel} saiu e conta-api mudou desde a ${siteDe}` };
+  return { acao: "avisar", motivo: `${ultimaEstavel} saiu e conta-api mudou desde a ${siteDe}` };
+}
+
+/**
+ * `--aprovar <sha>`: só se aprova o commit que está no staging agora. `commitStaging` = commitNoAr do /health do
+ * staging (null = desconhecido). Devolve { ok: true } ou { erro }.
+ */
+export function podeAprovar({ sha, commitStaging }) {
+  if (!ehSha(sha)) return { erro: "diga o commit inteiro (40 caracteres): node scripts/site-publicar.mjs --aprovar <sha>" };
+  if (commitStaging === null) return { erro: "o staging não diz qual commit está no ar (/health sem commit: sem resposta, ou publicado antes do portão ou à mão). Publique o staging por este script e aprove o commit que ele mostrar" };
+  if (commitStaging !== sha) return { erro: `o staging está no commit ${commitStaging}, não no ${sha}. Só se aprova o que está no staging` };
+  return { ok: true };
+}
+
+/**
+ * `--producao`: a produção só recebe o commit aprovado, que tem de ser o que está no staging e o do worktree de onde
+ * se publica. `aprovado` = sha da aprovação gravada (null = não há); `head` = HEAD do worktree; `commitStaging` =
+ * commitNoAr do staging; `limpo` = conta-api/ sem mudança fora do commit; `naMain` = o commit está no origin/main.
+ * Devolve { ok: true } ou { erro }.
+ */
+export function podePublicarProducao({ aprovado, head, commitStaging, limpo = true, naMain = true }) {
+  if (!ehSha(aprovado)) return { erro: "não há aprovação do site. Confira o staging e aprove o commit dele: node scripts/site-publicar.mjs --aprovar <sha>" };
+  if (head !== aprovado) return { erro: `o commit aprovado é ${aprovado}, e este worktree está em ${head ?? "um commit que não consegui ler"}. Publique de um worktree no commit aprovado` };
+  if (commitStaging === null) return { erro: "o staging não diz qual commit está no ar (/health sem commit ou sem resposta): não dá para provar que a produção recebe o que foi conferido" };
+  if (commitStaging !== aprovado) return { erro: `o staging andou: está no commit ${commitStaging}, e o aprovado é ${aprovado}. Confira o staging de novo e aprove o commit que está lá` };
+  if (!limpo) return { erro: "conta-api/ tem mudanças fora do commit neste worktree: o que subiria não é o commit aprovado" };
+  if (!naMain) return { erro: `o commit ${aprovado} não está no origin/main: a produção só recebe o que passou pela main` };
+  return { ok: true };
+}
+
+/**
+ * A ordem dos ambientes: a produção tem de ser um ancestral do staging (o mesmo histórico, o staging na frente).
+ * `ancestral` = resultado do `git merge-base --is-ancestor <producao> <staging>`: true, false ou null (o git não
+ * conhece um dos commits). Devolve { ok, texto }; `ok` null = não dá para dizer.
+ */
+export function ordemDosAmbientes({ staging, producao, ancestral = null }) {
+  if (producao === null) return { ok: null, texto: "produção com commit desconhecido (publicada antes do portão ou à mão): a ordem só aparece depois da primeira publicação pelo script" };
+  if (staging === null) return { ok: null, texto: "staging com commit desconhecido: não dá para comparar com a produção" };
+  if (staging === producao) return { ok: true, texto: "produção e staging no mesmo commit" };
+  if (ancestral === null) return { ok: null, texto: "não consegui comparar os commits neste clone (git fetch origin e rode de novo)" };
+  if (ancestral) return { ok: true, texto: "a produção é um ancestral do staging (o staging está na frente, no mesmo histórico)" };
+  return { ok: false, texto: "a produção NÃO é um ancestral do staging: ela tem um commit que não passou por ele" };
+}
+
+/**
+ * As vars de cada ambiente no conta-api/wrangler.toml: `[vars]` é a produção, `[env.staging.vars]` o staging.
+ * Devolve { producao: { CHAVE: valor }, staging: { … } }, com os valores como texto (o que o Worker recebe).
+ */
+export function varsDoWrangler(toml) {
+  const secoes = { vars: "producao", "env.staging.vars": "staging" };
+  const out = { producao: {}, staging: {} };
+  let ambiente = null;
+  for (const bruta of String(toml ?? "").split("\n")) {
+    const linha = bruta.trim();
+    if (linha === "" || linha.startsWith("#")) continue;
+    const secao = /^\[+\s*([^\]]+?)\s*\]+$/.exec(linha);
+    if (secao !== null) { ambiente = secoes[secao[1]] ?? null; continue; }
+    if (ambiente === null) continue;
+    const m = /^([A-Za-z0-9_]+)\s*=\s*(.*)$/.exec(linha);
+    if (m === null) continue;
+    let valor = m[2];
+    const literal = /^'([^']*)'/.exec(valor), basica = /^"((?:[^"\\]|\\.)*)"/.exec(valor);
+    if (literal !== null) valor = literal[1];
+    else if (basica !== null) { try { valor = JSON.parse(`"${basica[1]}"`); } catch { valor = basica[1]; } }
+    else valor = valor.replace(/\s+#.*$/, "");
+    out[ambiente][m[1]] = valor;
+  }
+  return out;
 }
 
 /** Páginas que têm de responder 200 em cada canal (o staging fica fora dos buscadores pelo cabeçalho, sem sitemap). */
@@ -278,6 +386,45 @@ export function faltasDoSite({ canal, health, download, paginas }) {
   else if (canal === "producao" && !/^\d+\.\d+\.\d+$/.test(download.versao)) f.push(`produção entregando ${download.versao}, que não é estável`);
   for (const c of PAGINAS_DO_SITE[canal]) if (paginas?.[c] !== 200) f.push(`${c} respondeu ${paginas?.[c] ?? "nada"}`);
   return f;
+}
+
+/** O objeto que o /config.js do site entrega (`window.MEU_BOT_CONTA = {…};`), ou null se não for isso. */
+export function lerConfigJs(texto) {
+  const m = /^\s*window\.MEU_BOT_CONTA\s*=\s*(\{[\s\S]*\})\s*;?\s*$/.exec(String(texto ?? ""));
+  if (m === null) return null;
+  try { const o = JSON.parse(m[1]); return o !== null && typeof o === "object" ? o : null; } catch { return null; }
+}
+
+const idsDeMedicao = (v) => String(v ?? "").split(",").map((x) => x.trim()).filter(Boolean).join(",");
+/**
+ * Conferência de conteúdo, além dos 200: o que o site no ar mostra bate com a configuração do ambiente?
+ * `home` = { status, texto } de `/`; `configJs` = { status, texto } de `/config.js` do site; `health` = corpo JSON de
+ * /health; `esperado` = { trialDias, ga, commit }: TRIAL_DIAS e GA_ID do ambiente no wrangler.toml e o commit recém
+ * publicado (`commit` undefined = não conferir, como no --conferir avulso).
+ * Devolve { faltas, desfazer }: `desfazer` só quando a própria página respondeu (200) com o conteúdo errado; sem
+ * resposta, ou só o commit faltando no /health, não prova que o deploy é ruim.
+ */
+export function faltasDeConteudo({ canal, home, configJs, health, esperado }) {
+  const faltas = [];
+  let desfazer = false;
+  const dias = Number(esperado?.trialDias);
+  if (Number.isInteger(dias) && dias > 0 && home?.status === 200) {
+    const ditos = [...String(home.texto ?? "").matchAll(/(\d+) dias grátis/g)].map((m) => m[1]);
+    const errados = [...new Set(ditos.filter((d) => d !== String(dias)))];
+    if (ditos.length === 0) { faltas.push(`a home não cita o teste grátis ("${dias} dias grátis")`); desfazer = true; }
+    else if (errados.length > 0) { faltas.push(`a home diz ${errados.join(" e ")} dias grátis; o TRIAL_DIAS deste ambiente é ${dias}`); desfazer = true; }
+  }
+  if (configJs?.status === 200) {
+    const cfg = lerConfigJs(configJs.texto);
+    if (cfg === null) { faltas.push("/config.js do site não é o window.MEU_BOT_CONTA esperado"); desfazer = true; }
+    else {
+      if (cfg.canal !== canal) { faltas.push(`/config.js do site diz canal "${cfg.canal ?? ""}", esperado "${canal}"`); desfazer = true; }
+      const ga = idsDeMedicao(esperado?.ga);
+      if (idsDeMedicao(cfg.ga) !== ga) { faltas.push(`/config.js do site com a medição "${cfg.ga ?? ""}", esperado "${ga}" (GA_ID deste ambiente)`); desfazer = true; }
+    }
+  } else { faltas.push(`/config.js do site respondeu ${configJs?.status || "nada"}`); if (typeof configJs?.status === "number" && configJs.status !== 0) desfazer = true; }
+  if (esperado?.commit !== undefined && commitNoAr(health) !== esperado.commit) faltas.push(`/health diz commit ${commitNoAr(health) ?? "desconhecido"}, esperado ${esperado.commit}`);
+  return { faltas, desfazer };
 }
 
 /**

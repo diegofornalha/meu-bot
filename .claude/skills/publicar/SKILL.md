@@ -18,11 +18,14 @@ O agente do launchd `scripts/release-auto.mjs` (rótulo `com.meu-bot.release-aut
 2. **Saúde**: o `meu-bot-staging` deste Mac (vindo da release) precisa receber a versão pelo atualizador e confirmá-la
    (`[atualização] <v> confirmada` no log; `node scripts/release-saude.mjs <v>`). Se ele estiver fechado, o agente o
    abre escondido. Se a versão voltou para a anterior, nada é promovido e o Mac avisa.
-3. **Estável**: 24 h depois do staging, saudável e ainda no HEAD do `main` → `npm run release` no mesmo commit. Na
-   rodada seguinte, o site acompanha se `conta-api/` mudou desde a estável anterior (`scripts/site-publicar.mjs`:
-   staging, conferência, produção, conferência; desfaz se a conferência falhar). Merge novo no meio solta um staging novo e
-   recomeça as 24 h.
+3. **Estável**: 24 h depois do staging, saudável e ainda no HEAD do `main` → `npm run release` no mesmo commit. Merge
+   novo no meio solta um staging novo e recomeça as 24 h.
 4. **Base**: PR "Versão: base sobe para X" (`package.json` + "Ainda não lançado" vira a seção datada), mergeado sozinho.
+
+O **site** (Worker `conta-api`) tem o seu caminho, na mesma ordem (skill `publicar-site`): a cada merge que mexe em
+`conta-api/`, o agente publica **só o staging** do site (`scripts/site-publicar.mjs --so-staging`). A produção do site
+nunca sai sozinha: quando a estável sai com `conta-api/` diferente, o agente avisa "site pronto para aprovar no staging
+(commit X)"; o dono confere e aprova (`--aprovar <sha>`) e aí sim `--producao`.
 
 - Ver a decisão da vez: `node scripts/release-auto.mjs --check`.
 - Instalar o agente (e trocar os staging locais pelos da release): `node scripts/release-auto.mjs --instalar`;
@@ -81,7 +84,8 @@ Publique do checkout principal só se ele estiver limpo e no `origin/main`; sen�
    (o `fecharChangelog` da release automática faz isso). Vai num PR (worktree próprio, skill `contribuir`).
 8. **Conferir no ar:** `curl -s https://agentesgrok.com/download/mac.json` traz a estável nova e
    `https://site-staging.agentesgrok.com/download/mac.json` o staging mais novo, até 10 min depois (cache do edge). Se a
-   release veio junto com mudanças em `conta-api/`, publique o site também (skill `publicar-site`).
+   release veio junto com mudanças em `conta-api/`, o staging do site já as recebeu sozinho; a produção do site espera a
+   aprovação do dono (skill `publicar-site`).
 
 ## Regras
 

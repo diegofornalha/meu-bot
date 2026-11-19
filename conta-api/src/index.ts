@@ -114,7 +114,8 @@ async function api(req: Request, env: Env, url: URL, espera: (p: Promise<unknown
   if (req.method === "OPTIONS") return cors(req, env, new Response(null, { status: 204 }));
   const rota = `${req.method} ${url.pathname.replace(/\/+$/, "") || "/"}`;
   let res: Response;
-  if (rota === "GET /health") res = json({ ok: true, canal: env.CANAL });
+  // `commit`: o sha que o scripts/site-publicar.mjs passou no deploy (--var COMMIT:<sha>); null = deploy antigo ou à mão.
+  if (rota === "GET /health") res = json({ ok: true, canal: env.CANAL, commit: /^[0-9a-f]{40}$/.test(env.COMMIT ?? "") ? env.COMMIT : null });
   else if (rota === "POST /sessao") res = await postSessao(req, env);
   else if (/^GET \/orgs\/[a-z0-9-]{1,40}\/publico$/.test(rota)) res = await getOrgPublico(env, rota.split("/")[2]!);
   else if (rota === "POST /token") res = await postToken(req, env);
