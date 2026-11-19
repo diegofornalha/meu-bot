@@ -73,6 +73,14 @@ básico.
 pouco: na rodada seguinte (até 10 min) o agente vê que o staging não é a main e publica a main por cima. Commit de
 branch nunca chega à produção (o `--producao` recusa o que não está no `origin/main`).
 
+## Roteiro
+
+A aprovação da produção pede o roteiro conferido: `docs/STAGING.md` (uma linha por fluxo, com o resultado esperado).
+Confira no staging as seções que a mudança toca, copie o bloco "Registro da conferência" do fim dele para um arquivo
+fora do repositório, preencha (data, commit do staging, quem conferiu, itens não conferidos e por quê) e aprove com
+esse arquivo: `node scripts/site-publicar.mjs --aprovar <sha> --roteiro <arquivo>`. Sem o registro preenchido, não
+rode o `--aprovar`. As contas de teste nos estados que o roteiro usa saem de `node scripts/staging-contas.mjs --help`.
+
 ## Ao terminar
 
 Diga em pt-BR, em poucas linhas: o ambiente publicado, o commit (o do `/health`), o Version ID e o que foi conferido no
