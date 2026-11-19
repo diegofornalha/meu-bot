@@ -454,6 +454,7 @@ test("tenho um cupom, sem código: o checkout aceita os cupons ativos que servem
   assert.deepEqual(cuponsDoCheckout([], promo, 9700), { codigos: ["PRIMEIROMES1"], centavos: 100 });
   assert.deepEqual(cuponsDoCheckout(null, promo, 9700), { codigos: ["PRIMEIROMES1"], centavos: 100 });
   assert.equal(cuponsDoCheckout([], null, 9700), null, "sem promoção e sem lista: não há cupom");
+  assert.equal(cuponsDoCheckout([], { ...promo, precoCentavos: 50 }, 9700), null, "promoção abaixo de R$ 1: a AbacatePay recusaria, não entra");
   // Com a lista: entram os que servem, do mais barato para o mais caro; desligado, esgotado e fora da forma ficam de fora.
   const lista = [c("DEZ"), c("METADE", { discount: 5000 }), c("VELHO", { status: "INACTIVE" }), c("ESGOTADO", { maxRedeems: 1, redeemsCount: 1 }), c("com espaço"), c("PRIMEIROMES1", { discountKind: "FIXED", discount: 9600 }), "lixo", null];
   assert.deepEqual(cuponsDoCheckout(lista, promo, 9700), { codigos: ["PRIMEIROMES1", "METADE", "DEZ"], centavos: 100 });

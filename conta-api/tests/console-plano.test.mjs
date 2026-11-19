@@ -1,7 +1,7 @@
 // Painel "Assinar o Pro" do console (public/console/plano-core.js): quando some e quando avisa do prazo atual.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addonsNaVisaoGeral, assinaturasDoItem, estadoDoItem, itemGa, resumoDeUso, semDevices, assinaturasAtivasDe, oQueAContaTem, pagoChegou, deParaDoExtra, avisoAddonPago, contagemRegressiva, diasAteOFim, cupomDigitado, estadoAssinaturaPro, fase, linhasDeMaquinas, ofertaDoProAparece, pedidoAssinar, promoNaTela, reaisCurto, semPrazo, podeAdicionarMaquina, vagaDoAssinar, vagasDeDevice, vagasDeMaquina } from "../public/console/plano-core.js";
+import { addonsNaVisaoGeral, assinaturasDoItem, estadoDoItem, itemGa, resumoDeUso, semDevices, assinaturasAtivasDe, oQueAContaTem, pagoChegou, deParaDoExtra, avisoAddonPago, contagemRegressiva, diasAteOFim, estadoAssinaturaPro, fase, linhasDeMaquinas, ofertaDoProAparece, pedidoAssinar, promoNaTela, reaisCurto, semPrazo, podeAdicionarMaquina, vagaDoAssinar, vagasDeDevice, vagasDeMaquina } from "../public/console/plano-core.js";
 
 const pro = { plan: "pro", status: "active" };
 const ativa = { status: "ACTIVE", produto: null };
@@ -298,16 +298,12 @@ test("Marketplace: as assinaturas de um item (o Pro é a de produto nulo), ativa
   assert.deepEqual(assinaturasDoItem(undefined, "pro"), []);
 });
 
-test("tenho um cupom: o código digitado vai no pedido, no lugar da promoção da tela, e nunca num add-on", () => {
-  assert.equal(cupomDigitado(" primeiromes1 "), "PRIMEIROMES1");
-  assert.equal(cupomDigitado("com espaço"), null);
-  assert.deepEqual(pedidoAssinar(null, null, false, "PRIMEIROMES1"), { cupom: "PRIMEIROMES1" });
-  assert.deepEqual(pedidoAssinar(null, { cupom: "X", precoCentavos: 100, ate: "2026-12-01" }, false, "OUTRO10"), { cupom: "OUTRO10" });
-  assert.deepEqual(pedidoAssinar("meu-bot-finance", null, false, "PRIMEIROMES1"), { produto: "meu-bot-finance" });
-  assert.deepEqual(pedidoAssinar(null, null, false, null), {});
-  // O botão da tela não leva código: a pessoa digita na página de pagamento.
+test("tenho um cupom: o botão manda cupom: true, no lugar da promoção da tela, e nunca num add-on", () => {
   assert.deepEqual(pedidoAssinar(null, null, false, true), { cupom: true });
+  assert.deepEqual(pedidoAssinar(null, { cupom: "X", precoCentavos: 100, ate: "2026-12-01" }, false, true), { cupom: true });
   assert.deepEqual(pedidoAssinar("extra-maquina", null, false, true), { produto: "extra-maquina" });
+  assert.deepEqual(pedidoAssinar(null, null, false, false), {});
+  assert.deepEqual(pedidoAssinar(null, null), {});
 });
 
 test("Marketplace: o item do Analytics tem o mesmo item_id que o servidor manda na compra", async () => {

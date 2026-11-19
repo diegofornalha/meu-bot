@@ -1,5 +1,5 @@
 import { avisoDepoisDo404, pedeReleitura, visaoVelha } from "./admin-core.js";
-import { INFINITO, SEM_LIMITE, SEM_PRAZO, TODOS_ADDONS, avisoAddonPago, contagemRegressiva, cupomDigitado, addonsNaVisaoGeral, estadoAssinaturaPro, fase, linhasDeMaquinas, deParaDoExtra, assinaturasDoItem, estadoDoItem, itemGa, ofertaDoProAparece, resumoDeUso, semDevices, oQueAContaTem, pagoChegou, assinaturasAtivasDe, pedidoAssinar, podeAdicionarMaquina, promoNaTela, reaisCurto, semPrazo, vagaDoAssinar, vagasDeDevice, vagasDeMaquina } from "./plano-core.js";
+import { INFINITO, SEM_LIMITE, SEM_PRAZO, TODOS_ADDONS, avisoAddonPago, contagemRegressiva, addonsNaVisaoGeral, estadoAssinaturaPro, fase, linhasDeMaquinas, deParaDoExtra, assinaturasDoItem, estadoDoItem, itemGa, ofertaDoProAparece, resumoDeUso, semDevices, oQueAContaTem, pagoChegou, assinaturasAtivasDe, pedidoAssinar, podeAdicionarMaquina, promoNaTela, reaisCurto, semPrazo, vagaDoAssinar, vagasDeDevice, vagasDeMaquina } from "./plano-core.js";
 // Console da conta meu-bot (console.agentesgrok.com/account/* e /organizations/<slug>/members|settings, molde Rambox). Entra pela mesma página de
 // login do app (auth.agentesgrok.com) com esquema=web: o console gera state + PKCE, a página devolve #code&state, e
 // POST /token {grant:"web"} vira um token de acesso de 1 h guardado neste navegador (localStorage: outra aba, inclusive
@@ -1113,13 +1113,13 @@ function pintarPromo(c) {
  * página da AbacatePay. Com a promoção na tela, copia o cupom antes (ainda dentro do clique, senão o navegador recusa);
  * `semPromo` é o "Prefiro pagar com Pix".
  */
-async function assinar(produto = null, btn = $("pl-assinar-btn"), aviso = $("pl-assinar-aviso"), semPromo = false, cupom = null) {
+async function assinar(produto = null, btn = $("pl-assinar-btn"), aviso = $("pl-assinar-aviso"), semPromo = false, cupom = false) {
   const s = sessaoGuardada();
   if (s === null) { void entrar(); return; }
   const pedido = pedidoAssinar(produto, promoMostrada, semPromo, cupom);
   // Desabilita ANTES de copiar: a cópia pode demorar (o navegador pede permissão) e um segundo clique abriria outro checkout.
   btn.disabled = true;
-  const copiou = typeof pedido.cupom === "string" ? await copiarCupom(pedido.cupom) : pedido.promo === true ? await copiarCupom(promoMostrada.cupom) : false;
+  const copiou = pedido.promo === true ? await copiarCupom(promoMostrada.cupom) : false;
   aviso.textContent = copiou ? "Cupom copiado. Abrindo a página de pagamento…" : pedido.cupom === true ? "Abrindo a página de pagamento… Lá, digite o código em \"Código do cupom\" e toque em Aplicar." : "Abrindo a página de pagamento…";
   const v = typeof ga.visita === "function" ? await ga.visita() : { clientId: null, sessionId: null };
   const r = await api("POST", "/conta/assinatura", { gaClientId: v.clientId, gaSessionId: v.sessionId, ...pedido }, s.acesso);
