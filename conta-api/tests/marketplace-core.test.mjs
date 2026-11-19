@@ -54,3 +54,12 @@ test("os dois ambientes de hoje: produção vende menos itens que o staging, e o
   const prod = de(AMBIENTES.producao), stg = de(AMBIENTES.staging);
   for (const i of prod) { const s = stg.find((x) => x.id === i.id); assert.ok(s, `${i.id} vendido em produção e não no staging`); assert.deepEqual({ ...i }, { ...s }); }
 });
+
+test("marketplaceDoEnv: sem as chaves de pagamento nada está à venda; com elas, o Pro primeiro e o catálogo do ambiente", async () => {
+  const { marketplaceDoEnv } = await import("../dist/rotas/pagamentos.js");
+  const vars = AMBIENTES.producao;
+  assert.deepEqual(marketplaceDoEnv({ ...vars }), [], "sem ABACATEPAY_KEY e sem o secret do webhook");
+  const ligado = marketplaceDoEnv({ ...vars, ABACATEPAY_KEY: "abc_dev_x", ABACATEPAY_WEBHOOK_SECRET: "s".repeat(40) });
+  assert.deepEqual(ligado.map((i) => i.id), ["pro", ...lerAddons(vars.ABACATEPAY_ADDONS).map((a) => a.nome), ...lerExtras(vars.ABACATEPAY_EXTRAS).map((x) => x.nome)]);
+  assert.equal(ligado[0].centavos, Number(vars.ABACATEPAY_PRECO_CENTAVOS));
+});
