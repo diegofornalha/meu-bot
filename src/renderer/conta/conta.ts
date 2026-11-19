@@ -67,7 +67,8 @@ function blocoMaquina(c: ContaView, repintar: () => void): HTMLElement {
     });
     acoes.append(tirar);
   } else if (c.conta !== null && caminhoDoPlano({ remoto: true, conta: c.conta.licenca, maquinaLimite: c.conta.maquinaLimite, origem: ctx.license?.origem }) === "usar-da-conta") {
-    box.append(el("p", "hint", `A sua conta tem uma licença que ${onde} ainda não usa. Ela vale em uma máquina por vez.`));
+    const vagas = c.conta.maquinaLimite ?? 1;
+    box.append(el("p", "hint", `A sua conta tem uma licença que ${onde} ainda não usa. Ela vale em ${vagas === 1 ? "uma máquina por vez" : `${vagas} máquinas ao mesmo tempo`}.`));
     const usar = el("button", "btn btn-primary btn-small", c.conta.licenca.plan === "pro" ? "Usar o meu Pro nesta máquina" : "Usar a minha assinatura nesta máquina"); usar.type = "button";
     usar.addEventListener("click", () => rodar(usar, "Aplicando nesta máquina…", () => window.meuBot.planoUsarDaConta()));
     acoes.append(usar);

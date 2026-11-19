@@ -178,14 +178,47 @@ export function lerAddons(bruto: string | undefined): OfertaAddon[] {
   return out.sort((x, y) => x.nome.localeCompare(y.nome));
 }
 
+/** O que se vende por unidade, além do que o Pro inclui. Só o que o servidor sabe aplicar entra aqui: hoje a máquina. */
+export const TIPOS_EXTRA = ["maquina"] as const;
+export type TipoExtra = (typeof TIPOS_EXTRA)[number];
+/**
+ * Uma unidade extra vendida à parte: cada assinatura paga soma 1 ao limite da conta enquanto vale (extras_pagos).
+ * `nome` é o que vai em `pagamento_checkouts.produto` e `assinaturas.produto` ("extra-maquina"): fora do padrão
+ * `meu-bot-*` dos add-ons, para nunca cair em `licenca.produtos`.
+ */
+export interface OfertaExtra { tipo: TipoExtra; nome: string; produto: string; centavos: number; rotulo: string }
+export const nomeDoExtra = (tipo: TipoExtra): string => `extra-${tipo}`;
+/** O tipo de um produto de extra ("extra-maquina" → "maquina"); null para o Pro, add-on ou nome desconhecido. */
+export function tipoDoExtra(produto: string | null | undefined): TipoExtra | null {
+  return TIPOS_EXTRA.find((t) => nomeDoExtra(t) === produto) ?? null;
+}
+/**
+ * Lê `ABACATEPAY_EXTRAS` (`{"maquina":{"produto":"prod_...","centavos":9700,"rotulo":"Máquina extra"}}`). Vazio ou
+ * fora da forma: nada à venda. Tipo desconhecido é descartado, como add-on fora da forma em `lerAddons`.
+ */
+export function lerExtras(bruto: string | undefined): OfertaExtra[] {
+  let o: Record<string, unknown> | null = null;
+  try { o = obj(JSON.parse(bruto ?? "")); } catch { return []; }
+  if (o === null) return [];
+  const out: OfertaExtra[] = [];
+  for (const tipo of TIPOS_EXTRA) {
+    const a = obj(o[tipo]);
+    if (a === null) continue;
+    const produto = txt(a.produto, 80), centavos = num(a.centavos), rotulo = txt(a.rotulo, 40);
+    if (produto === null || !/^prod_[A-Za-z0-9]{6,70}$/.test(produto) || centavos === null || centavos <= 0 || rotulo === null) continue;
+    out.push({ tipo, nome: nomeDoExtra(tipo), produto, centavos, rotulo });
+  }
+  return out;
+}
+
 /**
  * O preço que uma cobrança precisa atingir para liberar: sem produto no checkout (null ou ausente) é o do Pro; com
- * produto, o do add-on no catálogo. Add-on que saiu do catálogo não libera sozinho: o preço fica inatingível e o
- * pagamento vai para a revisão do admin.
+ * produto, o do add-on ou do extra no catálogo. Produto que saiu do catálogo não libera sozinho: o preço fica
+ * inatingível e o pagamento vai para a revisão do admin.
  */
-export function precoExigido(produto: string | null | undefined, precoPro: number, addons: readonly OfertaAddon[]): number {
+export function precoExigido(produto: string | null | undefined, precoPro: number, addons: readonly OfertaAddon[], extras: readonly OfertaExtra[] = []): number {
   if (produto === null || produto === undefined || produto === "") return precoPro;
-  return addons.find((a) => a.nome === produto)?.centavos ?? Number.MAX_SAFE_INTEGER;
+  return addons.find((a) => a.nome === produto)?.centavos ?? extras.find((x) => x.nome === produto)?.centavos ?? Number.MAX_SAFE_INTEGER;
 }
 
 /** A promoção do primeiro mês do Pro neste ambiente: o código do cupom na AbacatePay, quanto a primeira cobrança sai e por quantos dias depois do teste ela vale. */
@@ -244,8 +277,8 @@ export function pedidoDoCheckout(promo: { cupom: string } | null, metodos: reado
  * o preço da promoção. Renovação, add-on, checkout sem a marca da promoção e conta que já pagou antes (dois checkouts
  * da promoção abertos na mesma janela) continuam no preço cheio: pagos com menos, vão para a revisão do admin.
  */
-export function precoDaCobranca(p: { evento: string; checkout: { produto: string | null; promo: boolean } | null; precoPro: number; addons: readonly OfertaAddon[]; promoCentavos: number | null; jaPagouPro: boolean }): number {
-  const cheio = precoExigido(p.checkout?.produto, p.precoPro, p.addons);
+export function precoDaCobranca(p: { evento: string; checkout: { produto: string | null; promo: boolean } | null; precoPro: number; addons: readonly OfertaAddon[]; extras?: readonly OfertaExtra[]; promoCentavos: number | null; jaPagouPro: boolean }): number {
+  const cheio = precoExigido(p.checkout?.produto, p.precoPro, p.addons, p.extras ?? []);
   const naPromo = p.checkout !== null && p.checkout.promo && (p.checkout.produto === null || p.checkout.produto === "") && p.evento === "subscription.completed" && !p.jaPagouPro && p.promoCentavos !== null && p.promoCentavos > 0;
   return naPromo ? Math.min(p.promoCentavos as number, cheio) : cheio;
 }
@@ -284,12 +317,13 @@ export function resultadoCancelamento(status: number, corpo: unknown): "cancelad
 
 /**
  * Para os totais do admin: uma assinatura por conta e produto, a mais nova. Uma conta com duas assinaturas ativas do
- * mesmo produto (a antiga nunca cancelada na AbacatePay e uma nova) contaria duas vezes na receita.
+ * mesmo produto (a antiga nunca cancelada na AbacatePay e uma nova) contaria duas vezes na receita. A exceção são os
+ * extras (máquina extra): ali cada assinatura é uma unidade paga, e todas contam.
  */
-export function umaPorContaEProduto<A extends { produto: string | null; criadaEm: string; conta: { id: string } }>(assinaturas: readonly A[]): A[] {
+export function umaPorContaEProduto<A extends { id: string; produto: string | null; criadaEm: string; conta: { id: string } }>(assinaturas: readonly A[]): A[] {
   const mais = new Map<string, A>();
   for (const a of assinaturas) {
-    const chave = `${a.conta.id}|${a.produto ?? ""}`;
+    const chave = tipoDoExtra(a.produto) !== null ? `extra|${a.id}` : `${a.conta.id}|${a.produto ?? ""}`;
     const atual = mais.get(chave);
     if (atual === undefined || Date.parse(a.criadaEm) > Date.parse(atual.criadaEm)) mais.set(chave, a);
   }

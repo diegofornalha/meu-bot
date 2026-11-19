@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { generateKeyPairSync, verify } from "node:crypto";
-import { LICENCA_KID, LICENCA_VALIDADE_MS, TROCAS_NA_HORA, abreVagaNaHora, admitirMaquina, assinarLicenca, licencaJsonV2, montarPayload, ocupaVaga, valeAte, validaApelido } from "../dist/licenca-core.js";
+import { LICENCA_KID, LICENCA_VALIDADE_MS, TROCAS_NA_HORA, MAQUINA_LIMITE_MAX, abreVagaNaHora, admitirMaquina, cabeNoLimite, limiteComExtras, assinarLicenca, licencaJsonV2, montarPayload, ocupaVaga, valeAte, validaApelido } from "../dist/licenca-core.js";
 import { validaPatchLicenca } from "../dist/sessao-core.js";
 
 const AGORA = Date.parse("2026-11-18T12:00:00.000Z");
@@ -84,4 +84,32 @@ test("apelido e limite: o que o app e o admin mandam", () => {
   assert.equal(validaApelido(""), null); assert.equal(validaApelido(7), null); assert.equal(validaApelido("a\u0000b"), null); assert.equal(validaApelido("x".repeat(81)), null);
   assert.deepEqual(validaPatchLicenca({ maquinaLimit: 3 }), { maquinaLimit: 3 });
   assert.ok("erro" in validaPatchLicenca({ maquinaLimit: 0 })); assert.ok("erro" in validaPatchLicenca({ maquinaLimit: 51 })); assert.ok("erro" in validaPatchLicenca({ maquinaLimit: "2" })); assert.ok("erro" in validaPatchLicenca({ maquinaLimit: 1.5 }));
+});
+
+test("limite de máquinas: o que o admin deu mais uma vaga por máquina extra em dia; vencida não conta; respeita o teto", () => {
+  const agora = Date.parse("2026-11-19T12:00:00Z");
+  const emDia = { expiresAt: "2026-12-19T12:00:00Z" }, vencida = { expiresAt: "2026-11-19T11:59:59Z" };
+  assert.deepEqual(limiteComExtras(1, [], agora), { limite: 1, extras: 0 });
+  assert.deepEqual(limiteComExtras(1, [emDia], agora), { limite: 2, extras: 1 });
+  assert.deepEqual(limiteComExtras(1, [emDia, emDia, vencida], agora), { limite: 3, extras: 2 });
+  assert.deepEqual(limiteComExtras(2, [vencida], agora), { limite: 2, extras: 0 });
+  assert.deepEqual(limiteComExtras(0, [emDia], agora), { limite: 2, extras: 1 }, "base fora da forma vale 1");
+  assert.deepEqual(limiteComExtras(1, [{ expiresAt: "lixo" }], agora), { limite: 1, extras: 0 });
+  assert.equal(limiteComExtras(1, Array.from({ length: 80 }, () => emDia), agora).limite, MAQUINA_LIMITE_MAX);
+});
+
+test("renovação no limite: com mais máquinas vinculadas do que o plano cobre, renovam as mais antigas", () => {
+  const m = (id, criadaEm, desvinculadaEm = null) => ({ id, criadaEm, desvinculadaEm });
+  const tres = [m("b", "2026-11-02T00:00:00Z"), m("a", "2026-11-01T00:00:00Z"), m("c", "2026-11-03T00:00:00Z")];
+  assert.equal(cabeNoLimite(tres, "c", 3), true, "dentro do limite todas renovam");
+  assert.equal(cabeNoLimite(tres, "a", 2), true);
+  assert.equal(cabeNoLimite(tres, "b", 2), true);
+  assert.equal(cabeNoLimite(tres, "c", 2), false, "a máquina extra venceu: a que entrou por último não renova");
+  assert.equal(cabeNoLimite(tres, "a", 1), true);
+  assert.equal(cabeNoLimite(tres, "b", 1), false);
+  // Máquina tirada pelo console não disputa a renovação, mesmo sendo a mais antiga.
+  const comTirada = [m("a", "2026-11-01T00:00:00Z", "2026-11-10T00:00:00Z"), m("b", "2026-11-02T00:00:00Z"), m("c", "2026-11-03T00:00:00Z")];
+  assert.equal(cabeNoLimite(comTirada, "c", 2), true);
+  assert.equal(cabeNoLimite(comTirada, "a", 2), false, "desvinculada não renova");
+  assert.equal(cabeNoLimite(tres, "z", 3), false, "máquina que não é da conta");
 });

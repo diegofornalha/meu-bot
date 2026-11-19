@@ -1,7 +1,7 @@
 // Painel "Assinar o Pro" do console (public/console/plano-core.js): quando some e quando avisa do prazo atual.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { contagemRegressiva, diasAteOFim, estadoAssinaturaPro, fase, pedidoAssinar, promoNaTela, reaisCurto, semPrazo } from "../public/console/plano-core.js";
+import { contagemRegressiva, diasAteOFim, estadoAssinaturaPro, fase, pedidoAssinar, promoNaTela, reaisCurto, semPrazo, podeAdicionarMaquina, vagasDeMaquina } from "../public/console/plano-core.js";
 
 const pro = { plan: "pro", status: "active" };
 const ativa = { status: "ACTIVE", produto: null };
@@ -85,6 +85,26 @@ test("pedido do Assinar: a promoção na tela manda promo; \"Prefiro Pix\" manda
   assert.deepEqual(pedidoAssinar(null, null), {});
   assert.deepEqual(pedidoAssinar(null, null, true), {}, "sem promoção na tela não há do que abrir mão");
   assert.deepEqual(pedidoAssinar("meu-bot-finance", promo), { produto: "meu-bot-finance" }, "a promoção é só do Pro");
+});
+
+test("vagas de máquina: a tela separa o que o plano inclui do que é máquina extra", () => {
+  assert.deepEqual(vagasDeMaquina(1, 0), { total: 1, inclusas: 1, extras: 0, detalhe: "" });
+  assert.deepEqual(vagasDeMaquina(2, 1), { total: 2, inclusas: 1, extras: 1, detalhe: "1 inclusa + 1 extra" });
+  assert.deepEqual(vagasDeMaquina(5, 3), { total: 5, inclusas: 2, extras: 3, detalhe: "2 inclusas + 3 extras" });
+  assert.deepEqual(vagasDeMaquina(undefined, undefined), { total: 1, inclusas: 1, extras: 0, detalhe: "" }, "API antiga, sem os campos");
+  assert.equal(vagasDeMaquina(2, 9).inclusas, 1, "nunca menos de uma inclusa");
+  assert.deepEqual(pedidoAssinar("extra-maquina", null), { produto: "extra-maquina" });
+});
+
+test("adicionar máquina: só com o Pro valendo (pago ou em teste, sem ter vencido)", () => {
+  const agora = Date.parse("2026-11-19T12:00:00Z");
+  assert.equal(podeAdicionarMaquina({ plan: "pro", status: "active", expiresAt: "2026-12-01T00:00:00Z", trialEnd: null }, agora), true);
+  assert.equal(podeAdicionarMaquina({ plan: "pro", status: "trialing", expiresAt: "2026-11-20T00:00:00Z", trialEnd: "2026-11-20T00:00:00Z" }, agora), true);
+  assert.equal(podeAdicionarMaquina({ plan: "pro", status: "active", expiresAt: null, trialEnd: null }, agora), true, "Pro sem prazo");
+  assert.equal(podeAdicionarMaquina({ plan: "pro", status: "trialing", expiresAt: "2026-11-19T11:00:00Z", trialEnd: "2026-11-19T11:00:00Z" }, agora), false, "teste vencido");
+  assert.equal(podeAdicionarMaquina({ plan: "pro", status: "expired", expiresAt: "2026-11-01T00:00:00Z", trialEnd: null }, agora), false);
+  assert.equal(podeAdicionarMaquina({ plan: "free", status: "free", expiresAt: null, trialEnd: null }, agora), false);
+  assert.equal(podeAdicionarMaquina(undefined, agora), false);
 });
 
 // O Pro sem prazo do super admin: a API entrega `semPrazo: true` (licencaDoSuper) e as telas mostram "∞".

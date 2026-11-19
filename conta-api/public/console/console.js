@@ -1,5 +1,5 @@
 import { avisoDepoisDo404, pedeReleitura, visaoVelha } from "./admin-core.js";
-import { INFINITO, SEM_PRAZO, contagemRegressiva, estadoAssinaturaPro, fase, pedidoAssinar, promoNaTela, reaisCurto, semPrazo } from "./plano-core.js";
+import { INFINITO, SEM_PRAZO, contagemRegressiva, estadoAssinaturaPro, fase, pedidoAssinar, podeAdicionarMaquina, promoNaTela, reaisCurto, semPrazo, vagasDeMaquina } from "./plano-core.js";
 // Console da conta meu-bot (console.agentesgrok.com/account/* e /organizations/<slug>/members|settings, molde Rambox). Entra pela mesma página de
 // login do app (auth.agentesgrok.com) com esquema=web: o console gera state + PKCE, a página devolve #code&state, e
 // POST /token {grant:"web"} vira um token de acesso de 1 h guardado neste navegador (localStorage: outra aba, inclusive
@@ -29,7 +29,10 @@ const PLANO = { free: "Free", pro: "Pro" }, STATUS = { free: "Free", trialing: "
 const ADDONS = (() => { try { const a = JSON.parse(cfg.addons ?? "[]"); return Array.isArray(a) ? a.filter((x) => x && typeof x.nome === "string" && typeof x.rotulo === "string" && Number.isInteger(x.centavos)) : []; } catch { return []; } })();
 const reais = (centavos) => (typeof centavos === "number" ? (centavos / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "-");
 /** O nome de um produto pago na tela: null é o Pro; add-on fora do catálogo aparece pelo nome técnico. */
-const rotuloProduto = (p) => (p === null || p === undefined ? "Pro" : ADDONS.find((a) => a.nome === p)?.rotulo ?? p);
+/** As unidades extras à venda (config.js): hoje a máquina extra. Cada assinatura é uma unidade. */
+const EXTRAS = (() => { try { const a = JSON.parse(cfg.extras ?? "[]"); return Array.isArray(a) ? a.filter((x) => x && typeof x.tipo === "string" && typeof x.nome === "string" && typeof x.rotulo === "string" && Number.isInteger(x.centavos)) : []; } catch { return []; } })();
+const EXTRA_MAQUINA = EXTRAS.find((x) => x.tipo === "maquina") ?? null;
+const rotuloProduto = (p) => (p === null || p === undefined ? "Pro" : ADDONS.find((a) => a.nome === p)?.rotulo ?? EXTRAS.find((x) => x.nome === p)?.rotulo ?? p);
 /** Situação de uma assinatura: cancelada; em dia (ativa com prazo no futuro); atrasada (ativa sem renovar). */
 const situacaoDe = (a, agora = Date.now()) => (a.status === "CANCELLED" ? { chave: "cancelada", texto: "Cancelada", tom: "" } : a.valeAte && Date.parse(a.valeAte) > agora ? { chave: "em-dia", texto: "Em dia", tom: "ok" } : { chave: "atrasada", texto: "Atrasada", tom: "mau" });
 const el = (tag, cls, texto) => { const e = document.createElement(tag); if (cls) e.className = cls; if (texto !== undefined) e.textContent = texto; return e; };
@@ -824,7 +827,10 @@ function pintarMaquinas(c) {
   const tb = $("dv-maquinas-tabela").querySelector("tbody"); tb.replaceChildren();
   const maquinas = c.maquinas ?? [], limite = c.maquinaLimite ?? 1;
   const ocupadas = maquinas.filter(ocupaVaga).length;
-  $("dv-maquinas").textContent = `${ocupadas} de ${limite} máquina${limite === 1 ? "" : "s"} em uso.`;
+  const vagas = vagasDeMaquina(limite, c.maquinaExtras);
+  $("dv-maquinas").textContent = `${ocupadas} de ${limite} máquina${limite === 1 ? "" : "s"} em uso${vagas.detalhe === "" ? "" : ` (${vagas.detalhe})`}.`;
+  // No limite e com a máquina extra à venda: o caminho para ter mais uma fica ao lado da conta.
+  if (ocupadas >= limite && EXTRA_MAQUINA !== null && cfg.pagamentos === "1" && podeAdicionarMaquina(c.licenca)) { const a = el("a", "", `Adicionar uma máquina por ${reais(EXTRA_MAQUINA.centavos)}/mês`); a.href = "/account/plan"; $("dv-maquinas").append(document.createTextNode(" "), a); }
   if (maquinas.length === 0) { const tr = el("tr"); const td = el("td", "", "Nenhuma máquina usa a licença da conta ainda."); td.colSpan = 4; tr.append(td); tb.append(tr); return; }
   for (const m of maquinas) {
     const tr = el("tr");
@@ -928,6 +934,22 @@ function pintarAddons(l, voltouDe) {
     painel.append(aviso, p); caixa.append(painel);
   }
 }
+/**
+ * O painel "Máquinas" do Plano: quantas o plano cobre agora e o botão para adicionar mais uma (a máquina extra de
+ * ABACATEPAY_EXTRAS). Cada assinatura soma uma máquina; quem não tem o Pro valendo não vê o painel, porque a máquina
+ * extra vale junto com ele.
+ */
+function pintarExtras(c, voltouDe) {
+  const caixa = $("pl-extras"); caixa.replaceChildren();
+  if (cfg.pagamentos !== "1" || EXTRA_MAQUINA === null || !podeAdicionarMaquina(c.licenca)) return;
+  const x = EXTRA_MAQUINA, vagas = vagasDeMaquina(c.maquinaLimite, c.maquinaExtras), preco = reais(x.centavos);
+  const painel = el("div", "painel"); const aviso = el("p", "sub"); aviso.setAttribute("role", "status");
+  painel.append(el("h2", "", "Máquinas"));
+  painel.append(el("p", "", `O seu plano cobre ${vagas.total} máquina${vagas.total === 1 ? "" : "s"}${vagas.detalhe === "" ? "" : ` (${vagas.detalhe})`}. Cada máquina a mais custa ${preco} por mês: o agente passa a rodar em mais um computador remoto com a mesma conta. O pagamento é feito na página segura da AbacatePay, a vaga abre assim que ele é confirmado, e você cancela quando quiser.`));
+  if (voltouDe === x.nome) aviso.textContent = "Recebemos você de volta. Assim que a AbacatePay confirmar o pagamento, a vaga nova aparece aqui (costuma levar alguns segundos).";
+  const p = el("p"); const b = el("button", "btn btn-primary", `Adicionar uma máquina por ${preco}/mês`); b.type = "button"; b.addEventListener("click", () => { void assinar(x.nome, b, aviso); }); p.append(b);
+  painel.append(aviso, p); caixa.append(painel);
+}
 /** "Suas assinaturas": o que a conta paga pela AbacatePay, com a situação e até quando vale. */
 function pintarAssinaturas(c) {
   const lista = c.assinaturas ?? [];
@@ -980,7 +1002,7 @@ function pintarPlano(c) {
     cartao("▦", "Vale até", semPrazo(l) ? infinito() : document.createTextNode(l.expiresAt ? data(l.expiresAt) : l.trialEnd ? `trial até ${data(l.trialEnd)}` : "sem prazo")),
     cartao("↻", "Ciclo", document.createTextNode(l.interval ? CICLO[l.interval] : "-")),
     cartao("▭", "Limite de devices", document.createTextNode(String(l.deviceLimit))),
-    cartao("⌂", "Máquinas com a licença", document.createTextNode(`${(c.maquinas ?? []).filter(ocupaVaga).length} de ${c.maquinaLimite ?? 1}`)),
+    cartao("⌂", "Máquinas com a licença", document.createTextNode(`${(c.maquinas ?? []).filter(ocupaVaga).length} de ${c.maquinaLimite ?? 1}${vagasDeMaquina(c.maquinaLimite, c.maquinaExtras).detalhe === "" ? "" : ` (${vagasDeMaquina(c.maquinaLimite, c.maquinaExtras).detalhe})`}`)),
     cartao("+", "Add-ons", ...(l.produtos.length > 0 ? l.produtos.map((p) => selo(rotuloProduto(p))) : [document.createTextNode("nenhum")])),
   );
   // Assinar pela AbacatePay: só com os pagamentos ligados no Worker (config.js) e enquanto não há Pro pago ativo.
@@ -996,6 +1018,7 @@ function pintarPlano(c) {
   const voltouDe = qs.get("assinatura") === "paga" ? qs.get("produto") : null;
   const voltou = qs.get("assinatura") === "paga" && voltouDe === null;
   if (voltou) $("pl-assinar-aviso").textContent = pagoAtivo ? "Pagamento confirmado: o Pro está ativo." : "Recebemos você de volta. Assim que a AbacatePay confirmar o pagamento, o Pro aparece aqui (costuma levar alguns segundos).";
+  pintarExtras(c, voltouDe);
   pintarAddons(l, voltouDe);
   pintarAssinaturas(c);
   const esperando = (voltou && !pagoAtivo) || (voltouDe !== null && !l.produtos.includes(voltouDe));
