@@ -15,6 +15,7 @@ const DIFERENTES = {
   FIREBASE_AUTH_DOMAIN: "o handler do Firebase é servido no host de login de cada ambiente",
   GA_ID: "medição: uma propriedade do Google Analytics por ambiente, para o staging não sujar os números da produção",
   ABACATEPAY_PRODUTO: "produto do Pro: a loja de produção e o Modo Teste da AbacatePay têm ids próprios",
+  ABACATEPAY_PRODUTO_PRIMEIRO_MES: "produto avulso do primeiro mês por Pix: ids próprios em produção e no Modo Teste",
 };
 /**
  * ABACATEPAY_ADDONS e ABACATEPAY_EXTRAS são catálogos em JSON (vazio = nada à venda): os nomes dos itens e estes campos
