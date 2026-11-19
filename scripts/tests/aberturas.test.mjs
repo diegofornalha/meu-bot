@@ -49,3 +49,24 @@ test("resumoDaSaude: o que vai ao console (saúde, licença, uso com a conta, ab
   assert.match(r.uso[0].texto, /^Staging \(meu-bot-staging\): versão 0\.80\.0 · conta mac1@gmail\.com · aberto em /);
   assert.match(r.aberturas[0], /meu-bot-staging \(staging\) 0\.80\.0 · mac1@gmail\.com · Mac cursor$/);
 });
+
+test("ZERAR_ABERTURAS_SH: esvazia o arquivo sem apagá-lo e diz o que fez", async () => {
+  const { ZERAR_ABERTURAS_SH } = createRequire(import.meta.url)("../../dist/main/admin/aberturas-core.js");
+  const { mkdtempSync, mkdirSync, writeFileSync, readFileSync, statSync, existsSync } = await import("node:fs");
+  const { execFileSync } = await import("node:child_process");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const home = mkdtempSync(join(tmpdir(), "aberturas-"));
+  const rodar = () => execFileSync("bash", ["-c", ZERAR_ABERTURAS_SH], { env: { ...process.env, HOME: home }, encoding: "utf8" }).trim();
+  const arq = join(home, ".local/share/meu-bot/aberturas.jsonl");
+  assert.equal(rodar(), "vazio", "sem o arquivo não cria nada");
+  assert.equal(existsSync(arq), false);
+  mkdirSync(join(home, ".local/share/meu-bot"), { recursive: true });
+  writeFileSync(arq, `${JSON.stringify({ em: "2026-11-10T10:00:00Z", produto: "meu-bot", versao: "1.0.0" })}\n`, { mode: 0o600 });
+  writeFileSync(join(home, ".local/share/meu-bot/licenca.json"), "{}");
+  assert.equal(rodar(), "zerado");
+  assert.equal(readFileSync(arq, "utf8"), "");
+  assert.equal(statSync(arq).mode & 0o777, 0o600, "a permissão do arquivo fica");
+  assert.equal(readFileSync(join(home, ".local/share/meu-bot/licenca.json"), "utf8"), "{}", "não toca nos vizinhos");
+  assert.equal(parseAberturas(readFileSync(arq, "utf8")).length, 0);
+});

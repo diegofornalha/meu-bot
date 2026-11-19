@@ -662,6 +662,8 @@ export interface MeuBotAdminApi {
   approveDevice(deviceId: string): Promise<LicenseView>;
   /** meu-bot-admin: revoga um device (tira do registro); ele volta no próximo hello se couber no limite. */
   removeDevice(deviceId: string): Promise<LicenseView>;
+  /** meu-bot-admin: zera o histórico de aberturas do app na máquina da pessoa (aberturas.jsonl); fica no registro. */
+  adminAberturasZerar(): Promise<void>;
 }
 
 /** O que o renderer vê em `window.meuBot`: os três grupos juntos (o main recusa o que não é da variante). */

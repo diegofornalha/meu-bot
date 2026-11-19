@@ -33,7 +33,7 @@ import { getBackendPort, isValidHost, setBackendPortForHost, settingsView } from
 import { log } from "../maquina/backend";
 import net from "node:net";
 import { PRODUTOS } from "../app/variant-core";
-import { parseAberturas } from "./aberturas-core";
+import { ABERTURAS_ARQUIVO_SH, ZERAR_ABERTURAS_SH, parseAberturas } from "./aberturas-core";
 import { resumoDaSaude } from "./suporte-resumo-core";
 import { enviarResumoSuporte, gestaoLiberada } from "../conta/conta";
 
@@ -549,9 +549,16 @@ export function iniciarVarreduraSuporte(): void {
 }
 /** As aberturas recentes do app (aberturas.jsonl do backend); null sem o arquivo. */
 async function readAberturas(host: string): Promise<Abertura[] | null> {
-  const r = await runSsh(host, `tail -n 60 "$HOME/.local/share/meu-bot/aberturas.jsonl" 2>/dev/null\n`, 20_000).catch(() => null);
+  const r = await runSsh(host, `tail -n 60 ${ABERTURAS_ARQUIVO_SH} 2>/dev/null\n`, 20_000).catch(() => null);
   if (r === null || r.stdout.trim() === "") return null;
   return parseAberturas(r.stdout);
+}
+/** meu-bot-admin: zera o histórico de aberturas da máquina (o "Zerar" do card Uso do app); fica no registro. */
+export async function zerarAberturas(host: string): Promise<void> {
+  const r = await runSsh(host, ZERAR_ABERTURAS_SH, 20_000);
+  const saida = r.stdout.trim();
+  if (saida !== "zerado" && saida !== "vazio") throw new Error("a máquina não confirmou que zerou as aberturas");
+  await registrar(host, "aberturas.zerar");
 }
 async function readProgress(host: string): Promise<SupportProgress | null> {
   const r = await runSsh(host, `head -c 16384 "$HOME/.local/share/meu-bot/progresso.json" 2>/dev/null\n`, 20_000).catch(() => null);

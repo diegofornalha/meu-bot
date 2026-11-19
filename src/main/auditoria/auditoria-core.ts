@@ -28,6 +28,7 @@ export const ACOES = {
   "suporte.excluir-maquina": (a: string) => `excluiu esta máquina do suporte: limpou todo o histórico do WhatsApp${a ? ` (${a})` : ""} e desligou o suporte`,
   "licenca.atualizar": () => "atualizou a licença",
   "device.liberar": (a: string) => `liberou o device${a ? ` ${a}` : ""}`,
+  "aberturas.zerar": () => "zerou o histórico de aberturas do app",
   "device.revogar": (a: string) => `revogou o device${a ? ` ${a}` : ""}`,
   "device.novo": (a: string) => `um Mac novo usou o meu-bot${a ? `: ${a}` : ""}`,
   "device.pedido": (a: string) => `pedido de device a mais${a ? `: ${a}` : ""}`,

@@ -25,7 +25,7 @@ export interface SuportePageDeps {
   /** Botão de dois cliques (o segundo confirma). */
   armConfirm(btn: HTMLButtonElement, label: string, run: () => void): void;
   fmtPhone(digits: string | null): string;
-  api: Pick<MeuBotApi, "adminHealth" | "adminLogs" | "adminAction" | "setLicense" | "approveDevice" | "removeDevice" | "adminProdutos" | "adminBackupListar" | "adminBackupCriar" | "adminBackupConferir" | "adminBackupRestaurar" | "adminBackupWhatsapp" | "on">;
+  api: Pick<MeuBotApi, "adminHealth" | "adminLogs" | "adminAberturasZerar" | "adminAction" | "setLicense" | "approveDevice" | "removeDevice" | "adminProdutos" | "adminBackupListar" | "adminBackupCriar" | "adminBackupConferir" | "adminBackupRestaurar" | "adminBackupWhatsapp" | "on">;
   /** A saúde trouxe o WhatsApp da máquina (null = ela não compartilha ou não tem): o renderer atualiza a lateral. */
   onWhatsapp(status: WhatsappStatus | null): void;
   /** O plano da conta (do card de licença): o renderer pinta o selo "PRO" no canto superior. */
@@ -40,10 +40,10 @@ export interface SuportePage {
   refreshHealth(): Promise<void>;
 }
 
-interface State { /** Nomes dos MVPs registrados em Produtos (botões "＋ produto" do card de licença); lidos ao abrir. */ mvps: string[]; health: AdminHealth | null; /** Quando a saúde na tela foi lida de verdade (null = veio do cache ou ainda não leu). */ healthAt: number | null; healthErr: string | null; logs: string | null; busy: AdminAction | "health" | "logs" | null; msg: { text: string; bad: boolean } | null; /** Mudança de licença em andamento. */ licBusy: boolean; licMsg: { text: string; bad: boolean } | null; /** O admin desligou o suporte nesta janela (só "Religar" no este Mac, nada nas outras). */ desligado: boolean }
+interface State { /** Nomes dos MVPs registrados em Produtos (botões "＋ produto" do card de licença); lidos ao abrir. */ mvps: string[]; health: AdminHealth | null; /** Quando a saúde na tela foi lida de verdade (null = veio do cache ou ainda não leu). */ healthAt: number | null; healthErr: string | null; logs: string | null; busy: AdminAction | "health" | "logs" | null; msg: { text: string; bad: boolean } | null; /** Mudança de licença em andamento. */ licBusy: boolean; licMsg: { text: string; bad: boolean } | null; /** Zerar das aberturas em andamento, e o erro dele. */ usoBusy: boolean; usoErr: string | null; /** O admin desligou o suporte nesta janela (só "Religar" no este Mac, nada nas outras). */ desligado: boolean }
 
 export function mountSuportePage(deps: SuportePageDeps): SuportePage {
-  const state: State = { mvps: [], health: null, healthAt: null, healthErr: null, logs: null, busy: null, msg: null, licBusy: false, licMsg: null, desligado: false };
+  const state: State = { mvps: [], health: null, healthAt: null, healthErr: null, logs: null, busy: null, msg: null, licBusy: false, licMsg: null, usoBusy: false, usoErr: null, desligado: false };
   // A saúde da última vez aparece na hora (com a idade); a consulta real troca por baixo.
   const cachedHealth = deps.cache.read<AdminHealth>("health");
   if (cachedHealth !== null) { state.health = cachedHealth.value; state.healthAt = cachedHealth.at; deps.onWhatsapp(cachedHealth.value.whatsapp); deps.onPlan(cachedHealth.value.license?.license.plan ?? null); }
@@ -77,6 +77,17 @@ export function mountSuportePage(deps: SuportePageDeps): SuportePage {
       state.licMsg = { text: `${label}: feito`, bad: false };
     } catch (err) { state.licMsg = { text: ipcErrorText(err), bad: true }; }
     finally { state.licBusy = false; render(); }
+  }
+
+  /** Zera o histórico de aberturas na máquina e esvazia o card na hora (a próxima abertura do app volta a anotar). */
+  async function zerarAberturas(): Promise<void> {
+    if (state.usoBusy) return;
+    state.usoBusy = true; state.usoErr = null; render();
+    try {
+      await deps.api.adminAberturasZerar();
+      if (state.health !== null) { state.health.aberturas = null; deps.cache.write("health", state.health); }
+    } catch (err) { state.usoErr = ipcErrorText(err); }
+    finally { state.usoBusy = false; render(); }
   }
 
   const list = (lines: HealthLine[]): HTMLUListElement => {
@@ -236,12 +247,18 @@ export function mountSuportePage(deps: SuportePageDeps): SuportePage {
       else {
         uso.append(list(usoResumo(ab)));
         const hist = el("details", "admin-uso-hist");
-        hist.append(el("summary", "", `Aberturas recentes (${ab.length})`));
+        // "Zerar" ao lado do título, como o da Auditoria do console: dois cliques, o segundo confirma.
+        const zerar = el("button", "btn btn-ghost btn-small admin-uso-zerar", state.usoBusy ? "Zerando…" : "Zerar"); zerar.type = "button"; zerar.disabled = state.usoBusy;
+        zerar.title = "Apaga o histórico de aberturas guardado na máquina dela. Sem volta.";
+        zerar.addEventListener("click", (ev) => { ev.preventDefault(); deps.armConfirm(zerar, "Confirmar: apagar as aberturas", () => { void zerarAberturas(); }); });
+        const titulo = el("summary", "", `Aberturas recentes (${ab.length}) `); titulo.append(zerar);
+        hist.append(titulo);
         const ul = el("ul", "admin-uso-lista");
         for (const a of ab) ul.append(el("li", "", aberturaTexto(a)));
         hist.append(ul);
         uso.append(hist);
       }
+      if (state.usoErr !== null) uso.append(el("p", "hint guide-pair-note", state.usoErr));
       panel.append(uso);
     }
 
