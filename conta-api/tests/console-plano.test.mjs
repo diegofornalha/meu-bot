@@ -1,7 +1,7 @@
 // Painel "Assinar o Pro" do console (public/console/plano-core.js): quando some e quando avisa do prazo atual.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { contagemRegressiva, estadoAssinaturaPro } from "../public/console/plano-core.js";
+import { contagemRegressiva, diasAteOFim, estadoAssinaturaPro } from "../public/console/plano-core.js";
 
 const pro = { plan: "pro", status: "active" };
 const ativa = { status: "ACTIVE", produto: null };
@@ -47,4 +47,15 @@ test("contagem regressiva: sem prazo não aparece (free, expirado, Pro sem data,
   assert.equal(contagemRegressiva({ plan: "pro", status: "expired", trialEnd: "2026-11-01T00:00:00Z", expiresAt: "2026-11-01T00:00:00Z" }, agora), null);
   assert.equal(contagemRegressiva({ plan: "pro", status: "trialing", trialEnd: "lixo", expiresAt: null }, agora), null);
   assert.equal(contagemRegressiva(undefined, agora), null);
+});
+
+test("dias até o fim: a lista do admin e a página Plano contam os mesmos dias", () => {
+  const agora = Date.parse("2026-11-19T02:00:00Z"), D = 24 * 3600000;
+  for (const n of [2, 3, 12, 30]) {
+    const l = { plan: "pro", status: "trialing", trialEnd: new Date(agora + n * D - 60000).toISOString(), expiresAt: null };
+    assert.equal(diasAteOFim(l, agora), n);
+    assert.equal(contagemRegressiva(l, agora).texto, `faltam ${n} dias de teste`);
+  }
+  assert.equal(diasAteOFim({ expiresAt: null, trialEnd: null }, agora), null);
+  assert.equal(diasAteOFim({ expiresAt: new Date(agora - 2 * D - 1).toISOString() }, agora), -2);
 });
