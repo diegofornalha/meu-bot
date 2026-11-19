@@ -21,7 +21,7 @@ fazer, e ele pede confirmação antes de qualquer coisa importante.
 
 ## Como testar
 
-**14 dias grátis, sem cartão**, no seu número. Depois, R$ 97 por mês com um chip da Coflow, ou sob cotação com o seu
+**3 dias grátis, sem cartão**, no seu número. Depois, R$ 97 por mês com um chip da Coflow, ou sob cotação com o seu
 próprio chip. Precisa de um Mac com chip Apple (M1 ou mais novo). O app se atualiza sozinho, e cada atualização tem a
 assinatura conferida antes de instalar.
 
