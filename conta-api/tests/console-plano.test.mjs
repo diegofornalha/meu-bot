@@ -1,7 +1,7 @@
 // Painel "Assinar o Pro" do console (public/console/plano-core.js): quando some e quando avisa do prazo atual.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { avisoAddonPago, contagemRegressiva, diasAteOFim, estadoAssinaturaPro, fase, pedidoAssinar, promoNaTela, reaisCurto, semPrazo, podeAdicionarMaquina, vagasDeMaquina } from "../public/console/plano-core.js";
+import { avisoAddonPago, contagemRegressiva, diasAteOFim, estadoAssinaturaPro, fase, pedidoAssinar, promoNaTela, reaisCurto, semPrazo, podeAdicionarMaquina, vagaDoAssinar, vagasDeMaquina } from "../public/console/plano-core.js";
 
 const pro = { plan: "pro", status: "active" };
 const ativa = { status: "ACTIVE", produto: null };
@@ -167,6 +167,7 @@ test("oferta do Pro: a vaga do painel abre a Visão geral, o painel nasce na vag
   assert.match(html, /De <s>R\$ 997<\/s> por <strong>R\$ 97<\/strong> por mês/);
   assert.equal(html.split('id="pl-assinar"').length, 2);
   const js = await readFile(new URL("../public/console/console.js", import.meta.url), "utf8");
-  assert.match(js, /pintarAssinar\(c, "ov-assinar-vaga"\)/);
-  assert.match(js, /pintarAssinar\(c, "pl-assinar-vaga"\)/);
+  assert.match(js, /vagaDoAssinar\(rota\(\)\?\.secao\)/);
+  assert.equal(vagaDoAssinar("plan"), "pl-assinar-vaga");
+  for (const s of ["overview", "devices", undefined]) assert.equal(vagaDoAssinar(s), "ov-assinar-vaga");
 });
