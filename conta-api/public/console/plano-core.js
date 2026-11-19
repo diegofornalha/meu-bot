@@ -113,6 +113,20 @@ export function vagasDeDevice(limite, extras) {
   return { ...v, detalhe: v.extras === 0 ? "" : `${v.inclusas} incluso${v.inclusas === 1 ? "" : "s"} + ${v.extras} extra${v.extras === 1 ? "" : "s"}` };
 }
 
+/**
+ * As linhas da lista "Máquinas que você usa" (Devices): primeiro as que usam a licença da conta (`maquinas`), depois as
+ * que a pessoa abre pelo app e rodam com a licença do admin (`maquinasVistas`). Só as primeiras ocupam vaga; `ocupadas`
+ * é a conta de vagas, igual à do servidor (tirada segura a vaga até a última emissão vencer).
+ */
+export function linhasDeMaquinas(maquinas, vistas, agoraMs = Date.now()) {
+  const ocupa = (m) => !m.desvinculadaEm || (typeof m.proAte === "string" && Date.parse(m.proAte) > agoraMs);
+  const nome = (m) => (typeof m.apelido === "string" && m.apelido !== "" ? m.apelido : `máquina ${String(m.id).slice(0, 8)}`);
+  const daConta = (Array.isArray(maquinas) ? maquinas : []).map((m) => ({ id: m.id, nome: nome(m), selo: !m.desvinculadaEm ? "Em uso" : ocupa(m) ? "Tirada · vaga presa" : "Tirada", tom: !m.desvinculadaEm ? "ok" : "", valeAte: m.proAte ?? null, acao: !m.desvinculadaEm ? "tirar-licenca" : null, ocupaVaga: ocupa(m) }));
+  const ids = new Set(daConta.map((l) => l.id));
+  const doAdmin = (Array.isArray(vistas) ? vistas : []).filter((v) => v && !ids.has(v.id)).map((v) => ({ id: v.id, nome: nome(v), selo: "Em uso · licença do admin", tom: "ok", valeAte: null, acao: "tirar-da-lista", ocupaVaga: false }));
+  return { linhas: [...daConta, ...doAdmin], ocupadas: daConta.filter((l) => l.ocupaVaga).length, semVaga: doAdmin.length };
+}
+
 /** A máquina extra vale junto com o Pro: só quem tem o Pro valendo (pago ou em teste, sem ter vencido) pode adicionar. O super admin não: já não tem limite. */
 export function podeAdicionarMaquina(licenca, agoraMs = Date.now()) {
   if (semPrazo(licenca)) return false; // super admin: máquinas sem limite, nada a comprar

@@ -26,3 +26,13 @@ export function deveRenovarLicenca(v: VerificacaoLicenca, contaId: string, now: 
   if (v.payload.conta.id !== contaId) return false;
   return now - Date.parse(v.payload.emitidaEm) > RENOVAR_APOS_MS;
 }
+
+/** De quanto em quanto tempo o app repete à conta que a pessoa usa esta máquina (o console some com ela em 30 dias sem aviso). */
+export const AVISAR_VISTA_APOS_MS = 6 * 60 * 60 * 1000;
+/**
+ * Avisa a conta que a máquina está em uso na primeira leitura da sessão, quando a origem do plano em vigor mudou
+ * (a pessoa aplicou ou tirou a licença da conta: o console troca o selo na hora) e, fora isso, a cada 6 h.
+ */
+export function deveAvisarVista(ultimo: { em: number; origem: string } | undefined, origem: string, now: number = Date.now()): boolean {
+  return ultimo === undefined || ultimo.origem !== origem || now - ultimo.em >= AVISAR_VISTA_APOS_MS;
+}

@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 
 const req = createRequire(import.meta.url);
-const { deveRenovarLicenca, RENOVAR_APOS_MS } = req("../../dist/main/licenca/licenca-conta-core.js");
+const { deveRenovarLicenca, RENOVAR_APOS_MS, deveAvisarVista, AVISAR_VISTA_APOS_MS } = req("../../dist/main/licenca/licenca-conta-core.js");
 const { parseContaInfo } = req("../../dist/main/conta/conta-core.js");
 
 const AGORA = Date.parse("2026-11-18T12:00:00Z"), DIA = 24 * 60 * 60 * 1000;
@@ -41,4 +41,11 @@ test("arquivos da máquina: o id só vale se for uuid, e JSON vazio ou quebrado 
   assert.equal(jsonCru(""), null); assert.equal(jsonCru(undefined), null); assert.equal(jsonCru("{quebrado"), null);
   assert.deepEqual(jsonCru(' {"id":"a"}\n'), { id: "a" });
   assert.match(LICENCA_CONTA_PATH, /meu-bot\/licenca-conta\.json$/); assert.match(MAQUINA_PATH, /meu-bot\/maquina\.json$/);
+});
+
+test("máquina em uso: avisa na primeira leitura, quando a origem muda e a cada 6 h", () => {
+  assert.equal(deveAvisarVista(undefined, "admin", AGORA), true);
+  assert.equal(deveAvisarVista({ em: AGORA - 1000, origem: "admin" }, "admin", AGORA), false);
+  assert.equal(deveAvisarVista({ em: AGORA - 1000, origem: "admin" }, "conta", AGORA), true, "aplicou a licença da conta: o console troca na hora");
+  assert.equal(deveAvisarVista({ em: AGORA - AVISAR_VISTA_APOS_MS, origem: "conta" }, "conta", AGORA), true);
 });

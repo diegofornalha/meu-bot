@@ -8,12 +8,12 @@ import { randomUUID } from "node:crypto";
 import type { LicenseView, PlanoDaContaResultado } from "../../shared/ipc";
 import { log } from "../maquina/tunnel";
 import { getHostNames, isValidHost } from "../app/settings";
-import { contaView, licencaParaMaquina, renovarLicencaDaMaquina, tirarLicencaDaMaquina } from "../conta/conta";
+import { avisarMaquinaEmUso, contaView, licencaParaMaquina, renovarLicencaDaMaquina, tirarLicencaDaMaquina } from "../conta/conta";
 import { verificaLicencaAssinada } from "../conta/licenca-assinada-core";
 import { LOCAL_HOST } from "../maquina/localBackend";
 import { gravarJsonRemoto } from "../maquina/json-remoto";
 import { runSsh } from "../whatsapp/whatsapp";
-import { LICENCA_CONTA_PATH, MAQUINA_PATH, deveRenovarLicenca, idDaMaquinaDe, jsonCru } from "./licenca-conta-core";
+import { LICENCA_CONTA_PATH, MAQUINA_PATH, deveAvisarVista, deveRenovarLicenca, idDaMaquinaDe, jsonCru } from "./licenca-conta-core";
 
 export { LICENCA_CONTA_PATH, MAQUINA_PATH };
 const SEP = "<<<REA-SEP>>>";
@@ -129,4 +129,19 @@ export async function renovarSePreciso(host: string, now: number = Date.now()): 
     renovadaEm.delete(host);
     return false;
   } catch (e) { log(`[licenca] ${host}: renovação falhou (${e instanceof Error ? e.message : String(e)})`); renovadaEm.delete(host); return false; }
+}
+
+/** O último aviso de "máquina em uso" de cada máquina nesta sessão do app. */
+const vistaEm = new Map<string, { em: number; origem: string }>();
+/**
+ * Ao ler a licença da janela de uma máquina remota, com a conta logada: avisa a conta que a pessoa usa esta máquina e
+ * de onde vem o plano em vigor nela, para o console listá-la mesmo quando ela roda com a licença do admin. Não dá
+ * licença nem ocupa vaga. A máquina ganha o `maquina.json` se ainda não tem. Melhor esforço, em segundo plano.
+ */
+export async function avisarMaquinaVista(host: string, origem: "admin" | "conta" | undefined, now: number = Date.now()): Promise<void> {
+  if (!remota(host) || origem === undefined || contaView().conta === null) return;
+  if (!deveAvisarVista(vistaEm.get(host), origem, now)) return;
+  vistaEm.set(host, { em: now, origem });
+  try { if (!(await avisarMaquinaEmUso(await idDaMaquina(host), apelido(host), origem))) vistaEm.delete(host); }
+  catch (e) { vistaEm.delete(host); log(`[licenca] ${host}: aviso de máquina em uso falhou (${e instanceof Error ? e.message : String(e)})`); }
 }
