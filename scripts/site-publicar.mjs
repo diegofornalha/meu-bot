@@ -3,7 +3,7 @@
 // script com --so-staging); a PRODUÇÃO só recebe o commit que está no staging e que o dono aprovou.
 //
 //   node scripts/site-publicar.mjs                  o mesmo que --so-staging. NÃO publica a produção.
-//   node scripts/site-publicar.mjs --so-staging     testes → staging → confere; diz como aprovar
+//   node scripts/site-publicar.mjs --so-staging     testes → staging → confere; diz como aprovar. Só do origin/main
 //   node scripts/site-publicar.mjs --aprovar <sha> [--roteiro <arquivo>]
 //                                                   grava a aprovação do commit que está no staging (não publica nada)
 //   node scripts/site-publicar.mjs --producao       testes → produção → confere; só com o commit aprovado
@@ -11,6 +11,9 @@
 //
 // O commit de cada ambiente está no /health dele (`commit`): este script o passa no deploy (--var COMMIT:<sha>).
 // `commit: null` é "desconhecido" (deploy antigo ou à mão), não erro; só que não serve para aprovar.
+// --so-staging recusa (saída 1, nada publicado, antes de qualquer teste) se o HEAD deste worktree não é exatamente o
+// origin/main depois de um `git fetch origin`, ou se o fetch falhar: ramo não vai para o staging. Para ver um ramo
+// antes do merge, o Worker roda local (skill publicar-site).
 // --producao recusa (saída 1, nada publicado) sem aprovação, se o commit aprovado não é o HEAD deste worktree, ou se o
 // staging não está mais nesse commit. A aprovação fica na pasta de estado do agente (site-aprovado.json).
 //
@@ -23,7 +26,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { ARQUIVO_APROVACAO, commitNoAr, desfazDeploy, dirDoEstado, faltasDeConteudo, faltasDoSite, ordemDosAmbientes, PAGINAS_DO_SITE, podeAprovar, podePublicarProducao, SITE_NO_AR, varsDoWrangler } from "./release-core.mjs";
+import { ARQUIVO_APROVACAO, commitNoAr, desfazDeploy, dirDoEstado, faltasDeConteudo, faltasDoSite, ordemDosAmbientes, PAGINAS_DO_SITE, podeAprovar, podePublicarProducao, podePublicarStaging, SITE_NO_AR, varsDoWrangler } from "./release-core.mjs";
 
 const RAIZ = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const DIR = join(RAIZ, "conta-api");
@@ -166,8 +169,13 @@ async function producao() {
 }
 
 async function staging() {
+  // A primeira coisa, antes de login, testes e deploy: o staging só recebe a main. O fetch é o que prova que o
+  // origin/main daqui é o de agora; sem ele (sem rede) recusa, em vez de publicar por cima de uma main mais nova.
+  const atualizada = git("fetch", "-q", "origin", "main").status === 0;
+  const main = git("rev-parse", "origin/main");
   const commit = head();
-  if (commit === null) { console.error("✗ não consegui ler o commit deste worktree (git rev-parse HEAD): nada foi publicado"); return 1; }
+  const r = podePublicarStaging({ head: commit, main: main.status === 0 ? main.saida : null, atualizada });
+  if (r.erro) { console.error(`✗ staging NÃO publicado: ${r.erro}`); return 1; }
   if (!contaApiLimpo()) { console.error("✗ conta-api/ tem mudanças fora do commit: o /health diria um commit que não é o que subiu. Faça o commit (ou desfaça) e rode de novo"); return 1; }
   if (!preparar()) return 1;
   if (!(await publicar("staging", commit))) return 1;

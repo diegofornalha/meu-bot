@@ -306,6 +306,20 @@ export function decideSite({ ultimaEstavel, siteDe = null, mudouSite }) {
 }
 
 /**
+ * `--so-staging`: o staging do site é a main, nunca um ramo. `head` = HEAD do worktree de onde se publica; `main` = sha
+ * do origin/main (null = o git não soube dizer); `atualizada` = o `git fetch origin` de agora deu certo (sem ele, o
+ * origin/main local pode ser velho e não prova nada). Devolve { ok: true } ou { erro }.
+ */
+export function podePublicarStaging({ head, main, atualizada = true }) {
+  const caminho = "O caminho: abra a PR e mescle; o staging recebe a main sozinho (agente da release, em até 10 min), ou rode --so-staging de um worktree no origin/main";
+  if (!atualizada) return { erro: `não consegui atualizar o origin/main (git fetch origin falhou: este Mac sem rede ou sem acesso ao GitHub?), então não dá para provar que este commit é a main. ${caminho}` };
+  if (!ehSha(main)) return { erro: `não sei qual commit é o origin/main (git rev-parse origin/main não respondeu). ${caminho}` };
+  if (!ehSha(head)) return { erro: "não consegui ler o commit deste worktree (git rev-parse HEAD)" };
+  if (head !== main) return { erro: `este worktree está no commit ${head}, e o origin/main é ${main}. Ramo não vai para o staging: ele é sempre a main. ${caminho}. Para ver um ramo antes do merge, rode o Worker local (skill publicar-site)` };
+  return { ok: true };
+}
+
+/**
  * `--aprovar <sha>`: só se aprova o commit que está no staging agora. `commitStaging` = commitNoAr do /health do
  * staging (null = desconhecido). Devolve { ok: true } ou { erro }.
  */

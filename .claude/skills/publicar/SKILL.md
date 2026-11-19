@@ -23,7 +23,7 @@ O agente do launchd `scripts/release-auto.mjs` (rótulo `com.meu-bot.release-aut
 4. **Base**: PR "Versão: base sobe para X" (`package.json` + "Ainda não lançado" vira a seção datada), mergeado sozinho.
 
 O **site** (Worker `conta-api`) tem o seu caminho, na mesma ordem (skill `publicar-site`): a cada merge que mexe em
-`conta-api/`, o agente publica **só o staging** do site (`scripts/site-publicar.mjs --so-staging`). A produção do site
+`conta-api/`, o agente publica **só o staging** do site (`scripts/site-publicar.mjs --so-staging`, que só aceita o `origin/main`: ramo não vai para o staging). A produção do site
 nunca sai sozinha: quando a estável sai com `conta-api/` diferente, o agente avisa "site pronto para aprovar no staging
 (commit X)"; o dono confere e aprova (`--aprovar <sha>`) e aí sim `--producao`.
 
