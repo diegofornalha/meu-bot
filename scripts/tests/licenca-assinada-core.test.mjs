@@ -125,11 +125,25 @@ test("em vigor: sem licença da conta (ou sem id da máquina) vale só a do admi
 test("em vigor: o Pro da conta entra numa máquina que o admin deixou free, com o limite e o pagamento do admin", () => {
   const r = emVigor(FREE, arquivo());
   assert.equal(r.origem, "conta"); assert.equal(r.license.plan, "pro"); assert.equal(r.license.status, "active");
-  assert.equal(r.license.deviceLimit, 3, "o limite de devices é desta máquina: segue o do admin");
+  assert.equal(r.license.deviceLimit, 3, "o limite do admin (3) é maior que o da conta: vale o do admin");
   assert.deepEqual(r.license.pagamento, FREE.pagamento);
   assert.deepEqual(r.license.produtos, ["meu-bot-finance"]);
   assert.equal(r.exp, payload().exp);
   assert.equal(be.proOk(r.license, AGORA), true); assert.equal(be.crmOk(r.license, AGORA), true); assert.equal(be.financeOk(r.license, AGORA), true);
+});
+
+test("em vigor: o limite de devices é o maior entre o do admin e o da conta; conta vencida ou que não confere não amplia", () => {
+  const admin1 = { ...FREE, deviceLimit: 1 };
+  assert.equal(emVigor(admin1, arquivo({ licenca: lic({ deviceLimit: 4 }) })).license.deviceLimit, 4, "a conta (com device extra) amplia o limite da máquina");
+  assert.equal(emVigor({ ...FREE, deviceLimit: 6 }, arquivo({ licenca: lic({ deviceLimit: 4 }) })).license.deviceLimit, 6, "o que o admin deu a mais continua valendo");
+  // Admin já dá o Pro (origem admin): a conta ainda amplia o limite, sem trocar o resto.
+  const adminPro = { ...FREE, plan: "pro", status: "active", deviceLimit: 1, expiresAt: new Date(AGORA + 10 * DIA).toISOString() };
+  const r = emVigor(adminPro, arquivo({ licenca: lic({ deviceLimit: 3 }) }));
+  assert.equal(r.origem, "admin"); assert.equal(r.license.deviceLimit, 3); assert.equal(r.license.expiresAt, adminPro.expiresAt);
+  // Licença da conta vencida, ou arquivo que não confere: vale só o limite do admin.
+  assert.equal(emVigor(admin1, arquivo({ licenca: lic({ deviceLimit: 9, status: "expired" }) })).license.deviceLimit, 1);
+  assert.equal(emVigor(admin1, arquivo({ licenca: lic({ deviceLimit: 9, expiresAt: new Date(AGORA - DIA).toISOString() }) })).license.deviceLimit, 1);
+  assert.equal(emVigor(admin1, arquivo({ licenca: lic({ deviceLimit: 9 }) }), "5d2c1c0a-3f1b-4a52-8b8e-1f2a3b4c5d6e").license.deviceLimit, 1, "licença de outra máquina");
 });
 
 test("em vigor: o que não confere não dá Pro (assinatura mexida, outra máquina, emissão vencida, outra chave)", () => {

@@ -302,8 +302,10 @@ async function announceMachine(m) {
   const now = new Date().toISOString();
   const known = all[m.id];
   const license = ensureLicense();
-  // Device conhecido mantém o status; device novo entra ativo se cabe no limite, senão "pending" (mão levantada).
+  // Device ativo continua ativo; novo, ou pendente, entra ativo se cabe no limite, senão "pending" (mão levantada).
   const status = licenca.admitDevice(license, all, m.id);
+  // O Mac que esperava vaga entrou sozinho (o limite subiu): fica no log, já que não passa pela mão do admin.
+  if (known && licenca.deviceStatus(known) === 'pending' && status === 'active') log(`device ${m.id} (${m.name}) liberado sozinho: passou a caber no limite de ${license.deviceLimit}`);
   const prev = known || {};
   all[m.id] = {
     name: m.name, user: m.user, platform: m.platform, app: m.app,
