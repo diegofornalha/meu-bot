@@ -66,8 +66,8 @@ Enterprise com assentos cobrados.
 ## Analytics (Google Analytics 4 no site, na página de login e no console)
 
 `GA_ID` (`wrangler.toml`, por ambiente) é o ID de métricas do fluxo Web (`G-…`). Uma propriedade por ambiente:
-produção = **meu-bot-conta** (`G-12CJ787RGJ`, criada pelo Firebase, conta box@agentesgrok.com); staging =
-**agentesintegrados** (`G-FCKW62SB1K`, de diegofornalha, fluxo "agentesgrok-site-staging"). Vazio desliga tudo. A var
+produção = **meu-bot-conta** (propriedade 563124986, `G-12CJ787RGJ`, criada pelo Firebase, conta box@agentesgrok.com); staging =
+a propriedade **485491921** da conta "AgentesGrokStaging" (`G-FCKW62SB1K`, fluxo "agentesgrok-site-staging"). Vazio desliga tudo. A var
 aceita vários IDs separados por vírgula, mas dois containers do Google na mesma página duplicam o `page_view` (o segundo
 ignora `send_page_view: false`): deixe um por ambiente. O Worker põe a lista no `/config.js` de cada host
 (`ga`) e libera na CSP de cada host os domínios da tag (`googletagmanager.com`, `google-analytics.com`,

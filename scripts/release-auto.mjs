@@ -172,17 +172,17 @@ function siteStagingAcompanhaMain(sha) {
   const stagingDe = commitDoStaging();
   let mudouSite = null;
   if (stagingDe !== null && stagingDe !== sha) { const diff = shOu("git", ["diff", "--name-only", `${stagingDe}..${sha}`, "--", "conta-api"]); mudouSite = diff === null ? null : diff !== ""; }
-  const d = decideSiteStaging({ main: sha, stagingDe, mudouSite, falhouEm: e.siteFalhouEm ?? null, agora: Date.now(), esperaMs: ESPERA_FALHA_MS });
+  const d = decideSiteStaging({ main: sha, stagingDe, mudouSite, falhouEm: e.siteFalhouEm ?? null, falhouNo: e.siteFalhouNo ?? null, agora: Date.now(), esperaMs: ESPERA_FALHA_MS });
   if (d.acao === "nada") { if (stagingDe !== null && e.siteStagingDe !== stagingDe) gravarEstado({ ...e, siteStagingDe: stagingDe }); return; }
   log(`=== site staging (${d.motivo}) no origin/main ${sha.slice(0, 12)}`);
   if (rodar("node", ["scripts/site-publicar.mjs", "--so-staging"], WT)) {
     log("=== site staging ok");
-    gravarEstado({ ...lerEstado(), siteStagingDe: sha, siteFalhouEm: null });
+    gravarEstado({ ...lerEstado(), siteStagingDe: sha, siteFalhouEm: null, siteFalhouNo: null });
     avisar("site no staging", `site-staging.agentesgrok.com está no commit ${sha.slice(0, 12)}. A produção espera a aprovação.`);
   } else {
     log("=== site staging FALHOU");
-    gravarEstado({ ...lerEstado(), siteFalhouEm: Date.now() });
-    avisar("site não publicado no staging", "Os testes, a conferência ou o deploy falharam; o staging ficou como estava. Tento de novo em 1 h (log: ~/Library/Logs/meu-bot-release.log)");
+    gravarEstado({ ...lerEstado(), siteFalhouEm: Date.now(), siteFalhouNo: sha });
+    avisar("site não publicado no staging", "Os testes, a conferência ou o deploy falharam; o staging ficou como estava. Tento de novo em 1 h, ou assim que a main andar (log: ~/Library/Logs/meu-bot-release.log)");
   }
 }
 

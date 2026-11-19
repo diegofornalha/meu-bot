@@ -280,12 +280,13 @@ export function estavelMaisNova(tags) {
  * estado do agente; null = desconhecido); `mudouSite` = conta-api/ difere entre `stagingDe` e `main` (null = não deu
  * para comparar).
  * - `publicar`: o staging não tem o conta-api da main (ou não dá para provar que tem);
- * - `nada`: staging em dia, ou a última tentativa falhou há menos de `esperaMs`.
+ * - `nada`: staging em dia, ou a última tentativa falhou há menos de `esperaMs` neste mesmo commit (`falhouNo`;
+ *   null = estado antigo, sem o commit anotado: vale a espera). Main nova depois da falha é tentada na hora.
  */
-export function decideSiteStaging({ main, stagingDe = null, mudouSite = null, falhouEm = null, agora, esperaMs }) {
+export function decideSiteStaging({ main, stagingDe = null, mudouSite = null, falhouEm = null, falhouNo = null, agora, esperaMs }) {
   if (stagingDe === main) return { acao: "nada" };
   if (stagingDe !== null && mudouSite === false) return { acao: "nada" };
-  if (falhouEm !== null && agora - falhouEm < esperaMs) return { acao: "nada", motivo: "a última publicação do site falhou há pouco" };
+  if (falhouEm !== null && agora - falhouEm < esperaMs && (falhouNo === null || falhouNo === main)) return { acao: "nada", motivo: "a última publicação do site falhou há pouco neste commit" };
   if (stagingDe === null) return { acao: "publicar", motivo: "não sei qual commit está no staging do site" };
   if (mudouSite === null) return { acao: "publicar", motivo: `não consegui comparar conta-api com o commit ${stagingDe.slice(0, 12)} do staging` };
   return { acao: "publicar", motivo: `conta-api mudou na main desde o commit ${stagingDe.slice(0, 12)} do staging` };
