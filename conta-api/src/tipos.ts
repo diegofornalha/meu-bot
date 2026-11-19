@@ -145,6 +145,8 @@ export interface ContaApi {
   maquinaLimite: number;
   /** Quantas das vagas de `maquinaLimite` vêm de máquina extra paga (extras_pagos em dia); o resto é o que o plano inclui. */
   maquinaExtras: number;
+  /** Quantas das vagas de `licenca.deviceLimit` vêm de device extra pago (extras_pagos em dia); o resto é o que o plano inclui. */
+  deviceExtras: number;
   /** Pedidos abertos desta conta (Pro, add-on, device). */
   pedidos: number;
   /**

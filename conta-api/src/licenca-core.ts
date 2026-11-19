@@ -86,13 +86,14 @@ export function admitirMaquina(daConta: readonly Vinculo[], id: string, limite: 
 }
 
 /**
- * O limite de máquinas em vigor: o que o admin gravou (`base`) mais uma vaga por máquina extra paga que ainda não
- * venceu, até MAQUINA_LIMITE_MAX. `extras` diz quantas das vagas são pagas (a tela explica a conta com ele).
+ * O limite em vigor de máquinas ou de devices: o que o admin gravou (`base`) mais uma vaga por unidade extra paga que
+ * ainda não venceu, até `teto` (o das máquinas, ou DEVICE_LIMITE_MAX para devices). `extras` diz quantas das vagas são
+ * pagas (a tela explica a conta com ele).
  */
-export function limiteComExtras(base: number, pagos: readonly { expiresAt: string }[], agoraMs: number): { limite: number; extras: number } {
+export function limiteComExtras(base: number, pagos: readonly { expiresAt: string }[], agoraMs: number, teto: number = MAQUINA_LIMITE_MAX): { limite: number; extras: number } {
   const b = Number.isInteger(base) && base >= 1 ? base : 1;
   const emDia = pagos.filter((p) => Date.parse(p.expiresAt) > agoraMs).length;
-  const limite = Math.min(b + emDia, Math.max(b, MAQUINA_LIMITE_MAX));
+  const limite = Math.min(b + emDia, Math.max(b, teto));
   return { limite, extras: limite - b };
 }
 

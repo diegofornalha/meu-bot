@@ -1,7 +1,7 @@
 // Painel "Assinar o Pro" do console (public/console/plano-core.js): quando some e quando avisa do prazo atual.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addonsNaVisaoGeral, avisoAddonPago, contagemRegressiva, diasAteOFim, estadoAssinaturaPro, fase, ofertaDoProAparece, pedidoAssinar, promoNaTela, reaisCurto, semPrazo, podeAdicionarMaquina, vagaDoAssinar, vagasDeMaquina } from "../public/console/plano-core.js";
+import { addonsNaVisaoGeral, avisoAddonPago, contagemRegressiva, diasAteOFim, estadoAssinaturaPro, fase, ofertaDoProAparece, pedidoAssinar, promoNaTela, reaisCurto, semPrazo, podeAdicionarMaquina, vagaDoAssinar, vagasDeDevice, vagasDeMaquina } from "../public/console/plano-core.js";
 
 const pro = { plan: "pro", status: "active" };
 const ativa = { status: "ACTIVE", produto: null };
@@ -193,4 +193,11 @@ test("Visão geral: quem já tem o Pro vê os add-ons que ainda não tem; com a 
   assert.deepEqual(addonsNaVisaoGeral(false, ["meu-bot-finance", "meu-bot-diego"], [fin, diego]), []);
   assert.deepEqual(addonsNaVisaoGeral(true, [], [fin, diego]), [], "uma oferta por vez");
   assert.deepEqual(addonsNaVisaoGeral(false, undefined, undefined), []);
+});
+
+test("vagasDeDevice: a mesma conta das máquinas, com o texto no masculino", () => {
+  assert.deepEqual(vagasDeDevice(1, 0), { total: 1, inclusas: 1, extras: 0, detalhe: "" });
+  assert.deepEqual(vagasDeDevice(2, 1), { total: 2, inclusas: 1, extras: 1, detalhe: "1 incluso + 1 extra" });
+  assert.deepEqual(vagasDeDevice(5, 2), { total: 5, inclusas: 3, extras: 2, detalhe: "3 inclusos + 2 extras" });
+  assert.deepEqual(vagasDeDevice(undefined, undefined), { total: 1, inclusas: 1, extras: 0, detalhe: "" }, "API antiga, sem os campos");
 });
