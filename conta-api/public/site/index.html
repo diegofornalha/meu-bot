@@ -54,11 +54,10 @@
   </script>
 </head>
 <body>
-<div class="rasc" id="rascunho" hidden>Staging: versão em revisão da home. O site de produção é agentesgrok.com.</div>
 <div class="wrap">
 <header>
   <a class="marca" href="/" aria-label="meu-bot, página inicial"><span class="logo">mb</span>meu-bot</a>
-  <nav><a href="#como">O sistema</a><a href="#usos">Casos de uso</a><a href="#empresas">Para empresas</a><a href="#precos">Planos</a><a href="/suporte" data-canal="staging" hidden>Todos os planos</a><a href="/perguntas">Perguntas</a><a class="nav-cta" href="/baixar">Baixar para Mac</a></nav>
+  <nav><a href="#como">O sistema</a><a href="#usos">Casos de uso</a><a href="#empresas">Para empresas</a><a href="#precos">Planos</a><a href="/perguntas">Perguntas</a><a class="nav-cta" href="/baixar">Baixar para Mac</a></nav>
 </header>
 
 <!-- 1. Promessa: o sistema operacional da empresa agêntica. O WhatsApp é um dos canais, não a promessa. -->
@@ -282,9 +281,9 @@
 </section>
 
 
-<!-- 6. Planos. Produção: teste com o próprio número, R$ 97/mês com o chip do agente da Coflow, próprio chip sob cotação.
-     Staging é o ensaio: grátis para beta testers. O site.js mostra a seção do canal (sem JS, fica a de produção). -->
-<section id="precos" data-canal="producao">
+<!-- 6. Planos: teste com o próprio número, R$ 97/mês com o chip do agente da Coflow, próprio chip sob cotação.
+     Os mesmos nos dois ambientes: o staging mostra o que a produção vai mostrar (só a faixa e o selo, do site.js, mudam). -->
+<section id="precos">
   <p class="olho">Quanto custa</p>
   <h2>Um sistema inteiro por R$ 3,23 por dia</h2>
   <p class="sub">São R$ 97 por mês pelo agente com número dedicado, navegador, Gmail e CRM. Você testa 3 dias antes, sem cartão, e cancela quando quiser.</p>
@@ -304,17 +303,6 @@
       <a class="btn sec" href="/console" data-ev="plano_interesse" data-plano="proprio-chip">Pedir cotação</a></div>
   </div>
 </section>
-<section id="precos-beta" data-canal="staging" hidden>
-  <p class="olho">Quanto custa</p>
-  <h2>Ensaio: grátis para beta testers</h2>
-  <p class="sub">Esta é a versão de ensaio do meu-bot. Quem entra agora usa tudo sem pagar e, em troca, conta para a gente o que funcionou e o que não funcionou.</p>
-  <div class="grid2 precos mt24">
-    <div class="card dest"><h3>Beta tester</h3><div class="preco">R$ 0 <small>durante o ensaio</small></div>
-      <ul class="ok"><li>Agente no WhatsApp, no seu número</li><li>Navegador, Gmail e CRM do agente</li><li>Mais de um Mac na mesma conta</li><li>Seu feedback direto com quem faz o produto</li></ul>
-      <a class="btn soMac" href="/obrigado" data-ev="baixar_mac" data-origem="beta">Entrar no ensaio</a></div>
-  </div>
-  <p class="mt24"><a href="/suporte">Ver todos os planos (rascunho) →</a></p>
-</section>
 
 <!-- 7. FAQ -->
 <section id="faq" class="alt">
@@ -323,7 +311,7 @@
   <details><summary>Funciona no Windows ou em Mac Intel?</summary><p>Por enquanto, só em Mac com chip Apple (M1 ou mais novo). A versão para Windows está em teste: <a href="/#windows">deixe o seu contato</a> e avisamos quando ela sair. Se o seu Mac é Intel, <a href="https://github.com/diegofornalha/meu-bot/issues" rel="noopener">avise a gente</a> e te contamos quando houver outra versão.</p></details>
   <details><summary>Meu WhatsApp corre risco de bloqueio?</summary><p>Existe risco, e é bom saber de onde ele vem. O meu-bot conecta pelo mesmo protocolo do WhatsApp Web, não pela API oficial da Meta, e os termos do WhatsApp não preveem esse uso para automação. O risco cresce com disparo em massa, lista fria e mensagem igual para muita gente, e diminui quando o agente só responde quem escreveu primeiro. <a href="/guias/whatsapp-bloqueia-numero-com-ia">Entenda o risco de bloqueio</a>. Use com os seus clientes e não com listas compradas. A conexão pela API oficial da Meta está nos planos.</p></details>
   <details><summary>O agente pode mandar algo errado para meu cliente?</summary><p>Você define o que ele responde sozinho e o que precisa da sua aprovação. Em ações sensíveis, ele sempre pergunta antes, e você pode pausar um contato ou o agente inteiro a qualquer momento.</p></details>
-  <details><summary>O que acontece no fim dos 3 dias?</summary><p data-canal="producao">Nada é cobrado: não há cartão cadastrado. O Navegador, o Gmail e o CRM do agente ficam desligados até você contratar, por R$ 97 por mês com o chip da Coflow ou sob cotação com o seu próprio chip. Precisa de mais tempo para testar? <a href="https://wa.me/5521923670743?text=Ol%C3%A1!%20Estou%20testando%20o%20meu-bot%20e%20preciso%20de%20mais%20tempo%20de%20teste." target="_blank" rel="noopener" data-ev="falar_whatsapp" data-origem="fim-teste">Fale com a gente no WhatsApp</a>.</p><p data-canal="staging" hidden>Nesta versão de ensaio, nada muda: beta tester continua usando tudo sem pagar enquanto o ensaio durar.</p></details>
+  <details><summary>O que acontece no fim dos 3 dias?</summary><p>Nada é cobrado: não há cartão cadastrado. O Navegador, o Gmail e o CRM do agente ficam desligados até você contratar, por R$ 97 por mês com o chip da Coflow ou sob cotação com o seu próprio chip. Precisa de mais tempo para testar? <a href="https://wa.me/5521923670743?text=Ol%C3%A1!%20Estou%20testando%20o%20meu-bot%20e%20preciso%20de%20mais%20tempo%20de%20teste." target="_blank" rel="noopener" data-ev="falar_whatsapp" data-origem="fim-teste">Fale com a gente no WhatsApp</a>.</p></details>
   <details><summary>Qual IA o meu-bot usa?</summary><p>O Grok, da xAI. Você entra com a sua conta do Grok no app, sem copiar chave de API; também dá para usar a sua conta do Claude. A Coflow, que faz o meu-bot, é parceira da xAI.</p></details>
   <details><summary>O meu-bot é da xAI? Existe um Grok oficial no WhatsApp?</summary><p>Não. O meu-bot é um produto independente da Coflow que usa o Grok. A xAI não tem número oficial no WhatsApp: desconfie de contatos que se dizem "o Grok". Com o meu-bot, o Grok atende no seu número ou num chip da Coflow.</p></details>
   <details><summary>Posso continuar no meu número?</summary><p>No teste, sim: o agente roda no seu WhatsApp. O plano de R$ 97 por mês usa um chip da Coflow, então seus clientes passam a falar com esse número. Para manter o seu número depois do teste, o plano é sob cotação.</p></details>
@@ -342,7 +330,7 @@
 </div>
 
 <footer><div class="wrap">
-  <a href="/suporte" data-canal="staging" hidden>Todos os planos</a><a href="/baixar">Baixar</a><a href="/perguntas">Perguntas</a><a href="/guias">Guias</a><a href="/grok-no-whatsapp">Grok no WhatsApp</a><a href="/grok-bot-e-meu-bot">Grok Bot e meu-bot</a><a href="/parceria-xai">Parceria com a xAI</a><a href="/privacidade">Privacidade</a><a href="/termos">Termos de uso</a><a href="/novidades">Novidades</a><a href="/console">Console da conta</a><a href="https://github.com/diegofornalha/meu-bot" rel="noopener">GitHub</a>
+  <a href="/baixar">Baixar</a><a href="/perguntas">Perguntas</a><a href="/guias">Guias</a><a href="/grok-no-whatsapp">Grok no WhatsApp</a><a href="/grok-bot-e-meu-bot">Grok Bot e meu-bot</a><a href="/parceria-xai">Parceria com a xAI</a><a href="/privacidade">Privacidade</a><a href="/termos">Termos de uso</a><a href="/novidades">Novidades</a><a href="/console">Console da conta</a><a href="https://github.com/diegofornalha/meu-bot" rel="noopener">GitHub</a>
   <p>meu-bot é um produto da Coflow · CNPJ 41.490.672/0001-00 · agentesgrok.com</p>
   <p>Medimos visitas com o Google Analytics, sem remarketing e sem dados pessoais.</p>
   <p>Grok e xAI são marcas da xAI. WhatsApp é marca da Meta. O meu-bot é um produto independente da Coflow.</p>
