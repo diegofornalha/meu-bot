@@ -70,7 +70,7 @@ export interface ContaLinha {
 export interface PerfilApi { nomeProprio: string | null; sobrenome: string | null }
 export interface LicencaLinha {
   conta_id: string; plan: string; status: string; interval: string | null; member_since: string; trial_end: string | null;
-  expires_at: string | null; device_limit: number; maquina_limit?: number; produtos: string; pagamento: string | null; updated_at: string; updated_by: string;
+  expires_at: string | null; device_limit: number; maquina_limit?: number; org_limit?: number; produtos: string; pagamento: string | null; updated_at: string; updated_by: string;
 }
 export interface DeviceLinha {
   conta_id: string; id: string; alias_legado: string | null; name: string | null; user: string | null; platform: string | null;
@@ -145,6 +145,8 @@ export interface ContaApi {
   maquinas: MaquinaApi[];
   /** As máquinas em uso que não estão em `maquinas` (licença do admin), vistas pelo app nos últimos 30 dias. */
   maquinasVistas: MaquinaVistaApi[];
+  /** Criar organização: quantas a conta pode ter como dona (`limite`), quantas já tem (`donaDe`) e por que não pode criar outra agora (`motivo`; null = pode). */
+  orgCriar: { limite: number; donaDe: number; motivo: "sem-pro" | "no-limite" | null };
   /** Em quantas máquinas a conta pode usar a licença ao mesmo tempo: o que o admin gravou (licencas.maquina_limit) mais as máquinas extras pagas em dia. */
   maquinaLimite: number;
   /** Quantas das vagas de `maquinaLimite` vêm de máquina extra paga (extras_pagos em dia); o resto é o que o plano inclui. */
@@ -166,7 +168,7 @@ export interface ContaApi {
   promo: PromoApi | null;
 }
 /** `GET /admin/visao`: todas as contas (com licença, devices e máquinas), os pedidos abertos e os totais. Só admin. */
-export interface AdminContaResumo { id: string; email: string; nome: string | null; foto: string | null; admin: "super" | "admin" | null; criadaEm: string; /** A licença em vigor (para o super admin, o Pro sem prazo). */ licenca: License; /** Só vem para conta de super admin: o que está gravado, que o editor de licença mostra e muda. */ licencaGravada?: License; /** Add-ons pagos pela AbacatePay, com o prazo de cada um (os concedidos pelo admin estão em licenca.produtos). */ addonsPagos: { produto: string; expiresAt: string }[]; /** Unidades extras pagas (máquina extra), uma por assinatura, com o prazo de cada uma; `maquinaLimite` aqui é só o que o admin gravou, sem elas. */ extrasPagos: { assinaturaId: string; tipo: string; expiresAt: string }[]; devices: DeviceApi[]; maquinas: number; maquinaLimite: number; pedidos: number }
+export interface AdminContaResumo { id: string; email: string; nome: string | null; foto: string | null; admin: "super" | "admin" | null; criadaEm: string; /** A licença em vigor (para o super admin, o Pro sem prazo). */ licenca: License; /** Só vem para conta de super admin: o que está gravado, que o editor de licença mostra e muda. */ licencaGravada?: License; /** Add-ons pagos pela AbacatePay, com o prazo de cada um (os concedidos pelo admin estão em licenca.produtos). */ addonsPagos: { produto: string; expiresAt: string }[]; /** Unidades extras pagas (máquina extra), uma por assinatura, com o prazo de cada uma; `maquinaLimite` aqui é só o que o admin gravou, sem elas. */ extrasPagos: { assinaturaId: string; tipo: string; expiresAt: string }[]; devices: DeviceApi[]; maquinas: number; maquinaLimite: number; /** Quantas organizações a conta pode criar (licencas.org_limit). */ orgLimite: number; pedidos: number }
 export interface AdminPedido { id: string; tipo: string; detalhe: string | null; maquinaId: string | null; criadoEm: string; atendidoEm: string | null; atendidoPor: string | null; conta: { id: string; email: string; nome: string | null } }
 /** `fixo`: o admin inicial (ADMIN_BOOTSTRAP_EMAIL), que não é removido nem rebaixado. */
 export interface AdminPerfil { email: string; papel: "super" | "admin"; criadoEm: string; entrou: boolean; fixo: boolean }

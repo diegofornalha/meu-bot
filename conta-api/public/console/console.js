@@ -1,5 +1,5 @@
 import { avisoDepoisDo404, pedeReleitura, visaoVelha } from "./admin-core.js";
-import { INFINITO, SEM_LIMITE, SEM_PRAZO, TODOS_ADDONS, avisoAddonPago, contagemRegressiva, addonsNaVisaoGeral, estadoAssinaturaPro, fase, linhasDeMaquinas, deParaDoExtra, assinaturasDoItem, estadoDoItem, itemGa, ofertaDoProAparece, resumoDeUso, semDevices, oQueAContaTem, pagoChegou, assinaturasAtivasDe, pedidoAssinar, podeAdicionarMaquina, promoNaTela, reaisCurto, semPrazo, vagaDoAssinar, vagasDeDevice, vagasDeMaquina } from "./plano-core.js";
+import { INFINITO, SEM_LIMITE, SEM_PRAZO, TODOS_ADDONS, avisoAddonPago, contagemRegressiva, addonsNaVisaoGeral, estadoAssinaturaPro, fase, linhasDeMaquinas, deParaDoExtra, assinaturasDoItem, bloqueioDeOrg, estadoDoItem, itemGa, ofertaDoProAparece, resumoDeUso, semDevices, oQueAContaTem, pagoChegou, assinaturasAtivasDe, pedidoAssinar, podeAdicionarMaquina, promoNaTela, reaisCurto, semPrazo, vagaDoAssinar, vagasDeDevice, vagasDeMaquina } from "./plano-core.js";
 // Console da conta meu-bot (console.agentesgrok.com/account/* e /organizations/<slug>/members|settings, molde Rambox). Entra pela mesma página de
 // login do app (auth.agentesgrok.com) com esquema=web: o console gera state + PKCE, a página devolve #code&state, e
 // POST /token {grant:"web"} vira um token de acesso de 1 h guardado neste navegador (localStorage: outra aba, inclusive
@@ -336,6 +336,10 @@ function pintarMenuOrgs(c) {
 }
 function pintarOrgNova() {
   const form = $("org-nova-form"); form.reset(); $("org-nova-criar").disabled = false;
+  // Quem não pode criar agora (sem o Pro assinado, ou já no limite) vê o motivo e o caminho, em vez do formulário.
+  const b = bloqueioDeOrg(conta?.orgCriar), aviso = $("org-nova-bloqueio");
+  form.hidden = b !== null; aviso.hidden = b === null; aviso.replaceChildren();
+  if (b !== null) { const a = el("a", "btn btn-primary", b.ir.rotulo); a.href = b.ir.caminho; aviso.append(b.texto, el("br"), el("br"), a); return; }
   form.elements.slug.dataset.auto = "1"; orgNovaPrevia();
 }
 const slugDoNome = (nome) => nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40).replace(/-+$/g, "");
@@ -752,7 +756,8 @@ function editorLicenca(tr, c) {
   mais30.addEventListener("click", () => { plan.value = "pro"; status.value = "trialing"; ate.value = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10); });
   const limite = input("deviceLimit", "number", String(l.deviceLimit)); limite.min = "1"; limite.max = "50";
   const maquinas = input("maquinaLimit", "number", String(c.maquinaLimite ?? 1)); maquinas.min = "1"; maquinas.max = "50"; maquinas.title = "Em quantas máquinas (VMs) a pessoa pode usar a licença da conta ao mesmo tempo";
-  form.append(campo("Plano", plan), campo("Status", status), campo("Vale até", ate), mais30, campo("Devices", limite), campo("Máquinas", maquinas));
+  const orgs = input("orgLimit", "number", String(c.orgLimite ?? 1)); orgs.min = "1"; orgs.max = "20"; orgs.title = "Quantas organizações a pessoa pode criar (ser dona). O plano inclui 1";
+  form.append(campo("Plano", plan), campo("Status", status), campo("Vale até", ate), mais30, campo("Devices", limite), campo("Máquinas", maquinas), campo("Organizações", orgs));
   // Senha: o super admin define na hora (em branco não muda); qualquer admin manda o e-mail de redefinição.
   const superAdmin = conta !== null && conta.admin === "super";
   const senha = input("senha", "password", "", superAdmin ? "nova senha (em branco: não muda)" : "só o super admin define"); senha.autocomplete = "new-password"; senha.minLength = 8; senha.maxLength = 128; senha.disabled = !superAdmin;
@@ -776,7 +781,7 @@ function editorLicenca(tr, c) {
   form.addEventListener("submit", async (ev) => {
     ev.preventDefault(); salvar.disabled = true;
     const ateIso = ate.value ? `${ate.value}T23:59:59.000Z` : null;
-    const patch = { plan: plan.value, status: status.value, deviceLimit: Number(limite.value), maquinaLimit: Number(maquinas.value) };
+    const patch = { plan: plan.value, status: status.value, deviceLimit: Number(limite.value), maquinaLimit: Number(maquinas.value), orgLimit: Number(orgs.value) };
     if (status.value === "trialing") { patch.trialEnd = ateIso; patch.expiresAt = ateIso; } else { patch.expiresAt = ateIso; patch.trialEnd = null; }
     const s = sessaoGuardada(); if (s === null) return;
     const r = await api("PATCH", `/admin/contas/${encodeURIComponent(c.id)}/licenca`, patch, s.acesso);
