@@ -54,7 +54,8 @@ disser `canal: "staging"`, só toca contas com exatamente esses e-mails e nunca 
 **Limites, para não tirar conclusão errada:**
 
 - `pro-pago` é Pro liberado pelo admin. Não cria assinatura: "Suas assinaturas" fica vazia e o painel "Assinar o Pro"
-  continua na tela com o aviso "Você já tem o Pro até …, sem assinatura ativa". Assinatura de verdade só pagando no
+  não aparece (volta nos últimos 7 dias do prazo, com o aviso "Você já tem o Pro até …, sem assinatura ativa"); no
+  topo da Visão geral entram os add-ons que a conta ainda não tem. Assinatura de verdade só pagando no
   Modo Teste (seção 4).
 - O script não apaga pagamentos. Conta que já pagou o Pro uma vez não volta a ver a promoção, mesmo em
   `teste-vencido` (`jaPagouPro`). Para repetir a promoção na mesma conta, o super admin remove a assinatura (console

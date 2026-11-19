@@ -1,5 +1,5 @@
 import { avisoDepoisDo404, pedeReleitura, visaoVelha } from "./admin-core.js";
-import { INFINITO, SEM_LIMITE, SEM_PRAZO, TODOS_ADDONS, avisoAddonPago, contagemRegressiva, estadoAssinaturaPro, fase, pedidoAssinar, podeAdicionarMaquina, promoNaTela, reaisCurto, semPrazo, vagaDoAssinar, vagasDeMaquina } from "./plano-core.js";
+import { INFINITO, SEM_LIMITE, SEM_PRAZO, TODOS_ADDONS, avisoAddonPago, contagemRegressiva, addonsNaVisaoGeral, estadoAssinaturaPro, fase, ofertaDoProAparece, pedidoAssinar, podeAdicionarMaquina, promoNaTela, reaisCurto, semPrazo, vagaDoAssinar, vagasDeMaquina } from "./plano-core.js";
 // Console da conta meu-bot (console.agentesgrok.com/account/* e /organizations/<slug>/members|settings, molde Rambox). Entra pela mesma página de
 // login do app (auth.agentesgrok.com) com esquema=web: o console gera state + PKCE, a página devolve #code&state, e
 // POST /token {grant:"web"} vira um token de acesso de 1 h guardado neste navegador (localStorage: outra aba, inclusive
@@ -874,6 +874,8 @@ function cartao(ico, rotulo, ...valor) {
 const statusTom = (l) => (l.status === "active" || l.status === "trialing" ? "ok" : l.status === "expired" ? "mau" : "");
 function pintarOverview(c) {
   pintarAssinar(c);
+  // Quem já tem o Pro vê no topo o que ainda não tem: os add-ons (plano-core.js, addonsNaVisaoGeral).
+  pintarAddons(c.licenca, null, c.liberacoes, "ov-addons", addonsNaVisaoGeral(!$("pl-assinar").hidden, c.licenca.produtos, ADDONS));
   const l = c.licenca, ativos = c.devices.filter((d) => d.status !== "pending").length, pendentes = c.devices.length - ativos;
   $("ov-cartoes").replaceChildren(
     cartao("⬢", "Plano", selo(PLANO[l.plan] ?? l.plan, l.plan === "pro" ? "ok" : "")),
@@ -1076,10 +1078,10 @@ async function assinar(produto = null, btn = $("pl-assinar-btn"), aviso = $("pl-
  * (pago na conta; liberado ou não na máquina) na volta do pagamento e enquanto o pedido de liberação está aberto
  * (`avisoAddonPago`, plano-core.js).
  */
-function pintarAddons(l, voltouDe, liberacoes) {
-  const caixa = $("pl-addons"); caixa.replaceChildren();
+function pintarAddons(l, voltouDe, liberacoes, caixaId = "pl-addons", lista = ADDONS) {
+  const caixa = $(caixaId); caixa.replaceChildren();
   if (cfg.pagamentos !== "1") return;
-  for (const a of ADDONS) {
+  for (const a of lista) {
     const tem = l.produtos.includes(a.nome);
     const pago = tem ? avisoAddonPago(a.rotulo, a.nome, liberacoes, voltouDe === a.nome) : null;
     if (tem && pago === null) continue;
@@ -1156,7 +1158,7 @@ function pintarAssinar(c) {
   const vaga = vagaDoAssinar(rota()?.secao);
   const l = c.licenca, estado = estadoAssinaturaPro(l, c.assinaturas);
   $(vaga).append($("pl-assinar"));
-  $("pl-assinar").hidden = cfg.pagamentos !== "1" || estado.pagoAtivo || estado.semPrazo === true;
+  $("pl-assinar").hidden = cfg.pagamentos !== "1" || !ofertaDoProAparece(l, c.assinaturas, Date.now());
   $("pl-assinar-ja").hidden = !estado.proSemAssinatura;
   pintarPromo(c);
   $("pl-assinar-ja").textContent = estado.proSemAssinatura ? `Você já tem o Pro${l.expiresAt ? ` até ${data(l.expiresAt)}` : ""}, sem assinatura ativa. Assinando, a cobrança passa a ser mensal e o prazo que você já tem não é encurtado.` : "";

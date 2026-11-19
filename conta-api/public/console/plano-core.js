@@ -133,6 +133,33 @@ export function avisoAddonPago(rotulo, nome, liberacoes, voltou) {
   return { estado: "sem-pedido", texto: `${pago} Ele aparece no app depois de liberado na sua máquina; se não aparecer, fale com o suporte.` };
 }
 
+/** Com o Pro valendo sem assinatura, a oferta só volta quando faltam estes dias ou menos para ele acabar. */
+export const DIAS_PARA_OFERTAR = 7;
+/**
+ * O painel "Assinar o Pro" aparece? Quem já tem o Pro não vê oferta do que já tem:
+ * - super admin (sem prazo) e assinatura em andamento: nunca;
+ * - Pro valendo sem assinatura (liberado pelo admin, ou cancelado com o mês pago): só nos últimos DIAS_PARA_OFERTAR
+ *   dias, para a pessoa assinar antes de ficar sem; Pro sem data de fim não vê;
+ * - teste grátis, teste vencido, expirado e free: sempre.
+ */
+export function ofertaDoProAparece(licenca, assinaturas, agoraMs) {
+  const e = estadoAssinaturaPro(licenca, assinaturas);
+  if (e.semPrazo === true || e.pagoAtivo) return false;
+  if (!e.proSemAssinatura) return true;
+  const dias = diasAteOFim(licenca, agoraMs);
+  return dias !== null && dias <= DIAS_PARA_OFERTAR;
+}
+
+/**
+ * O que a Visão geral oferece no topo a quem já não vê a oferta do Pro: os add-ons do catálogo que a conta ainda não
+ * tem (Finanças e os que vierem). Enquanto a oferta do Pro está na tela, nada: uma oferta por vez.
+ */
+export function addonsNaVisaoGeral(ofertaDoPro, produtos, addons) {
+  if (ofertaDoPro) return [];
+  const tem = Array.isArray(produtos) ? produtos : [];
+  return (Array.isArray(addons) ? addons : []).filter((a) => a && !tem.includes(a.nome));
+}
+
 /** Onde o painel "Assinar o Pro" fica na página aberta: na vaga do Plano quando a pessoa está no Plano; no topo da Visão geral em qualquer outra. */
 export function vagaDoAssinar(secao) {
   return secao === "plan" ? "pl-assinar-vaga" : "ov-assinar-vaga";
