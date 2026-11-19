@@ -106,6 +106,8 @@ test("site: o staging acompanha a main quando conta-api mudou desde o commit que
   assert.equal(decideSiteStaging({ ...b, falhouEm: b.agora - 60_000 }).acao, "nada", "falhou há 1 min: espera");
   assert.equal(decideSiteStaging({ ...b, stagingDe: null, falhouEm: b.agora - 60_000 }).acao, "nada", "a espera vale também com o commit desconhecido");
   assert.equal(decideSiteStaging({ ...b, falhouEm: b.agora - 3_600_000 }).acao, "publicar", "passou a espera: tenta de novo");
+  assert.equal(decideSiteStaging({ ...b, falhouEm: b.agora - 60_000, falhouNo: b.main }).acao, "nada", "falhou neste mesmo commit: espera");
+  assert.equal(decideSiteStaging({ ...b, falhouEm: b.agora - 60_000, falhouNo: "c".repeat(40) }).acao, "publicar", "a main andou depois da falha (o conserto entrou): tenta já");
 });
 
 test("site: o commit no ar vem do /health; sem sha completo é desconhecido, não erro", () => {
