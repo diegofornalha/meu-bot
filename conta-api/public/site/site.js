@@ -71,6 +71,18 @@
       else ga.evento("baixar_mac", { origem: a.dataset.origem || "home" });
     });
   }
+  // Marketplace: a vitrine vista, o item visto e os cliques, com o mesmo item_id que o servidor manda na compra
+  // ("<id>-mensal": compraGa4). Os dados do item vêm do HTML (data-item, data-nome, data-tipo), que o Worker monta.
+  const mkItem = (e) => ({ item_id: `${e.dataset.item}-mensal`, item_name: e.dataset.nome || e.dataset.item, item_category: e.dataset.tipo || "" });
+  const mkCartoes = [...document.querySelectorAll('a[data-mk="ver"][data-item]')], mkContratar = document.querySelector('a[data-mk="contratar"][data-item]');
+  if (mkCartoes.length > 0) ga.evento("view_item_list", { item_list_id: "marketplace", items: mkCartoes.map(mkItem) });
+  if (mkContratar) ga.evento("view_item", { currency: "BRL", value: Number(mkContratar.dataset.valor) || 0, items: [mkItem(mkContratar)] });
+  if (mkCartoes.length > 0 || mkContratar) document.addEventListener("click", (e) => {
+    const a = e.target instanceof Element ? e.target.closest("a[data-mk][data-item]") : null;
+    if (!a) return;
+    if (a.dataset.mk === "ver") ga.evento("select_item", { item_list_id: "marketplace", items: [mkItem(a)] });
+    else ga.evento("marketplace_contratar", { items: [mkItem(a)] });
+  });
   // Lista de espera: grava o e-mail ou WhatsApp no próprio site (POST /lista-espera) e diz o resultado na linha do campo.
   for (const f of document.querySelectorAll("form.lista-form")) {
     f.addEventListener("submit", (e) => {

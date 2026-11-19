@@ -201,6 +201,15 @@ export function vagaDoAssinar(secao) {
 }
 
 /**
+ * O item do Marketplace como o Analytics o conhece: o mesmo `item_id` que o servidor manda no `purchase` (compraGa4:
+ * "pro-mensal", "meu-bot-finance-mensal", "extra-maquina-mensal"), para a vitrine, o clique e a compra se ligarem.
+ */
+export function itemGa(item) {
+  const id = typeof item?.id === "string" ? item.id : "";
+  return { item_id: `${id}-mensal`, item_name: typeof item?.nome === "string" ? item.nome : id, item_category: typeof item?.tipo === "string" ? item.tipo : "" };
+}
+
+/**
  * O selo de um item do Marketplace para esta conta: `tem` (já tem), `teste` (o Pro em teste grátis), `falta-liberar`
  * (app pago que o suporte ainda não liberou na máquina), `precisa-pro` (unidade extra sem o Pro valendo) ou
  * `disponivel`. `item` é a ficha entregue pelo config.js ({id, tipo}); super admin tem tudo.

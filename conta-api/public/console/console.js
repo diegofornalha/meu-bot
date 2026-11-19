@@ -1,5 +1,5 @@
 import { avisoDepoisDo404, pedeReleitura, visaoVelha } from "./admin-core.js";
-import { INFINITO, SEM_LIMITE, SEM_PRAZO, TODOS_ADDONS, avisoAddonPago, contagemRegressiva, addonsNaVisaoGeral, estadoAssinaturaPro, fase, linhasDeMaquinas, deParaDoExtra, assinaturasDoItem, estadoDoItem, ofertaDoProAparece, oQueAContaTem, pagoChegou, assinaturasAtivasDe, pedidoAssinar, podeAdicionarMaquina, promoNaTela, reaisCurto, semPrazo, vagaDoAssinar, vagasDeDevice, vagasDeMaquina } from "./plano-core.js";
+import { INFINITO, SEM_LIMITE, SEM_PRAZO, TODOS_ADDONS, avisoAddonPago, contagemRegressiva, addonsNaVisaoGeral, estadoAssinaturaPro, fase, linhasDeMaquinas, deParaDoExtra, assinaturasDoItem, estadoDoItem, itemGa, ofertaDoProAparece, oQueAContaTem, pagoChegou, assinaturasAtivasDe, pedidoAssinar, podeAdicionarMaquina, promoNaTela, reaisCurto, semPrazo, vagaDoAssinar, vagasDeDevice, vagasDeMaquina } from "./plano-core.js";
 // Console da conta meu-bot (console.agentesgrok.com/account/* e /organizations/<slug>/members|settings, molde Rambox). Entra pela mesma página de
 // login do app (auth.agentesgrok.com) com esquema=web: o console gera state + PKCE, a página devolve #code&state, e
 // POST /token {grant:"web"} vira um token de acesso de 1 h guardado neste navegador (localStorage: outra aba, inclusive
@@ -1155,6 +1155,8 @@ function pintarExtras(c, voltouDe, so = null) {
     painelDe(EXTRA_DEVICE, "Mais um Mac com o app", `É um Mac a mais para você entrar com a conta no app; não é a máquina onde o agente roda. O seu plano cobre ${vagas.total} device${vagas.total === 1 ? "" : "s"}${vagas.detalhe === "" ? "" : ` (${vagas.detalhe})`}: cada device é um Mac com o app na sua conta. Cada Mac a mais custa ${preco} por mês.${pendentes > 0 ? ` Você tem ${pendentes} Mac${pendentes === 1 ? "" : "s"} esperando vaga: com o pagamento confirmado, o que pediu primeiro entra sozinho.` : ""} ${pagamento}`, `Adicionar um Mac por ${preco}/mês`);
   }
 }
+/** O último endereço do Marketplace medido no Analytics (view_item_list ou view_item saem uma vez por endereço). */
+let mkMedido = null;
 /** Navega dentro do console sem recarregar (os cartões e o "voltar" do Marketplace). */
 function irPara(ev, caminho) { ev.preventDefault(); history.pushState(null, "", caminho); if (conta !== null) mostrarConsole(conta); }
 const avatarDe = (item) => el("div", "mk-avatar", item.nome.replace(/^Mais um[a]? /, "").slice(0, 1).toUpperCase());
@@ -1184,13 +1186,15 @@ function pintarMarketplace(c) {
   $("mk-lista").hidden = item !== null; $("mk-ficha").hidden = item === null;
   $("mk-assinar-vaga").hidden = item === null || item.tipo !== "plano";
   $("pl-extras").replaceChildren(); $("pl-addons").replaceChildren(); $("mk-ficha").replaceChildren();
+  // Analytics, uma vez por endereço (a página é repintada várias vezes): a vitrine vista, ou o item visto.
+  if (mkMedido !== location.pathname) { mkMedido = location.pathname; if (item === null) ga.evento("view_item_list", { item_list_id: "marketplace", items: MKT.map(itemGa) }); else ga.evento("view_item", { currency: "BRL", value: item.centavos / 100, items: [itemGa(item)] }); }
   if (item === null) {
     const nomes = Object.fromEntries(MKT.map((x) => [x.id, x.nome]));
     const tem = semPrazo(l) ? [`Pro ${INFINITO}`, TODOS_ADDONS] : oQueAContaTem(c, nomes);
     $("mk-tem").textContent = tem.length === 0 ? "Ainda nada além da conta gratuita. Comece pelo Pro." : `${tem.join(" · ")}.`;
     $("mk-grade").replaceChildren(...MKT.map((x) => {
       const a = el("a", "mk-cartao"), topo = el("div", "mk-topo"), e = estadoDoItem(c, x);
-      a.href = `/account/marketplace/${x.slug}`; a.addEventListener("click", (ev) => irPara(ev, a.getAttribute("href")));
+      a.href = `/account/marketplace/${x.slug}`; a.addEventListener("click", (ev) => { ga.evento("select_item", { item_list_id: "marketplace", items: [itemGa(x)] }); irPara(ev, a.getAttribute("href")); });
       topo.append(avatarDe(x), selo(e.texto, e.tom));
       a.append(topo, el("h3", "", x.nome), el("p", "mk-tipo", TIPO_ITEM[x.tipo] ?? ""), el("p", "mk-resumo", x.resumo ?? ""), precoDoItem(x, "mk-preco"));
       return a;

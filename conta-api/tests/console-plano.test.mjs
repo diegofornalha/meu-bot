@@ -1,7 +1,7 @@
 // Painel "Assinar o Pro" do console (public/console/plano-core.js): quando some e quando avisa do prazo atual.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addonsNaVisaoGeral, assinaturasDoItem, estadoDoItem, assinaturasAtivasDe, oQueAContaTem, pagoChegou, deParaDoExtra, avisoAddonPago, contagemRegressiva, diasAteOFim, estadoAssinaturaPro, fase, linhasDeMaquinas, ofertaDoProAparece, pedidoAssinar, promoNaTela, reaisCurto, semPrazo, podeAdicionarMaquina, vagaDoAssinar, vagasDeDevice, vagasDeMaquina } from "../public/console/plano-core.js";
+import { addonsNaVisaoGeral, assinaturasDoItem, estadoDoItem, itemGa, assinaturasAtivasDe, oQueAContaTem, pagoChegou, deParaDoExtra, avisoAddonPago, contagemRegressiva, diasAteOFim, estadoAssinaturaPro, fase, linhasDeMaquinas, ofertaDoProAparece, pedidoAssinar, promoNaTela, reaisCurto, semPrazo, podeAdicionarMaquina, vagaDoAssinar, vagasDeDevice, vagasDeMaquina } from "../public/console/plano-core.js";
 
 const pro = { plan: "pro", status: "active" };
 const ativa = { status: "ACTIVE", produto: null };
@@ -296,4 +296,18 @@ test("Marketplace: as assinaturas de um item (o Pro é a de produto nulo), ativa
   assert.deepEqual(assinaturasDoItem(lista, "pro").map((a) => a.id), ["b"]);
   assert.deepEqual(assinaturasDoItem(lista, "meu-bot-diego"), []);
   assert.deepEqual(assinaturasDoItem(undefined, "pro"), []);
+});
+
+test("Marketplace: o item do Analytics tem o mesmo item_id que o servidor manda na compra", async () => {
+  const { compraGa4 } = await import("../dist/pagamento-core.js");
+  const base = { clientId: "1.1700000000", sessionId: null, pagamentoId: "p", valorCentavos: 9700, primeira: true, ambiente: "staging" };
+  assert.equal(itemGa({ id: "pro", nome: "Pro", tipo: "plano" }).item_id, compraGa4(base).events[0].params.items[0].item_id);
+  // Add-on e unidade: o servidor usa `${produto}-mensal` (rotas/pagamentos.ts).
+  assert.deepEqual(itemGa({ id: "meu-bot-finance", nome: "Finanças", tipo: "app" }), { item_id: "meu-bot-finance-mensal", item_name: "Finanças", item_category: "app" });
+  assert.equal(itemGa({ id: "extra-maquina" }).item_id, "extra-maquina-mensal");
+  const { readFile } = await import("node:fs/promises");
+  const rotas = await readFile(new URL("../src/rotas/pagamentos.ts", import.meta.url), "utf8");
+  assert.ok((rotas.match(/id: `\$\{produto\}-mensal`/g) || []).length >= 2, "o servidor continua mandando <produto>-mensal");
+  const site = await readFile(new URL("../public/site/site.js", import.meta.url), "utf8");
+  assert.ok(site.includes("item_id: `${e.dataset.item}-mensal`"), "o site usa a mesma regra");
 });

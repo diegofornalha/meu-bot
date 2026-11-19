@@ -180,6 +180,7 @@ ainda a chama de "agentesintegrados". Na dúvida, vale o ID e o número. No stag
 | "Falar com a gente no WhatsApp" | home, celular | `falar_whatsapp` com `origem`: `celular` (ou `fixo`, `final`, `flutuante`) |
 | Criar conta | `/signup`, ou primeiro login por Google ou link | `cadastro_concluido` com `metodo`; no login, também `via: login` |
 | Entrar | página de login | `login_concluido` com `metodo` e `destino` (`console` ou `app`) |
+| Abrir o Marketplace | site `/marketplace` e console › Marketplace | `view_item_list` com os itens; tocar num cartão manda `select_item`; a página do item manda `view_item` com `value` e `items[0].item_id` no formato `<id>-mensal`. No site, "Contratar pelo console" manda `marketplace_contratar`. |
 | Tocar em Assinar | console › Plano (Pro) ou Marketplace (add-on, unidade extra) | `checkout_iniciado` com `plano` (`chip-coflow`, ou o nome do add-on). Na promoção, também `promo: primeiro-mes`. |
 | Pagar no Modo Teste | depois do pagamento confirmado | `purchase` com `value` igual ao que foi pago (1 na promoção, 97 no preço cheio, 997 no add-on), `currency: BRL` e `transaction_id`. Sai do servidor, na mesma visita do `checkout_iniciado`. Renovação é `assinatura_renovada`, não `purchase`. |
 
