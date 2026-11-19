@@ -1,15 +1,15 @@
 /**
  * Rotas do admin (Bearer com `adm`): `GET /admin/visao?busca=` (todas as contas, com licença, devices e máquinas; os
  * pedidos abertos; os totais), `PATCH /admin/contas/:id/licenca` (plano, status, prazo, limite de devices, add-ons,
- * pagamento, limite de máquinas) e `POST /admin/pedidos/:id/atender`. Vincular máquina é da própria pessoa
+ * pagamento, limite de máquinas), `DELETE /admin/contas/:id` (só super) e `POST /admin/pedidos/:id/atender`. Vincular máquina é da própria pessoa
  * (rotas/maquinas.ts). Tudo fica na auditoria.
  */
 import type { Env } from "../tipos.js";
-import { ativarDevice, atenderPedido, encerrarAddonPago, auditar, contaPorId, contarSupers, devicesDaConta, gravarLicenca, licencaGravada, removerDevice, gravarPerfil, gravarProvedor, removerPerfil, revogarSessoesDaConta, visaoAdmin } from "../db.js";
+import { apagarConta, ativarDevice, atenderPedido, encerrarAddonPago, auditar, contaPorId, contarSupers, devicesDaConta, gravarLicenca, licencaGravada, removerDevice, gravarPerfil, gravarProvedor, removerPerfil, revogarSessoesDaConta, visaoAdmin } from "../db.js";
 import { consultarFirebase, definirSenhaFirebase } from "../firebase-admin.js";
 import { DEVICE_ID_RE, UUID_RE, decidirLiberarDevice, ehAdminInicial, validaBusca, validaEmail, validaPapel, validaPatchLicenca, validaSenhaNova } from "../sessao-core.js";
 import { json, lerJson, type Autenticado } from "../http.js";
-import { enviarEmailSenha } from "./conta.js";
+import { enviarEmailSenha, impedimentosDeApagar } from "./conta.js";
 
 export async function getAdminVisao(auth: Autenticado, env: Env, url: URL): Promise<Response> {
   if (auth.claims.adm === null) return json({ erro: "só admin" }, 403);
@@ -97,6 +97,24 @@ export async function putAdminSenha(auth: Autenticado, env: Env, id: string, req
   await gravarProvedor(env.DB, conta, "password");
   await revogarSessoesDaConta(env.DB, conta.id);
   await auditar(env.DB, auth.conta.email, "senha.definida", conta.id, "pelo super admin; sessões revogadas");
+  return json({ ok: true });
+}
+/**
+ * `DELETE /admin/contas/:id`: o super admin apaga a conta de qualquer pessoa. É o mesmo "Apagar conta" do perfil
+ * (`apagarConta`: a conta some das telas e a pessoa sai de todos os Macs; licença, pagamentos, pedidos e auditoria
+ * ficam), com os mesmos impedimentos: quem tem perfil de acesso perde o perfil antes, e dona de organização passa a
+ * organização antes. O e-mail de quem foi apagado vai no detalhe da auditoria.
+ */
+export async function deleteAdminConta(auth: Autenticado, env: Env, id: string): Promise<Response> {
+  if (auth.claims.adm !== "super") return json({ erro: "só o super admin apaga a conta de alguém" }, 403);
+  if (!UUID_RE.test(id)) return json({ erro: "id da conta fora do formato" }, 400);
+  const conta = await contaPorId(env.DB, id);
+  if (conta === null) return json({ erro: "conta não existe" }, 404);
+  const { admin, donaDe } = await impedimentosDeApagar(env, conta);
+  if (admin) return json({ erro: `${conta.email} tem perfil de acesso: remova o perfil (Perfis de acesso) antes de apagar a conta` }, 403);
+  if (donaDe.length > 0) return json({ erro: `${conta.email} é dona de ${donaDe.join(", ")}: promova outra dona ou apague a organização antes` }, 403);
+  await apagarConta(env.DB, conta);
+  await auditar(env.DB, auth.conta.email, "conta.apagada", conta.id, `pelo super admin; era ${conta.email}`);
   return json({ ok: true });
 }
 /** `GET /admin/contas/:id/firebase`: o que o Firebase sabe desta conta (uid e e-mail), para o super admin diagnosticar. */
