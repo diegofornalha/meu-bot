@@ -236,6 +236,22 @@ export function vagaDoAssinar(secao) {
 }
 
 /**
+ * O texto do painel de contratar uma unidade extra, na página do item: só o que a ficha acima não diz. A ficha já tem
+ * o nome, o que é e o preço; aqui fica a situação desta conta (quanto o plano cobre agora, quem está esperando vaga) e
+ * como o pagamento funciona. `tipo`: "maquina" ou "device"; `vagas` vem de vagasDeMaquina/vagasDeDevice.
+ */
+export function situacaoDaUnidade(tipo, vagas, pendentes = 0) {
+  const total = vagas?.total ?? 1, detalhe = vagas?.detalhe ? ` (${vagas.detalhe})` : "";
+  const cobre = tipo === "device" ? `Hoje o seu plano cobre ${total} Mac${total === 1 ? "" : "s"} com o app${detalhe}.` : `Hoje o seu plano cobre ${total} máquina${total === 1 ? "" : "s"}${detalhe}.`;
+  const fila = tipo === "device" && pendentes > 0 ? ` Você tem ${pendentes} Mac${pendentes === 1 ? "" : "s"} esperando vaga: com o pagamento confirmado, o que pediu primeiro entra sozinho.` : "";
+  return `${cobre}${fila} O pagamento é feito na página segura da AbacatePay, a vaga abre assim que ele é confirmado, e você cancela quando quiser.`;
+}
+/** O texto do painel de contratar um app, na página do item: o que a ficha não diz (como paga, quando entra, como cancela). */
+export function situacaoDoApp(rotulo) {
+  return `Assinatura à parte do Pro. O pagamento é feito na página segura da AbacatePay, e o ${rotulo} entra nesta conta assim que o pagamento é confirmado; para ele aparecer no app, o suporte ainda o libera na sua máquina. Você cancela quando quiser e o acesso continua até o fim do mês pago.`;
+}
+
+/**
  * O item do Marketplace como o Analytics o conhece: o mesmo `item_id` que o servidor manda no `purchase` (compraGa4:
  * "pro-mensal", "meu-bot-finance-mensal", "extra-maquina-mensal"), para a vitrine, o clique e a compra se ligarem.
  */

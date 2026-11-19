@@ -370,3 +370,24 @@ test("volta do pagamento: assinatura confirma; Pro sem assinatura (primeiro mês
   const antes = voltaDoPagamento({ plan: "pro", status: "trialing", trialEnd: "2026-11-21T00:00:00Z" }, [], dia);
   assert.match(antes.texto, /^Recebemos você de volta/); assert.equal(antes.esperar, true);
 });
+
+test("página do item: o painel de contratar não repete o que a ficha já diz", async () => {
+  const { situacaoDaUnidade, situacaoDoApp } = await import("../public/console/plano-core.js");
+  const { FICHAS } = await import("../dist/marketplace-core.js");
+  const maq = situacaoDaUnidade("maquina", { total: 2, detalhe: "1 inclusa + 1 extra" });
+  assert.match(maq, /^Hoje o seu plano cobre 2 máquinas \(1 inclusa \+ 1 extra\)\. O pagamento/);
+  assert.match(situacaoDaUnidade("maquina", { total: 1, detalhe: "" }), /^Hoje o seu plano cobre 1 máquina\. /);
+  const mac = situacaoDaUnidade("device", { total: 2, detalhe: "" }, 1);
+  assert.match(mac, /cobre 2 Macs com o app\. Você tem 1 Mac esperando vaga/);
+  assert.doesNotMatch(situacaoDaUnidade("device", { total: 2, detalhe: "" }, 0), /esperando vaga/);
+  const app = situacaoDoApp("Finanças");
+  // Nem o nome pelo uso, nem o resumo, nem o preço: isso é da ficha.
+  for (const [texto, id] of [[maq, "extra-maquina"], [mac, "extra-device"], [app, "meu-bot-finance"]]) {
+    assert.ok(!texto.includes(FICHAS[id].resumo), `${id}: resumo repetido`);
+    assert.ok(id === "meu-bot-finance" || !texto.includes(FICHAS[id].nome), `${id}: nome repetido`);
+    assert.doesNotMatch(texto, /R\$/, `${id}: preço repetido`);
+  }
+  const { readFile } = await import("node:fs/promises");
+  const js = await readFile(new URL("../public/console/console.js", import.meta.url), "utf8");
+  assert.ok(!js.includes('"Mais uma máquina para o agente"') && !js.includes('"Mais um Mac com o app"'), "os nomes dos itens vêm só das fichas");
+});
