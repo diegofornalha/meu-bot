@@ -75,7 +75,7 @@ export interface Addon {
   semLicenca: boolean;
 }
 export const ADDONS: readonly Addon[] = [
-  { nome: "meu-bot-finance", rotulo: "Financeiro", descricao: "O agente vira o financeiro da pessoa no WhatsApp e no chat; página Finanças e Curva ABC.", modulos: true, semLicenca: false },
+  { nome: "meu-bot-finance", rotulo: "Finanças", descricao: "O agente vira o financeiro da pessoa no WhatsApp e no chat; página Finanças e Curva ABC.", modulos: true, semLicenca: false },
   { nome: "meu-bot-diego", rotulo: "Módulos do Diego", descricao: "Os módulos do produto meu-bot-diego (Salvy, Sendfy…), baixados do repositório dele e ligados um a um na página Módulos, cada um com o seu tutorial.", modulos: false, semLicenca: true },
 ];
 /** Nomes na licença que não são add-on: o admin, e o meu-bot-crm (o CRM entrou no Pro em 22 out). */

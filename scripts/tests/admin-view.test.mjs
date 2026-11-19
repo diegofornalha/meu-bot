@@ -138,7 +138,7 @@ test("licenseSummary: mostra validade e marca expirada no passado", () => {
   assert.equal(exp.ok, false, "validade no passado marca vermelho");
   assert.match(lines[0].text, /^Plano: Pro$/, "backend antigo sem `produtos` não quebra");
   const comProdutos = licenseSummary({ ...view, license: { ...lic, produtos: ["meu-bot-finance", "meu-bot-fit"] } }, Date.now(), ADDONS_ROTULOS);
-  assert.equal(comProdutos[0].text, "Plano: Pro + Financeiro, meu-bot-fit");
+  assert.equal(comProdutos[0].text, "Plano: Pro + Finanças, meu-bot-fit");
 });
 
 test("visibleActions: Instalar o backend só sem backend (com ele, Reiniciar); sem saúde, não aparece", () => {
@@ -161,10 +161,10 @@ test("deviceParts separa nome, metadados, status e visto há; deviceLine é a ju
 
 test("add-ons com nome para o admin: o rótulo vem do catálogo da janela (caps.addons); MVP fora dele fica com o id", async () => {
   const { produtoLabel } = await import("../../dist/renderer/lib/admin-view.js");
-  assert.equal(produtoLabel("meu-bot-finance", ADDONS_ROTULOS), "Financeiro"); assert.equal(produtoLabel("meu-bot-fit", ADDONS_ROTULOS), "meu-bot-fit");
+  assert.equal(produtoLabel("meu-bot-finance", ADDONS_ROTULOS), "Finanças"); assert.equal(produtoLabel("meu-bot-fit", ADDONS_ROTULOS), "meu-bot-fit");
   assert.equal(produtoLabel("meu-bot-finance"), "meu-bot-finance", "sem catálogo, o id");
   const view = { license: { plan: "pro", status: "active", produtos: ["meu-bot-finance"], memberSince: null, interval: null, trialEnd: null, expiresAt: null }, activeCount: 1, deviceLimit: 1, pendingCount: 0 };
-  assert.equal(licenseSummary(view, Date.now(), ADDONS_ROTULOS)[0].text, "Plano: Pro + Financeiro");
+  assert.equal(licenseSummary(view, Date.now(), ADDONS_ROTULOS)[0].text, "Plano: Pro + Finanças");
 });
 
 test("admin: backendAtras compara número a número e trata sem versão como antigo", async () => {
