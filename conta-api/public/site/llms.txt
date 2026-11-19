@@ -6,7 +6,7 @@ Site do meu-bot (produto independente da Coflow): https://agentesgrok.com. Códi
 
 ## Planos
 
-- Teste com o seu número: 14 dias grátis, sem cartão, tudo liberado. No fim, nada é cobrado.
+- Teste com o seu número: 3 dias grátis, sem cartão, tudo liberado. No fim, nada é cobrado.
 - Agente com o chip (Dedicado): R$ 97 por mês, num número dedicado ao agente.
   A assinatura é feita no console da conta (Plano › Assinar), com pagamento pela AbacatePay (cartão), e o Pro é liberado assim que o pagamento é confirmado. <!--se-pagamentos-->
 - Com o seu próprio chip: sob cotação.
@@ -14,7 +14,7 @@ Site do meu-bot (produto independente da Coflow): https://agentesgrok.com. Códi
 ## Páginas
 
 - [Home](https://agentesgrok.com/): o sistema (agentes, canais, ferramentas, apps, máquinas, controle), casos de uso por área, Grok e xAI, planos, dúvidas e o download para macOS.
-- [Baixar para Mac](https://agentesgrok.com/baixar): requisitos, como instalar e o teste grátis de 14 dias.
+- [Baixar para Mac](https://agentesgrok.com/baixar): requisitos, como instalar e o teste grátis de 3 dias.
 - [Perguntas frequentes](https://agentesgrok.com/perguntas): teste e planos, WhatsApp, Grok e xAI, Mac e dados.
 - [Grok no WhatsApp](https://agentesgrok.com/grok-no-whatsapp): não existe número oficial do Grok no WhatsApp; como ter o Grok respondendo no seu número com o meu-bot.
 - [Parceria com a xAI](https://agentesgrok.com/parceria-xai): o que a parceria Coflow e xAI inclui e o que não é.

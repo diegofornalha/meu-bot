@@ -578,12 +578,15 @@ function editorLicenca(tr, c) {
   const plan = select("plan", [["free", "Free"], ["pro", "Pro"]], l.plan);
   const status = select("status", [["free", "Free"], ["trialing", "Trial"], ["active", "Ativo"], ["expired", "Expirado"]], l.status);
   const ate = input("ate", "date", (l.expiresAt ?? l.trialEnd ?? "").slice(0, 10));
+  // Mês grátis dado à mão: põe Trial no Pro com fim daqui a 30 dias; só vale depois do Salvar.
+  const mais30 = el("button", "btn btn-ghost btn-small", "+30 dias de teste"); mais30.type = "button"; mais30.title = "Preenche Pro, Trial e a data de hoje mais 30 dias. Só vale depois de Salvar.";
+  mais30.addEventListener("click", () => { plan.value = "pro"; status.value = "trialing"; ate.value = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10); });
   const limite = input("deviceLimit", "number", String(l.deviceLimit)); limite.min = "1"; limite.max = "50";
   const maquinas = input("maquinaLimit", "number", String(c.maquinaLimite ?? 1)); maquinas.min = "1"; maquinas.max = "50"; maquinas.title = "Em quantas máquinas (VMs) a pessoa pode usar a licença da conta ao mesmo tempo";
   const produtos = input("produtos", "text", l.produtos.join(", "), "meu-bot-finance, …");
   const instrucoes = input("instrucoes", "text", l.pagamento?.instrucoes ?? "", "Pix, link, contato…");
   const link = input("link", "url", l.pagamento?.link ?? "", "https://…");
-  form.append(campo("Plano", plan), campo("Status", status), campo("Vale até", ate), campo("Devices", limite), campo("Máquinas", maquinas), campo("Add-ons concedidos", produtos), campo("Como pagar", instrucoes), campo("Link", link));
+  form.append(campo("Plano", plan), campo("Status", status), campo("Vale até", ate), mais30, campo("Devices", limite), campo("Máquinas", maquinas), campo("Add-ons concedidos", produtos), campo("Como pagar", instrucoes), campo("Link", link));
   // Senha: o super admin define na hora (em branco não muda); qualquer admin manda o e-mail de redefinição.
   const superAdmin = conta !== null && conta.admin === "super";
   const senha = input("senha", "password", "", superAdmin ? "nova senha (em branco: não muda)" : "só o super admin define"); senha.autocomplete = "new-password"; senha.minLength = 8; senha.maxLength = 128; senha.disabled = !superAdmin;

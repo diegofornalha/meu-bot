@@ -66,7 +66,7 @@ FIREBASE_API_KEY = "AIzaSyD8rfzsg5iLBqegRmzfmVoBcE5d-sqruRw"
 FIREBASE_AUTH_DOMAIN = "auth.agentesgrok.com"
 ADMIN_BOOTSTRAP_EMAIL = "diegofornalha@gmail.com"
 # Conta nova (primeiro login) começa em trial do Pro por estes dias; 0 desliga (começa free).
-TRIAL_DIAS = "14"
+TRIAL_DIAS = "3"
 # Produto "meu-bot Pro mensal" (R$ 97, mensal) da loja meu-bot em produção na AbacatePay. A assinatura só liga quando
 # os secrets ABACATEPAY_KEY e ABACATEPAY_WEBHOOK_SECRET também existirem neste ambiente.
 ABACATEPAY_PRODUTO = "prod_3ubFY5sxLU1nG2a5GPbj5S1Q"
@@ -119,4 +119,4 @@ FIREBASE_API_KEY = "AIzaSyD8rfzsg5iLBqegRmzfmVoBcE5d-sqruRw"
 FIREBASE_AUTH_DOMAIN = "auth-staging.agentesgrok.com"
 ADMIN_BOOTSTRAP_EMAIL = "diegofornalha@gmail.com"
 # Conta nova (primeiro login) começa em trial do Pro por estes dias; 0 desliga (começa free).
-TRIAL_DIAS = "14"
+TRIAL_DIAS = "3"

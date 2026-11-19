@@ -17,7 +17,7 @@ export interface Env {
   FIREBASE_AUTH_DOMAIN: string;
   /** Primeiro super admin: entra em `admins` no primeiro login dele. */
   ADMIN_BOOTSTRAP_EMAIL: string;
-  /** Dias de trial do Pro para conta nova ("14"); "0" = começa free. */
+  /** Dias de trial do Pro para conta nova ("3"); "0" = começa free. */
   TRIAL_DIAS?: string;
   /** Secret: chave HMAC (base64) dos tokens de acesso. */
   SESSAO_HMAC_KEY: string;
