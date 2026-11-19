@@ -343,20 +343,19 @@ export async function limiteDeMaquinasComExtras(db: D1Database, contaId: string,
  */
 export async function coberturaDaOrg(db: D1Database, conta: ContaLinha, agoraMs = Date.now()): Promise<CoberturaOrg | null> {
   const minhas = await db.prepare("SELECT o.* FROM membros m JOIN organizacoes o ON o.id = m.org_id WHERE m.conta_id = ?1 AND m.status = 'ativo' AND o.apagada_em IS NULL AND o.dona_conta_id != ?1").bind(conta.id).all<OrgLinha>();
-  const coberturas: CoberturaOrg[] = [];
-  for (const org of minhas.results) {
+  // As organizações em paralelo; em cada uma, o Pro da dona primeiro (sem ele não há o que cobrir, e a fila nem é lida).
+  const coberturas = await Promise.all(minhas.results.map(async (org): Promise<CoberturaOrg | null> => {
     const dona = await contaPorId(db, org.dona_conta_id);
-    if (dona === null) continue;
-    const [ld, papelDona, vagas, fila] = await Promise.all([licencaGravada(db, dona), papelAdmin(db, dona.email, ""), assentosDaOrg(db, org, agoraMs),
-      db.prepare("SELECT conta_id FROM membros WHERE org_id = ?1 ORDER BY CASE WHEN conta_id = ?2 THEN 0 ELSE 1 END, COALESCE(entrou_em, convidado_em), email").bind(org.id, org.dona_conta_id).all<{ conta_id: string | null }>()]);
+    if (dona === null) return null;
+    const [ld, papelDona] = await Promise.all([licencaGravada(db, dona), papelAdmin(db, dona.email, "")]);
     const donaSuper = papelDona === "super";
-    const proDaDona = donaSuper || (ld.plan === "pro" && ld.status === "active" && (ld.expiresAt === null || Date.parse(ld.expiresAt) > agoraMs));
-    if (!proDaDona) continue;
+    if (!donaSuper && !(ld.plan === "pro" && ld.status === "active" && (ld.expiresAt === null || Date.parse(ld.expiresAt) > agoraMs))) return null;
+    const [vagas, fila] = await Promise.all([assentosDaOrg(db, org, agoraMs),
+      db.prepare("SELECT conta_id FROM membros WHERE org_id = ?1 ORDER BY CASE WHEN conta_id = ?2 THEN 0 ELSE 1 END, COALESCE(entrou_em, convidado_em), email").bind(org.id, org.dona_conta_id).all<{ conta_id: string | null }>()]);
     const posicao = fila.results.findIndex((m) => m.conta_id === conta.id);
-    if (posicao < 0 || posicao >= vagas.limite) continue;
-    coberturas.push({ ate: donaSuper ? null : ld.expiresAt, slug: org.slug, nome: org.nome });
-  }
-  return melhorCobertura(coberturas);
+    return posicao < 0 || posicao >= vagas.limite ? null : { ate: donaSuper ? null : ld.expiresAt, slug: org.slug, nome: org.nome };
+  }));
+  return melhorCobertura(coberturas.filter((c): c is CoberturaOrg => c !== null));
 }
 /**
  * Organizações da conta para a regra de criação (podeCriarOrg): `limite` é o que o admin gravou (licencas.org_limit;
