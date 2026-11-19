@@ -35,6 +35,7 @@ import { offlineBarText } from "./lib/offline-text.js";
 import { browserAccess, displayUrl, planoLiberaPro, proBlockText, tabLabel, type ProAccess, crmProprioOk, financeOk, modulosNaLicenca } from "./lib/pro.js";
 import { mountFinancePage } from "./finance/finance-page.js";
 import { mountModulosPage } from "./modulos/modulos-page.js";
+import { paginaModulos } from "./modulos/modulos-crm.js";
 import { mountContaGoogle } from "./conta-google/conta-google-page.js";
 import { mountGmail } from "./gmail/gmail-page.js";
 import { gmailGuiaFato, ligarGmailGuia, refreshGmailGuia } from "./gmail/gmail-guia.js";
@@ -69,7 +70,7 @@ import { ligarDigitandoGuia } from "./whatsapp/digitando-guia.js";
 import { ligarEntradaRapidaGuia } from "./configuracoes/entrada-rapida-guia.js";
 import { ligarObjetivoGuia, objectiveBusy, objectiveDo, objectiveDraft, objectiveMsg, objectiveState, refreshObjective, setObjectiveDraft, setObjectiveMsg, setObjectiveState } from "./agente/objetivo-guia.js";
 import { ligarCatalogo, setTutNext, tutNext, tutoriaisPage } from "./tutoriais/catalogo.js";
-import { crmAfterAgentKey, crmLocalState, crmState, ligarCrmGuia, refreshCrm } from "./crm/crm-guia.js";
+import { aoMudarCrm, crmAfterAgentKey, crmLocalState, crmSituacao, crmState, instalarCrm, ligarCrmGuia, refreshCrm } from "./crm/crm-guia.js";
 import { crmProprio, license, motorCrm, navLicenseAsked, refreshLicense, setPlanBadge } from "./licenca/licenca.js";
 import { ligarFinanceiroGuia, paintFinanceLine } from "./finance/financeiro-guia.js";
 import { NAV_TUTORIAL, disposeNav, ligarNavegador, navAccess, navCurrent, navCurrentHost, navDonoView, navEstavaAberto, navExtensions, navFavsShown, navMarcarAberto, navPage, navPartition, navServicosCount, navTabs, navReavaliar, navZoomStep, openNavTab, origemNome, paintNav, toggleFavsBar } from "./navegador/navegador.js";
@@ -1834,10 +1835,15 @@ let computadorPage: ReturnType<typeof mountComputador> | null = null;
 /** Só existe no produto com a capacidade `inspector` (meu-bot-inspector-staging). */
 let inspectorPage: ReturnType<typeof mountInspector> | null = null;
 let modulosPage: ReturnType<typeof mountModulosPage> | null = null;
-/** Botão "Módulos" da lateral: sempre no app com produto fixo; nos outros, com um add-on de módulos na licença da máquina. */
+/** A página Módulos nesta janela (regra em modulos-crm.ts): produto fixo do app, add-on de módulos em vigor, ou máquina por SSH (o CRM). */
+const modulosAqui = (): { visivel: boolean; temProdutos: boolean } => paginaModulos({ produtoFixo: caps.modulos !== null, addonEmVigor: modulosNaLicenca(license, windowHost, caps.addons), remoto: ehRemoto() });
+/** Botão "Módulos" da lateral. A etiqueta "Custom" é dos produtos sob medida: quem só tem o CRM (do Pro) não a vê. */
 function paintModulosLine(): void {
   if (modulosPage === null) return;
-  $<HTMLButtonElement>("modulos-line").hidden = caps.modulos === null && !modulosNaLicenca(license, windowHost, caps.addons);
+  const m = modulosAqui();
+  $<HTMLButtonElement>("modulos-line").hidden = !m.visivel;
+  $<HTMLElement>("modulos-count").textContent = caps.planoExigido === "free" && m.temProdutos ? "Custom" : "";
+  modulosPage.repintarLista();
 }
 let financeState: FinanceInfo | null = null;
 ligarNavegador();
@@ -1998,8 +2004,7 @@ void (async () => {
   $<HTMLElement>("conta-google-count").textContent = caps.planoExigido === "free" ? "Pro" : "";
   $<HTMLElement>("gmail-count").textContent = caps.planoExigido === "free" ? "Pro" : "";
   $<HTMLElement>("computador-count").textContent = caps.planoExigido === "free" ? "Pro" : "";
-  // Módulos e Finanças são do pacote sob medida, não do Pro: etiqueta "Custom" (a de Finanças é pintada em paintFinanceLine).
-  $<HTMLElement>("modulos-count").textContent = caps.planoExigido === "free" ? "Custom" : "";
+  // Módulos e Finanças são do pacote sob medida, não do Pro: etiqueta "Custom" (pintadas em paintModulosLine e paintFinanceLine).
   financePage = mountFinancePage({
     panelsEl, definePage, openPage, armConfirm, api: window.meuBot, host: () => windowHost, license: () => license, licenseKnown: () => navLicenseAsked,
     goToChat: goToChatFromGuide, onInfo: (i) => { financeState = i; paintFinanceLine(); paintGuide(); },
@@ -2007,9 +2012,23 @@ void (async () => {
   });
   $<HTMLButtonElement>("financas-line").addEventListener("click", () => financePage?.open());
   // Módulos de produto: o fixo do app (caps.modulos, como no meu-bot-diego-staging) e os add-ons com módulos na licença
-  // da máquina. A página só é montada no app que pode ter módulos; o botão segue a licença (paintModulosLine).
-  if (caps.modulos !== null || caps.addons.some((a) => a.modulos)) {
-    modulosPage = mountModulosPage({ panelsEl, definePage, openPage, armConfirm, api: window.meuBot, host: () => windowHost, goToChat: goToChatFromGuide });
+  // da máquina; e, nas máquinas por SSH, o CRM que já vem no meu-bot. A página é montada no app que pode ter módulos ou
+  // instalar numa máquina; o botão segue a licença e a máquina da janela (paintModulosLine).
+  if (caps.modulos !== null || caps.addons.some((a) => a.modulos) || caps.install) {
+    modulosPage = mountModulosPage({
+      panelsEl, definePage, openPage, armConfirm, api: window.meuBot, host: () => windowHost, goToChat: goToChatFromGuide,
+      temProdutos: () => modulosAqui().temProdutos,
+      // Cartão do CRM ("Já incluído"): o estado e a instalação são os do guia do CRM (crm-guia.ts), um caminho só.
+      // "Configurar" abre o guia direto (o tutorial segue fora da lista): o do Gmail no CRM próprio, o do Streak no outro.
+      crm: !caps.install ? null : {
+        estado: () => ({ remoto: ehRemoto(), acesso: navLicenseAsked ? browserAccess(license, windowHost, caps.planoExigido, caps.produto) : null, produto: caps.produto, info: crmState, local: crmLocalState, ...crmSituacao() }),
+        atualizar: async () => { await refreshLicense(); await refreshCrm(); },
+        instalar: instalarCrm,
+        abrirNoGmail: () => { void openNavTab("https://mail.google.com/"); },
+        configurar: () => { const id = crmProprio() && motorCrm() === "proprio" ? "crm-gmail" : "crm-whatsapp"; const t = TUTORIAIS.find((x) => x.id === id); if (t !== undefined) openGuide(t); },
+      },
+    });
+    aoMudarCrm(() => modulosPage?.repintarLista());
     $<HTMLButtonElement>("modulos-line").addEventListener("click", () => modulosPage?.open());
     // A página de um módulo pediu para levar um texto ao chat: só preenche; quem envia é a pessoa.
     // Planilha: só um cartão de confirmação acima da página do módulo (nada é lido sem a pessoa clicar).
