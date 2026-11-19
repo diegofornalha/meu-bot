@@ -7,7 +7,7 @@
  *   no GitHub; www. redireciona para ela;
  * - conta.agentesgrok.com: a API (POST /sessao, POST /token, POST /sessao/sair, GET|PATCH|DELETE /conta, POST /conta/senha,
  *   GET /health; organizações GET|POST /orgs, GET /orgs/:slug/publico (sem login), GET|PATCH|DELETE /orgs/:slug, POST /orgs/:slug/membros, PATCH|DELETE /orgs/:slug/membros/:email;
- *   para admins GET /admin/visao, POST /admin/suporte (o admin-gestao envia o resumo de uma janela de suporte), GET /admin/suporte (só super: console /support-window), PATCH /admin/contas/:id/licenca, POST /admin/contas/:id/devices/:device/liberar, DELETE /admin/contas/:id/devices/:device, POST|PUT /admin/contas/:id/senha, POST /admin/pedidos/:id/atender, PUT|DELETE /admin/perfis/:email, PATCH /admin/orgs/:slug).
+ *   para admins GET /admin/visao, POST /admin/suporte (o admin-gestao envia o resumo de uma janela de suporte), GET /admin/suporte (só super: console /support-window), PATCH /admin/contas/:id/licenca, DELETE /admin/contas/:id (só super: apaga a conta), POST /admin/contas/:id/devices/:device/liberar, DELETE /admin/contas/:id/devices/:device, POST|PUT /admin/contas/:id/senha, POST /admin/pedidos/:id/atender, PUT|DELETE /admin/perfis/:email, PATCH /admin/orgs/:slug).
  * Assinatura do Pro pela AbacatePay: POST /conta/assinatura (logado, devolve a url do pagamento), POST
  * /conta/assinatura/cancelar (logado, cancela a própria) e o webhook
  * POST /pagamentos/abacatepay (src/rotas/pagamentos.ts); desligados sem os secrets ABACATEPAY_*.
@@ -19,7 +19,7 @@ import { postSair, postSessao, postSessaoConsole } from "./rotas/sessao.js";
 import { postToken } from "./rotas/token.js";
 import { deleteConta, getConta, patchConta, postSenha } from "./rotas/conta.js";
 import { getSuporteResumos, postSuporteResumo } from "./rotas/suporte.js";
-import { deleteDevice, deletePerfil, getAdminFirebase, getAdminVisao, patchLicenca, postAdminSenha, postAtenderPedido, postEncerrarAddon, postEncerrarExtra, postLiberarDevice, putAdminSenha, putPerfil } from "./rotas/admin.js";
+import { deleteAdminConta, deleteDevice, deletePerfil, getAdminFirebase, getAdminVisao, patchLicenca, postAdminSenha, postAtenderPedido, postEncerrarAddon, postEncerrarExtra, postLiberarDevice, putAdminSenha, putPerfil } from "./rotas/admin.js";
 import { downloadMac, downloadWindows, REPO } from "./release-github.js";
 import { GUIAS, lerReleases, novidadesHtml, sitemapXml } from "./novidades-core.js";
 import { CSP_ADS, CSP_GA, gaIds } from "./analytics-core.js";
@@ -129,6 +129,7 @@ async function api(req: Request, env: Env, url: URL, espera: (p: Promise<unknown
     const encerrarExtra = /^POST \/admin\/contas\/([A-Za-z0-9-]{1,40})\/extras\/(subs_[A-Za-z0-9_-]{1,90})\/encerrar$/.exec(rota);
     const liberarDevice = /^POST \/admin\/contas\/([A-Za-z0-9-]{1,40})\/devices\/([a-f0-9-]{12,36})\/liberar$/.exec(rota);
     const removerDevice = /^DELETE \/admin\/contas\/([A-Za-z0-9-]{1,40})\/devices\/([a-f0-9-]{12,36})$/.exec(rota);
+    const apagarContaAdmin = /^DELETE \/admin\/contas\/([A-Za-z0-9-]{1,40})$/.exec(rota);
     const senhaAdmin = /^(POST|PUT) \/admin\/contas\/([A-Za-z0-9-]{1,40})\/senha$/.exec(rota);
     const firebaseAdmin = /^GET \/admin\/contas\/([A-Za-z0-9-]{1,40})\/firebase$/.exec(rota);
     const renovarLicenca = /^POST \/conta\/maquinas\/([a-f0-9-]{36})\/licenca$/.exec(rota);
@@ -165,6 +166,7 @@ async function api(req: Request, env: Env, url: URL, espera: (p: Promise<unknown
     else if (encerrarExtra !== null) res = await postEncerrarExtra(auth, env, encerrarExtra[1]!, encerrarExtra[2]!);
     else if (liberarDevice !== null) res = await postLiberarDevice(auth, env, liberarDevice[1]!, liberarDevice[2]!, req);
     else if (removerDevice !== null) res = await deleteDevice(auth, env, removerDevice[1]!, removerDevice[2]!);
+    else if (apagarContaAdmin !== null) res = await deleteAdminConta(auth, env, apagarContaAdmin[1]!);
     else if (firebaseAdmin !== null) res = await getAdminFirebase(auth, env, firebaseAdmin[1]!);
     else if (senhaAdmin !== null) res = senhaAdmin[1] === "PUT" ? await putAdminSenha(auth, env, senhaAdmin[2]!, req) : await postAdminSenha(auth, env, senhaAdmin[2]!);
     else if (perfil !== null) res = perfil[1] === "PUT" ? await putPerfil(auth, env, perfil[2]!, req) : await deletePerfil(auth, env, perfil[2]!);
