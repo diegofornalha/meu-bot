@@ -454,7 +454,6 @@ async function perfilRemover(email, botao) {
   await carregarVisao(visaoBusca).catch((e) => mostrarErro(e?.message ?? String(e)));
   if (conta !== null) mostrarConsole(conta);
 }
-const DIA = 24 * 60 * 60 * 1000;
 /** A fase da conta, para o admin acompanhar: trial (dias restantes), trial vencido, Pro ativo, expirado, free. */
 function fase(l, agora = Date.now()) {
   const dias = diasAteOFim(l, agora); // a mesma conta da contagem regressiva da página Plano (plano-core.js)
