@@ -1,7 +1,7 @@
 // Assinatura do Pro pela AbacatePay: conferência do webhook, leitura do evento, decisão, prazo e a compra do GA4.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { assinaturaIdValido, resultadoCancelamento, CHAVE_HMAC_ABACATEPAY, clientIdDeReserva, clientIdValido, compraGa4, decidir, hmacBase64, iguais, lerAddons, lerEvento, licencaComAddons, metodosSemPix, precoExigido, precoDaCobranca, pedidoDoCheckout, direitoPromo, lerPromo, refValida, sessionIdValido, validoAte, webhookConfere, umaPorContaEProduto } from "../dist/pagamento-core.js";
+import { assinaturaIdValido, resultadoCancelamento, CHAVE_HMAC_ABACATEPAY, clientIdDeReserva, clientIdValido, compraGa4, decidir, hmacBase64, iguais, lerAddons, lerEvento, licencaComAddons, licencaDoSuper, licencaEmVigor, metodosSemPix, precoExigido, precoDaCobranca, pedidoDoCheckout, direitoPromo, lerPromo, refValida, sessionIdValido, validoAte, webhookConfere, umaPorContaEProduto } from "../dist/pagamento-core.js";
 
 const SECRET = "s".repeat(40);
 const REF = "mb_123e4567-e89b-12d3-a456-426614174000";
@@ -322,3 +322,32 @@ test("checkout: com o teste EM VIGOR não há promoção (preço cheio, métodos
   assert.equal(cobranca("subscription.completed", 9700, false).acao, "liberar");
 });
 
+test("licencaDoSuper: Pro ativo sem prazo, seja o que for que esteja gravado; limites e o resto não mudam", () => {
+  const gravada = { plan: "pro", status: "expired", interval: "month", memberSince: "2026-01-01T00:00:00.000Z", trialEnd: "2026-11-01T00:00:00.000Z", expiresAt: "2026-11-01T00:00:00.000Z", deviceLimit: 3, produtos: ["meu-bot-fit"], pagamento: { instrucoes: "Pix", link: null }, updatedAt: "2026-11-02T00:00:00.000Z", updatedBy: "admin" };
+  const copia = structuredClone(gravada);
+  assert.deepEqual(licencaDoSuper(gravada), { ...gravada, plan: "pro", status: "active", interval: null, trialEnd: null, expiresAt: null, semPrazo: true });
+  assert.deepEqual(gravada, copia, "a gravada não é mexida: é regra de leitura");
+  for (const l of [{ ...gravada, plan: "free", status: "free", trialEnd: null, expiresAt: null }, { ...gravada, status: "trialing", expiresAt: "2026-12-01T00:00:00.000Z" }]) {
+    const s = licencaDoSuper(l);
+    assert.deepEqual([s.plan, s.status, s.trialEnd, s.expiresAt, s.interval, s.semPrazo], ["pro", "active", null, null, null, true]);
+    assert.deepEqual([s.deviceLimit, s.produtos, s.memberSince, s.pagamento], [l.deviceLimit, l.produtos, l.memberSince, l.pagamento]);
+  }
+});
+
+test("licencaEmVigor: licença expirada gravada + papel super = Pro ativo sem prazo; admin comum e conta sem papel não mudam", () => {
+  const agora = "2026-11-16T12:00:00.000Z";
+  const expirada = { plan: "pro", status: "expired", interval: null, memberSince: "2026-01-01T00:00:00.000Z", trialEnd: "2026-11-01T00:00:00.000Z", expiresAt: "2026-11-01T00:00:00.000Z", deviceLimit: 1, produtos: ["meu-bot-fit"] };
+  const s = licencaEmVigor(expirada, [], "super", agora);
+  assert.deepEqual([s.plan, s.status, s.trialEnd, s.expiresAt, s.semPrazo, s.deviceLimit], ["pro", "active", null, null, true, 1]);
+  for (const papel of ["admin", null]) {
+    assert.equal(licencaEmVigor(expirada, [], papel, agora), expirada, `papel ${papel}: a mesma licença gravada`);
+    assert.equal("semPrazo" in licencaEmVigor(expirada, [], papel, agora), false);
+  }
+  // Com add-on pago: a conta comum vencida cai no grátis com o pago (licencaComAddons) e perde o concedido; o super
+  // admin, que nunca está vencido, fica com o concedido e o pago.
+  const pago = { produto: "meu-bot-finance", expiresAt: "2026-12-19T00:00:00.000Z" };
+  assert.deepEqual(licencaEmVigor(expirada, [pago], null, agora), licencaComAddons(expirada, [pago], agora));
+  assert.equal(licencaEmVigor(expirada, [pago], "admin", agora).plan, "free");
+  const sp = licencaEmVigor(expirada, [pago], "super", agora);
+  assert.deepEqual([sp.plan, sp.status, sp.semPrazo, sp.produtos], ["pro", "active", true, ["meu-bot-finance", "meu-bot-fit"]]);
+});

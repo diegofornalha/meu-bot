@@ -9,13 +9,15 @@ import { auditar, codigoPor, contaPorId, criarSessao, devicePor, devicesDaConta,
 import { ACESSO_TTL_S, ESQUEMA_WEB, admitirDevice, agoraIso, assinarJwt, maisSegundos, pkceConfere, refreshTtlS, segredo, sha256Hex, uuid, validaPedidoToken } from "../sessao-core.js";
 import { json, lerJson } from "../http.js";
 import { promoLigada } from "./pagamentos.js";
+import type { Papel } from "../pagamento-core.js";
 
-async function emitir(env: Env, conta: { id: string; email: string }, s: Omit<SessaoLinha, "refresh_hash" | "revogada_em">, refresh: string): Promise<Response> {
+async function emitir(env: Env, conta: { id: string; email: string }, s: Omit<SessaoLinha, "refresh_hash" | "revogada_em">, refresh: string, papel?: Papel): Promise<Response> {
   const hash = await sha256Hex(refresh);
   await criarSessao(env.DB, { ...s, refresh_hash: hash });
   const linha = await contaPorId(env.DB, conta.id);
   if (linha === null) return json({ erro: "conta não existe mais" }, 401);
-  const adm = await papelAdmin(env.DB, linha.email, env.ADMIN_BOOTSTRAP_EMAIL);
+  // `papel` já lido pelo chamador (login por código) não é lido de novo; na renovação, lê aqui.
+  const adm = papel !== undefined ? papel : await papelAdmin(env.DB, linha.email, env.ADMIN_BOOTSTRAP_EMAIL);
   const agoraS = Math.floor(Date.now() / 1000);
   const acesso = await assinarJwt({ sub: conta.id, sid: s.id, dev: s.device_id, adm, iat: agoraS, exp: agoraS + ACESSO_TTL_S }, env.SESSAO_HMAC_KEY);
   return json({ refresh, acesso, expiraEm: maisSegundos(ACESSO_TTL_S), conta: await montarContaApi(env.DB, linha, adm, s.device_id) });
@@ -44,14 +46,15 @@ export async function postToken(req: Request, env: Env): Promise<Response> {
     // O device deste Mac: conhecido (pelo uuid ou pelo alias antigo) mantém o status; novo cabe até o limite da licença.
     const d = pedido.device;
     const atual = await devicePor(env.DB, conta.id, d.id, d.alias);
-    const [licenca, todos] = await Promise.all([licencaDaConta(env.DB, conta), devicesDaConta(env.DB, conta.id)]);
+    const papel = await papelAdmin(env.DB, conta.email, env.ADMIN_BOOTSTRAP_EMAIL);
+    const [licenca, todos] = await Promise.all([licencaDaConta(env.DB, conta, papel), devicesDaConta(env.DB, conta.id)]);
     const ativos = todos.filter((x) => x.status !== "pending" && x.id !== atual?.id).length;
     const status = admitirDevice(atual, ativos, licenca.deviceLimit);
     await gravarDevice(env.DB, conta.id, { ...d, status }, atual, agora, conta.dados_uso !== 0);
     if (atual === null) await auditar(env.DB, conta.email, status === "pending" ? "device.pedido" : "device.novo", conta.id, `${d.name || d.id} · ${d.app} ${d.versao}`, agora);
     const familia = uuid();
     await auditar(env.DB, conta.email, "login.entrou", conta.id, `${c.esquema} · ${d.app} ${d.versao}`, agora);
-    return emitir(env, conta, { id: uuid(), conta_id: conta.id, familia, device_id: d.id, app: d.app, versao_app: d.versao, criada_em: agora, usada_em: agora, expira_em: maisSegundos(refreshTtlS(env.CANAL)) }, segredo(32));
+    return emitir(env, conta, { id: uuid(), conta_id: conta.id, familia, device_id: d.id, app: d.app, versao_app: d.versao, criada_em: agora, usada_em: agora, expira_em: maisSegundos(refreshTtlS(env.CANAL)) }, segredo(32), papel);
   }
 
   const s = await sessaoPorHash(env.DB, await sha256Hex(pedido.refresh));

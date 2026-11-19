@@ -11,7 +11,7 @@
  * Liga só com ABACATEPAY_KEY, ABACATEPAY_WEBHOOK_SECRET e ABACATEPAY_PRODUTO; sem eles, as duas rotas respondem 503.
  */
 import type { Env } from "../tipos.js";
-import { addonsPagos, auditar, contaPorId, contarLimite, jaPagouPro, licencaDaConta, licencaGravada, promoDaConta } from "../db.js";
+import { addonsPagos, auditar, contaPorId, contarLimite, jaPagouPro, licencaDaConta, licencaGravada, papelAdmin, promoDaConta } from "../db.js";
 import { agoraIso, janelaMinuto, uuid } from "../sessao-core.js";
 import { json, lerJson, type Autenticado } from "../http.js";
 import { gaIds } from "../analytics-core.js";
@@ -38,8 +38,11 @@ export async function postAssinatura(auth: Autenticado, env: Env, req: Request):
   const addon = pedido === undefined || pedido === null ? null : addonsAVenda(env).find((a) => a.nome === pedido) ?? undefined;
   if (addon === undefined) return json({ erro: "este produto não está à venda aqui" }, 400);
   const agoraMs = Date.now();
+  // O papel só pesa no Pro (add-on o super admin assina como qualquer conta); lido da tabela, não do token de 1 h.
+  const papel = addon === null ? await papelAdmin(env.DB, auth.conta.email, env.ADMIN_BOOTSTRAP_EMAIL) : null;
   if (addon === null) {
-    const l = await licencaDaConta(env.DB, auth.conta);
+    if (papel === "super") return json({ erro: "sua conta de super admin já tem o Pro sem prazo" }, 409);
+    const l = await licencaDaConta(env.DB, auth.conta, papel);
     const ativa = await env.DB.prepare("SELECT id FROM assinaturas WHERE conta_id = ?1 AND status = 'ACTIVE' AND produto IS NULL LIMIT 1").bind(auth.conta.id).first<{ id: string }>();
     if (ativa !== null && l.plan === "pro" && l.status === "active") return json({ erro: "você já tem uma assinatura ativa" }, 409);
   } else {
@@ -52,7 +55,7 @@ export async function postAssinatura(auth: Autenticado, env: Env, req: Request):
   // checkout não abre pelo preço cheio sem a pessoa saber.
   // `semPromo: true`: a pessoa abriu mão do desconto para pagar por Pix (o cupom só vale no cartão). O checkout sai sem
   // a marca da promoção, então o webhook exige o preço cheio.
-  const promo = addon === null && corpo?.semPromo !== true ? await promoDaConta(env.DB, auth.conta, promoLigada(env), agoraMs) : null;
+  const promo = addon === null && corpo?.semPromo !== true ? await promoDaConta(env.DB, auth.conta, promoLigada(env), papel, agoraMs) : null;
   if (addon === null && corpo?.promo === true && promo === null) return json({ erro: "o primeiro mês com desconto não vale mais para esta conta; o Pro sai pelo preço normal. Toque em Assinar de novo para continuar", promoAcabou: true }, 409);
   const ref = `mb_${uuid()}`;
   const agora = agoraIso();
