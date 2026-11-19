@@ -14,7 +14,7 @@
  * faltava, e as quatro VMs caíram em MODULE_NOT_FOUND no reinício seguinte.
  */
 export const BACKEND_RUNTIME_FILES = [
-  "server.js", "session-map.js", "nivel-ferramentas.js", "modulos.js", "providers.js", "providers.json", "account-status.js", "contas-claude.js", "tool-events.js", "navegador.js", "gmail.js", "pontes.js", "licenca.js", "crm-modelo.js", "crm-store.js", "crm-api.js", "finance-modelo.js", "finance-store.js", "finance-api.js", "finance-crm-sync.js", "crm-finance-vendas.js", "autenticador.js", "saude-maquina.js", "cota.js", "faxina.js", "auditoria.py",
+  "server.js", "session-map.js", "nivel-ferramentas.js", "modulos.js", "providers.js", "providers.json", "account-status.js", "contas-claude.js", "tool-events.js", "navegador.js", "navegador-whatsapp.js", "gmail.js", "pontes.js", "licenca.js", "crm-modelo.js", "crm-store.js", "crm-api.js", "finance-modelo.js", "finance-store.js", "finance-api.js", "finance-crm-sync.js", "crm-finance-vendas.js", "autenticador.js", "saude-maquina.js", "cota.js", "faxina.js", "auditoria.py",
   // Porteiro do claude (rodízio de contas para o OpenClaw/WhatsApp e o Terminal): mora na pasta do backend e puxa contas-claude.js.
   "claude-porteiro.js",
   // Regra única do motor do WhatsApp (espelho em JS de WA_MOTOR_SH): o server.js decide por ela por onde mandar mensagem.
@@ -77,6 +77,8 @@ export const FINANCE_FILES = ["install-finance.sh", "skill-finance-api.md"];
 export const FINANCE_PLUGIN_FILES = ["index.js", "regras.mjs", "backend.mjs", "finance.mjs", "package.json", "openclaw.plugin.json"];
 /** Plugin de pausa por contato do Hermes (hermes-plugins/meu-bot-pausa/): vai inline por SSH, a versão é a do plugin.yaml. */
 export const HERMES_PAUSA_FILES = ["__init__.py", "plugin.yaml"];
+/** Plugin do Navegador para o WhatsApp no Hermes (hermes-plugins/meu-bot-navegador/): instalado ao ligar o 📱, a versão é a do plugin.yaml. */
+export const HERMES_NAV_FILES = ["__init__.py", "plugin.yaml"];
 
 export interface ComponenteVersionado {
   nome: string;
@@ -92,5 +94,6 @@ export const COMPONENTES: readonly ComponenteVersionado[] = [
   { nome: "financeiro", arquivos: [...FINANCE_FILES.map(B), ...FINANCE_PLUGIN_FILES.map((f) => B(`finance/${f}`))], versao: B("finance/package.json") },
   { nome: "crm", arquivos: [...CRM_FILES.map(B), ...CRM_PLUGIN_FILES.map((f) => B(`crm/${f}`))], versao: B("crm/package.json") },
   { nome: "guarda", arquivos: [...GUARDA_FILES.map(B), ...GUARDA_PLUGIN_FILES.map((f) => B(`guarda/${f}`))], versao: B("guarda/package.json") },
+  { nome: "hermes-navegador", arquivos: HERMES_NAV_FILES.map((f) => B(`hermes-plugins/meu-bot-navegador/${f}`)), versao: B("hermes-plugins/meu-bot-navegador/plugin.yaml") },
   { nome: "hermes-pausa", arquivos: HERMES_PAUSA_FILES.map((f) => B(`hermes-plugins/meu-bot-pausa/${f}`)), versao: B("hermes-plugins/meu-bot-pausa/plugin.yaml") },
 ];

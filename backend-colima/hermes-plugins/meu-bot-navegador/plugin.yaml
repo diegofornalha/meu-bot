@@ -1,0 +1,6 @@
+name: meu-bot-navegador
+version: "1.0.0"
+description: "Navegador do dono para o agente do WhatsApp (meu-bot): a cada turno confere quem escreveu e, se o número está na lista que o dono marcou no app, entrega ao backend do meu-bot um passe de uso único para aquele turno usar o Navegador. Só conversa direta."
+author: meu-bot
+provides_hooks:
+  - pre_llm_call

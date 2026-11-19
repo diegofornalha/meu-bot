@@ -495,9 +495,12 @@ export function bundledCrmVersion(): string | null {
 }
 /** Versão da guarda que vem neste app (package.json do plugin); o seletor atualiza máquinas com versão diferente. */
 /** O plugin de pausa do Hermes como está no bundle (backend-colima/hermes-plugins/meu-bot-pausa); null se o pacote veio sem ele. */
-export function pausaPluginFonte(): PausaPluginFonte | null {
+export function pausaPluginFonte(): PausaPluginFonte | null { return pluginHermesFonte("meu-bot-pausa"); }
+/** Um plugin do Hermes como está no bundle (backend-colima/hermes-plugins/<nome>); null se o pacote veio sem ele. */
+export function pluginHermesFonte(nome: string): PausaPluginFonte | null {
+  if (!/^meu-bot-[a-z-]+$/.test(nome)) return null;
   try {
-    const d = path.join(backendBundleDir(), "hermes-plugins", "meu-bot-pausa");
+    const d = path.join(backendBundleDir(), "hermes-plugins", nome);
     const init = fs.readFileSync(path.join(d, "__init__.py"), "utf8"), yaml = fs.readFileSync(path.join(d, "plugin.yaml"), "utf8");
     const versao = versaoDoPluginYaml(yaml);
     return versao === null ? null : { init, yaml, versao };

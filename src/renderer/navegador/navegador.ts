@@ -1,4 +1,4 @@
-import type { BrowserExtensionInfo, NavFavorito, NavWorkspaces, DonoInfo, NavWorkspace, NavService } from "../../shared/ipc";
+import type { BrowserExtensionInfo, NavFavorito, NavWorkspaces, DonoInfo, NavWorkspace, NavService, NavWhatsappInfo } from "../../shared/ipc";
 import { el, byId as $ } from "../lib/dom.js";
 import { favLabel, favOf, favTitleFor } from "../lib/favoritos.js";
 import { ipcErrorText } from "../lib/ipc-error.js";
@@ -266,7 +266,9 @@ function navClosePopup(): void {
 }
 let navAgentBusy = false;
 /** O agente do WhatsApp também pode usar o Navegador (null = ainda não lido nesta janela). */
-let navWa: { on: boolean; liberados: string[] } | null = null;
+let navWa: NavWhatsappInfo | null = null;
+/** O que o menu da barra mostra: as extensões (🧩) ou quem pode usar o Navegador pelo WhatsApp (📱, só onde a lista é do app). */
+let navMenuModo: "ext" | "wa" = "ext";
 let navWaBusy = false;
 /** Ligado por padrão: ao abrir o Navegador, liga sozinho; quem desligar de propósito fica desligado (lembrado por máquina). */
 const navWaOffKey = (): string => `navWaDesligado:${ctx.windowHost}`;
@@ -274,13 +276,49 @@ function refreshNavWa(): void {
   void window.meuBot.browserAgentWhatsapp().then((r) => {
     navWa = r; paintNav();
     let off = false; try { off = localStorage.getItem(navWaOffKey()) === "1"; } catch { /* opcional */ }
-    if (!r.on && !off && !navWaBusy) setNavWa(true);
+    // Onde a lista é do app (Hermes) não liga sozinho: a primeira vez instala um plugin e reinicia o gateway, e é a pessoa quem escolhe os números.
+    if (r.suportado && !r.editavel && !r.on && !off && !navWaBusy) setNavWa(true);
   }).catch(() => undefined);
 }
-function setNavWa(ligar: boolean): void {
+function setNavWa(ligar: boolean, numeros?: string[]): void {
   try { if (ligar) localStorage.removeItem(navWaOffKey()); else localStorage.setItem(navWaOffKey(), "1"); } catch { /* opcional */ }
   navWaBusy = true; paintNav();
-  void window.meuBot.browserAgentWhatsapp(ligar).then((r) => { navWa = r; }).catch((err: unknown) => { if (navEls !== null) { navEls.note.hidden = false; navEls.note.textContent = `WhatsApp: ${ipcErrorText(err)}`; } }).finally(() => { navWaBusy = false; paintNav(); });
+  if (navEls !== null) navEls.note.hidden = true;
+  void window.meuBot.browserAgentWhatsapp(ligar, numeros).then((r) => { navWa = r; }).catch((err: unknown) => { if (navEls !== null) { navEls.note.hidden = false; navEls.note.textContent = `WhatsApp: ${ipcErrorText(err)}`; } }).finally(() => { navWaBusy = false; paintNav(); if (navEls !== null && !navEls.menu.hidden && navMenuModo === "wa") paintNavMenu(); });
+}
+/** Menu do 📱 onde a lista é do app (Hermes): quem pode usar o Navegador pelo WhatsApp, acrescentar, tirar, ligar e desligar. */
+function paintNavWaMenu(): void {
+  if (navEls === null || navWa === null) return;
+  const m = navEls.menu, w = navWa;
+  m.replaceChildren();
+  m.append(el("p", "hint strong-hint", "Navegador pelo WhatsApp"));
+  m.append(el("p", "hint", w.on
+    ? "Só estes números conseguem pedir ao agente, na conversa direta, para usar este Navegador (com os seus logins). Para todos os outros ele responde sem navegador."
+    : "Desligado. Ao ligar, só os números desta lista conseguem pedir ao agente, na conversa direta, para usar este Navegador. A primeira vez reinicia o agente do WhatsApp por alguns segundos."));
+  for (const n of w.liberados) {
+    const row = el("div", "nav-ext");
+    const tirar = el("button", "mini-btn", "✕"); tirar.type = "button"; tirar.title = `Tirar ${ctx.fmtPhone(n)}`; tirar.disabled = navWaBusy || (w.on && w.liberados.length === 1);
+    if (w.on && w.liberados.length === 1) tirar.title = "É o único número: para ninguém usar, desligue.";
+    tirar.addEventListener("click", () => setNavWa(w.on, w.liberados.filter((x) => x !== n)));
+    row.append(el("span", "grow", ctx.fmtPhone(n)), tirar);
+    m.append(row);
+  }
+  const novo = el("div", "nav-ext");
+  const campo = document.createElement("input"); campo.type = "tel"; campo.className = "nav-url grow"; campo.placeholder = "+55 16 99999-9999"; campo.autocomplete = "off";
+  const add = el("button", "btn btn-small", "Adicionar"); add.type = "button"; add.disabled = navWaBusy;
+  const incluir = (): void => {
+    const d = campo.value.replace(/\D/g, "");
+    if (!/^\d{8,15}$/.test(d)) { campo.focus(); campo.select(); campo.title = "Número com DDI e DDD, só dígitos (8 a 15)"; return; }
+    if (w.liberados.includes(d)) { campo.value = ""; return; }
+    setNavWa(w.on, [...w.liberados, d]);
+  };
+  add.addEventListener("click", incluir);
+  campo.addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); incluir(); } });
+  novo.append(campo, add);
+  m.append(novo);
+  const liga = el("button", w.on ? "btn btn-small" : "btn btn-primary btn-small", navWaBusy ? "gravando na máquina…" : w.on ? "Desligar" : "Ligar"); liga.type = "button"; liga.disabled = navWaBusy;
+  liga.addEventListener("click", () => setNavWa(!w.on, w.liberados.length > 0 ? w.liberados : undefined));
+  m.append(liga);
 }
 const NAV_HOME = "https://www.google.com";
 /** Página inicial: com o CRM próprio liberado nesta máquina, o Gmail (onde o CRM mora); senão o Google. */
@@ -494,8 +532,10 @@ export function paintNav(): void {
   e.agent.classList.toggle("wait", a.on && a.state !== "up");
   e.agent.setAttribute("aria-label", !a.on ? "agente: desligado" : a.state === "up" ? "agente: pode usar" : a.state === "connecting" ? "agente: conectando" : "agente: sem túnel");
   e.wa.classList.toggle("on", navWa?.on === true);
-  e.wa.disabled = navWaBusy || navWa === null;
-  e.wa.title = navWaBusy ? "gravando na máquina…" : navWa === null ? "lendo a máquina…" : navWa.on
+  e.wa.disabled = navWaBusy || navWa === null || !navWa.suportado;
+  e.wa.title = navWaBusy ? "gravando na máquina…" : navWa === null ? "lendo a máquina…" : !navWa.suportado ? `Navegador pelo WhatsApp: ${navWa.motivo ?? "não disponível nesta máquina"}.` : navWa.editavel
+    ? (navWa.on ? `O agente do WhatsApp também usa este Navegador, só para: ${navWa.liberados.map((n) => ctx.fmtPhone(n)).join(", ") || "ninguém"} (na conversa direta). Clique para mudar a lista ou desligar.` : "Deixar o agente do WhatsApp usar este Navegador, só para os números que você marcar. Clique para escolher e ligar.")
+    : navWa.on
     ? `O agente do WhatsApp também usa este Navegador: ${navWa.liberados.map((n) => ctx.fmtPhone(n)).join(", ") || "ninguém"} (na conversa direta e nos grupos). Para os outros contatos ele fica bloqueado. Clique para desligar.`
     : "Deixar o agente do WhatsApp usar este Navegador (só você e quem pode conversar com ele nos grupos). Clique para ligar.";
   e.agent.title = a.on ? `O agente da conversa pode abrir, ler e clicar nestas abas (túnel ${a.state === "up" ? `ativo, porta ${a.port}` : a.state}). Clique para desligar.` : "Deixar o agente da conversa usar este navegador (ele avisa antes de agir e não compra/envia nada sem você confirmar). Clique para ligar.";
@@ -505,6 +545,7 @@ export function paintNav(): void {
 }
 function paintNavMenu(): void {
   if (navEls === null) return;
+  if (navMenuModo === "wa") { paintNavWaMenu(); return; }
   const m = navEls.menu;
   m.replaceChildren();
   const ws = el("button", "btn btn-primary btn-small", "Abrir a Chrome Web Store"); ws.type = "button";
@@ -550,6 +591,8 @@ export async function openNavTab(url?: string, frente = true, rotulo?: string): 
     const agent = el("button", "mini-btn nav-agent", "🤖"); agent.type = "button"; agent.hidden = !ctx.caps.agenteNavegador;
     const wa = el("button", "mini-btn nav-agent nav-wa", "📱"); wa.type = "button"; wa.hidden = !ctx.caps.agenteNavegador;
     wa.addEventListener("click", () => {
+      // Onde a lista é do app (Hermes), o 📱 abre o menu de quem pode; ligar e desligar ficam lá dentro.
+      if (navWa?.editavel === true) { const abrir = menu.hidden || navMenuModo !== "wa"; navMenuModo = "wa"; menu.hidden = !abrir; if (abrir) paintNavMenu(); return; }
       const ligar = navWa?.on !== true;
       // Desligar pergunta (fica lembrado nesta máquina); ligar é o padrão e não pergunta.
       if (!ligar && !window.confirm("Tirar o Navegador do agente do WhatsApp?\n\nEle volta a não conseguir abrir páginas pelo WhatsApp. Fica desligado nesta máquina até você ligar de novo no 📱.")) return;
@@ -622,7 +665,7 @@ export async function openNavTab(url?: string, frente = true, rotulo?: string): 
       if (ev.key === "Escape") { const c = navCurrent(); urlEl.value = c === null ? "" : displayUrl(c.url); urlEl.blur(); }
     });
     urlEl.addEventListener("focus", () => urlEl.select());
-    ext.addEventListener("click", () => { menu.hidden = !menu.hidden; if (!menu.hidden) paintNavMenu(); });
+    ext.addEventListener("click", () => { const abrir = menu.hidden || navMenuModo !== "ext"; navMenuModo = "ext"; menu.hidden = !abrir; if (abrir) paintNavMenu(); });
     open.addEventListener("click", () => { const c = navCurrent(); if (c !== null && /^https?:/.test(c.url)) void window.meuBot.openExternal(c.url); });
     box.addEventListener("mousedown", () => { menu.hidden = true; navClosePopup(); });
     // Clique dentro de uma página (webview) foca o elemento, mas o mousedown não sobe: o foco fecha menu e popup.

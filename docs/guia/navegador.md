@@ -114,6 +114,36 @@ fica na auditoria (`navegador.whatsapp-ligar`/`-desligar`).
 - **Conserto junto:** sessões de grupo não entram mais na conversa de um contato. Antes, "Limpar histórico" de quem
   falava num grupo zerava a memória do agente no grupo.
 
+### No Hermes (19 nov): o mesmo 📱, com a lista de números do dono
+
+O recurso acima é o do OpenClaw. O botão é um só (`browser:agent-whatsapp`), e `navegador-whatsapp.ts` é a fachada que
+descobre o gateway da máquina (`motorDe`) e chama o caminho dele. PicoClaw ou máquina sem agente: `suportado: false`, o
+botão fica apagado e a dica diz o motivo (antes ele tentava ligar sozinho e falhava em `openclaw config patch`).
+
+No Hermes o desenho é outro porque quem roda o Claude é o **backend do meu-bot na própria máquina** (modelo `whatsapp`):
+ele ignora as ferramentas do gateway, então um `mcp_servers.navegador` no `config.yaml` nunca chegaria ao modelo, e o
+pedido que chega ao backend não diz quem escreveu.
+
+- **Estado:** `~/.local/share/meu-bot/navegador-whatsapp.json` (`{ v, on, numeros, em }`, 0600). A lista é do app: o 📱
+  abre um menu para acrescentar e tirar números, ligar e desligar. Na primeira vez ela começa com o dono gravado e o
+  número pareado (`donosDe`). Não liga sozinho ao abrir o Navegador: a primeira ativação instala um plugin e reinicia o
+  gateway.
+- **Plugin `meu-bot-navegador`** (`backend-colima/hermes-plugins/`, instalado pelo mesmo `hermesPluginSh` do de pausa):
+  no hook `pre_llm_call`, uma vez por turno, confere plataforma, tipo da conversa (só `dm`) e o remetente (`sender_id`,
+  `user_id`, `user_id_alt`; LID só pelo `whatsapp-lid.json`). Número na lista: grava um passe de uso único em
+  `navegador-passes/<nonce>.json` (pasta 0700, vale 180 s) e devolve `[meu-bot-nav:<nonce>]`, que o Hermes anexa à
+  mensagem daquele turno sem guardar no histórico.
+- **Backend 1.13.0+** (`navegador-whatsapp.js`): tira o marcador de todas as mensagens (o modelo nunca o vê), só aceita o
+  da última fala e exige passe existente e não vencido, estado ligado, número ainda na lista, a `navegador-porta`, Pro e
+  o MCP instalado. Aí o turno segue o caminho das conversas do app (`pontesCliArgs`), com a aba no nome da sessão do
+  WhatsApp (`--origem whatsapp`, servidor v5) e a conduta `NAV_WA_RULE` no system prompt. O `não` vai para o log do
+  backend com o motivo (`navegador no whatsapp: negado (…)`).
+- **Falha fechada:** marcador escrito à mão, dois marcadores, passe vencido, grupo, número fora da lista, plugin sem
+  saber quem escreveu, app fechado: turno normal, sem Navegador. O app recusa ligar com backend anterior ao 1.13.0 (o
+  marcador iria parar no texto da conversa).
+- **Fora desta versão:** grupos no Hermes (a sessão de grupo mistura falas de terceiros). Quando o turno cai para o Grok
+  de reserva não há ferramentas, e o Navegador some naquele turno.
+
 ## Abas do Navegador com dono por conversa (21 out)
 
 Várias conversas usam o mesmo Navegador: as do meu-bot, a DM e cada grupo do WhatsApp. Cada pedido do servidor do
@@ -136,7 +166,7 @@ Regras em `src/main/nav-donos-core.ts` (testadas), aplicadas em `nav-api.ts`:
 (os 8 primeiros caracteres da sessão do OpenClaw, o mesmo "ID" da aba da conversa), `🤖 <id da conversa>` ou
 `✳️ Claude Code (Mac)` (origem `claude-code`, o Claude Code deste Mac pelo socket). Um clique
 copia a referência: máquina, aba, url e dono, com chave e sessão. A máquina com o servidor v1 é atualizada sozinha
-(`navegadorInstalled` e `mcpfile` conferem o marcador `meu-bot-navegador v2`).
+(`navegadorInstalled` e `mcpfile` conferem o marcador `NAV_MCP_VERSAO`, hoje `meu-bot-navegador v5`).
 
 ## Fechar a aba do agente recarrega a aba da pessoa no mesmo site (31 out)
 

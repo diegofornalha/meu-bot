@@ -37,11 +37,23 @@ const GATEWAY_VIVO_SH = `systemctl --user is-active hermes-gateway >/dev/null 2>
 export function hermesPausaPluginSh(fonte: PausaPluginFonte, fuso: string): string {
   if (fonte.init.trim() === "" || fonte.yaml.trim() === "") throw new Error("plugin de pausa sem arquivos no bundle");
   if (versaoDoPluginYaml(fonte.yaml) !== fonte.versao || !/^[\w.-]+$/.test(fonte.versao)) throw new Error("versão do plugin de pausa não bate com o plugin.yaml");
+  return hermesPluginSh(HERMES_PAUSA_PLUGIN, fonte, `printf '%s\\n' '${fusoOk(fuso)}' > "$HOME/.local/share/meu-bot/fuso"`);
+}
+
+/**
+ * O instalador de um plugin do meu-bot no Hermes (o de pausa e o do Navegador usam o mesmo): grava os dois arquivos em
+ * ~/.hermes/plugins/<nome>, liga em `plugins.enabled` (com backup do config.yaml), grava `.ok` por último e reinicia o
+ * gateway só se algo mudou e ele está de pé. `antes` = linhas de shell do plugin, rodadas depois de criar as pastas.
+ */
+export function hermesPluginSh(nome: string, fonte: PausaPluginFonte, antes = ""): string {
+  if (!/^meu-bot-[a-z-]+$/.test(nome)) throw new Error("nome de plugin inválido");
+  if (fonte.init.trim() === "" || fonte.yaml.trim() === "") throw new Error(`plugin ${nome} sem arquivos no bundle`);
+  if (versaoDoPluginYaml(fonte.yaml) !== fonte.versao || !/^[\w.-]+$/.test(fonte.versao)) throw new Error(`versão do plugin ${nome} não bate com o plugin.yaml`);
   const b64 = Buffer.from(JSON.stringify({ init: fonte.init, yaml: fonte.yaml }), "utf8").toString("base64");
   return `${HERMES_PY_SH}
 command -v python3 >/dev/null 2>&1 || { echo "plugin=falhou: sem python3"; exit 3; }
-D="${HERMES_PAUSA_DIR}"; mkdir -p "$D" "$HOME/.local/share/meu-bot"
-printf '%s\\n' '${fusoOk(fuso)}' > "$HOME/.local/share/meu-bot/fuso"
+D="$HOME/.hermes/plugins/${nome}"; mkdir -p "$D" "$HOME/.local/share/meu-bot"
+${antes}
 R=$(printf '%s' '${b64}' | base64 -d | python3 -c '
 import json, os, sys
 d = sys.argv[1]; novo = json.load(sys.stdin); mud = []
@@ -60,9 +72,9 @@ ${HERMES_YAML_PY}
 pl = sub(doc, "plugins"); en = pl.get("enabled")
 if not isinstance(en, list):
     en = []; pl["enabled"] = en
-if "${HERMES_PAUSA_PLUGIN}" in en: print("cfgset=ok"); print("enabled=ja")
+if "${nome}" in en: print("cfgset=ok"); print("enabled=ja")
 else:
-    en.append("${HERMES_PAUSA_PLUGIN}"); salvar(); print("cfgset=ok"); print("enabled=sim")
+    en.append("${nome}"); salvar(); print("cfgset=ok"); print("enabled=sim")
 ' 2>/dev/null | grep -E "^(cfgset|enabled)=" || echo enabled=falhou); echo "$E"
 case "$R $E" in *falhou*) echo "restart=nao"; exit 3;; esac
 printf '%s' '${fonte.versao}' > "$D/.ok"

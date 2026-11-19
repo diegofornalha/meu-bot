@@ -49,6 +49,7 @@ export const ACOES = {
   "terminal.abrir": () => "abriu um terminal",
   "navegador.whatsapp-ligar": (a: string) => `deixou o agente do WhatsApp usar o Navegador${a ? ` (quem pode: ${a})` : ""}`,
   "navegador.whatsapp-desligar": () => "tirou o Navegador do agente do WhatsApp",
+  "navegador.whatsapp-numeros": (a: string) => `mudou quem pode usar o Navegador pelo WhatsApp${a ? ` (quem pode: ${a})` : ""}`,
   "whatsapp.limpar": (a: string) => `limpou o histórico do WhatsApp de ${a}`,
   "whatsapp.excluir": (a: string) => `excluiu a conversa do WhatsApp de ${a}`,
   "whatsapp.restaurar": (a: string) => `restaurou a conversa do WhatsApp de ${a}`,

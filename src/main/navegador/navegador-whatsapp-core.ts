@@ -11,8 +11,8 @@
 export const NAV_SERVER = "navegador";
 /** As ferramentas do navegador-mcp.mjs (a lista TOOLS de lá). */
 export const NAV_TOOLS = ["abas", "abrir", "ler", "clicar", "digitar", "tecla", "print", "voltar", "avancar", "recarregar", "favoritos", "favoritar", "desfavoritar", "fechar", "guardar", "js"] as const;
-/** Marcador da versão do navegador-mcp.mjs (abas com dono por conversa): máquina sem ele recebe o arquivo de novo. */
-export const NAV_MCP_VERSAO = "meu-bot-navegador v4";
+/** Marcador da versão do navegador-mcp.mjs (v5: `--origem whatsapp`, o turno do WhatsApp no Hermes): máquina sem ele recebe o arquivo de novo. */
+export const NAV_MCP_VERSAO = "meu-bot-navegador v5";
 /** Negar o Navegador: o curinga e cada nome (a lista explícita vale mesmo se a política não aceitar curinga). */
 export const NAV_DENY: readonly string[] = [`${NAV_SERVER}__*`, ...NAV_TOOLS.map((t) => `${NAV_SERVER}__${t}`)];
 /**

@@ -39,3 +39,10 @@ test("gmail-mcp.mjs: as ferramentas são as que o app conhece (GMAIL_TOOLS) e o 
   assert.ok(src.includes(GMAIL_MCP_VERSAO), "marcador de versão");
   assert.ok(src.includes("X-Meu-Bot-Dono"), "cabeçalho de quem pede");
 });
+
+test("turno do WhatsApp (Hermes): o dono com origem whatsapp vira --origem whatsapp; o das conversas do app não muda", () => {
+  const args = (dono) => JSON.parse(pontesCliArgs({ browser: { port: 19123, dono }, gmail: null, nodeBin: "/n", navegadorMcp: "/m.mjs", gmailMcp: "/g.mjs", snapshotOff: false })[1]).mcpServers.navegador.args;
+  assert.deepEqual(args({ id: "agent:main:whatsapp:dm:5516992294486", rotulo: "WhatsApp", origem: "whatsapp" }).slice(-2), ["--origem", "whatsapp"]);
+  assert.deepEqual(args({ id: "meu-bot:abc", rotulo: "conversa" }), ["/m.mjs", "--port", "19123", "--dono", "meu-bot:abc", "--rotulo", "conversa"]);
+  assert.equal(args({ id: "meu-bot:abc", rotulo: "c", origem: "claude-code" }).includes("--origem"), false);
+});

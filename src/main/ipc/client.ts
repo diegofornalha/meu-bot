@@ -18,6 +18,7 @@ import { abrirInspector } from "../inspector/inspector";
 import { esquecerPermissoes, responderPermissao } from "../navegador/nav-permissoes";
 import { financeAbc, financeImportarPlanilha, financeCategorias, financeComprovante, financeConfig, financeConfigLer, financeCorrigir, financeLinhaRemover, financeLinhaSalvar, financeConfirmar, financeConfirmarTodas, financeContaCriar, financeDescartar, financeFecharMes, financeInfo, financeLancamentos, financeLancar, financeMes } from "../financeiro/finance-local";
 import { navWhatsappInfo, setNavWhatsapp } from "../navegador/navegador-whatsapp";
+import { numerosOk } from "../navegador/navegador-whatsapp-hermes-core";
 import { crmCriarPipeline, crmDefinirPadrao, crmLocal } from "../crm/crm-local";
 import { caps } from "../app/variant";
 import { eventoHook } from "../app/depuracao";
@@ -235,14 +236,18 @@ export function registerClientIpc(): void {
     return browserOpen(h.win, h.host, await lerLicencaDaMaquina(h.host).catch(() => null)); // a extensão do CRM segue a licença e o backend
   });
   handleClient("browser:extensions", (event) => browserExtensions(ctxOf(event).host));
-  // O agente do WhatsApp também usa o Navegador: só o número do agente e a lista dos grupos (trava do OpenClaw por remetente).
+  // O agente do WhatsApp também usa o Navegador. OpenClaw: o número do agente e a lista dos grupos (trava por remetente do
+  // gateway). Hermes: só os números que o dono marcar aqui (passe por turno, navegador-whatsapp-hermes.ts).
   handleClient("browser:agent-whatsapp", exigeCap("agenteNavegador", async (event, payload: unknown) => {
     const h = ctxOf(event);
-    const on = (payload as { on?: unknown } | null)?.on;
+    const p = payload as { on?: unknown; numeros?: unknown } | null;
+    const on = p?.on;
     if (typeof on !== "boolean") return navWhatsappInfo(h.host);
+    // `numeros` = a lista marcada pelo dono (só onde ela é do app: Hermes); no OpenClaw quem pode vem da config do gateway.
+    const numeros = Array.isArray(p?.numeros) ? numerosOk(p.numeros) : undefined;
     await assertAcesso(h.host);
-    const r = await setNavWhatsapp(h.host, on);
-    void registrar(h.host, on ? "navegador.whatsapp-ligar" : "navegador.whatsapp-desligar", r.liberados.map((n) => `+${n}`).join(", "));
+    const r = await setNavWhatsapp(h.host, on, numeros);
+    void registrar(h.host, !on ? "navegador.whatsapp-desligar" : numeros !== undefined ? "navegador.whatsapp-numeros" : "navegador.whatsapp-ligar", r.liberados.map((n) => `+${n}`).join(", "));
     return r;
   }));
   handleClient("browser:agent", exigeCap("agenteNavegador", (event, payload: unknown) => { const h = ctxOf(event); browserAgent(h.host, (payload as { on?: unknown } | null)?.on === true); return browserAgentInfo(h.host); }));
