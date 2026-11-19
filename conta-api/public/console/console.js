@@ -54,7 +54,11 @@ async function api(metodo, rota, corpo, acesso) {
   const headers = { accept: "application/json" };
   if (corpo !== undefined) headers["content-type"] = "application/json";
   if (acesso) headers.authorization = `Bearer ${acesso}`;
-  const r = await fetch(`${cfg.api}${rota}`, { method: metodo, headers, body: corpo === undefined ? undefined : JSON.stringify(corpo) });
+  // Sem rede (ou a API fora do ar) o fetch rejeita: vira status 0 com o motivo, para quem chamou tratar como qualquer
+  // resposta que não é 200 (mostrar o erro, soltar o botão) em vez de ficar com a ação travada e sem aviso.
+  let r;
+  try { r = await fetch(`${cfg.api}${rota}`, { method: metodo, headers, body: corpo === undefined ? undefined : JSON.stringify(corpo) }); }
+  catch (e) { return { status: 0, corpo: { erro: `sem resposta da API (${e?.message ?? e}). Confira a conexão e tente de novo.` } }; }
   const j = await r.json().catch(() => null);
   return { status: r.status, corpo: j };
 }
