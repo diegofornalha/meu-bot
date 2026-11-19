@@ -30,6 +30,7 @@ const CAMPOS_IGUAIS_DO_ADDON = ["centavos", "rotulo"];
  * add-ons); `chave` = var preenchida só no ambiente `so` (no outro, vazia). Cada uma só vale na forma descrita: outra diferença na mesma chave reprova.
  */
 const TEMPORARIAS = [
+  { catalogo: EXTRAS, addon: "device", so: "staging", ate: "2026-12-15", motivo: "a compra do device extra está sendo provada no staging antes de ligar em produção", decidir: "ponha o device no ABACATEPAY_EXTRAS de [vars] (o produto de produção já existe), tire-o do staging, ou renove a validade aqui com o motivo" },
   { addon: "meu-bot-diego", so: "staging", ate: "2026-12-15", motivo: "o produto de produção dos Módulos do Diego ainda não foi criado na AbacatePay", decidir: "crie o produto de produção e ponha o add-on em [vars], tire-o do staging, ou renove a validade aqui com o motivo" },
 ];
 
