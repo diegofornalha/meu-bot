@@ -18,7 +18,7 @@ import { limiteDeDevicesComExtras, promoverDevicesPendentes, addonsPagos, audita
 import { DEVICE_LIMITE_MAX, agoraIso, janelaMinuto, uuid } from "../sessao-core.js";
 import { json, lerJson, type Autenticado } from "../http.js";
 import { gaIds } from "../analytics-core.js";
-import { assinaturaIdValido, clientIdDeReserva, clientIdValido, compraGa4, decidir, detalheLiberar, lerAddons, lerEvento, lerExtras, lerPromo, metodosSemPix, pedidoDoCheckout, precoDaCobranca, refValida, resultadoCancelamento, sessionIdValido, validoAte, webhookConfere, tipoDoExtra, type Decisao, type OfertaAddon, type OfertaExtra, type Promo } from "../pagamento-core.js";
+import { assinaturaIdValido, clientIdDeReserva, clientIdValido, compraGa4, decidir, detalheLiberar, lerAddons, lerEvento, lerExtras, lerPromo, metodosSemPix, pedidoDoCheckout, precoDaCobranca, voltaDoCheckout, refValida, resultadoCancelamento, sessionIdValido, validoAte, webhookConfere, tipoDoExtra, type Decisao, type OfertaAddon, type OfertaExtra, type Promo } from "../pagamento-core.js";
 import { MAQUINA_LIMITE_MAX } from "../licenca-core.js";
 import { itensDoMarketplace, type ItemMarketplace } from "../marketplace-core.js";
 
@@ -87,6 +87,7 @@ export async function postAssinatura(auth: Autenticado, env: Env, req: Request):
   await env.DB.prepare("INSERT INTO pagamento_checkouts (ref, conta_id, checkout_id, ga_client_id, ga_session_id, criado_em, produto, promo) VALUES (?1, ?2, NULL, ?3, ?4, ?5, ?6, ?7)")
     .bind(ref, auth.conta.id, clientIdValido(corpo?.gaClientId), sessionIdValido(corpo?.gaSessionId), agora, item?.nome ?? null, promo === null ? 0 : 1).run();
   const envio = pedidoDoCheckout(promo, metodos(env));
+  const volta = voltaDoCheckout(env.CONSOLE_ORIGIN, item?.nome ?? null);
   // Uma tentativa por lista de métodos: com Pix pedido e o Pix Automático ainda não liberado na loja, a AbacatePay
   // recusa a assinatura inteira; aí vale tentar de novo só com cartão, em vez de deixar o "Assinar" quebrado.
   const criar = (methods: string[]): Promise<Response> => fetch(`${API}/subscriptions/create`, {
@@ -96,8 +97,8 @@ export async function postAssinatura(auth: Autenticado, env: Env, req: Request):
       items: [{ id: item?.produto ?? env.ABACATEPAY_PRODUTO, quantity: 1 }],
       methods,
       externalId: ref,
-      completionUrl: `${env.CONSOLE_ORIGIN}/account/plan?assinatura=paga${item === null ? "" : `&produto=${item.nome}`}`,
-      returnUrl: `${env.CONSOLE_ORIGIN}/account/plan`,
+      completionUrl: volta.concluiu,
+      returnUrl: volta.desistiu,
       metadata: { conta: auth.conta.id, produto: item?.nome ?? "pro" },
       // Com a promoção: o cupom (o desconto vale na primeira cobrança; as renovações cobram o preço cheio).
       ...(envio.coupons === undefined ? {} : { coupons: envio.coupons }),

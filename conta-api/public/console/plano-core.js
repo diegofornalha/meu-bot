@@ -192,7 +192,35 @@ export function deParaDoExtra(extra) {
   return Number.isInteger(de) && Number.isInteger(por) && de > por && por > 0 ? { de: reaisCurto(de), por: reaisCurto(por) } : null;
 }
 
-/** Onde o painel "Assinar o Pro" fica na página aberta: na vaga do Plano quando a pessoa está no Plano; no topo da Visão geral em qualquer outra. */
+/** Onde o painel "Assinar o Pro" fica na página aberta: na vaga do Plano ou do Marketplace quando a pessoa está numa delas; no topo da Visão geral em qualquer outra. */
 export function vagaDoAssinar(secao) {
-  return secao === "plan" ? "pl-assinar-vaga" : "ov-assinar-vaga";
+  return secao === "plan" ? "pl-assinar-vaga" : secao === "marketplace" ? "mk-assinar-vaga" : "ov-assinar-vaga";
+}
+
+/** Quantas assinaturas ativas de um produto a conta tem (cada unidade extra é uma assinatura). */
+export function assinaturasAtivasDe(assinaturas, produto) {
+  return (Array.isArray(assinaturas) ? assinaturas : []).filter((a) => a && a.produto === produto && a.status === "ACTIVE").length;
+}
+/**
+ * Na volta do pagamento de um item do Marketplace: o que foi pago já chegou à conta? Add-on: está em
+ * `licenca.produtos`. Unidade extra ("extra-…"): há mais assinaturas ativas dela do que havia antes de a pessoa sair
+ * para pagar (`antes`, guardado na aba); sem esse número, não dá para saber (false: a tela espera o tempo todo).
+ */
+export function pagoChegou(conta, produto, antes) {
+  if (typeof produto !== "string" || produto === "") return true;
+  if (!produto.startsWith("extra-")) return (conta?.licenca?.produtos ?? []).includes(produto);
+  return Number.isInteger(antes) && assinaturasAtivasDe(conta?.assinaturas, produto) > antes;
+}
+/**
+ * O que a conta já tem, para o topo do Marketplace: o Pro (quando vale), cada add-on em vigor e as unidades extras
+ * pagas. `nomes` traduz o nome técnico para o nome do item (`{"meu-bot-finance": "Finanças"}`).
+ */
+export function oQueAContaTem(conta, nomes = {}) {
+  const l = conta?.licenca ?? {}, out = [];
+  if (l.plan === "pro" && (l.status === "active" || l.status === "trialing")) out.push(l.status === "trialing" ? "Pro (teste grátis)" : "Pro");
+  for (const p of Array.isArray(l.produtos) ? l.produtos : []) out.push(nomes[p] ?? p);
+  const mq = Number.isInteger(conta?.maquinaExtras) ? conta.maquinaExtras : 0, dv = Number.isInteger(conta?.deviceExtras) ? conta.deviceExtras : 0;
+  if (mq > 0) out.push(`${mq} máquina${mq === 1 ? "" : "s"} extra${mq === 1 ? "" : "s"}`);
+  if (dv > 0) out.push(`${dv} Mac${dv === 1 ? "" : "s"} extra${dv === 1 ? "" : "s"}`);
+  return out;
 }

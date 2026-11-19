@@ -227,6 +227,16 @@ export function precoExigido(produto: string | null | undefined, precoPro: numbe
   return addons.find((a) => a.nome === produto)?.centavos ?? extras.find((x) => x.nome === produto)?.centavos ?? Number.MAX_SAFE_INTEGER;
 }
 
+/**
+ * Para onde a AbacatePay devolve a pessoa: `concluiu` depois de pagar, `desistiu` no "voltar". O Pro (`item` null) volta
+ * para a página Plano; add-on e unidade extra voltam para o Marketplace do console, com o produto na query para a
+ * tela esperar por ele.
+ */
+export function voltaDoCheckout(consoleOrigin: string, item: string | null): { concluiu: string; desistiu: string } {
+  const base = `${consoleOrigin}/account/${item === null ? "plan" : "marketplace"}`;
+  return { concluiu: `${base}?assinatura=paga${item === null ? "" : `&produto=${encodeURIComponent(item)}`}`, desistiu: base };
+}
+
 /** A promoção do primeiro mês do Pro neste ambiente: o código do cupom na AbacatePay, quanto a primeira cobrança sai e por quantos dias depois do teste ela vale. */
 export interface Promo { cupom: string; precoCentavos: number; dias: number }
 

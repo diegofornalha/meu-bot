@@ -1,7 +1,7 @@
 // Assinatura do Pro pela AbacatePay: conferência do webhook, leitura do evento, decisão, prazo e a compra do GA4.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { assinaturaIdValido, resultadoCancelamento, CHAVE_HMAC_ABACATEPAY, clientIdDeReserva, clientIdValido, compraGa4, decidir, hmacBase64, iguais, lerAddons, lerEvento, licencaComAddons, licencaDoSuper, limiteDoPapel, licencaEmVigor, metodosSemPix, precoExigido, precoDaCobranca, pedidoDoCheckout, direitoPromo, lerPromo, refValida, sessionIdValido, validoAte, webhookConfere, umaPorContaEProduto, lerExtras, tipoDoExtra } from "../dist/pagamento-core.js";
+import { voltaDoCheckout, assinaturaIdValido, resultadoCancelamento, CHAVE_HMAC_ABACATEPAY, clientIdDeReserva, clientIdValido, compraGa4, decidir, hmacBase64, iguais, lerAddons, lerEvento, licencaComAddons, licencaDoSuper, limiteDoPapel, licencaEmVigor, metodosSemPix, precoExigido, precoDaCobranca, pedidoDoCheckout, direitoPromo, lerPromo, refValida, sessionIdValido, validoAte, webhookConfere, umaPorContaEProduto, lerExtras, tipoDoExtra } from "../dist/pagamento-core.js";
 
 const SECRET = "s".repeat(40);
 const REF = "mb_123e4567-e89b-12d3-a456-426614174000";
@@ -411,4 +411,11 @@ test("limiteDoPapel: o super admin não tem limite de devices nem de máquinas; 
   assert.deepEqual(admitirMaquina(daConta, "b", limiteDoPapel(1, "super"), agoraMs), { acao: "vincular" });
   const posicoes = [{ id: "a", criadaEm: "2026-11-01", desvinculadaEm: null }, { id: "b", criadaEm: "2026-11-02", desvinculadaEm: null }];
   assert.deepEqual([cabeNoLimite(posicoes, "b", limiteDoPapel(1, null)), cabeNoLimite(posicoes, "b", limiteDoPapel(1, "super"))], [false, true]);
+});
+
+test("voltaDoCheckout: o Pro volta para o Plano; add-on e unidade extra voltam para o Marketplace com o produto", () => {
+  const C = "https://console.agentesgrok.com";
+  assert.deepEqual(voltaDoCheckout(C, null), { concluiu: `${C}/account/plan?assinatura=paga`, desistiu: `${C}/account/plan` });
+  assert.deepEqual(voltaDoCheckout(C, "meu-bot-finance"), { concluiu: `${C}/account/marketplace?assinatura=paga&produto=meu-bot-finance`, desistiu: `${C}/account/marketplace` });
+  assert.equal(voltaDoCheckout(C, "extra-maquina").concluiu, `${C}/account/marketplace?assinatura=paga&produto=extra-maquina`);
 });

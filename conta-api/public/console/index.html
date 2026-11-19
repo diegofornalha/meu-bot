@@ -32,6 +32,7 @@
         <a href="/account/profile" data-secao="profile"><span class="ico" aria-hidden="true">◉</span>Perfil</a>
         <a href="/account/devices" data-secao="devices"><span class="ico" aria-hidden="true">▭</span>Devices</a>
         <a href="/account/plan" data-secao="plan"><span class="ico" aria-hidden="true">▤</span>Plano</a>
+        <a href="/account/marketplace" data-secao="marketplace"><span class="ico" aria-hidden="true">⊞</span>Marketplace</a>
         <a href="/account/support" data-secao="support"><span class="ico" aria-hidden="true">?</span>Suporte</a>
         <a href="/account/sales" data-secao="sales" id="menu-sales" hidden><span class="ico" aria-hidden="true">$</span>Assinaturas</a>
         <a href="/account/access" data-secao="access" id="menu-access" hidden><span class="ico" aria-hidden="true">⚙</span>Perfis de acesso</a>
@@ -122,8 +123,7 @@
         <details class="pessoal" open><summary>Minha conta</summary>
         <div class="cartoes" id="pl-cartoes"></div>
         <div id="pl-assinar-vaga"><div class="painel" id="pl-assinar" hidden><h2>Assinar o Pro</h2><p class="oferta">De <s>R$ 997</s> por <strong>R$ 97</strong> por mês</p><p>R$ 97 por mês, com o chip da Coflow. O pagamento é feito na página segura da AbacatePay, e o Pro é liberado nesta conta assim que o pagamento é confirmado. Você cancela quando quiser e o Pro continua até o fim do mês pago.</p><p id="pl-assinar-ja" class="sub" hidden></p><div id="pl-promo" class="promo" hidden></div><p id="pl-assinar-aviso" class="sub" role="status"></p><p><button type="button" class="btn btn-primary" id="pl-assinar-btn">Assinar por R$ 97/mês</button></p></div></div>
-        <div id="pl-extras"></div>
-        <div id="pl-addons"></div>
+        <p class="sub">Para somar apps, máquinas ou Macs à conta, abra o <a href="/account/marketplace">Marketplace</a>.</p>
         <div class="painel tabela-rolagem" id="pl-assinaturas" hidden><h2>Suas assinaturas</h2><table class="tabela"><thead><tr><th>Produto</th><th>Valor</th><th>Situação</th><th>Vale até</th><th></th></tr></thead><tbody></tbody></table><p class="sub" id="pl-assinaturas-aviso" role="status">Você cancela quando quiser, aqui mesmo. O acesso continua até o fim do mês já pago.</p></div>
         <div class="painel" id="pl-pagamento" hidden><h2>Como pagar</h2><p id="pl-instrucoes"></p><p><a class="btn btn-primary" id="pl-link" target="_blank" rel="noopener" hidden>Abrir o link de pagamento</a></p></div>
         <p class="sub">Assinou? Numa máquina por SSH, abra a janela dela no app e toque em "Usar o meu Pro nesta máquina". Neste Mac o plano da conta já vale sozinho. As máquinas que usam a licença ficam em Devices.</p>
@@ -134,6 +134,17 @@
           <div class="painel tabela-rolagem"><table class="tabela" id="ad-contas"><thead><tr><th>Conta</th><th>Plano</th><th>Fase</th><th>Vale até</th><th>Devices</th><th>Máquinas</th><th>Pedidos</th><th>Entrou em</th><th></th></tr></thead><tbody></tbody></table></div>
           <p class="sub">Conta nova começa em trial do Pro; "Editar" abre a conta: grava plano, status, prazo e limite de devices e de máquinas, e mostra os add-ons dela. O que foi pago pela AbacatePay entra sozinho na conta; a própria pessoa leva a licença à máquina dela pelo app ("Usar o meu Pro nesta máquina"), dentro do limite de máquinas da conta; cada primeira compra ainda abre um pedido "Liberar na máquina", que fecha sozinho quando ela aplica em Suporte.</p>
         </div>
+      </section>
+
+      <section data-secao="marketplace" hidden>
+        <details class="pessoal" open><summary>Minha conta</summary>
+        <p class="sub">O Pro é a base. Os apps e as unidades a mais são assinaturas à parte, que você soma e cancela quando quiser.</p>
+        <div class="painel"><h2>O que a sua conta tem</h2><p id="mk-tem"></p></div>
+        <div id="mk-assinar-vaga"></div>
+        <div id="pl-extras"></div>
+        <div id="pl-addons"></div>
+        <p class="sub" id="mk-vazio" hidden>Não há nada a somar agora: a sua conta já tem tudo o que está à venda.</p>
+        </details>
       </section>
 
       <section data-secao="support" hidden>
