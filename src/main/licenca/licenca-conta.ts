@@ -13,7 +13,7 @@ import { verificaLicencaAssinada } from "../conta/licenca-assinada-core";
 import { LOCAL_HOST } from "../maquina/localBackend";
 import { gravarJsonRemoto } from "../maquina/json-remoto";
 import { runSsh } from "../whatsapp/whatsapp";
-import { LICENCA_CONTA_PATH, MAQUINA_PATH, deveRenovarLicenca, idDaMaquinaDe, jsonCru } from "./licenca-conta-core";
+import { LICENCA_CONTA_PATH, MAQUINA_PATH, conferidaHaPouco, deveRenovarLicenca, idDaMaquinaDe, jsonCru } from "./licenca-conta-core";
 
 export { LICENCA_CONTA_PATH, MAQUINA_PATH };
 const SEP = "<<<REA-SEP>>>";
@@ -85,7 +85,6 @@ const renovadaEm = new Map<string, number>();
  */
 const recusadaPor = new Map<string, string>();
 export const avisoDaRenovacao = (host: string): string | null => recusadaPor.get(host) ?? null;
-const ENTRE_CONFERENCIAS_MS = 6 * 60 * 60 * 1000;
 /**
  * Ao ler a licença da janela: se a máquina usa a licença DESTA conta e a emissão já tem dias, pede outra e grava.
  * A conta respondeu que a máquina não é mais dela (tirada pelo console): o arquivo sai de lá e a vaga abre.
@@ -96,7 +95,7 @@ export async function renovarSePreciso(host: string, now: number = Date.now(), o
   if (!remota(host) || conta === null) return false;
   const ultima = renovadaEm.get(host);
   // `agora`: a pessoa acabou de mudar o plano (comprou um device) e pediu para conferir; não espera a próxima conferência.
-  if (opts.agora !== true && ultima !== undefined && now - ultima < ENTRE_CONFERENCIAS_MS) return false;
+  if (conferidaHaPouco(ultima, now, opts.agora === true)) return false;
   renovadaEm.set(host, now);
   try {
     const atual = await lerLicencaDaContaNaMaquina(host);
@@ -104,7 +103,7 @@ export async function renovarSePreciso(host: string, now: number = Date.now(), o
     if (atual.maquina === null || atual.arquivo === null) return false;
     const v = verificaLicencaAssinada(atual.arquivo, { maquina: atual.maquina, now });
     // Com `agora`, a licença desta conta é reemitida mesmo recém-emitida: é o limite novo que interessa.
-    if (!(opts.agora === true && v.ok && v.payload.conta.id === conta.id) && !deveRenovarLicenca(v, conta.id, now)) return false;
+    if (!deveRenovarLicenca(v, conta.id, now, opts.agora === true)) return false;
     const r = await renovarLicencaDaMaquina(atual.maquina);
     if (r.ok) {
       if (!verificaLicencaAssinada(r.arquivo, { maquina: atual.maquina, now }).ok) return false;

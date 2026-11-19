@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 
 const req = createRequire(import.meta.url);
-const { deveRenovarLicenca, RENOVAR_APOS_MS } = req("../../dist/main/licenca/licenca-conta-core.js");
+const { deveRenovarLicenca, conferidaHaPouco, ENTRE_CONFERENCIAS_MS, RENOVAR_APOS_MS } = req("../../dist/main/licenca/licenca-conta-core.js");
 const { parseContaInfo } = req("../../dist/main/conta/conta-core.js");
 
 const AGORA = Date.parse("2026-11-18T12:00:00Z"), DIA = 24 * 60 * 60 * 1000;
@@ -19,6 +19,20 @@ test("renovação: a licença desta conta com mais de 7 dias pede outra; nova, d
   assert.equal(deveRenovarLicenca(ok(20, OUTRA), CONTA, AGORA), false, "a máquina usa a licença de outra pessoa: não é este app que renova");
   assert.equal(deveRenovarLicenca({ ok: false, motivo: "expirada" }, CONTA, AGORA), true, "venceu: tenta (a API responde 404 se a máquina não é desta conta)");
   for (const motivo of ["sem-assinatura", "formato", "assinatura"]) assert.equal(deveRenovarLicenca({ ok: false, motivo }, CONTA, AGORA), false, motivo);
+});
+
+test("conferir agora: o pedido da pessoa reemite a licença recém-emitida e não espera a próxima conferência", () => {
+  const HORA = 60 * 60 * 1000;
+  // A pessoa comprou um device e tocou em "Já adicionei: conferir": é o limite novo que interessa.
+  assert.equal(deveRenovarLicenca(ok(0), CONTA, AGORA, true), true, "recém-emitida, mas a pessoa pediu");
+  assert.equal(deveRenovarLicenca(ok(0), CONTA, AGORA, false), false, "sem o pedido, segue a regra dos 7 dias");
+  assert.equal(deveRenovarLicenca(ok(0, OUTRA), CONTA, AGORA, true), false, "licença de outra conta não se renova nem a pedido");
+  for (const motivo of ["sem-assinatura", "formato", "assinatura"]) assert.equal(deveRenovarLicenca({ ok: false, motivo }, CONTA, AGORA, true), false, `${motivo}: arquivo que não confere não se renova nem a pedido`);
+  assert.equal(ENTRE_CONFERENCIAS_MS, 6 * HORA);
+  assert.equal(conferidaHaPouco(undefined, AGORA), false, "nunca conferida");
+  assert.equal(conferidaHaPouco(AGORA - HORA, AGORA), true, "conferida há 1 h: espera");
+  assert.equal(conferidaHaPouco(AGORA - 7 * HORA, AGORA), false);
+  assert.equal(conferidaHaPouco(AGORA - HORA, AGORA, true), false, "a pedido, não espera");
 });
 
 test("conta: as máquinas trazem até quando a licença vale, e o limite diz se a API leva a licença a máquinas", () => {

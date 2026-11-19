@@ -128,7 +128,7 @@ function avisarDevicePendente(tab: Tab): void {
   const box = el("div", "notice notice-warn");
   const resultado = el("p", "hint"); resultado.setAttribute("role", "status");
   const adicionar = el("button", "btn btn-primary btn-small", "Adicionar um device"); adicionar.type = "button";
-  adicionar.addEventListener("click", () => { void window.meuBot.contaAbrirConsole(CAMINHO_DEVICE).catch(() => undefined); });
+  adicionar.addEventListener("click", () => { void window.meuBot.contaAbrirConsole(CAMINHO_DEVICE).catch((err: unknown) => { resultado.textContent = ipcErrorText(err); }); });
   const conferir = el("button", "btn btn-ghost btn-small", "Já adicionei: conferir"); conferir.type = "button";
   conferir.addEventListener("click", () => {
     conferir.disabled = true; resultado.textContent = "Conferindo…";

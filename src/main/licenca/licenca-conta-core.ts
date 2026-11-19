@@ -21,8 +21,12 @@ export const RENOVAR_APOS_MS = 7 * 24 * 60 * 60 * 1000;
  * outra conta (a máquina é usada por outra pessoa), mexido ou de outra máquina: não é o app desta conta que resolve.
  * Vencida não traz o payload conferido, então vale tentar: a API responde 404 se a máquina não é desta conta.
  */
-export function deveRenovarLicenca(v: VerificacaoLicenca, contaId: string, now: number = Date.now()): boolean {
+export function deveRenovarLicenca(v: VerificacaoLicenca, contaId: string, now: number = Date.now(), agora = false): boolean {
   if (!v.ok) return v.motivo === "expirada";
   if (v.payload.conta.id !== contaId) return false;
-  return now - Date.parse(v.payload.emitidaEm) > RENOVAR_APOS_MS;
+  // `agora`: a pessoa mudou o plano (comprou um device) e pediu para conferir: reemite mesmo recém-emitida.
+  return agora || now - Date.parse(v.payload.emitidaEm) > RENOVAR_APOS_MS;
 }
+/** O app confere a licença de uma máquina no máximo uma vez a cada tanto; `agora` (pedido da pessoa) não espera. */
+export const ENTRE_CONFERENCIAS_MS = 6 * 60 * 60 * 1000;
+export const conferidaHaPouco = (ultima: number | undefined, now: number, agora = false): boolean => !agora && ultima !== undefined && now - ultima < ENTRE_CONFERENCIAS_MS;
