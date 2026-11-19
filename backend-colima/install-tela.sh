@@ -7,6 +7,8 @@
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 [ -f "$HERE/tela/tela.sh" ] || { echo "a pasta tela/ não está ao lado deste script"; exit 1; }
+[ -f "$HERE/skills-lib.sh" ] || { echo "skills-lib.sh não está ao lado deste script: o envio veio incompleto ou o app é de antes desta versão. Atualize o meu-bot e instale de novo; nada foi alterado nesta máquina"; exit 1; }
+. "$HERE/skills-lib.sh"
 PKGS="xvfb x11-utils openbox x11vnc novnc python3-websockify xdotool scrot"
 falta=""
 for b in Xvfb xdpyinfo openbox x11vnc websockify xdotool scrot; do command -v "$b" >/dev/null 2>&1 || falta="$falta $b"; done
@@ -21,10 +23,12 @@ fi
 D=$HOME/.local/share/meu-bot
 mkdir -p "$D/tela"; chmod 700 "$D"
 cp "$HERE/tela/tela.sh" "$HERE/tela/tela-agente.sh" "$D/tela/"; chmod 755 "$D/tela/tela.sh" "$D/tela/tela-agente.sh"
-# O agente usa a mesma tela: comando `tela` no PATH e a skill computador-do-bot (regravada a cada instalação).
+# O agente usa a mesma tela: comando `tela` no PATH e a skill computador-do-bot, semente (skills-lib.sh) em
+# ~/.claude/skills e, com Hermes, ~/.hermes/skills; a cópia sem hash, de quando este instalador a regravava sempre, é
+# atualizada ("*").
 mkdir -p "$HOME/.local/bin"; ln -sf "$D/tela/tela-agente.sh" "$HOME/.local/bin/tela"
-K=$HOME/.claude/skills/computador-do-bot; mkdir -p "$K"; cp "$HERE/tela/skill/SKILL.md" "$K/"
-echo "comando tela e skill computador-do-bot prontos para o agente"
+skill_semente computador-do-bot "$HERE/tela/skill/SKILL.md" "" "*"
+echo "comando tela pronto para o agente"
 livre() { python3 - "$1" <<'PY'
 import socket, sys
 p = int(sys.argv[1])

@@ -64,16 +64,26 @@ export function resumoDoInstalador(linhas: readonly string[], n = 5): string {
 }
 /** Claude Code Global: o intermediário do root, o que ele lê e o instalador (rodado como root pelo admin). */
 export const CLAUDE_GLOBAL_FILES = ["claude-global.js", "contas-claude.js", "account-status.js", "install-claude-global.sh"];
+/**
+ * A biblioteca de shell que põe a skill semente nos destinos dos agentes da máquina (~/.claude/skills e, com Hermes,
+ * ~/.hermes/skills). Todo instalador que instala skill a carrega de ao lado dele (`. "$HERE/skills-lib.sh"`) e sai com 1
+ * sem ela: por isso ela está em TODA lista abaixo que leva um desses instaladores (o teste skills-lib.test.mjs confere).
+ */
+export const SKILLS_LIB = "skills-lib.sh";
 /** Guarda do WhatsApp: o plugin (pasta guarda/) e os dois scripts. */
-export const GUARDA_FILES = ["install-guarda.sh", "uninstall-guarda.sh"];
+export const GUARDA_FILES = ["install-guarda.sh", "uninstall-guarda.sh", SKILLS_LIB];
 export const GUARDA_PLUGIN_FILES = ["index.js", "regras.mjs", "memoria.mjs", "package.json", "openclaw.plugin.json", "vigia-gateway.sh"];
 /** Tela do bot (painel Computador): o instalador e a pasta tela/. Instalada sob pedido pelo painel, sem atualização automática. */
-export const TELA_FILES = ["install-tela.sh"];
+export const TELA_FILES = ["install-tela.sh", SKILLS_LIB];
 export const TELA_PLUGIN_FILES = ["tela.sh", "tela-agente.sh"];
 export const TELA_SKILL_FILES = ["SKILL.md"];
-export const CRM_FILES = ["install-crm.sh", "uninstall-crm.sh", "skill-streak-crm-api.md", "skill-crm-api.md"];
+export const CRM_FILES = ["install-crm.sh", "uninstall-crm.sh", "skill-streak-crm-api.md", "skill-crm-api.md", SKILLS_LIB];
 export const CRM_PLUGIN_FILES = ["index.js", "regras.mjs", "licenca-crm.mjs", "crm-job.mjs", "backend.mjs", "crm.mjs", "streak.mjs", "importar-streak.mjs", "package.json", "openclaw.plugin.json"];
-export const FINANCE_FILES = ["install-finance.sh", "skill-finance-api.md"];
+export const FINANCE_FILES = ["install-finance.sh", "skill-finance-api.md", SKILLS_LIB];
+/** Navegador do agente (módulo Pro): o servidor MCP (um arquivo), o instalador e as skills semente dos sites. */
+export const NAVEGADOR_FILES = ["navegador-mcp.mjs", "install-navegador-mcp.sh", "skill-streak-crm-navegador.md", "skill-cloudflare-token.md", "skill-subir-site-cloudflare.md", "skill-google-2fa-autenticador.md", SKILLS_LIB];
+/** Voz das respostas (install-voz.sh): a skill voz-das-respostas vai dentro do script; a biblioteca vai ao lado. */
+export const VOZ_FILES = ["install-voz.sh", SKILLS_LIB];
 export const FINANCE_PLUGIN_FILES = ["index.js", "regras.mjs", "backend.mjs", "finance.mjs", "package.json", "openclaw.plugin.json"];
 /** Plugin de pausa por contato do Hermes (hermes-plugins/meu-bot-pausa/): vai inline por SSH, a versão é a do plugin.yaml. */
 export const HERMES_PAUSA_FILES = ["__init__.py", "plugin.yaml"];

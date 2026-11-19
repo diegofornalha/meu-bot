@@ -5,7 +5,7 @@
  *
  * Usa ssh/scp avulsos (ControlMaster=no, sem o mux do túnel) para não interferir no túnel ativo.
  */
-import { BUNDLE_FILES, CLAUDE_GLOBAL_FILES, CRM_FILES, CRM_PLUGIN_FILES, FINANCE_FILES, FINANCE_PLUGIN_FILES, GUARDA_FILES, GUARDA_PLUGIN_FILES, TELA_FILES, TELA_PLUGIN_FILES, TELA_SKILL_FILES } from "./backend-bundle-core";
+import { BUNDLE_FILES, CLAUDE_GLOBAL_FILES, CRM_FILES, CRM_PLUGIN_FILES, FINANCE_FILES, FINANCE_PLUGIN_FILES, GUARDA_FILES, GUARDA_PLUGIN_FILES, NAVEGADOR_FILES, TELA_FILES, TELA_PLUGIN_FILES, TELA_SKILL_FILES, VOZ_FILES } from "./backend-bundle-core";
 import { NAV_MCP_VERSAO } from "../navegador/navegador-whatsapp-core";
 import { GMAIL_MCP_VERSAO } from "../google/gmail-core";
 import { VOZES, isVozId } from "../whatsapp/vozes-core";
@@ -414,7 +414,7 @@ export async function installAudio(host: string, setup: AudioSetup, onLine?: (li
     if (kokoro) {
       const mk = await run("ssh", [...sshBase(host), "--", host, `${limparStage("audio")}; mkdir -p ${stageDe("audio")}`], 20_000);
       if (mk.code !== 0) return { ok: false, log: [...lines, `falha ao preparar a pasta remota: ${lastLine(mk.stderr)}`] };
-      const scp = await run("scp", ["-q", ...sshBase(host), "--", path.join(backendBundleDir(), "install-voz.sh"), `${host}:${stageDe("audio")}/`], 60_000);
+      const scp = await run("scp", ["-q", ...sshBase(host), "--", ...VOZ_FILES.map((f) => path.join(backendBundleDir(), f)), `${host}:${stageDe("audio")}/`], 60_000);
       if (scp.code !== 0) return { ok: false, log: [...lines, `scp falhou: ${lastLine(scp.stderr)}`] };
       const motor = await run("ssh", [...sshBase(host), "--", host, `bash ${stageDe("audio")}/install-voz.sh motor ${voz} 2>&1`], 20 * 60_000, (l) => { if (l.trim() !== "motor=ok") say(l); });
       if (motor.code !== 0 || !motor.stdout.includes("motor=ok")) return { ok: false, codigo: motor.code, log: [...lines, lastLine(motor.stdout) || `o instalador da voz saiu com código ${motor.code ?? "timeout"}`] };
@@ -449,7 +449,8 @@ export async function installAudio(host: string, setup: AudioSetup, onLine?: (li
   const arg = setup.kind === "out" ? ` ${setup.mode}${setup.voz !== undefined && isVozId(setup.voz) ? ` ${setup.voz}` : ""}` : setup.off === true ? " off" : "";
   const mk = await run("ssh", [...sshBase(host), "--", host, `${limparStage("audio")}; mkdir -p ${stageDe("audio")}`], 20_000);
   if (mk.code !== 0) return { ok: false, log: [...lines, `falha ao preparar a pasta remota: ${lastLine(mk.stderr)}`] };
-  const scp = await run("scp", ["-q", ...sshBase(host), "--", path.join(backendBundleDir(), file), `${host}:${stageDe("audio")}/`], 60_000);
+  // A voz leva a skills-lib.sh ao lado (VOZ_FILES): o install-voz.sh sai com 1 sem ela.
+  const scp = await run("scp", ["-q", ...sshBase(host), "--", ...(setup.kind === "out" ? VOZ_FILES : [file]).map((f) => path.join(backendBundleDir(), f)), `${host}:${stageDe("audio")}/`], 60_000);
   if (scp.code !== 0) return { ok: false, log: [...lines, `scp falhou: ${lastLine(scp.stderr)}`] };
   // A transcrição baixa ~500 MB na primeira vez (faster-whisper + modelo): tempo de sobra.
   const marca = setup.kind === "in" ? `${audioMarcaSh(setup.off === true)}; ` : "";
@@ -533,8 +534,6 @@ export async function installHermesPausa(host: string, onLine?: (line: string) =
 export function bundledGuardaVersion(): string | null {
   try { const j = JSON.parse(fs.readFileSync(path.join(backendBundleDir(), "guarda", "package.json"), "utf8")) as { version?: unknown }; return typeof j.version === "string" ? j.version : null; } catch { return null; }
 }
-/** Navegador do agente (módulo Pro): o servidor MCP (um arquivo) e o instalador. */
-const NAVEGADOR_FILES = ["navegador-mcp.mjs", "install-navegador-mcp.sh", "skill-streak-crm-navegador.md", "skill-cloudflare-token.md", "skill-subir-site-cloudflare.md", "skill-google-2fa-autenticador.md"];
 
 /** O lado da máquina do Navegador está instalado? (null para este Mac) */
 export async function navegadorInstalled(host: string): Promise<boolean | null> {
@@ -663,7 +662,7 @@ export async function installGuarda(host: string, onLine?: (line: string) => voi
   if (scp1.code !== 0) return { ok: false, log: [...lines, `scp falhou: ${lastLine(scp1.stderr)}`] };
   const scp2 = await run("scp", ["-q", ...sshBase(host), "--", ...GUARDA_PLUGIN_FILES.map((f) => path.join(dir, "guarda", f)), `${host}:${stageDe("guarda")}/guarda/`], 60_000);
   if (scp2.code !== 0) return { ok: false, log: [...lines, `scp falhou: ${lastLine(scp2.stderr)}`] };
-  // Skill whatsapp-grupos vai junto (o install-guarda.sh a põe em ~/.claude/skills).
+  // Skill whatsapp-grupos vai junto (o install-guarda.sh a põe em ~/.claude/skills e, com Hermes, em ~/.hermes/skills).
   const sk = path.join(dir, "skills", "whatsapp-grupos");
   const mk2 = await run("ssh", [...sshBase(host), "--", host, `mkdir -p ${stageDe("guarda")}/skills/whatsapp-grupos/scripts`], 20_000);
   const scp3 = mk2.code !== 0 ? mk2 : await run("scp", ["-q", ...sshBase(host), "--", path.join(sk, "SKILL.md"), `${host}:${stageDe("guarda")}/skills/whatsapp-grupos/`], 60_000);

@@ -2,7 +2,7 @@
 name: finance-api
 description: Financeiro pessoal do dono desta máquina (produto meu-bot-finance). Use sempre que o dono falar de dinheiro — gasto, compra, pagamento, conta, cartão, pix, salário, renda, saldo, "quanto gastei", fatura, boleto — ou mandar foto de comprovante, nota fiscal ou recibo. Lança, corrige, confirma e consulta pela CLI finance.mjs.
 ---
-<!-- meu-bot-finance skill v5 (o instalador atualiza enquanto esta linha existir; apague-a para manter sua versão) -->
+<!-- meu-bot-finance skill v5 (semente do meu-bot: o instalador atualiza esta cópia enquanto ela não for editada; a editada fica como está) -->
 
 # Financeiro do dono
 

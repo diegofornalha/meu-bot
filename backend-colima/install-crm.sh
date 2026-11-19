@@ -3,7 +3,7 @@
 # crm.mjs [CRM próprio, plano pro] e streak.mjs [Streak pela API, plano free] + importador) em
 # ~/.local/share/meu-bot/crm, registrada por `openclaw plugins install --link`, com a permissão de hooks de
 # conversa; e as skills para o agente. Rodar no host, com a pasta crm/ e as skills ao lado. Idempotente.
-# Nunca apaga crm/db/ (os dados do CRM próprio). Sai com 2 sem OpenClaw.
+# Nunca apaga crm/db/ (os dados do CRM próprio). Sai com 2 sem node; com 1 se crm/ ou skills-lib.sh não vieram junto.
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:/opt/node/bin:/usr/local/bin:$PATH"
@@ -12,6 +12,8 @@ export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:/opt/node/bin:/usr/local/bin:$
 if command -v openclaw >/dev/null 2>&1; then OC=1; else OC=0; echo "esta máquina não tem OpenClaw: instalando só a CLI e a skill do CRM (sem o plugin do WhatsApp)"; fi
 command -v node >/dev/null 2>&1 || { echo "esta máquina não tem node; reinstale o backend do meu-bot"; exit 2; }
 [ -f "$HERE/crm/index.js" ] || { echo "a pasta crm/ não está ao lado deste script"; exit 1; }
+[ -f "$HERE/skills-lib.sh" ] || { echo "skills-lib.sh não está ao lado deste script: o envio veio incompleto ou o app é de antes desta versão. Atualize o meu-bot e instale de novo; nada foi alterado nesta máquina"; exit 1; }
+. "$HERE/skills-lib.sh"
 SRC=$HOME/.local/share/meu-bot/crm
 mkdir -p "$SRC/db"
 for f in index.js regras.mjs licenca-crm.mjs crm-job.mjs backend.mjs crm.mjs streak.mjs importar-streak.mjs package.json openclaw.plugin.json; do
@@ -28,36 +30,12 @@ if [ "$OC" = 1 ]; then
   timeout 60 openclaw config set plugins.entries.meu-bot-crm.hooks.allowConversationAccess true --strict-json >/dev/null 2>&1 || echo "aviso: não consegui gravar hooks.allowConversationAccess (confira no openclaw.json)"
   timeout 60 openclaw config set plugins.entries.meu-bot-crm.enabled true --strict-json >/dev/null 2>&1 || true
 fi
-# Skills do agente (sementes; o agente pode editar as dele): a do CRM próprio e a do Streak. Vão para ~/.claude/skills
-# e, em máquina com Hermes (~/.hermes existe), também para ~/.hermes/skills, que é onde o Hermes as lê.
-# Ao lado de cada SKILL.md fica .semente.sha256, o hash da semente instalada. Na reinstalação: SKILL.md igual a esse
-# hash é cópia intocada e recebe a semente nova; diferente, o agente editou e fica como está; sem o arquivo de hash
-# (instalação antiga) não dá para saber, então também fica. A semente fica guardada em $SRC para quem quiser comparar.
-sha() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | cut -d' ' -f1; else shasum -a 256 "$1" | cut -d' ' -f1; fi; }
-HERMES=""; [ -d "$HOME/.hermes" ] && HERMES=1
+# Skills do agente (sementes; o agente pode editar as dele): a do CRM próprio e a do Streak. Quem decide os destinos
+# (~/.claude/skills e, com Hermes, ~/.hermes/skills) e o que fazer com a cópia que já existe é a skills-lib.sh. A
+# semente fica guardada em $SRC para quem quiser comparar.
 for par in "skill-crm-api.md:crm-api" "skill-streak-crm-api.md:streak-crm-api"; do
   src="$HERE/${par%%:*}"; nome="${par##*:}"
-  if [ -f "$src" ]; then
-    GUARDADA="$SRC/${par%%:*}"; cp "$src" "$GUARDADA"; chmod 644 "$GUARDADA"
-    NOVA=$(sha "$src")
-    for alvo in "Claude:$HOME/.claude" ${HERMES:+"Hermes:$HOME/.hermes"}; do
-      ag="${alvo%%:*}"; SK="${alvo#*:}/skills/$nome/SKILL.md"; MARCA="$(dirname "$SK")/.semente.sha256"
-      if [ ! -f "$SK" ]; then
-        mkdir -p "$(dirname "$SK")"; cp "$src" "$SK"; printf '%s\n' "$NOVA" > "$MARCA"; echo "skill $nome instalada no $ag"
-      else
-        ATUAL=$(sha "$SK"); GRAVADA=$(cat "$MARCA" 2>/dev/null || true)
-        if [ "$ATUAL" = "$NOVA" ]; then
-          printf '%s\n' "$NOVA" > "$MARCA"; echo "skill $nome já existe no $ag (mantida)"
-        elif [ -n "$GRAVADA" ] && [ "$ATUAL" = "$GRAVADA" ]; then
-          cp "$src" "$SK"; printf '%s\n' "$NOVA" > "$MARCA"; echo "skill $nome atualizada no $ag"
-        elif [ -n "$GRAVADA" ]; then
-          echo "skill $nome no $ag foi editada pelo agente (mantida); o texto novo está em $GUARDADA"
-        else
-          echo "skill $nome já existe no $ag e não sei se foi editada (mantida); o texto novo está em $GUARDADA"
-        fi
-      fi
-    done
-  fi
+  if [ -f "$src" ]; then skill_semente "$nome" "$src" "$SRC/${par%%:*}"; fi
 done
 # Lê o arquivo cru (o backend pode ainda não ter migrado a licença antiga): "personalizado" virou Pro em 22 out.
 PLANO=$(python3 -c 'import json,os; print(json.load(open(os.path.expanduser("~/.local/share/meu-bot/licenca.json"))).get("plan","free"))' 2>/dev/null || echo free)
