@@ -189,7 +189,7 @@ export type TipoExtra = (typeof TIPOS_EXTRA)[number];
  * `nome` é o que vai em `pagamento_checkouts.produto` e `assinaturas.produto` ("extra-maquina"): fora do padrão
  * `meu-bot-*` dos add-ons, para nunca cair em `licenca.produtos`.
  */
-/** `deCentavos` (opcional): o preço de tabela, quando a unidade é vendida por menos ("De R$ 97 por R$ 47"); só vale maior que `centavos`. */
+// `deCentavos` (opcional): o preço de tabela, quando a unidade é vendida por menos ("De R$ 97 por R$ 47"); só vale maior que `centavos`.
 export interface OfertaExtra { tipo: TipoExtra; nome: string; produto: string; centavos: number; rotulo: string; deCentavos?: number }
 export const nomeDoExtra = (tipo: TipoExtra): string => `extra-${tipo}`;
 /** O tipo de um produto de extra ("extra-maquina" → "maquina"); null para o Pro, add-on ou nome desconhecido. */
