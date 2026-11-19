@@ -444,6 +444,32 @@ export function licencaComAddons<L extends LicencaBase>(l: L, pagos: readonly { 
   return { ...l, produtos: [...new Set([...l.produtos, ...vivos])].sort() };
 }
 
+/** O Pro que a conta recebe por ser usuário coberto de uma organização: até quando vale (o prazo do Pro da dona; null = sem prazo) e qual organização. */
+export interface CoberturaOrg { ate: string | null; slug: string; nome: string }
+/** O prazo `a` vai mais longe que `b`? null é "sem prazo", o mais longo de todos. */
+const prazoMaior = (a: string | null, b: string | null): boolean => (b === null ? false : a === null ? true : Date.parse(a) > Date.parse(b));
+/**
+ * A cobertura que vale, entre várias organizações: a de prazo mais longo (sem prazo ganha); null sem nenhuma.
+ */
+export function melhorCobertura(coberturas: readonly CoberturaOrg[]): CoberturaOrg | null {
+  let melhor: CoberturaOrg | null = null;
+  for (const c of coberturas) if (melhor === null || prazoMaior(c.ate, melhor.ate)) melhor = c;
+  return melhor;
+}
+/**
+ * A licença gravada com o Pro da organização por cima, quando ele vale mais: usuário coberto recebe o Pro ativo até o
+ * prazo da dona. Quem já tem o próprio Pro valendo por mais tempo (ou sem prazo) fica como está. Só o plano muda:
+ * add-ons, devices e máquinas continuam sendo da conta. Cobertura vencida não conta. Vem ANTES de `licencaEmVigor`,
+ * para os add-ons pagos da pessoa serem lidos com o plano já certo.
+ */
+export function licencaComProDaOrg<L extends LicencaBase>(gravada: L, cobertura: CoberturaOrg | null, agoraMs: number): L {
+  if (cobertura === null) return gravada;
+  if (cobertura.ate !== null && !(Date.parse(cobertura.ate) > agoraMs)) return gravada;
+  const proProprio = gravada.plan === "pro" && gravada.status === "active" && (gravada.expiresAt === null || Date.parse(gravada.expiresAt) > agoraMs);
+  if (proProprio && !prazoMaior(cobertura.ate, gravada.expiresAt)) return gravada;
+  return { ...gravada, plan: "pro", status: "active", interval: gravada.interval ?? "month", expiresAt: cobertura.ate };
+}
+
 /**
  * A licença em vigor de uma conta, a única que decide acesso e que o app, o console e a máquina recebem: a gravada,
  * com a regra do super admin (`licencaDoSuper`) e os add-ons pagos em dia (`licencaComAddons`). A regra do super vem

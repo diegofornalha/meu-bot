@@ -2,7 +2,7 @@
 import type { AdminAssinatura, AdminAuditoria, AdminContaResumo, AdminVendaOculta, TipoVenda, AdminListaEspera, ContaAssinatura, AdminOrg, MaquinaApi, MaquinaVistaApi, AdminPagamento, AdminVendas, AdminPedido, AdminPerfil, AdminVisao, CodigoLinha, ContaApi, ContaLinha, DeviceApi, DeviceLinha, License, LicencaLinha, MaquinaLinha, MembroApi, MembroLinha, OrgApi, OrgLinha, OrgResumo, PapelOrg, PerfilApi, PromoApi, SessaoLinha } from "./tipos.js";
 import { ASSENTOS_INCLUSOS, ASSENTOS_MAX, podeCriarOrg, DEVICE_LIMITE_MAX, agoraIso, ehAdminInicial, nomeExibicao, parseProvedores, provedoresDoLogin, unirProvedores, uuid, type MetodoLogin, type PatchLicenca, type PatchOrg, type PatchPerfil } from "./sessao-core.js";
 import type { UsuarioFirebase } from "./firebase.js";
-import { direitoPromo, liberacoesPorAddon, licencaDoSuper, licencaEmVigor, tipoDoExtra, umaPorContaEProduto, type Liberacao, type Papel, type Promo } from "./pagamento-core.js";
+import { licencaComProDaOrg, melhorCobertura, type CoberturaOrg, direitoPromo, liberacoesPorAddon, licencaDoSuper, licencaEmVigor, tipoDoExtra, umaPorContaEProduto, type Liberacao, type Papel, type Promo } from "./pagamento-core.js";
 import { DEVICES_INCLUSOS, LICENCA_VALIDADE_MS, limiteComExtras, valeAte } from "./licenca-core.js";
 
 export async function contaPorUid(db: D1Database, uid: string): Promise<ContaLinha | null> {
@@ -214,8 +214,8 @@ export async function addonsPagos(db: D1Database, contaId: string): Promise<{ pr
  * ambiente (`catalogoAddons`), que o super admin tem todos.
  */
 export async function licencaDaConta(db: D1Database, conta: ContaLinha, papel: Papel, catalogo: readonly string[], agora = agoraIso()): Promise<License> {
-  const [l, pagos, devices] = await Promise.all([licencaGravada(db, conta), addonsPagos(db, conta.id), extrasPagos(db, conta.id, "device")]);
-  const vigor = licencaEmVigor(l, pagos, papel, catalogo, agora);
+  const [l, pagos, devices, cobertura] = await Promise.all([licencaGravada(db, conta), addonsPagos(db, conta.id), extrasPagos(db, conta.id, "device"), coberturaDaOrg(db, conta, Date.parse(agora))]);
+  const vigor = licencaEmVigor(licencaComProDaOrg(l, cobertura, Date.parse(agora)), pagos, papel, catalogo, agora);
   return { ...vigor, deviceLimit: limiteComExtras(vigor.deviceLimit, devices, Date.parse(agora), DEVICE_LIMITE_MAX).limite };
 }
 /**
@@ -336,6 +336,29 @@ export async function limiteDeMaquinasComExtras(db: D1Database, contaId: string,
   return limiteComExtras(limiteValido(base?.maquina_limit), pagos, agoraMs);
 }
 /**
+ * O Pro que a conta recebe pelas organizações em que é usuário (não dona): para cada uma, a dona precisa do Pro valendo
+ * (ou ser super admin), e a pessoa precisa estar entre os cobertos. Cobertos são os primeiros da fila até o número de
+ * usuários em vigor (`assentosDaOrg`): a dona primeiro, depois quem entrou (ou foi convidado) antes. Assim, quando um
+ * usuário pago vence, quem perde é quem chegou por último, e ninguém é removido. Devolve a melhor cobertura, ou null.
+ */
+export async function coberturaDaOrg(db: D1Database, conta: ContaLinha, agoraMs = Date.now()): Promise<CoberturaOrg | null> {
+  const minhas = await db.prepare("SELECT o.* FROM membros m JOIN organizacoes o ON o.id = m.org_id WHERE m.conta_id = ?1 AND m.status = 'ativo' AND o.apagada_em IS NULL AND o.dona_conta_id != ?1").bind(conta.id).all<OrgLinha>();
+  const coberturas: CoberturaOrg[] = [];
+  for (const org of minhas.results) {
+    const dona = await contaPorId(db, org.dona_conta_id);
+    if (dona === null) continue;
+    const [ld, papelDona, vagas, fila] = await Promise.all([licencaGravada(db, dona), papelAdmin(db, dona.email, ""), assentosDaOrg(db, org, agoraMs),
+      db.prepare("SELECT conta_id FROM membros WHERE org_id = ?1 ORDER BY CASE WHEN conta_id = ?2 THEN 0 ELSE 1 END, COALESCE(entrou_em, convidado_em), email").bind(org.id, org.dona_conta_id).all<{ conta_id: string | null }>()]);
+    const donaSuper = papelDona === "super";
+    const proDaDona = donaSuper || (ld.plan === "pro" && ld.status === "active" && (ld.expiresAt === null || Date.parse(ld.expiresAt) > agoraMs));
+    if (!proDaDona) continue;
+    const posicao = fila.results.findIndex((m) => m.conta_id === conta.id);
+    if (posicao < 0 || posicao >= vagas.limite) continue;
+    coberturas.push({ ate: donaSuper ? null : ld.expiresAt, slug: org.slug, nome: org.nome });
+  }
+  return melhorCobertura(coberturas);
+}
+/**
  * Organizações da conta para a regra de criação (podeCriarOrg): `limite` é o que o admin gravou (licencas.org_limit;
  * sem linha, 1) e `donaDe` quantas organizações ativas ela criou e ainda é a dona.
  */
@@ -431,14 +454,17 @@ export async function montarContaApi(db: D1Database, conta: ContaLinha, admin: P
   const [criar, gravada, pagos, devices, maquinas, vistas, pedidos, liberacoes, orgs, limiteMaq, extras, ass] = await Promise.all([orgsParaCriar(db, conta.id), licencaGravada(db, conta), addonsPagos(db, conta.id), devicesDaConta(db, conta.id), maquinasDaConta(db, conta.id), maquinasVistasDaConta(db, conta.id, agoraIso(Date.now() - LICENCA_VALIDADE_MS)), pedidosAbertos(db, conta.id), liberacoesDaConta(db, conta.id), orgsDaConta(db, conta.id), limiteDeMaquinasComExtras(db, conta.id), extrasPagos(db, conta.id),
     db.prepare("SELECT id, produto, status, valor_centavos FROM assinaturas WHERE conta_id = ?1 ORDER BY criada_em DESC LIMIT 50").bind(conta.id).all<{ id: string; produto: string | null; status: string; valor_centavos: number | null }>()]);
   const limiteDev = limiteComExtras(gravada.deviceLimit, extras.filter((x) => x.tipo === "device"), Date.now(), DEVICE_LIMITE_MAX);
-  const licenca = { ...licencaEmVigor(gravada, pagos, admin, catalogo, agoraIso()), deviceLimit: limiteDev.limite };
+  // O Pro pela organização entra antes da licença em vigor; `proPelaOrg` diz à tela de onde ele vem (null = é da própria conta).
+  const cobertura = await coberturaDaOrg(db, conta);
+  const comOrg = licencaComProDaOrg(gravada, cobertura, Date.now());
+  const licenca = { ...licencaEmVigor(comOrg, pagos, admin, catalogo, agoraIso()), deviceLimit: limiteDev.limite };
   const assinaturas: ContaAssinatura[] = ass.results.map((a) => ({ id: a.id, produto: a.produto, status: a.status === "CANCELLED" ? "CANCELLED" : "ACTIVE", valorCentavos: a.valor_centavos, valeAte: a.produto === null ? gravada.expiresAt : tipoDoExtra(a.produto) !== null ? extras.find((x) => x.assinaturaId === a.id)?.expiresAt ?? null : pagos.find((p) => p.produto === a.produto)?.expiresAt ?? null }));
   const ds: DeviceApi[] = devices.map((d) => {
     let apps: DeviceApi["apps"] = {};
     try { const a: unknown = JSON.parse(d.apps); if (a !== null && typeof a === "object") apps = a as DeviceApi["apps"]; } catch { apps = {}; }
     return { id: d.id, alias: d.alias_legado, name: d.name ?? "", user: d.user ?? "", platform: d.platform ?? "", status: d.status === "pending" ? "pending" : "active", requestedAt: d.requested_at, firstSeen: d.first_seen, lastSeen: d.last_seen, apps, este: deviceAtual !== null && (d.id === deviceAtual || d.alias_legado === deviceAtual) };
   });
-  return { id: conta.id, email: conta.email, nome: nomeExibicao(conta), nomeLogin: conta.nome, foto: conta.foto, perfil: perfilDaLinha(conta), provedores: parseProvedores(conta.provedores), dadosUso: conta.dados_uso !== 0, admin, licenca, devices: ds, maquinas: maquinas.map(maquinaApi), maquinasVistas: vistas, maquinaLimite: limiteMaq.limite, maquinaExtras: limiteMaq.extras, deviceExtras: limiteDev.extras, pedidos, liberacoes, assinaturas, orgs, orgCriar: { limite: criar.limite, donaDe: criar.donaDe, motivo: podeCriarOrg({ licenca: gravada, papel: admin, donaDe: criar.donaDe, limite: criar.limite, agoraMs: Date.now() })?.motivo ?? null }, promo: await promoDaConta(db, conta, promo, admin, Date.now(), gravada) };
+  return { id: conta.id, email: conta.email, nome: nomeExibicao(conta), nomeLogin: conta.nome, foto: conta.foto, perfil: perfilDaLinha(conta), provedores: parseProvedores(conta.provedores), dadosUso: conta.dados_uso !== 0, admin, licenca, devices: ds, maquinas: maquinas.map(maquinaApi), maquinasVistas: vistas, maquinaLimite: limiteMaq.limite, maquinaExtras: limiteMaq.extras, deviceExtras: limiteDev.extras, pedidos, liberacoes, assinaturas, orgs, proPelaOrg: comOrg !== gravada && cobertura !== null && admin !== "super" ? { slug: cobertura.slug, nome: cobertura.nome, ate: cobertura.ate } : null, orgCriar: { limite: criar.limite, donaDe: criar.donaDe, motivo: podeCriarOrg({ licenca: gravada, papel: admin, donaDe: criar.donaDe, limite: criar.limite, agoraMs: Date.now() })?.motivo ?? null }, promo: await promoDaConta(db, conta, promo, admin, Date.now(), gravada) };
 }
 
 // ---- Admin: a visão de todas as contas. `busca` filtra por e-mail ou nome (LIKE, escapado); até 500 contas.

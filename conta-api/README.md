@@ -57,7 +57,10 @@ apagar e promover), admin (convida, remove e muda entre admin↔membro), membro 
 uma dona; uma dona não apaga a própria conta (`DELETE /conta` → 403) sem passar o bastão. **Usuários** (assentos: ativos +
 convidados) começam em 1, a dona. Cada usuário a mais é uma unidade extra paga (`extra-assento`: `extras_pagos` com o
 `org_id` da organização; quem paga é a conta de quem comprou, dona ou admin), e o super admin dá cortesias na coluna
-`assentos` (`PATCH /admin/orgs/:slug` `{assentos}`). O número em vigor é `assentosDaOrg` (inclusos + pagos em dia); `dominio_email` restringe os
+`assentos` (`PATCH /admin/orgs/:slug` `{assentos}`). O número em vigor é `assentosDaOrg` (inclusos + pagos em dia); o usuário
+coberto por uma vaga recebe o Pro pela organização enquanto a dona tiver o Pro valendo (`coberturaDaOrg`,
+`licencaComProDaOrg`: só o plano, até o prazo da dona; cobertos são os que entraram primeiro), e `GET /conta` diz de
+onde ele vem em `proPelaOrg`; `dominio_email` restringe os
 convites a um domínio. Quem não é membro recebe 404 em tudo (a organização não existe para quem está fora); o super admin
 vê todas (`GET /admin/visao` → `orgs`; console › Todas as organizações). Slugs seguem `SLUG_RE` e a lista
 `SLUGS_RESERVADOS` (hosts nossos, `www`, `api`…), porque na próxima versão `<slug>.agentesgrok.com` abre o console da
