@@ -578,7 +578,11 @@ async function adminSenha(c, botao) {
   const texto = botao.textContent; botao.textContent = "E-mail enviado";
   setTimeout(() => { botao.textContent = texto; botao.disabled = false; }, 8000);
 }
-/** Linha de edição abaixo da conta: plano, status, vale até, limite de devices, add-ons, pagamento. Salva com PATCH. */
+/**
+ * Linha de edição abaixo da conta: plano, status, vale até, limite de devices e de máquinas. Salva com PATCH.
+ * Add-ons concedidos e "Como pagar" não se editam aqui (a pessoa assina sozinha pela AbacatePay): o PATCH não os manda,
+ * e o que estiver gravado fica como está.
+ */
 function editorLicenca(tr, c) {
   const existente = tr.nextElementSibling;
   if (existente !== null && existente.classList.contains("editor")) { existente.remove(); return; }
@@ -597,10 +601,7 @@ function editorLicenca(tr, c) {
   mais30.addEventListener("click", () => { plan.value = "pro"; status.value = "trialing"; ate.value = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10); });
   const limite = input("deviceLimit", "number", String(l.deviceLimit)); limite.min = "1"; limite.max = "50";
   const maquinas = input("maquinaLimit", "number", String(c.maquinaLimite ?? 1)); maquinas.min = "1"; maquinas.max = "50"; maquinas.title = "Em quantas máquinas (VMs) a pessoa pode usar a licença da conta ao mesmo tempo";
-  const produtos = input("produtos", "text", l.produtos.join(", "), "meu-bot-finance, …");
-  const instrucoes = input("instrucoes", "text", l.pagamento?.instrucoes ?? "", "Pix, link, contato…");
-  const link = input("link", "url", l.pagamento?.link ?? "", "https://…");
-  form.append(campo("Plano", plan), campo("Status", status), campo("Vale até", ate), mais30, campo("Devices", limite), campo("Máquinas", maquinas), campo("Add-ons concedidos", produtos), campo("Como pagar", instrucoes), campo("Link", link));
+  form.append(campo("Plano", plan), campo("Status", status), campo("Vale até", ate), mais30, campo("Devices", limite), campo("Máquinas", maquinas));
   // Senha: o super admin define na hora (em branco não muda); qualquer admin manda o e-mail de redefinição.
   const superAdmin = conta !== null && conta.admin === "super";
   const senha = input("senha", "password", "", superAdmin ? "nova senha (em branco: não muda)" : "só o super admin define"); senha.autocomplete = "new-password"; senha.minLength = 8; senha.maxLength = 128; senha.disabled = !superAdmin;
@@ -616,7 +617,7 @@ function editorLicenca(tr, c) {
   form.addEventListener("submit", async (ev) => {
     ev.preventDefault(); salvar.disabled = true;
     const ateIso = ate.value ? `${ate.value}T23:59:59.000Z` : null;
-    const patch = { plan: plan.value, status: status.value, deviceLimit: Number(limite.value), maquinaLimit: Number(maquinas.value), produtos: produtos.value.split(",").map((x) => x.trim()).filter(Boolean), pagamento: instrucoes.value.trim() ? { instrucoes: instrucoes.value.trim(), link: link.value.trim() || null } : null };
+    const patch = { plan: plan.value, status: status.value, deviceLimit: Number(limite.value), maquinaLimit: Number(maquinas.value) };
     if (status.value === "trialing") { patch.trialEnd = ateIso; patch.expiresAt = ateIso; } else { patch.expiresAt = ateIso; patch.trialEnd = null; }
     const s = sessaoGuardada(); if (s === null) return;
     const r = await api("PATCH", `/admin/contas/${encodeURIComponent(c.id)}/licenca`, patch, s.acesso);
