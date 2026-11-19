@@ -186,7 +186,7 @@ function createCrmApi(deps) {
 
     // ---- pipelines ----
     if (a === 'pipelines' && b === undefined) {
-      if (m === 'GET') return { pipelines: store.listPipelines().map((pl) => ({ key: pl.key, name: pl.name, boxes: store.listBoxes(pl.key).length, updatedAt: pl.updatedAt })) };
+      if (m === 'GET') return { pipelines: store.listPipelines().map((pl) => ({ key: pl.key, name: pl.name, boxes: store.listBoxes(pl.key).length, agenteAutonomo: pl.agenteAutonomo === true, updatedAt: pl.updatedAt })) };
       if (m === 'POST') { const input = await body(req); const pl = await store.mutate(por, (tx) => { const novo = modelo.novoPipeline(input, tx.now, tx.rnd); if (tx.getPipeline(novo.key)) throw new modelo.ErroCrm('conflito', `pipeline ${novo.key} já existe`); tx.setPipeline(novo); tx.mudar('pipeline.create', { pipeline: novo.key }); return novo; }); return { pipeline: modelo.pipelineView(pl) }; }
     }
     if (a === 'pipelines' && b !== undefined && c === undefined) {

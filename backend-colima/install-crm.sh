@@ -28,12 +28,16 @@ if [ "$OC" = 1 ]; then
   timeout 60 openclaw config set plugins.entries.meu-bot-crm.hooks.allowConversationAccess true --strict-json >/dev/null 2>&1 || echo "aviso: não consegui gravar hooks.allowConversationAccess (confira no openclaw.json)"
   timeout 60 openclaw config set plugins.entries.meu-bot-crm.enabled true --strict-json >/dev/null 2>&1 || true
 fi
-# Skills do agente (sementes; o agente pode editar as dele): a do CRM próprio e a do Streak.
+# Skills do agente (sementes; o agente pode editar as dele): a do CRM próprio e a do Streak. Vão para ~/.claude/skills
+# e, em máquina com Hermes (~/.hermes existe), também para ~/.hermes/skills, que é onde o Hermes as lê.
+HERMES=""; [ -d "$HOME/.hermes" ] && HERMES=1
 for par in "skill-crm-api.md:crm-api" "skill-streak-crm-api.md:streak-crm-api"; do
   src="$HERE/${par%%:*}"; nome="${par##*:}"
   if [ -f "$src" ]; then
-    SK="$HOME/.claude/skills/$nome/SKILL.md"
-    if [ -f "$SK" ]; then echo "skill $nome já existe (mantida)"; else mkdir -p "$(dirname "$SK")"; cp "$src" "$SK"; echo "skill $nome instalada"; fi
+    for alvo in "Claude:$HOME/.claude" ${HERMES:+"Hermes:$HOME/.hermes"}; do
+      SK="${alvo#*:}/skills/$nome/SKILL.md"
+      if [ -f "$SK" ]; then echo "skill $nome já existe no ${alvo%%:*} (mantida)"; else mkdir -p "$(dirname "$SK")"; cp "$src" "$SK"; echo "skill $nome instalada no ${alvo%%:*}"; fi
+    done
   fi
 done
 # Lê o arquivo cru (o backend pode ainda não ter migrado a licença antiga): "personalizado" virou Pro em 22 out.

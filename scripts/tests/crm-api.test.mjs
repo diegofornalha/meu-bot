@@ -468,3 +468,21 @@ test("exclusao pelo agente: 403, pedido registrado e comentario no box; pelo app
     assert.equal((await call("GET", `/boxes/${bx.key}`)).status, 404);
   } finally { srvA.close(); }
 });
+
+test("agenteAutonomo: nasce false, cria e edita com true, a lista devolve a marca, não booleano → 400", async () => {
+  const sem = await call("POST", "/pipelines", { name: "Sem marca", stages: ["A", "B"] }, { "x-crm-por": "app" });
+  assert.equal(sem.status, 200); assert.equal(sem.j.pipeline.agenteAutonomo, false);
+  const com = await call("POST", "/pipelines", { name: "Leads do site", stages: ["Novo", "Respondido"], agenteAutonomo: true }, { "x-crm-por": "app" });
+  assert.equal(com.status, 200); assert.equal(com.j.pipeline.agenteAutonomo, true);
+  assert.equal((await call("GET", `/pipelines/${com.j.pipeline.key}`)).j.agenteAutonomo, true);
+  const marca = async (k) => (await call("GET", "/pipelines")).j.pipelines.find((p) => p.key === k).agenteAutonomo;
+  assert.equal(await marca(sem.j.pipeline.key), false); assert.equal(await marca(com.j.pipeline.key), true);
+  const liga = await call("PATCH", `/pipelines/${sem.j.pipeline.key}`, { agenteAutonomo: true });
+  assert.equal(liga.status, 200); assert.equal(liga.j.pipeline.agenteAutonomo, true); assert.equal(await marca(sem.j.pipeline.key), true);
+  const outro = await call("PATCH", `/pipelines/${sem.j.pipeline.key}`, { name: "Sem marca 2" });
+  assert.equal(outro.j.pipeline.agenteAutonomo, true, "editar outra coisa não desliga");
+  assert.equal((await call("PATCH", `/pipelines/${sem.j.pipeline.key}`, { agenteAutonomo: false })).j.pipeline.agenteAutonomo, false);
+  assert.equal((await call("PATCH", `/pipelines/${sem.j.pipeline.key}`, { agenteAutonomo: "true" })).status, 400);
+  assert.equal((await call("POST", "/pipelines", { name: "Ruim", agenteAutonomo: 1 })).status, 400);
+  assert.equal(await marca(sem.j.pipeline.key), false, "a recusa não gravou nada");
+});

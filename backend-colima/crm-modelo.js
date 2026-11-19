@@ -104,7 +104,12 @@ function parseStage(raw, rnd, prev = null) {
   const key = isKey(raw?.key) ? raw.key : prev?.key ?? novaChave('s', rnd);
   return { key, name };
 }
-/** Pipeline novo a partir do que veio (nome, etapas, campos). Chaves vindas de fora (importação) são preservadas. */
+/**
+ * Marca `agenteAutonomo` do pipeline: com ela, o agente cria caixa, preenche campos e muda etapa sem pedir ao dono
+ * (a regra é da skill crm-api; apagar continua sendo só do dono). Ausente = false; o que não é boolean é recusado.
+ */
+function parseAutonomo(v) { if (v === undefined) return false; if (typeof v !== 'boolean') throw invalido('agenteAutonomo precisa ser true ou false'); return v; }
+/** Pipeline novo a partir do que veio (nome, etapas, campos, agenteAutonomo). Chaves vindas de fora (importação) são preservadas. */
 function novoPipeline(input, now, rnd) {
   const name = validarNome(input?.name, 'pipeline');
   const key = isKey(input?.key) ? input.key : novaChave('p', rnd);
@@ -113,10 +118,10 @@ function novoPipeline(input, now, rnd) {
   const nomes = new Set(); for (const s of stages) { if (nomes.has(norm(s.name))) throw invalido(`etapa repetida: ${s.name}`); nomes.add(norm(s.name)); }
   const fields = lista(input?.fields).map((f) => parseField(f, rnd));
   const fn = new Set(); for (const f of fields) { if (fn.has(norm(f.name))) throw invalido(`campo repetido: ${f.name}`); fn.add(norm(f.name)); }
-  return { key, name, stages, fields, createdAt: now, updatedAt: now, ...(input?.origem && typeof input.origem === 'object' ? { origem: input.origem } : {}) };
+  return { key, name, stages, fields, agenteAutonomo: parseAutonomo(input?.agenteAutonomo), createdAt: now, updatedAt: now, ...(input?.origem && typeof input.origem === 'object' ? { origem: input.origem } : {}) };
 }
 /**
- * Patch do pipeline: `name`, `stages` (lista completa e ordenada: sem key = etapa nova; etapa que some precisa de
+ * Patch do pipeline: `name`, `agenteAutonomo` (boolean), `stages` (lista completa e ordenada: sem key = etapa nova; etapa que some precisa de
  * `moverPara` se tiver boxes), `fields` (idem; campo que some perde o valor nos boxes). `boxes` = os boxes do
  * pipeline (para checar etapas com box). Devolve { pipeline, removerCampos, moverEtapas: {de: para} }.
  */
@@ -124,6 +129,7 @@ function patchPipeline(cur, patch, boxes, now, rnd) {
   const p = patch && typeof patch === 'object' ? patch : {};
   const next = { ...cur, updatedAt: now };
   if (p.name !== undefined) next.name = validarNome(p.name, 'pipeline');
+  if (p.agenteAutonomo !== undefined) next.agenteAutonomo = parseAutonomo(p.agenteAutonomo);
   const moverEtapas = {};
   if (p.stages !== undefined) {
     const stages = lista(p.stages).map((s) => parseStage(s, rnd, cur.stages.find((x) => x.key === s?.key) ?? null));
@@ -422,7 +428,7 @@ function parseConsolidacao(texto) {
 }
 
 /** Definição do pipeline como a CLI `pipeline` sempre devolveu (etapas em ordem, campos com opções). */
-const pipelineView = (p) => ({ key: p.key, name: p.name, stages: p.stages.map((s) => ({ key: s.key, name: s.name })), fields: p.fields.map((f) => ({ key: f.key, name: f.name, type: f.type, options: f.options.map((o) => ({ key: o.key, name: o.name })) })) });
+const pipelineView = (p) => ({ key: p.key, name: p.name, agenteAutonomo: p.agenteAutonomo === true, stages: p.stages.map((s) => ({ key: s.key, name: s.name })), fields: p.fields.map((f) => ({ key: f.key, name: f.name, type: f.type, options: f.options.map((o) => ({ key: o.key, name: o.name })) })) });
 
 module.exports = {
   TIPOS, KEY_RE, LIMITES, ErroCrm,

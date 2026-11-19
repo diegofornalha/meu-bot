@@ -2,11 +2,41 @@
  * Tutorial 17, passo "Criar o primeiro pipeline": os modelos prontos e a validação, puros (testáveis sem DOM).
  * O CRM anota cada conversa do WhatsApp numa caixa de um pipeline; sem nenhum, nada é anotado.
  */
-export interface ModeloPipeline { id: string; titulo: string; texto: string; nome: string; etapas: readonly string[] }
+import type { CrmPipelineExtras } from "../../shared/ipc";
+
+/** Campo que o modelo cria junto com o pipeline (`opcoes` só nas listas). */
+export interface CampoModelo { nome: string; tipo: "TEXT" | "DROPDOWN"; opcoes?: readonly string[] }
+export interface ModeloPipeline {
+  id: string; titulo: string; texto: string; nome: string; etapas: readonly string[];
+  /** Campos que nascem com o pipeline; sem isto, o pipeline nasce só com as etapas. */
+  campos?: readonly CampoModelo[];
+  /** O pipeline nasce com a marca `agenteAutonomo`: o agente cria caixa, preenche campos e muda etapa sem perguntar. */
+  agenteAutonomo?: boolean;
+}
+/** O que o modelo acrescenta ao pipeline além de nome e etapas, na forma que o CRM da máquina recebe. */
+export function extrasDoModelo(id: string): CrmPipelineExtras {
+  const m = MODELOS_PIPELINE.find((x) => x.id === id);
+  if (m === undefined) return {};
+  return {
+    ...(m.campos !== undefined ? { fields: m.campos.map((c) => ({ name: c.nome, type: c.tipo, options: [...(c.opcoes ?? [])] })) } : {}),
+    ...(m.agenteAutonomo === true ? { agenteAutonomo: true } : {}),
+  };
+}
 
 export const MODELOS_PIPELINE: readonly ModeloPipeline[] = [
   { id: "midia-paga", titulo: "Operação de mídia paga", texto: "Cada campanha ou pedido de anúncio, do briefing ao relatório.", nome: "Operação de Mídia Paga", etapas: ["Briefing", "Criativo", "Aprovação", "No ar", "Otimização", "Relatório"] },
   { id: "testes", titulo: "Testes de anúncio", texto: "Cada teste de anúncio: só escala o que gerou venda; o resto pausa com o aprendizado anotado.", nome: "Testes de Anúncios", etapas: ["Ideia", "Aprovado", "No ar", "Medindo (7 dias)", "Escalar", "Pausado"] },
+  {
+    id: "leads-site", titulo: "Leads do site", texto: "Cada pessoa que chega pelo site ou por anúncio, do primeiro contato à assinatura. O agente anota sozinho.", nome: "Leads do site",
+    etapas: ["Novo", "Respondido", "Link enviado", "Baixou", "Assinou", "Perdido"],
+    campos: [
+      { nome: "Origem", tipo: "DROPDOWN", opcoes: ["Anúncio", "Site", "Indicação", "Outro"] },
+      { nome: "Ref do anúncio", tipo: "TEXT" },
+      { nome: "Produto de interesse", tipo: "DROPDOWN", opcoes: ["Pro", "Financeiro", "Módulos do Diego"] },
+      { nome: "Sistema", tipo: "DROPDOWN", opcoes: ["Mac", "Windows", "Não sei"] },
+    ],
+    agenteAutonomo: true,
+  },
   { id: "livre", titulo: "Do meu jeito", texto: "Você dá o nome e escreve as etapas.", nome: "", etapas: [] },
 ];
 

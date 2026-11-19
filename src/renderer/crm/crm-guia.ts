@@ -1,5 +1,5 @@
 import type { CrmInfo, CrmDiag, CrmLocal } from "../../shared/ipc";
-import { MODELOS_PIPELINE, validarPipeline, etapasDoTexto } from "../lib/crm-modelos.js";
+import { MODELOS_PIPELINE, validarPipeline, etapasDoTexto, extrasDoModelo } from "../lib/crm-modelos.js";
 import { el } from "../lib/dom.js";
 import { carregando, esperaOuFalha } from "../lib/carregando.js";
 import { ipcErrorText } from "../lib/ipc-error.js";
@@ -80,7 +80,7 @@ export function renderCrmPipeline(container: HTMLElement): void {
     const v = validarPipeline(d.nome, etapasDoTexto(d.etapas));
     if (!v.ok) { crmPipeMsg = { text: v.erro, bad: true }; ctx.paintGuide(); return; }
     crmPipeBusy = true; crmPipeMsg = null; ctx.paintGuide();
-    void window.meuBot.crmCriarPipeline(v.name, v.stages).then((r) => { crmLocalState = r; crmPipeDraft = null; crmPipeNovo = false; crmPipeMsg = { text: `✓ Pipeline "${v.name}" criado: as conversas do WhatsApp passam a ser anotadas nele.`, bad: false }; })
+    void window.meuBot.crmCriarPipeline(v.name, v.stages, extrasDoModelo(d.modelo)).then((r) => { crmLocalState = r; crmPipeDraft = null; crmPipeNovo = false; crmPipeMsg = { text: `✓ Pipeline "${v.name}" criado: as conversas do WhatsApp passam a ser anotadas nele.`, bad: false }; })
       .catch((e: unknown) => { crmPipeMsg = { text: `Não deu para criar: ${ipcErrorText(e)}`, bad: true }; }).finally(() => { crmPipeBusy = false; ctx.paintGuide(); });
   });
   box.append(el("span", "hint", "Nome"), nome, el("span", "hint", "Etapas, na ordem do seu atendimento (uma por linha)"), etapas, criar);
