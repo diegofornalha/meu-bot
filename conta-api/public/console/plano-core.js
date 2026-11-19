@@ -89,8 +89,9 @@ export function fase(l, agora = Date.now()) {
  * (se o prazo acabou, a API recusa em vez de abrir o preço cheio sem avisar), ou `semPromo: true` quando a pessoa
  * escolheu pagar por Pix, sem o desconto (o cupom só vale no cartão).
  */
-export function pedidoAssinar(produto, promoMostrada, semPromo = false, cupom = false) {
-  if (produto !== null && produto !== undefined) return { produto };
+export function pedidoAssinar(produto, promoMostrada, semPromo = false, cupom = false, org = null) {
+  // Usuário de organização: o pedido diz para qual organização é a vaga.
+  if (produto !== null && produto !== undefined) return typeof org === "string" && org !== "" ? { produto, org } : { produto };
   // "Tenho um cupom" › Cartão (`true`): a pessoa vai direto à página de pagamento e digita o código lá.
   // "Tenho um cupom" › Pix (`{pix: código}`): o nosso servidor confere o código e abre o Pix do primeiro mês.
   // Os dois valem no lugar da promoção da tela.
@@ -235,6 +236,30 @@ export function vagaDoAssinar(secao) {
   return secao === "plan" ? "pl-assinar-vaga" : secao === "marketplace" ? "mk-assinar-vaga" : "ov-assinar-vaga";
 }
 
+/** "Você usa o Pro pela organização Acme, até 20 de dez." para o Plano e a Visão geral; null quando o Pro é da própria conta. `data` formata a data. */
+export function proPelaOrgTexto(proPelaOrg, data) {
+  if (proPelaOrg === null || typeof proPelaOrg !== "object" || typeof proPelaOrg.nome !== "string") return null;
+  return `Você usa o Pro pela organização ${proPelaOrg.nome}${proPelaOrg.ate ? `, até ${data(proPelaOrg.ate)}` : ""}. Ele vale enquanto você fizer parte dela e o Pro de quem é a dona estiver ativo.`;
+}
+/** As organizações em que a conta é dona ou admin (`conta.orgs`): só nelas ela pode adicionar usuários. */
+export function orgsQueGerencia(conta) {
+  return (Array.isArray(conta?.orgs) ? conta.orgs : []).filter((o) => o && (o.papel === "dona" || o.papel === "admin"));
+}
+/**
+ * O resumo dos usuários de uma organização (`GET /orgs/:slug`): quantos estão em uso de quantos ela tem, de onde vêm
+ * os lugares e quantos convidados ainda não entraram. `livres` é o que sobra para convidar.
+ */
+export function usuariosDaOrg(o) {
+  const total = Number.isInteger(o?.assentos) ? o.assentos : 1, pagos = Number.isInteger(o?.assentosPagos) ? o.assentosPagos : 0, inclusos = Number.isInteger(o?.assentosInclusos) ? o.assentosInclusos : total - pagos;
+  const ocupados = Number.isInteger(o?.ocupados) ? o.ocupados : 0, convidados = (Array.isArray(o?.membros) ? o.membros : []).filter((m) => m.status !== "ativo").length;
+  const origem = pagos === 0 ? (inclusos === 1 ? "o seu, incluso" : `${inclusos} inclusos`) : `${inclusos} incluso${inclusos === 1 ? "" : "s"} + ${pagos} pago${pagos === 1 ? "" : "s"}`;
+  return { livres: Math.max(0, total - ocupados), semCobertura: Math.max(0, ocupados - total), texto: `${ocupados} de ${total} usuário${total === 1 ? "" : "s"} em uso (${origem})${convidados > 0 ? ` · ${convidados} ainda sem entrar` : ""}.` };
+}
+/** Na volta do pagamento de um usuário: a vaga nova já chegou à organização? `antes` = quantos pagos ela tinha ao sair para pagar. */
+export function assentoChegou(org, antes) {
+  return Number.isInteger(antes) && Number.isInteger(org?.assentosPagos) && org.assentosPagos > antes;
+}
+
 /**
  * O texto do painel de contratar uma unidade extra, na página do item: só o que a ficha acima não diz. A ficha já tem
  * o nome, o que é e o preço; aqui fica a situação desta conta (quanto o plano cobre agora, quem está esperando vaga) e
@@ -271,6 +296,8 @@ export function estadoDoItem(conta, item) {
   if (semPrazo(l)) return tem();
   const proValendo = l.plan === "pro" && (l.status === "active" || l.status === "trialing");
   if (item?.tipo === "plano") return !proValendo ? disponivel : l.status === "trialing" ? { chave: "teste", texto: "Em teste grátis", tom: "ok" } : tem();
+  // Usuário de organização: só faz sentido para quem gerencia uma (dona ou admin); a quantidade está na página dela.
+  if (item?.id === "extra-assento") return orgsQueGerencia(conta).length > 0 ? disponivel : { chave: "precisa-org", texto: "Precisa de organização", tom: "" };
   if (item?.tipo === "unidade") {
     const n = item.id === "extra-maquina" ? conta?.maquinaExtras : item.id === "extra-device" ? conta?.deviceExtras : 0;
     if (Number.isInteger(n) && n > 0) return tem(`Você tem ${n}`);

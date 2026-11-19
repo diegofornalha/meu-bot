@@ -1,5 +1,5 @@
 import { avisoDepoisDo404, pedeReleitura, visaoVelha } from "./admin-core.js";
-import { INFINITO, SEM_LIMITE, SEM_PRAZO, TODOS_ADDONS, avisoAddonPago, contagemRegressiva, addonsNaVisaoGeral, estadoAssinaturaPro, fase, linhasDeMaquinas, deParaDoExtra, assinaturasDoItem, bloqueioDeOrg, estadoDoItem, itemGa, ofertaDoProAparece, situacaoDaUnidade, situacaoDoApp, resumoDeUso, semDevices, oQueAContaTem, pagoChegou, assinaturasAtivasDe, pedidoAssinar, podeAdicionarMaquina, promoNaTela, reaisCurto, semPrazo, vagaDoAssinar, voltaDoPagamento, vagasDeDevice, vagasDeMaquina } from "./plano-core.js";
+import { INFINITO, SEM_LIMITE, SEM_PRAZO, TODOS_ADDONS, avisoAddonPago, contagemRegressiva, addonsNaVisaoGeral, estadoAssinaturaPro, fase, linhasDeMaquinas, deParaDoExtra, assinaturasDoItem, bloqueioDeOrg, assentoChegou, proPelaOrgTexto, estadoDoItem, itemGa, ofertaDoProAparece, orgsQueGerencia, usuariosDaOrg, situacaoDaUnidade, situacaoDoApp, resumoDeUso, semDevices, oQueAContaTem, pagoChegou, assinaturasAtivasDe, pedidoAssinar, podeAdicionarMaquina, promoNaTela, reaisCurto, semPrazo, vagaDoAssinar, voltaDoPagamento, vagasDeDevice, vagasDeMaquina } from "./plano-core.js";
 // Console da conta meu-bot (console.agentesgrok.com/account/* e /organizations/<slug>/members|settings, molde Rambox). Entra pela mesma página de
 // login do app (auth.agentesgrok.com) com esquema=web: o console gera state + PKCE, a página devolve #code&state, e
 // POST /token {grant:"web"} vira um token de acesso de 1 h guardado neste navegador (localStorage: outra aba, inclusive
@@ -34,7 +34,9 @@ const EXTRAS = (() => { try { const a = JSON.parse(cfg.extras ?? "[]"); return A
 const EXTRA_MAQUINA = EXTRAS.find((x) => x.tipo === "maquina") ?? null;
 const EXTRA_DEVICE = EXTRAS.find((x) => x.tipo === "device") ?? null;
 /** O nome de cada tipo de extra na lista do admin (vale mesmo com o catálogo vazio, para extras já pagos). */
-const ROTULO_EXTRA = { maquina: "Máquina extra", device: "Device extra" };
+const ROTULO_EXTRA = { maquina: "Máquina extra", device: "Device extra", assento: "Usuário de organização" };
+/** O usuário pago de organização à venda neste ambiente (extra "assento"); null = não se vende aqui. */
+const EXTRA_ASSENTO = EXTRAS.find((x) => x.tipo === "assento") ?? null;
 /** As fichas do Marketplace deste ambiente (config.js; marketplace-core.ts no Worker): o texto de cada item à venda, pelo nome técnico. */
 /** Os itens do Marketplace, na ordem da vitrine (o Pro primeiro). */
 const MKT = (() => { try { const a = JSON.parse(cfg.marketplace ?? "[]"); return (Array.isArray(a) ? a : []).filter((x) => x && typeof x.id === "string" && typeof x.nome === "string" && typeof x.slug === "string" && Number.isInteger(x.centavos)); } catch { return []; } })();
@@ -386,11 +388,17 @@ function pintarOrg(o, aba) {
   if (aba === "members") pintarOrgMembros(o, gerencia); else pintarOrgConfig(o, gerencia);
 }
 function pintarOrgMembros(o, gerencia) {
-  const livres = Math.max(0, o.assentos - o.ocupados), convidados = o.membros.filter((m) => m.status !== "ativo").length;
-  $("org-resumo").textContent = `${o.ocupados} ${o.ocupados === 1 ? "pessoa" : "pessoas"} nesta organização${convidados > 0 ? ` (${convidados} ainda sem entrar)` : ""} · ${livres} ${livres === 1 ? "assento livre" : "assentos livres"} de ${o.assentos}.`;
+  const u = usuariosDaOrg(o), livres = u.livres;
+  $("org-resumo").textContent = u.texto;
   const form = $("org-convite-form"); form.hidden = !gerencia;
   $("org-convidar").disabled = livres === 0; $("org-convite-email").disabled = livres === 0;
-  $("org-convite-nota").textContent = !gerencia ? "" : livres === 0 ? "Sem assentos livres: remova alguém ou peça mais assentos ao suporte." : o.dominioEmail ? `Só e-mails @${o.dominioEmail} (Configurações).` : "";
+  const vende = EXTRA_ASSENTO !== null && cfg.pagamentos === "1";
+  $("org-convite-nota").textContent = !gerencia ? "" : livres === 0 ? (vende ? "Todos os usuários estão em uso: adicione um usuário abaixo e convide." : "Todos os usuários estão em uso. Para ter mais, fale com o suporte.") : o.dominioEmail ? `Só e-mails @${o.dominioEmail} (Configurações).` : "";
+  // O que quem gerencia precisa saber: o Pro da dona parado (ninguém coberto) ou gente além das vagas.
+  const aviso = $("org-aviso");
+  aviso.textContent = !gerencia ? "" : o.donaComPro === false ? "O Pro de quem é a dona não está ativo: os usuários ficam sem o Pro pela organização até ele voltar." : u.semCobertura > 0 ? `${u.semCobertura} ${u.semCobertura === 1 ? "pessoa está" : "pessoas estão"} além dos usuários da organização e ${u.semCobertura === 1 ? "fica" : "ficam"} sem o Pro por ela. Adicione usuários ou remova alguém.` : "";
+  aviso.hidden = aviso.textContent === "";
+  pintarOrgUsuario(o, gerencia && vende);
   const tb = $("org-tabela").querySelector("tbody"); tb.replaceChildren();
   for (const m of o.membros) {
     const tr = el("tr");
@@ -406,6 +414,7 @@ function pintarOrgMembros(o, gerencia) {
     } else tdPapel.append(selo(PAPEL_ORG[m.papel] ?? m.papel, m.papel === "dona" ? "ok" : ""));
     tr.append(tdPapel);
     const st = el("td"); st.append(selo(m.status === "ativo" ? "Ativo" : "Convidado", m.status === "ativo" ? "ok" : ""));
+    if (m.coberto === false) { const sc = selo("sem cobertura", "mau"); sc.title = "Está além dos usuários da organização: não recebe o Pro por ela"; st.append(" ", sc); }
     if (m.status !== "ativo" && gerencia) { const b = el("button", "btn btn-ghost copiar", "Copiar link"); b.type = "button"; b.title = "Mande este link para a pessoa: ao entrar com o e-mail convidado, ela já cai aqui."; b.addEventListener("click", () => { void copiarLink(o.url, b); }); st.append(b); }
     tr.append(st);
     tr.append(el("td", "", m.entrouEm ? data(m.entrouEm) : `convidado em ${data(m.convidadoEm)}${m.convidadoPor ? ` por ${m.convidadoPor}` : ""}`));
@@ -414,6 +423,31 @@ function pintarOrgMembros(o, gerencia) {
     tr.append(td);
     tb.append(tr);
   }
+}
+/** Quantas vezes a página de membros releu a organização esperando o usuário recém-pago aparecer. */
+let esperasAssento = 0;
+/**
+ * O painel "Adicionar um usuário" da página de membros, para quem gerencia a organização e com o item à venda. É para
+ * cá que a AbacatePay devolve quem pagou (`?assinatura=paga&produto=extra-assento`): a página relê a organização até
+ * a vaga nova aparecer (assentoChegou), no máximo 10 vezes.
+ */
+function pintarOrgUsuario(o, mostra) {
+  const caixa = $("org-usuario"); caixa.replaceChildren();
+  if (!mostra) return;
+  const painel = el("div", "painel"), aviso = el("p", "sub"); aviso.setAttribute("role", "status");
+  const oferta = el("p", "oferta"), dp = deParaDoExtra(EXTRA_ASSENTO);
+  if (dp !== null) oferta.append("De ", el("s", "", dp.de), " por ", el("strong", "", dp.por), " por mês"); else oferta.append(el("strong", "", reaisCurto(EXTRA_ASSENTO.centavos)), " por mês");
+  painel.append(el("h2", "", "Adicionar um usuário"), oferta, el("p", "", "Cada usuário é uma pessoa a mais na organização, com o Pro incluído enquanto fizer parte dela. A vaga abre assim que o pagamento é confirmado, e você cancela quando quiser, em Plano › Suas assinaturas."));
+  const qs = new URLSearchParams(location.search), voltou = qs.get("assinatura") === "paga" && qs.get("produto") === EXTRA_ASSENTO.nome;
+  let antes = null; try { const bruto = sessionStorage.getItem(`mb-antes-assento-${o.slug}`); antes = bruto !== null && Number.isInteger(Number(bruto)) ? Number(bruto) : null; } catch { antes = null; }
+  if (voltou) {
+    const chegou = assentoChegou(o, antes);
+    aviso.textContent = chegou ? "Pagamento confirmado: o usuário novo já está na organização. Pode convidar." : "Recebemos você de volta. Assim que a AbacatePay confirmar o pagamento, o usuário novo aparece aqui (costuma levar alguns segundos).";
+    if (!chegou && esperasAssento < 10) { esperasAssento++; setTimeout(() => { void orgCarregar(o.slug).then((o2) => { if (o2 && rota()?.secao === "org" && rota()?.slug === o.slug) { orgAtual = o2; pintarOrg(o2, rota().aba); } }).catch(() => undefined); }, 3000); }
+  }
+  const b = el("button", "btn btn-primary", `Adicionar um usuário por ${reais(EXTRA_ASSENTO.centavos)}/mês`); b.type = "button";
+  b.addEventListener("click", () => { void assinar(EXTRA_ASSENTO.nome, b, aviso, false, false, o); });
+  const p = el("p"); p.append(b); painel.append(aviso, p); caixa.append(painel);
 }
 function pintarOrgConfig(o, gerencia) {
   const form = $("org-form");
@@ -496,13 +530,13 @@ async function copiarLink(url, botao) {
 }
 function pintarAdminOrgs(v) {
   const tb = $("ad-orgs").querySelector("tbody"); tb.replaceChildren();
-  if (v.orgs.length === 0) { const tr = el("tr"); const td = el("td", "", "Nenhuma organização ainda."); td.colSpan = 7; tr.append(td); tb.append(tr); }
+  if (v.orgs.length === 0) { const tr = el("tr"); const td = el("td", "", "Nenhuma organização ainda."); td.colSpan = 8; tr.append(td); tb.append(tr); }
   for (const o of v.orgs) {
     const tr = el("tr");
     const tdSlug = el("td"); const a = el("a", "", o.slug); a.href = `/organizations/${o.slug}/members`; a.addEventListener("click", (ev) => { ev.preventDefault(); history.pushState(null, "", a.getAttribute("href")); if (conta !== null) mostrarConsole(conta); }); tdSlug.append(a); tr.append(tdSlug);
     tr.append(el("td", "", o.nome), el("td", "", o.dona), el("td", "", String(o.membros)));
     const tdA = el("td"); const inp = el("input"); inp.type = "number"; inp.min = "1"; inp.max = "1000"; inp.value = String(o.assentos); inp.style.width = "80px"; tdA.append(inp); tr.append(tdA);
-    tr.append(el("td", "", data(o.criadaEm)));
+    tr.append(el("td", "", String(o.assentosPagos ?? 0)), el("td", "", data(o.criadaEm)));
     const td = el("td", "acoes-linha"); const b = el("button", "btn btn-ghost", "Salvar"); b.type = "button"; b.addEventListener("click", () => { void adminAssentos(o.slug, Number(inp.value), b); });
     const rm = el("button", "btn btn-ghost btn-perigo", "Remover"); rm.type = "button"; rm.title = `Apaga a organização ${o.nome} e tira todos os membros dela. Não dá para desfazer.`;
     rm.addEventListener("click", () => { void adminRemoverOrg(o, rm); });
@@ -898,6 +932,7 @@ function pintarOverview(c) {
     painel.append(el("h2", "", "Some mais à sua conta"), el("p", "", `Disponível para você: ${faltam.map((x) => FICHAS[x.nome]?.nome ?? x.rotulo).join(", ")}.`), p);
     $("ov-addons").append(painel);
   }
+  { const t = proPelaOrgTexto(c.proPelaOrg, data); $("ov-pela-org").hidden = t === null; $("ov-pela-org").textContent = t ?? ""; }
   // Onde a conta é usada, pelos nomes: os Macs com o app e as máquinas do agente, com o caminho para organizar.
   const uso = resumoDeUso(c.devices, linhasDeMaquinas(c.maquinas, c.maquinasVistas).linhas);
   $("ov-uso").hidden = uso === null;
@@ -1118,10 +1153,10 @@ function pintarPromo(c) {
  * página da AbacatePay. Com a promoção na tela, copia o cupom antes (ainda dentro do clique, senão o navegador recusa);
  * `semPromo` é o "Prefiro pagar com Pix".
  */
-async function assinar(produto = null, btn = $("pl-assinar-btn"), aviso = $("pl-assinar-aviso"), semPromo = false, cupom = false) {
+async function assinar(produto = null, btn = $("pl-assinar-btn"), aviso = $("pl-assinar-aviso"), semPromo = false, cupom = false, org = null) {
   const s = sessaoGuardada();
   if (s === null) { void entrar(); return; }
-  const pedido = pedidoAssinar(produto, promoMostrada, semPromo, cupom);
+  const pedido = pedidoAssinar(produto, promoMostrada, semPromo, cupom, org?.slug ?? null);
   // Desabilita ANTES de copiar: a cópia pode demorar (o navegador pede permissão) e um segundo clique abriria outro checkout.
   btn.disabled = true;
   const copiou = pedido.promo === true ? await copiarCupom(promoMostrada.cupom) : false;
@@ -1129,6 +1164,8 @@ async function assinar(produto = null, btn = $("pl-assinar-btn"), aviso = $("pl-
   const v = typeof ga.visita === "function" ? await ga.visita() : { clientId: null, sessionId: null };
   const r = await api("POST", "/conta/assinatura", { gaClientId: v.clientId, gaSessionId: v.sessionId, ...pedido }, s.acesso);
   // Unidade extra: guarda quantas a conta já tinha, para a volta do pagamento saber quando a nova chegou (pagoChegou).
+  // Usuário de organização: guarda quantos pagos ela tinha, para a página de membros saber quando o novo chegou (assentoChegou).
+  if (r.status === 200 && org !== null) { try { sessionStorage.setItem(`mb-antes-assento-${org.slug}`, String(org.assentosPagos ?? 0)); } catch { /* sem sessionStorage */ } }
   if (r.status === 200 && produto !== null && conta !== null) { try { sessionStorage.setItem(`mb-antes-${produto}`, String(assinaturasAtivasDe(conta.assinaturas, produto))); } catch { /* sem sessionStorage: a tela espera o tempo todo */ } }
   if (r.status === 200 && r.corpo && typeof r.corpo.url === "string") { ga.evento("checkout_iniciado", { plano: produto ?? "chip-coflow", ...(r.corpo.promo === true ? { promo: "primeiro-mes" } : {}), ...(r.corpo.cupom ? { promo: r.corpo.pix === true ? "cupom-pix" : "cupom" } : {}) }); location.assign(r.corpo.url); return; }
   btn.disabled = false;
@@ -1250,6 +1287,21 @@ function pintarMarketplace(c) {
     aviso.textContent = "Você cancela quando quiser. O acesso continua até o fim do mês já pago.";
     caixa.append(aviso); ficha.append(caixa);
   }
+  // Usuário de organização: a compra é feita na página de membros de cada organização que a pessoa gerencia.
+  if (item.id === "extra-assento") {
+    const minhas = orgsQueGerencia(c), caixa = el("div", "painel");
+    caixa.append(el("h2", "", "Contratar"));
+    if (minhas.length > 0) {
+      caixa.append(el("p", "", "O usuário é adicionado na página de membros da organização. Escolha em qual:"));
+      const p = el("p"); for (const o of minhas) { const a = el("a", "btn btn-primary", `Adicionar na ${o.nome}`); a.href = `/organizations/${o.slug}/members`; a.addEventListener("click", (ev) => irPara(ev, a.getAttribute("href"))); p.append(a, " "); }
+      caixa.append(p);
+    } else {
+      const b = bloqueioDeOrg(c.orgCriar), a = el("a", "btn btn-primary", b === null ? "Criar organização" : b.ir.rotulo); a.href = b === null ? "/organizations/new" : b.ir.caminho;
+      const p = el("p"); p.append(a);
+      caixa.append(el("p", "", b === null ? "Você ainda não tem uma organização. Crie a sua e depois adicione os usuários na página de membros." : `Para adicionar usuários é preciso ter uma organização. ${b.texto}`), p);
+    }
+    ficha.append(caixa);
+  }
   if (item.tipo === "unidade") pintarExtras(c, voltouDe, item.id);
   if (item.tipo === "app") pintarAddons(l, voltouDe, c.liberacoes, "pl-addons", ADDONS.filter((a) => a.nome === item.id));
   let antes = null; try { const bruto = voltouDe === null ? null : sessionStorage.getItem(`mb-antes-${voltouDe}`); antes = bruto !== null && Number.isInteger(Number(bruto)) ? Number(bruto) : null; } catch { antes = null; }
@@ -1333,6 +1385,7 @@ function pintarPlano(c) {
     cartao("⌂", "Máquinas com a licença", semPrazo(l) ? infinito(SEM_LIMITE) : document.createTextNode(`${(c.maquinas ?? []).filter(ocupaVaga).length} de ${c.maquinaLimite ?? 1}${vagasDeMaquina(c.maquinaLimite, c.maquinaExtras).detalhe === "" ? "" : ` (${vagasDeMaquina(c.maquinaLimite, c.maquinaExtras).detalhe})`}`)),
     cartao("+", "Add-ons", ...(semPrazo(l) ? [infinito(TODOS_ADDONS)] : l.produtos.length > 0 ? l.produtos.map((p) => selo(rotuloProduto(p))) : [document.createTextNode("nenhum")])),
   );
+  { const t = proPelaOrgTexto(c.proPelaOrg, data); $("pl-pela-org").hidden = t === null; $("pl-pela-org").textContent = t ?? ""; }
   // Assinar pela AbacatePay: só com os pagamentos ligados no Worker (config.js) e enquanto não há Pro pago ativo.
   // Pro ativo sem assinatura (liberado pelo admin, ou assinatura cancelada com o mês ainda valendo) continua podendo
   // assinar: o painel só some para quem tem a assinatura do Pro em andamento e o Pro valendo (plano-core.js).

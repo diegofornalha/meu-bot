@@ -391,3 +391,28 @@ test("página do item: o painel de contratar não repete o que a ficha já diz",
   const js = await readFile(new URL("../public/console/console.js", import.meta.url), "utf8");
   assert.ok(!js.includes('"Mais uma máquina para o agente"') && !js.includes('"Mais um Mac com o app"'), "os nomes dos itens vêm só das fichas");
 });
+
+test("organização: resumo dos usuários, a vaga que chegou, quem gerencia, e o selo do item", async () => {
+  const { assentoChegou, estadoDoItem, orgsQueGerencia, pedidoAssinar, proPelaOrgTexto, usuariosDaOrg } = await import("../public/console/plano-core.js");
+  const m = (status) => ({ status });
+  assert.deepEqual(usuariosDaOrg({ assentos: 1, assentosInclusos: 1, assentosPagos: 0, ocupados: 1, membros: [m("ativo")] }), { livres: 0, semCobertura: 0, texto: "1 de 1 usuário em uso (o seu, incluso)." });
+  assert.deepEqual(usuariosDaOrg({ assentos: 3, assentosInclusos: 1, assentosPagos: 2, ocupados: 2, membros: [m("ativo"), m("convidado")] }), { livres: 1, semCobertura: 0, texto: "2 de 3 usuários em uso (1 incluso + 2 pagos) · 1 ainda sem entrar." });
+  assert.deepEqual([usuariosDaOrg({ assentos: 1, assentosInclusos: 1, assentosPagos: 0, ocupados: 3, membros: [] }).livres, usuariosDaOrg({ assentos: 1, assentosInclusos: 1, assentosPagos: 0, ocupados: 3, membros: [] }).semCobertura], [0, 2], "uma vaga venceu: duas pessoas além");
+  assert.match(usuariosDaOrg({ assentos: 4, assentosInclusos: 4, assentosPagos: 0, ocupados: 1, membros: [] }).texto, /\(4 inclusos\)/, "cortesias do super admin");
+  assert.equal(assentoChegou({ assentosPagos: 1 }, 0), true);
+  assert.equal(assentoChegou({ assentosPagos: 1 }, 1), false);
+  assert.equal(assentoChegou({ assentosPagos: 1 }, null), false, "sem o número de antes, não afirma");
+  const conta = { licenca: { plan: "pro", status: "active", produtos: [] }, orgs: [{ slug: "acme", nome: "Acme", papel: "dona" }, { slug: "beta", nome: "Beta", papel: "membro" }, { slug: "gama", nome: "Gama", papel: "admin" }] };
+  assert.deepEqual(orgsQueGerencia(conta).map((o) => o.slug), ["acme", "gama"]);
+  assert.deepEqual(orgsQueGerencia(undefined), []);
+  const item = { id: "extra-assento", tipo: "unidade" };
+  assert.equal(estadoDoItem(conta, item).chave, "disponivel");
+  assert.equal(estadoDoItem({ ...conta, orgs: [{ slug: "beta", papel: "membro" }] }, item).chave, "precisa-org");
+  assert.equal(estadoDoItem({ ...conta, orgs: [] }, item).texto, "Precisa de organização");
+  assert.deepEqual(pedidoAssinar("extra-assento", null, false, false, "acme"), { produto: "extra-assento", org: "acme" });
+  assert.deepEqual(pedidoAssinar("extra-maquina", null), { produto: "extra-maquina" }, "as outras unidades não levam organização");
+  const d = (iso) => iso.slice(0, 10);
+  assert.equal(proPelaOrgTexto(null, d), null);
+  assert.match(proPelaOrgTexto({ slug: "acme", nome: "Acme", ate: "2026-12-20T00:00:00.000Z" }, d), /^Você usa o Pro pela organização Acme, até 2026-12-20\. /);
+  assert.match(proPelaOrgTexto({ slug: "acme", nome: "Acme", ate: null }, d), /^Você usa o Pro pela organização Acme\. /);
+});

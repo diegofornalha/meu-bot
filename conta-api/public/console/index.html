@@ -61,6 +61,7 @@
         <div id="ov-addons"></div>
         <details class="pessoal" open><summary>Minha conta</summary>
         <div class="cartoes" id="ov-cartoes"></div>
+        <p class="sub" id="ov-pela-org" hidden></p>
         <div class="painel" id="ov-uso" hidden></div>
         </details>
         <div class="admin" id="ad-overview" hidden>
@@ -126,6 +127,7 @@
       <section data-secao="plan" hidden>
         <details class="pessoal" open><summary>Minha conta</summary>
         <div class="cartoes" id="pl-cartoes"></div>
+        <p class="sub" id="pl-pela-org" hidden></p>
         <p id="pl-voltou" class="sub" role="status" hidden></p>
         <div id="pl-assinar-vaga"><div class="painel" id="pl-assinar" hidden><h2>Assinar o Pro</h2><p class="oferta">De <s>R$ 997</s> por <strong>R$ 97</strong> por mês</p><p>R$ 97 por mês, com o chip da Coflow. O pagamento é feito na página segura da AbacatePay, e o Pro é liberado nesta conta assim que o pagamento é confirmado. Você cancela quando quiser e o Pro continua até o fim do mês pago.</p><p id="pl-assinar-ja" class="sub" hidden></p><div id="pl-promo" class="promo" hidden></div><p id="pl-assinar-aviso" class="sub" role="status"></p><p><button type="button" class="btn btn-primary" id="pl-assinar-btn">Assinar por R$ 97/mês</button> <button type="button" class="promo-link" id="pl-cupom-abrir">Tenho um cupom</button></p><div id="pl-cupom-escolha" class="promo" hidden><p>Como você quer pagar com o cupom?</p><p><button type="button" class="btn btn-small" id="pl-cupom-cartao">Cartão</button> <button type="button" class="btn btn-small" id="pl-cupom-pix-abrir">Pix</button></p><div id="pl-cupom-pix" hidden><p><label for="pl-cupom-codigo">Código do cupom</label></p><p><input type="text" id="pl-cupom-codigo" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="60"> <button type="button" class="btn btn-small" id="pl-cupom-pix-btn">Pagar com Pix</button></p><p class="sub">No Pix, o cupom vale o primeiro mês do Pro e não renova sozinho: depois, você assina por R$ 97 por mês, por Pix ou cartão. No cartão, a renovação é automática.</p></div></div><p id="pl-cupom-aviso" class="sub" role="status"></p></div></div>
         <p class="sub">Para somar apps, máquinas ou Macs à conta, abra o <a href="/account/marketplace">Marketplace</a>.</p>
@@ -216,6 +218,8 @@
           <p class="sub" id="org-resumo"></p>
           <form class="busca" id="org-convite-form"><input id="org-convite-email" type="email" placeholder="e-mail de quem vai entrar" autocomplete="off" required><select id="org-convite-papel"><option value="membro">membro</option><option value="admin">admin</option></select><button type="submit" class="btn btn-primary" id="org-convidar">Convidar</button></form>
           <p class="sub" id="org-convite-nota"></p>
+          <p class="sub" id="org-aviso" role="status" hidden></p>
+          <div id="org-usuario"></div>
           <div class="painel tabela-rolagem"><table class="tabela" id="org-tabela"><thead><tr><th>Membro</th><th>Papel</th><th>Status</th><th>Entrou em</th><th></th></tr></thead><tbody></tbody></table></div>
           <p class="sub">Convite é o e-mail cadastrado: mande o link para a pessoa; quando ela entrar com esse e-mail (Google ou link por e-mail), já cai aqui como membro.</p>
         </div>
@@ -225,8 +229,8 @@
             <form class="editor-form perfil-form" id="org-form">
               <label><span>Nome</span><input name="nome" type="text" maxlength="80" required></label>
               <label><span>Domínio de e-mail</span><input name="dominioEmail" type="text" maxlength="120" placeholder="coflow.com.br"></label>
-              <label><span>Assentos</span><input name="assentos" type="number" min="1" max="1000" disabled></label>
-              <p class="sub largo">Com um domínio definido, só e-mails dele podem ser convidados. Assentos: quem muda é o super admin (peça mais ao suporte).</p>
+              <label><span>Usuários inclusos</span><input name="assentos" type="number" min="1" max="1000" disabled></label>
+              <p class="sub largo">Com um domínio definido, só e-mails dele podem ser convidados. Usuários: a organização inclui você; os outros são adicionados na página Membros. O número aqui é a parte inclusa, que só o super admin muda.</p>
               <div class="acoes"><button type="submit" class="btn btn-primary" id="org-salvar">Salvar</button><span class="sub" id="org-salvo" hidden>Salvo.</span></div>
             </form>
           </div>
@@ -268,7 +272,7 @@
       <section data-secao="orgs" hidden>
         <div class="admin aberto">
           <h2>Todas as organizações <span class="selo">super admin</span></h2>
-          <div class="painel tabela-rolagem"><table class="tabela" id="ad-orgs"><thead><tr><th>Endereço</th><th>Nome</th><th>Dona</th><th>Membros</th><th>Assentos</th><th>Criada em</th><th></th></tr></thead><tbody></tbody></table></div>
+          <div class="painel tabela-rolagem"><table class="tabela" id="ad-orgs"><thead><tr><th>Endereço</th><th>Nome</th><th>Dona</th><th>Membros</th><th title="A dona e as cortesias; é o que o super admin edita">Inclusos</th><th title="Usuários pagos em dia">Pagos</th><th>Criada em</th><th></th></tr></thead><tbody></tbody></table></div>
         </div>
       </section>
     </main>
