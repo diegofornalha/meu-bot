@@ -1,5 +1,5 @@
 import { avisoDepoisDo404, pedeReleitura, visaoVelha } from "./admin-core.js";
-import { INFINITO, SEM_LIMITE, SEM_PRAZO, TODOS_ADDONS, avisoAddonPago, contagemRegressiva, estadoAssinaturaPro, fase, pedidoAssinar, podeAdicionarMaquina, promoNaTela, reaisCurto, semPrazo, vagasDeMaquina } from "./plano-core.js";
+import { INFINITO, SEM_LIMITE, SEM_PRAZO, TODOS_ADDONS, avisoAddonPago, contagemRegressiva, estadoAssinaturaPro, fase, pedidoAssinar, podeAdicionarMaquina, promoNaTela, reaisCurto, semPrazo, vagaDoAssinar, vagasDeMaquina } from "./plano-core.js";
 // Console da conta meu-bot (console.agentesgrok.com/account/* e /organizations/<slug>/members|settings, molde Rambox). Entra pela mesma página de
 // login do app (auth.agentesgrok.com) com esquema=web: o console gera state + PKCE, a página devolve #code&state, e
 // POST /token {grant:"web"} vira um token de acesso de 1 h guardado neste navegador (localStorage: outra aba, inclusive
@@ -873,7 +873,7 @@ function cartao(ico, rotulo, ...valor) {
 }
 const statusTom = (l) => (l.status === "active" || l.status === "trialing" ? "ok" : l.status === "expired" ? "mau" : "");
 function pintarOverview(c) {
-  pintarAssinar(c, "ov-assinar-vaga");
+  pintarAssinar(c);
   const l = c.licenca, ativos = c.devices.filter((d) => d.status !== "pending").length, pendentes = c.devices.length - ativos;
   $("ov-cartoes").replaceChildren(
     cartao("⬢", "Plano", selo(PLANO[l.plan] ?? l.plan, l.plan === "pro" ? "ok" : "")),
@@ -1149,9 +1149,11 @@ async function cancelarAssinatura(a, sim, nao, aviso) {
 /**
  * O painel "Assinar o Pro" é um só e aparece em duas páginas: no topo da Visão geral (a primeira coisa que a pessoa vê
  * ao abrir o console) e no Plano (onde a página /promocao e o atendimento mandam procurar). Cada página o puxa para a
- * sua vaga ao ser pintada.
+ * sua vaga ao ser pintada. A vaga sai da página aberta, não de quem chamou: os repintes do Plano (promoção que acabou,
+ * volta do pagamento) também rodam com a pessoa na Visão geral, e o painel não pode sumir da tela dela.
  */
-function pintarAssinar(c, vaga) {
+function pintarAssinar(c) {
+  const vaga = vagaDoAssinar(rota()?.secao);
   const l = c.licenca, estado = estadoAssinaturaPro(l, c.assinaturas);
   $(vaga).append($("pl-assinar"));
   $("pl-assinar").hidden = cfg.pagamentos !== "1" || estado.pagoAtivo || estado.semPrazo === true;
@@ -1181,7 +1183,7 @@ function pintarPlano(c) {
   // Pro ativo sem assinatura (liberado pelo admin, ou assinatura cancelada com o mês ainda valendo) continua podendo
   // assinar: o painel só some para quem tem a assinatura do Pro em andamento e o Pro valendo (plano-core.js).
   // Super admin (Pro sem prazo) não tem o que assinar: o painel e a promoção somem; os add-ons continuam abaixo.
-  const { pagoAtivo } = pintarAssinar(c, "pl-assinar-vaga");
+  const { pagoAtivo } = pintarAssinar(c);
   const qs = new URLSearchParams(location.search);
   const voltouDe = qs.get("assinatura") === "paga" ? qs.get("produto") : null;
   const voltou = qs.get("assinatura") === "paga" && voltouDe === null;

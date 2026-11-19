@@ -132,3 +132,8 @@ export function avisoAddonPago(rotulo, nome, liberacoes, voltou) {
   if (l !== null && l.aberta === false) return { estado: "liberado", texto: `${pago} O suporte já marcou a liberação na sua máquina como feita: ele deve aparecer na página Módulos do app. Se não aparecer, fale com o suporte.` };
   return { estado: "sem-pedido", texto: `${pago} Ele aparece no app depois de liberado na sua máquina; se não aparecer, fale com o suporte.` };
 }
+
+/** Onde o painel "Assinar o Pro" fica na página aberta: na vaga do Plano quando a pessoa está no Plano; no topo da Visão geral em qualquer outra. */
+export function vagaDoAssinar(secao) {
+  return secao === "plan" ? "pl-assinar-vaga" : "ov-assinar-vaga";
+}
