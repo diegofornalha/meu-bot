@@ -605,7 +605,7 @@ function pintarAdminVendas(v) {
 function pintarAdminContas(v) {
   $("ad-busca").value = visaoBusca;
   const tb = $("ad-contas").querySelector("tbody"); tb.replaceChildren();
-  if (v.contas.length === 0) { const tr = el("tr"); const td = el("td", "", visaoBusca ? "Nenhuma conta com esse e-mail ou nome." : "Ninguém entrou ainda."); td.colSpan = 10; tr.append(td); tb.append(tr); }
+  if (v.contas.length === 0) { const tr = el("tr"); const td = el("td", "", visaoBusca ? "Nenhuma conta com esse e-mail ou nome." : "Ninguém entrou ainda."); td.colSpan = 9; tr.append(td); tb.append(tr); }
   for (const c of v.contas) {
     const l = c.licenca, ativos = c.devices.filter((d) => d.status !== "pending").length, pend = c.devices.length - ativos;
     const tr = el("tr");
@@ -614,30 +614,37 @@ function pintarAdminContas(v) {
     const f = fase(l); const tdFase = el("td"); tdFase.append(selo(f.texto, f.tom)); tr.append(tdFase);
     if (semPrazo(l)) { const tdAte = el("td"); tdAte.append(infinito()); tr.append(tdAte); }
     else tr.append(el("td", "", l.expiresAt ? data(l.expiresAt) : l.trialEnd ? data(l.trialEnd) : "-"));
-    // Add-ons: os pagos com o prazo (vencido fica marcado) e os concedidos pelo admin, que valem junto com a licença.
-    const tdAd = el("td"); const pagosC = c.addonsPagos ?? [];
-    for (const a of pagosC) {
-      const emDia = Date.parse(a.expiresAt) > Date.now();
-      tdAd.append(selo(`${rotuloProduto(a.produto)} · ${emDia ? "pago até" : "venceu em"} ${data(a.expiresAt)}`, emDia ? "ok" : "mau"), document.createTextNode(" "));
-      if (emDia) { const b = el("button", "btn btn-ghost", "Encerrar"); b.type = "button"; b.title = "Encerra agora o acesso a este add-on pago (reembolso ou disputa). A assinatura na AbacatePay é cancelada à parte."; b.addEventListener("click", () => { void encerrarPago(c, `addons/${encodeURIComponent(a.produto)}`, b); }); tdAd.append(b, document.createTextNode(" ")); }
-    }
-    // Máquinas extras pagas: uma por assinatura, cada uma com o seu prazo e o seu Encerrar.
-    const extrasC = c.extrasPagos ?? [];
-    for (const x of extrasC) {
-      const emDia = Date.parse(x.expiresAt) > Date.now();
-      tdAd.append(selo(`${ROTULO_EXTRA[x.tipo] ?? x.tipo} · ${emDia ? "paga até" : "venceu em"} ${data(x.expiresAt)}`, emDia ? "ok" : "mau"), document.createTextNode(" "));
-      if (emDia) { const b = el("button", "btn btn-ghost", "Encerrar"); b.type = "button"; b.title = "Encerra agora esta máquina extra paga (reembolso ou disputa): a vaga sai do limite da conta. A assinatura na AbacatePay é cancelada à parte."; b.addEventListener("click", () => { void encerrarPago(c, `extras/${encodeURIComponent(x.assinaturaId)}`, b); }); tdAd.append(b, document.createTextNode(" ")); }
-    }
-    // Super admin: tem todos os add-ons pela regra, não por concessão; um "∞" no lugar da lista.
-    if (semPrazo(l)) tdAd.append(infinito(TODOS_ADDONS));
-    else for (const p of l.produtos) tdAd.append(selo(`${rotuloProduto(p)} · concedido`), document.createTextNode(" "));
-    if (pagosC.length === 0 && extrasC.length === 0 && l.produtos.length === 0) tdAd.textContent = "-";
-    tr.append(tdAd);
     const dv = el("td", "", semPrazo(l) ? `${ativos}/` : `${ativos}/${l.deviceLimit}`); if (semPrazo(l)) dv.append(infinito(SEM_LIMITE)); if (pend > 0) dv.append(document.createTextNode(" "), selo(`${pend} pendente${pend === 1 ? "" : "s"}`, "mau")); tr.append(dv);
     tr.append(el("td", "", String(c.maquinas)), el("td", "", String(c.pedidos)), el("td", "", data(c.criadaEm)));
-    const acao = el("td"); const b = el("button", "btn btn-ghost", "Mudar"); b.type = "button"; b.addEventListener("click", () => editorLicenca(tr, c)); acao.append(b); tr.append(acao);
+    const acao = el("td"); const b = el("button", "btn btn-ghost", "Editar"); b.type = "button"; b.addEventListener("click", () => editorLicenca(tr, c)); acao.append(b); tr.append(acao);
     tb.append(tr);
   }
+}
+/**
+ * Os add-ons da conta `c`, para o editor da conta: os pagos com o prazo (vencido fica marcado) e o Encerrar, as
+ * máquinas extras pagas, e os concedidos pelo admin, que valem junto com a licença. Lê a licença em vigor.
+ */
+function addonsDaConta(c) {
+  const l = c.licenca;
+  // Add-ons: os pagos com o prazo (vencido fica marcado) e os concedidos pelo admin, que valem junto com a licença.
+  const bloco = el("p", "sub"); bloco.append(el("strong", "", "Add-ons: ")); const pagosC = c.addonsPagos ?? [];
+  for (const a of pagosC) {
+    const emDia = Date.parse(a.expiresAt) > Date.now();
+    bloco.append(selo(`${rotuloProduto(a.produto)} · ${emDia ? "pago até" : "venceu em"} ${data(a.expiresAt)}`, emDia ? "ok" : "mau"), document.createTextNode(" "));
+    if (emDia) { const b = el("button", "btn btn-ghost", "Encerrar"); b.type = "button"; b.title = "Encerra agora o acesso a este add-on pago (reembolso ou disputa). A assinatura na AbacatePay é cancelada à parte."; b.addEventListener("click", () => { void encerrarPago(c, `addons/${encodeURIComponent(a.produto)}`, b); }); bloco.append(b, document.createTextNode(" ")); }
+  }
+  // Máquinas extras pagas: uma por assinatura, cada uma com o seu prazo e o seu Encerrar.
+  const extrasC = c.extrasPagos ?? [];
+  for (const x of extrasC) {
+    const emDia = Date.parse(x.expiresAt) > Date.now();
+    bloco.append(selo(`${ROTULO_EXTRA[x.tipo] ?? x.tipo} · ${emDia ? "paga até" : "venceu em"} ${data(x.expiresAt)}`, emDia ? "ok" : "mau"), document.createTextNode(" "));
+    if (emDia) { const b = el("button", "btn btn-ghost", "Encerrar"); b.type = "button"; b.title = "Encerra agora esta máquina extra paga (reembolso ou disputa): a vaga sai do limite da conta. A assinatura na AbacatePay é cancelada à parte."; b.addEventListener("click", () => { void encerrarPago(c, `extras/${encodeURIComponent(x.assinaturaId)}`, b); }); bloco.append(b, document.createTextNode(" ")); }
+  }
+  // Super admin: tem todos os add-ons pela regra, não por concessão; um "∞" no lugar da lista.
+  if (semPrazo(l)) bloco.append(infinito(TODOS_ADDONS));
+  else for (const p of l.produtos) bloco.append(selo(`${rotuloProduto(p)} · concedido`), document.createTextNode(" "));
+  if (pagosC.length === 0 && extrasC.length === 0 && l.produtos.length === 0 && !semPrazo(l)) bloco.append(document.createTextNode("nenhum"));
+  return bloco;
 }
 /** O admin manda o e-mail de senha de uma conta; o botão vira "enviado" por um tempo. */
 async function adminSenha(c, botao) {
@@ -665,7 +672,8 @@ async function adminExcluirConta(c, botao) {
   if (conta !== null) mostrarConsole(conta);
 }
 /**
- * Linha de edição abaixo da conta: plano, status, vale até, limite de devices e de máquinas. Salva com PATCH.
+ * Linha de edição abaixo da conta (botão "Editar"): plano, status, vale até, limite de devices e de máquinas, salvos
+ * com PATCH; e os add-ons da conta, só para ver e encerrar um pago (`addonsDaConta`).
  * Add-ons concedidos e "Como pagar" não se editam aqui (a pessoa assina sozinha pela AbacatePay): o PATCH não os manda,
  * e o que estiver gravado fica como está.
  */
@@ -674,7 +682,7 @@ function editorLicenca(tr, c) {
   if (existente !== null && existente.classList.contains("editor")) { existente.remove(); return; }
   // De um super admin a lista traz a licença em vigor (Pro sem prazo) e, à parte, a gravada: o formulário mostra e muda a gravada.
   const l = c.licencaGravada ?? c.licenca;
-  const linha = el("tr", "editor"); const td = el("td"); td.colSpan = 11;
+  const linha = el("tr", "editor"); const td = el("td"); td.colSpan = 9;
   const form = el("form", "editor-form");
   const campo = (rotulo, input) => { const lb = el("label"); lb.append(el("span", "", rotulo), input); return lb; };
   const select = (nome, opcoes, atual) => { const s = el("select"); s.name = nome; for (const [v, t] of opcoes) { const o = el("option", "", t); o.value = v; o.selected = v === atual; s.append(o); } return s; };
@@ -703,8 +711,9 @@ function editorLicenca(tr, c) {
   const emailSenha = el("button", "btn btn-ghost", "E-mail de senha"); emailSenha.type = "button"; emailSenha.title = `Manda a ${c.email} o e-mail para criar ou redefinir a senha (o mesmo de "Esqueci a senha").`; emailSenha.addEventListener("click", () => { void adminSenha(c, emailSenha); });
   const cancelar = el("button", "btn btn-ghost", "Cancelar"); cancelar.type = "button"; cancelar.addEventListener("click", () => linha.remove());
   const acoes = el("div", "acoes"); acoes.append(salvar, emailSenha, cancelar); form.append(acoes);
-  const pagosTxt = (c.addonsPagos ?? []).map((a) => `${rotuloProduto(a.produto)} até ${data(a.expiresAt)}`).join(", ");
-  const aviso = el("p", "sub", `${pagosTxt ? `Pagos pela AbacatePay (não se mudam aqui): ${pagosTxt}. ` : ""}Vale na conta e em Este Mac; numa máquina por SSH, a pessoa aplica pelo app ("Usar o meu Pro nesta máquina"), ou o admin grava a licença da máquina (meu-bot-admin › Suporte). Senha preenchida: troca no Firebase e desconecta a pessoa de todos os Macs.`);
+  // Os add-ons da conta (pagos, com o Encerrar; extras; concedidos) ficam aqui, não mais numa coluna da lista.
+  form.append(addonsDaConta(c));
+  const aviso = el("p", "sub", `Vale na conta e em Este Mac; numa máquina por SSH, a pessoa aplica pelo app ("Usar o meu Pro nesta máquina"), ou o admin grava a licença da máquina (meu-bot-admin › Suporte). Senha preenchida: troca no Firebase e desconecta a pessoa de todos os Macs.`);
   form.append(aviso);
   if (c.admin === "super") form.prepend(el("p", "sub", "Super admin: Pro sem prazo. O que está gravado aqui só volta a valer se a pessoa deixar de ser super admin."));
   form.addEventListener("submit", async (ev) => {
