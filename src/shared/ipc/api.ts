@@ -396,6 +396,8 @@ export interface MeuBotClientApi {
   planoUsarDaConta(): Promise<PlanoDaContaResultado>;
   /** Tira da máquina desta janela a licença da conta (apaga o arquivo de lá e abre a vaga na conta). */
   planoTirarDaConta(): Promise<PlanoDaContaResultado>;
+  /** Aviso de device no chat: reemite a licença da conta nesta máquina e apresenta este Mac de novo. `status` é o que o backend deu ("active" = entrou); null = máquina sem resposta. */
+  planoConferirDevice(): Promise<{ status: "active" | "pending" | null }>;
   /** Espaço da conta na máquina (Configurações › Espaço): a cota relida agora pelo backend dela; null = sem cota, fora do ar ou este Mac. */
   cotaStatus(): Promise<CotaInfo | null>;
   /** O que ela pode apagar para liberar espaço (só caches de mídia, workspaces e sessões antigas do WhatsApp), como ela. */

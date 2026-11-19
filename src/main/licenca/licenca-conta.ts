@@ -91,18 +91,20 @@ const ENTRE_CONFERENCIAS_MS = 6 * 60 * 60 * 1000;
  * A conta respondeu que a máquina não é mais dela (tirada pelo console): o arquivo sai de lá e a vaga abre.
  * Melhor esforço, em segundo plano; devolve true quando o arquivo da máquina mudou (quem chama relê a licença).
  */
-export async function renovarSePreciso(host: string, now: number = Date.now()): Promise<boolean> {
+export async function renovarSePreciso(host: string, now: number = Date.now(), opts: { agora?: boolean } = {}): Promise<boolean> {
   const conta = contaView().conta;
   if (!remota(host) || conta === null) return false;
   const ultima = renovadaEm.get(host);
-  if (ultima !== undefined && now - ultima < ENTRE_CONFERENCIAS_MS) return false;
+  // `agora`: a pessoa acabou de mudar o plano (comprou um device) e pediu para conferir; não espera a próxima conferência.
+  if (opts.agora !== true && ultima !== undefined && now - ultima < ENTRE_CONFERENCIAS_MS) return false;
   renovadaEm.set(host, now);
   try {
     const atual = await lerLicencaDaContaNaMaquina(host);
     if (atual === null) { renovadaEm.delete(host); return false; }
     if (atual.maquina === null || atual.arquivo === null) return false;
     const v = verificaLicencaAssinada(atual.arquivo, { maquina: atual.maquina, now });
-    if (!deveRenovarLicenca(v, conta.id, now)) return false;
+    // Com `agora`, a licença desta conta é reemitida mesmo recém-emitida: é o limite novo que interessa.
+    if (!(opts.agora === true && v.ok && v.payload.conta.id === conta.id) && !deveRenovarLicenca(v, conta.id, now)) return false;
     const r = await renovarLicencaDaMaquina(atual.maquina);
     if (r.ok) {
       if (!verificaLicencaAssinada(r.arquivo, { maquina: atual.maquina, now }).ok) return false;

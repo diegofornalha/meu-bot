@@ -9,7 +9,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { CrmPipelineExtras, AudioSetup, ClaudeLoginEvent, LicenseView, ClaudeSessionRef, ExportFormat, LimiaresClaude, TabMenuAction, WhatsappEvent, WhatsappStatus } from "../../shared/ipc";
 import { conversationToMarkdown, conversationTitle, slugify } from "../conversa/export";
-import { atualizarContaClaude, conferirContaClaude, criarContaClaude, deleteBackendSession, fetchAccountStatus, fetchAlertPrefs, fetchBackendSession, fetchContasClaude, limiaresContasClaude, log, removerContaClaude, reordenarContasClaude, runBackendTurn, saveAlertPrefs, usarAgoraContaClaude } from "../maquina/backend";
+import { atualizarContaClaude, conferirContaClaude, criarContaClaude, deleteBackendSession, fetchAccountStatus, fetchAlertPrefs, fetchBackendSession, fetchContasClaude, limiaresContasClaude, log, reapresentarMachine, removerContaClaude, reordenarContasClaude, runBackendTurn, saveAlertPrefs, usarAgoraContaClaude } from "../maquina/backend";
 import { lerLicenca, lerLicencaDaMaquina } from "../licenca/licenca-maquina";
 import { avisoDaRenovacao, renovarSePreciso, tirarProDaConta, usarProDaConta } from "../licenca/licenca-conta";
 import { assertAcesso, assertFinance } from "../licenca/acesso";
@@ -364,6 +364,9 @@ export function registerClientIpc(): void {
   // A própria pessoa leva a licença da conta dela (Pro e add-ons pagos) à máquina desta janela, e tira.
   const relerLicenca = (host: string) => async (): Promise<LicenseView | null> => { const lic = await lerLicencaDaMaquina(host); void browserSincronizarCrm(host, lic); return lic.view; };
   handleClient("plano:usar-da-conta", async (event) => { const h = ctxOf(event); const r = await usarProDaConta(h.host, relerLicenca(h.host)); void registrar(h.host, "plano.conta", "usou a licença da conta nesta máquina", r.ok ? "ok" : r.erro); return r; });
+  // Aviso de device no chat, "Já adicionei: conferir": reemite a licença da conta nesta máquina (o limite novo) e
+  // apresenta este Mac de novo; o backend diz se ele entrou.
+  handleClient("plano:conferir-device", async (event) => { const h = ctxOf(event); await renovarSePreciso(h.host, Date.now(), { agora: true }).catch(() => false); const status = await reapresentarMachine(h.host).catch(() => null); void registrar(h.host, "plano.conta", "conferiu a vaga de device deste Mac", status ?? "sem resposta"); return { status }; });
   handleClient("plano:tirar-da-conta", async (event) => { const h = ctxOf(event); const r = await tirarProDaConta(h.host, relerLicenca(h.host)); void registrar(h.host, "plano.conta", "tirou a licença da conta desta máquina", r.ok ? "ok" : r.erro); return r; });
   handleClient("plano:avisar-pagamento", async (event) => { const h = ctxOf(event); await registrar(h.host, "plano.pago", "avisou que já pagou (aviso de plano)"); log(`[plano] ${h.host}: avisou que já pagou`); });
   // Espaço da conta na máquina (Configurações › Espaço): a cota dela, o que dá para apagar (só caches e workspaces, como ela) e o pedido de mais espaço.

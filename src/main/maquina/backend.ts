@@ -425,15 +425,28 @@ export const onVersaoMinima = (cb: (host: string, minima: unknown) => void): voi
 export function announceMachine(host: string): void {
   if (announced.has(host)) return;
   announced.add(host);
+  void apresentar(host);
+}
+/**
+ * Apresenta este Mac ao backend de novo e devolve o status que ele deu ("active" ou "pending"); null sem resposta.
+ * É o "conferir agora" do aviso de device: depois de a conta ganhar vaga, o backend reavalia o Mac que esperava.
+ */
+export async function reapresentarMachine(host: string): Promise<"active" | "pending" | null> {
+  announced.add(host);
+  const r = await apresentar(host);
+  return r?.status === "active" || r?.status === "pending" ? r.status : null;
+}
+function apresentar(host: string): Promise<{ fresh?: boolean; status?: string; appMinima?: unknown } | null> {
   const name = os.hostname().replace(/\.local$/, "");
   const user = os.userInfo().username;
   const id = deviceId();
   // `produto` diz qual app se apresentou (meu-bot, meu-bot-crm…): um Mac pode ter os dois; backend antigo ignora o campo.
-  void backendJson<{ fresh?: boolean; status?: string; appMinima?: unknown }>(host, "POST", "/v1/meu-bot/hello", { id, name, user, platform: `macOS ${os.release()}`, app: app.getVersion(), produto: appTitle(), ...(contaEmail() !== null ? { conta: contaEmail() } : {}) })
+  return backendJson<{ fresh?: boolean; status?: string; appMinima?: unknown }>(host, "POST", "/v1/meu-bot/hello", { id, name, user, platform: `macOS ${os.release()}`, app: app.getVersion(), produto: appTitle(), ...(contaEmail() !== null ? { conta: contaEmail() } : {}) })
     .then((r) => {
       if (r?.fresh === true) log(`[${host}] este Mac (${name}) é novo para o backend (status=${r.status ?? "?"}): a pessoa foi avisada`);
       // Backend novo diz a versão mínima do app que ele atende; backend antigo não traz o campo (undefined = sem exigência).
       if (r !== null) versaoMinimaListener?.(host, r.appMinima);
+      return r;
     });
 }
 

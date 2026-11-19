@@ -230,6 +230,7 @@ const clientApi: MeuBotClientApi = {
   planoAvisarPagamento: () => ipcRenderer.invoke("plano:avisar-pagamento", {}),
   planoUsarDaConta: () => ipcRenderer.invoke("plano:usar-da-conta", {}),
   planoTirarDaConta: () => ipcRenderer.invoke("plano:tirar-da-conta", {}),
+  planoConferirDevice: () => ipcRenderer.invoke("plano:conferir-device", {}),
   cotaStatus: () => ipcRenderer.invoke("cota:status", {}),
   cotaMaiores: () => ipcRenderer.invoke("cota:maiores", {}),
   cotaApagarItem: (caminho: string) => ipcRenderer.invoke("cota:apagar-item", { caminho }),
