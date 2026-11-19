@@ -4,6 +4,10 @@
 
 /** O símbolo que entra no lugar da data e da contagem para quem tem o Pro sem prazo, e o texto que o explica. */
 export const INFINITO = "∞", SEM_PRAZO = "sem prazo (super admin)";
+/** O "∞" nos add-ons do super admin: a API já entrega todos os do catálogo (licencaDoSuper), os de hoje e os que entrarem. */
+export const TODOS_ADDONS = "todos os add-ons, os de hoje e os que vierem (super admin)";
+/** O "∞" nos limites de devices e de máquinas do super admin: a API não aplica limite a ele (limiteDoPapel). */
+export const SEM_LIMITE = "sem limite (super admin)";
 /** A licença entregue é a de um super admin (`semPrazo: true`, licencaDoSuper na API): Pro que nunca vence. */
 export const semPrazo = (licenca) => licenca?.semPrazo === true;
 
@@ -100,8 +104,9 @@ export function vagasDeMaquina(limite, extras) {
   return { total, inclusas, extras: pagas, detalhe };
 }
 
-/** A máquina extra vale junto com o Pro: só quem tem o Pro valendo (pago ou em teste, sem ter vencido) pode adicionar. */
+/** A máquina extra vale junto com o Pro: só quem tem o Pro valendo (pago ou em teste, sem ter vencido) pode adicionar. O super admin não: já não tem limite. */
 export function podeAdicionarMaquina(licenca, agoraMs = Date.now()) {
+  if (semPrazo(licenca)) return false; // super admin: máquinas sem limite, nada a comprar
   if (licenca?.plan !== "pro" || (licenca.status !== "active" && licenca.status !== "trialing")) return false;
   const fim = fimDoPlano(licenca);
   return fim === null || fim > agoraMs;

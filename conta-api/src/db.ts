@@ -210,11 +210,12 @@ export async function addonsPagos(db: D1Database, contaId: string): Promise<{ pr
 /**
  * A licença em vigor, que o app, o console e a máquina recebem (licencaEmVigor): a gravada, com o Pro sem prazo do
  * super admin e os add-ons pagos em dia. `papel` é o de `papelAdmin` para esta conta, lido uma vez pela rota: é
- * obrigatório para nenhum leitor decidir acesso pela licença gravada de um super admin.
+ * obrigatório para nenhum leitor decidir acesso pela licença gravada de um super admin. `catalogo` são os add-ons do
+ * ambiente (`catalogoAddons`), que o super admin tem todos.
  */
-export async function licencaDaConta(db: D1Database, conta: ContaLinha, papel: Papel, agora = agoraIso()): Promise<License> {
+export async function licencaDaConta(db: D1Database, conta: ContaLinha, papel: Papel, catalogo: readonly string[], agora = agoraIso()): Promise<License> {
   const [l, pagos] = await Promise.all([licencaGravada(db, conta), addonsPagos(db, conta.id)]);
-  return licencaEmVigor(l, pagos, papel, agora);
+  return licencaEmVigor(l, pagos, papel, catalogo, agora);
 }
 
 export async function devicesDaConta(db: D1Database, contaId: string): Promise<DeviceLinha[]> {
@@ -348,10 +349,10 @@ export async function promoDaConta(db: D1Database, conta: ContaLinha, promo: Pro
   return d === null ? null : { precoCentavos: promo.precoCentavos, ate: d.ate, cupom: promo.cupom };
 }
 /** A conta como o app a vê: licença, devices (com "este"), máquinas, pedidos e o papel de admin. `promo`: a configuração da promoção do primeiro mês no ambiente; só o console (`GET|PATCH /conta`) a passa. */
-export async function montarContaApi(db: D1Database, conta: ContaLinha, admin: Papel, deviceAtual: string | null, promo: Promo | null = null): Promise<ContaApi> {
+export async function montarContaApi(db: D1Database, conta: ContaLinha, admin: Papel, catalogo: readonly string[], deviceAtual: string | null, promo: Promo | null = null): Promise<ContaApi> {
   const [gravada, pagos, devices, maquinas, pedidos, orgs, limiteMaq, extras, ass] = await Promise.all([licencaGravada(db, conta), addonsPagos(db, conta.id), devicesDaConta(db, conta.id), maquinasDaConta(db, conta.id), pedidosAbertos(db, conta.id), orgsDaConta(db, conta.id), limiteDeMaquinasComExtras(db, conta.id), extrasPagos(db, conta.id),
     db.prepare("SELECT id, produto, status, valor_centavos FROM assinaturas WHERE conta_id = ?1 ORDER BY criada_em DESC LIMIT 50").bind(conta.id).all<{ id: string; produto: string | null; status: string; valor_centavos: number | null }>()]);
-  const licenca = licencaEmVigor(gravada, pagos, admin, agoraIso());
+  const licenca = licencaEmVigor(gravada, pagos, admin, catalogo, agoraIso());
   const assinaturas: ContaAssinatura[] = ass.results.map((a) => ({ id: a.id, produto: a.produto, status: a.status === "CANCELLED" ? "CANCELLED" : "ACTIVE", valorCentavos: a.valor_centavos, valeAte: a.produto === null ? gravada.expiresAt : tipoDoExtra(a.produto) !== null ? extras.find((x) => x.assinaturaId === a.id)?.expiresAt ?? null : pagos.find((p) => p.produto === a.produto)?.expiresAt ?? null }));
   const ds: DeviceApi[] = devices.map((d) => {
     let apps: DeviceApi["apps"] = {};
@@ -368,7 +369,7 @@ const deviceApi = (d: DeviceLinha): DeviceApi => {
   return { id: d.id, alias: d.alias_legado, name: d.name ?? "", user: d.user ?? "", platform: d.platform ?? "", status: d.status === "pending" ? "pending" : "active", requestedAt: d.requested_at, firstSeen: d.first_seen, lastSeen: d.last_seen, apps, este: false };
 };
 interface PedidoLinha { id: string; conta_id: string; tipo: string; detalhe: string | null; maquina_id: string | null; criado_em: string; atendido_em: string | null; atendido_por: string | null; email: string; nome: string | null }
-export async function visaoAdmin(db: D1Database, busca: string, adminInicial: string, comVendas = false, agora = agoraIso()): Promise<AdminVisao> {
+export async function visaoAdmin(db: D1Database, busca: string, adminInicial: string, catalogo: readonly string[], comVendas = false, agora = agoraIso()): Promise<AdminVisao> {
   const like = `%${busca.replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
   const contas = (await db.prepare("SELECT * FROM contas WHERE apagada_em IS NULL AND (?1 = '' OR email LIKE ?2 ESCAPE '\\' OR nome LIKE ?2 ESCAPE '\\' OR nome_proprio LIKE ?2 ESCAPE '\\' OR sobrenome LIKE ?2 ESCAPE '\\') ORDER BY criada_em DESC LIMIT 500").bind(busca, like).all<ContaLinha>()).results;
   const [licencas, devices, maquinas, pedidosN, admins, pedidos, orgsLinhas] = await Promise.all([
@@ -396,7 +397,7 @@ export async function visaoAdmin(db: D1Database, busca: string, adminInicial: st
   // seguem à parte em `addonsPagos`. De um super admin vai também a gravada, que é o que o editor de licença muda.
   const licencasDe = (c: { id: string; email: string; criada_em: string }): { licenca: License; licencaGravada?: License } => {
     const gravada = licencaDaLinha(lic.get(c.id) ?? null, c.criada_em);
-    return adm.get(c.email) === "super" ? { licenca: licencaDoSuper(gravada), licencaGravada: gravada } : { licenca: gravada };
+    return adm.get(c.email) === "super" ? { licenca: licencaDoSuper(gravada, catalogo), licencaGravada: gravada } : { licenca: gravada };
   };
   const resumo: AdminContaResumo[] = contas.map((c) => ({ id: c.id, email: c.email, nome: nomeExibicao(c), foto: c.foto, admin: adm.get(c.email) ?? null, criadaEm: c.criada_em, ...licencasDe(c), addonsPagos: pagos.get(c.id) ?? [], extrasPagos: extrasDe.get(c.id) ?? [], devices: devs.get(c.id) ?? [], maquinas: maq.get(c.id) ?? 0, maquinaLimite: limiteValido(lic.get(c.id)?.maquina_limit), pedidos: ped.get(c.id) ?? 0 }));
   const todas = busca === "" ? resumo : (await db.prepare("SELECT id, email, criada_em FROM contas WHERE apagada_em IS NULL").all<{ id: string; email: string; criada_em: string }>()).results.map((c) => ({ id: c.id, licenca: licencasDe(c).licenca, devices: devs.get(c.id) ?? [] }));

@@ -8,8 +8,8 @@ import type { Env, SessaoLinha } from "../tipos.js";
 import { auditar, codigoPor, contaPorId, criarSessao, devicePor, devicesDaConta, gravarDevice, licencaDaConta, montarContaApi, papelAdmin, revogarFamilia, revogarSessao, sessaoPorHash, usarCodigo } from "../db.js";
 import { ACESSO_TTL_S, ESQUEMA_WEB, admitirDevice, agoraIso, assinarJwt, maisSegundos, pkceConfere, refreshTtlS, segredo, sha256Hex, uuid, validaPedidoToken } from "../sessao-core.js";
 import { json, lerJson } from "../http.js";
-import { promoLigada } from "./pagamentos.js";
-import type { Papel } from "../pagamento-core.js";
+import { catalogoAddons, promoLigada } from "./pagamentos.js";
+import { limiteDoPapel, type Papel } from "../pagamento-core.js";
 
 async function emitir(env: Env, conta: { id: string; email: string }, s: Omit<SessaoLinha, "refresh_hash" | "revogada_em">, refresh: string, papel?: Papel): Promise<Response> {
   const hash = await sha256Hex(refresh);
@@ -20,7 +20,7 @@ async function emitir(env: Env, conta: { id: string; email: string }, s: Omit<Se
   const adm = papel !== undefined ? papel : await papelAdmin(env.DB, linha.email, env.ADMIN_BOOTSTRAP_EMAIL);
   const agoraS = Math.floor(Date.now() / 1000);
   const acesso = await assinarJwt({ sub: conta.id, sid: s.id, dev: s.device_id, adm, iat: agoraS, exp: agoraS + ACESSO_TTL_S }, env.SESSAO_HMAC_KEY);
-  return json({ refresh, acesso, expiraEm: maisSegundos(ACESSO_TTL_S), conta: await montarContaApi(env.DB, linha, adm, s.device_id) });
+  return json({ refresh, acesso, expiraEm: maisSegundos(ACESSO_TTL_S), conta: await montarContaApi(env.DB, linha, adm, catalogoAddons(env), s.device_id) });
 }
 
 export async function postToken(req: Request, env: Env): Promise<Response> {
@@ -41,15 +41,15 @@ export async function postToken(req: Request, env: Env): Promise<Response> {
       const agoraS = Math.floor(Date.now() / 1000);
       const acesso = await assinarJwt({ sub: conta.id, sid: `web:${uuid()}`, dev: null, adm, iat: agoraS, exp: agoraS + ACESSO_TTL_S }, env.SESSAO_HMAC_KEY);
       await auditar(env.DB, conta.email, "login.entrou", conta.id, "console web", agora);
-      return json({ acesso, expiraEm: maisSegundos(ACESSO_TTL_S), conta: await montarContaApi(env.DB, conta, adm, null, promoLigada(env)) });
+      return json({ acesso, expiraEm: maisSegundos(ACESSO_TTL_S), conta: await montarContaApi(env.DB, conta, adm, catalogoAddons(env), null, promoLigada(env)) });
     }
     // O device deste Mac: conhecido (pelo uuid ou pelo alias antigo) mantém o status; novo cabe até o limite da licença.
     const d = pedido.device;
     const atual = await devicePor(env.DB, conta.id, d.id, d.alias);
     const papel = await papelAdmin(env.DB, conta.email, env.ADMIN_BOOTSTRAP_EMAIL);
-    const [licenca, todos] = await Promise.all([licencaDaConta(env.DB, conta, papel), devicesDaConta(env.DB, conta.id)]);
+    const [licenca, todos] = await Promise.all([licencaDaConta(env.DB, conta, papel, catalogoAddons(env)), devicesDaConta(env.DB, conta.id)]);
     const ativos = todos.filter((x) => x.status !== "pending" && x.id !== atual?.id).length;
-    const status = admitirDevice(atual, ativos, licenca.deviceLimit);
+    const status = admitirDevice(atual, ativos, limiteDoPapel(licenca.deviceLimit, papel));
     await gravarDevice(env.DB, conta.id, { ...d, status }, atual, agora, conta.dados_uso !== 0);
     if (atual === null) await auditar(env.DB, conta.email, status === "pending" ? "device.pedido" : "device.novo", conta.id, `${d.name || d.id} · ${d.app} ${d.versao}`, agora);
     const familia = uuid();
