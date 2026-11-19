@@ -12,11 +12,11 @@ import path from "node:path";
 import type { ContaView } from "../../shared/ipc";
 import { marcar } from "../app/depuracao";
 import { broadcast } from "../app/windows";
-import { produto } from "../app/variant";
+import { caps, produto } from "../app/variant";
 import { esquemaDe } from "../app/variant-core";
 import { gravar, temKeychain } from "../google/comum";
 import { log } from "../maquina/tunnel";
-import { sendToPicker } from "../maquina/picker";
+import { refreshPickerIfOpen, sendToPicker } from "../maquina/picker";
 import { parseRetornoAuth } from "./deep-link-core";
 import { deviceIdentidade, devicePedido } from "./device";
 import { FOTO_MAX, URLS, deveRenovar, erroDaApi, novoLogin, parseContaInfo, parseLoginPendente, parsePrefs, parseSessao, retornoConfere, sessaoAcabou, urlDeLogin, type ContaPrefs, type LoginPendente, type SessaoGuardada } from "./conta-core";
@@ -90,7 +90,12 @@ function garantirFoto(s: SessaoGuardada): void {
     finally { fotoBuscando = null; }
   })();
 }
-const avisar = (): ContaView => { const v = contaView(); broadcast("conta:changed", v); sendToPicker("conta:changed", v); return v; };
+const avisar = (): ContaView => {
+  const v = contaView(); broadcast("conta:changed", v); sendToPicker("conta:changed", v);
+  // No Gestão a lista de pessoas depende do papel da conta (picker.ts): entrou, saiu ou o papel mudou → o seletor relê.
+  if (caps().supportAdmin) refreshPickerIfOpen();
+  return v;
+};
 /** Há sessão guardada neste Mac? É o portão: sem conta, o app só mostra o seletor com o cartão de login. */
 export const contaEntrada = (): boolean => lerSessao() !== null;
 const ouvintesSaida = new Set<() => void>();

@@ -137,3 +137,23 @@ export function erroDaApi(status: number, corpo: unknown): string {
 export const sessaoAcabou = (status: number): boolean => status === 401;
 /** Retorno do deep link confere com o login pendente? (state igual: o code é de outro login ou de outro app senão.) */
 export const retornoConfere = (pendente: LoginPendente | null, state: string): boolean => pendente !== null && pendente.state === state;
+
+/**
+ * Quem abre o meu-bot-admin-gestao: só conta com papel de admin ou super admin. "sem-conta": ninguém entrou (o seletor
+ * mostra o cartão de login); "sem-papel": entrou uma conta comum, que não vê as pessoas nem abre máquina.
+ */
+export type AcessoGestao = "ok" | "sem-conta" | "sem-papel";
+export function acessoGestao(conta: { admin: "super" | "admin" | null } | null): AcessoGestao {
+  if (conta === null) return "sem-conta";
+  return conta.admin === "super" || conta.admin === "admin" ? "ok" : "sem-papel";
+}
+/**
+ * O papel que vale na hora de abrir uma máquina pelo Gestão: o que o servidor confirmou agora; sem resposta (este Mac
+ * sem internet, API fora), o último confirmado, que é o guardado na sessão. O suporte não para por uma queda da API, e
+ * quem foi rebaixado perde o acesso na primeira conferência que chegar ao servidor.
+ */
+export function papelParaGestao<P extends "super" | "admin" | null>(confirmado: { admin: P } | null, guardado: { admin: P } | null): { admin: P } | null {
+  return confirmado ?? guardado;
+}
+export const SEM_PAPEL_GESTAO = "Esta conta não tem acesso à gestão: só admin ou super admin. Saia e entre com uma conta de admin.";
+
