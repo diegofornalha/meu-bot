@@ -52,6 +52,8 @@ export interface Env {
   PROMO_DIAS?: string;
   /** Secret: api_secret do Measurement Protocol do fluxo Web do GA4 (a compra vai ao Analytics pelo servidor). */
   GA_MP_SECRET?: string;
+  /** Secret: o token de quem atende os leads do site (32+ caracteres) para ler e qualificar um código por visita. Sem ele, /leads responde 503. */
+  LEADS_TOKEN?: string;
 }
 
 export interface ContaLinha {

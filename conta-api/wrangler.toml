@@ -9,6 +9,8 @@
 # Assinatura do Pro (src/rotas/pagamentos.ts), opcionais: ABACATEPAY_KEY (chave de API; no staging, a do Modo Teste),
 # ABACATEPAY_WEBHOOK_SECRET (o secret do webhook v2, 32+ caracteres) e GA_MP_SECRET (api_secret do Measurement Protocol
 # do fluxo Web do GA4). Sem ABACATEPAY_KEY, o webhook ou ABACATEPAY_PRODUTO, o console não mostra "Assinar".
+# Leads do site (src/rotas/leads.ts), opcional: LEADS_TOKEN (32+ caracteres; quem atende lê e qualifica o código por
+# visita). Sem ele, GET /leads/<código> e POST /leads/<código>/qualificar respondem 503.
 # Vars (abaixo): projeto Firebase, origem da página e o e-mail do primeiro super admin.
 name = "conta-api"
 main = "src/index.ts"

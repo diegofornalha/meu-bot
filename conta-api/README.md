@@ -113,6 +113,16 @@ nesta versão: o rodapé do site diz que medimos visitas sem anúncios e sem dad
 Campanha: o `page_location` leva só as chaves de `CHAVES_CAMPANHA` (`src/analytics-core.ts`: `utm_*`, `gclid`, `gbraid`,
 `wbraid`); o resto da query e o fragmento nunca vão. Assim o clique de um anúncio chega ao GA4 com a campanha.
 
+**Código por visita (lead do WhatsApp).** Na home, todo botão de WhatsApp para o nosso número leva no fim da mensagem
+pronta um código de seis símbolos ("cód: ABC234"), um por aba. No clique, o site grava o código por `POST /lead-ref`
+(host do site, sem login, limite por IP; `src/rotas/leads.ts`, regras em `src/lead-core.ts`, tabela `lead_ref`,
+migração 0014) com o botão, a campanha, o clique do anúncio e o client_id/session_id do GA4. Quem atende usa a API com
+`Authorization: Bearer <LEADS_TOKEN>` (secret, 32+ caracteres; sem ele as rotas respondem 503):
+`GET /leads/<código>` devolve a campanha, e `POST /leads/<código>/qualificar` marca o lead e manda `qualify_lead` ao
+GA4 pelo Measurement Protocol, uma vez por código. A resposta diz o que houve em `analytics`: `enviado`, `sem-visita`
+(a pessoa bloqueou o Analytics), `desligado` (sem `GA_ID` ou `GA_MP_SECRET`) ou `recusado`. Para o Ads contar,
+`qualify_lead` precisa ser evento principal na propriedade e conversão importada na conta do Ads.
+
 **Lista de espera (Windows).** A rede de Pesquisa do Google Ads não separa Mac de Windows no computador. Quem chega de
 Windows não recebe o download do Mac: vê "Avise-me quando sair para Windows" (WhatsApp da Coflow) e um campo de e-mail
 ou WhatsApp, gravado por `POST /lista-espera` (host do site, sem login, limite por IP; `src/rotas/lista.ts`, regras em

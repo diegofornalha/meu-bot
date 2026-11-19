@@ -33,7 +33,23 @@
         const link = cel.linkParaMac(location.search, a.closest(".win") ? "windows" : "celular", location.origin);
         a.href = a.dataset.via === "email" ? `mailto:?subject=${encodeURIComponent("meu-bot para Mac")}&body=${encodeURIComponent(`Baixar no Mac: ${link}`)}` : `https://wa.me/?text=${encodeURIComponent(`Baixar o meu-bot no Mac: ${link}`)}`;
       }
-      for (const a of document.querySelectorAll('a[data-ev="falar_whatsapp"]')) a.href = cel.zapComRef(a.href, ref);
+      // O código da visita vai na mensagem de toda conversa com a gente (uma por aba: recarregar não troca o código).
+      let codigo = null;
+      try { codigo = sessionStorage.getItem("mb-lead"); } catch { /* sem sessionStorage */ }
+      if (!/^[A-HJ-NP-Z2-9]{6}$/.test(codigo || "")) { try { codigo = cel.codigoVisita(crypto.getRandomValues(new Uint8Array(6))); sessionStorage.setItem("mb-lead", codigo); } catch { /* sem crypto ou sem sessionStorage: fica o que deu */ } }
+      for (const a of document.querySelectorAll('a[data-ev="falar_whatsapp"], a[data-ev="lista_windows"]')) if (a.href.startsWith("https://wa.me/55")) a.href = cel.zapComRef(a.href, a.dataset.ev === "falar_whatsapp" ? ref : null, codigo);
+      // O código só é gravado quando a pessoa clica (POST /lead-ref), com a visita do Analytics já lida.
+      if (codigo) {
+        let visita = null, mandou = false;
+        if (typeof ga.visita === "function") void ga.visita().then((v) => { visita = v; });
+        document.addEventListener("click", (e) => {
+          const a = e.target instanceof Element ? e.target.closest('a[data-ev="falar_whatsapp"], a[data-ev="lista_windows"]') : null;
+          if (!a || mandou || !a.href.startsWith("https://wa.me/55")) return;
+          mandou = true;
+          let clique = null; try { clique = sessionStorage.getItem("mb-clique"); } catch { /* sem sessionStorage */ }
+          try { void fetch("/lead-ref", { method: "POST", keepalive: true, headers: { "content-type": "application/json" }, body: JSON.stringify(cel.corpoDoLead(codigo, a.dataset.origem, location.search, visita, clique)) }).catch(() => { mandou = false; }); } catch { mandou = false; }
+        });
+      }
     }
     if (celular) {
       document.body.classList.add("mobile");

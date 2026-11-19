@@ -8,6 +8,8 @@
  * - conta.agentesgrok.com: a API (POST /sessao, POST /token, POST /sessao/sair, GET|PATCH|DELETE /conta, POST /conta/senha,
  *   GET /health; organizações GET|POST /orgs, GET /orgs/:slug/publico (sem login), GET|PATCH|DELETE /orgs/:slug, POST /orgs/:slug/membros, PATCH|DELETE /orgs/:slug/membros/:email;
  *   para admins GET /admin/visao, POST /admin/suporte (o admin-gestao envia o resumo de uma janela de suporte), GET /admin/suporte (só super: console /support-window), GET /admin/auditoria (só super: contas apagadas, vendas ocultadas e o registro de ações), POST /admin/vendas/(assinaturas|pagamentos)/:id/(ocultar|mostrar) (só super: tira da tela Assinaturas ou traz de volta), PATCH /admin/contas/:id/licenca, DELETE /admin/contas/:id (só super: apaga a conta), POST /admin/contas/:id/devices/:device/liberar, DELETE /admin/contas/:id/devices/:device, POST|PUT /admin/contas/:id/senha, POST /admin/pedidos/:id/atender, PUT|DELETE /admin/perfis/:email, PATCH /admin/orgs/:slug).
+ * Código por visita (rotas/leads.ts): POST /lead-ref no host do site (sem login) e, na API, GET /leads/:codigo e
+ * POST /leads/:codigo/qualificar (Bearer LEADS_TOKEN, sem login de conta).
  * Assinatura do Pro pela AbacatePay: POST /conta/assinatura (logado, devolve a url do pagamento), POST
  * /conta/assinatura/cancelar (logado, cancela a própria) e o webhook
  * POST /pagamentos/abacatepay (src/rotas/pagamentos.ts); desligados sem os secrets ABACATEPAY_*.
@@ -25,6 +27,7 @@ import { GUIAS, lerReleases, novidadesHtml, sitemapXml } from "./novidades-core.
 import { CSP_ADS, CSP_GA, gaIds } from "./analytics-core.js";
 import { caminhoCanonico, llmsPorPagamentos, paginaDaPromoDesligada, redirecionamentoInicial, paginaForaDoAr } from "./site-core.js";
 import { postListaEspera } from "./rotas/lista.js";
+import { postLeadRef, rotaLeads } from "./rotas/leads.js";
 import { deleteMaquina, postMaquina, postRenovarLicenca } from "./rotas/maquinas.js";
 import { addonsAVenda, extrasAVenda, pagamentosLigados, deleteAdminAssinatura, postAssinatura, postCancelarAssinatura, postWebhookAbacate, promoLigada } from "./rotas/pagamentos.js";
 import { deleteMembro, deleteOrg, getOrg, getOrgPublico, getOrgs, patchAdminOrg, patchMembro, patchOrg, postMembro, postOrg } from "./rotas/orgs.js";
@@ -119,6 +122,8 @@ async function api(req: Request, env: Env, url: URL, espera: (p: Promise<unknown
   else if (rota === "POST /sessao") res = await postSessao(req, env);
   else if (/^GET \/orgs\/[a-z0-9-]{1,40}\/publico$/.test(rota)) res = await getOrgPublico(env, rota.split("/")[2]!);
   else if (rota === "POST /token") res = await postToken(req, env);
+  // Leads do site: sem login de conta (prova quem chama pelo LEADS_TOKEN) e sem CORS.
+  else if (rota.startsWith("GET /leads/") || rota.startsWith("POST /leads/")) return comCabecalhos((await rotaLeads(rota, req, env)) ?? json({ erro: "rota desconhecida" }, 404), {});
   // Webhook da AbacatePay: sem login (prova a origem pelo secret e o corpo pela assinatura) e sem CORS.
   else if (rota === "POST /pagamentos/abacatepay") return comCabecalhos(await postWebhookAbacate(req, env, url, espera), {});
   else if (rota === "POST /sessao/sair" || rota === "POST /sessao/console" || rota === "GET /conta" || rota === "PATCH /conta" || rota === "DELETE /conta" || rota === "POST /conta/senha" || rota === "POST /conta/assinatura" || rota === "POST /conta/assinatura/cancelar" || /^(POST|DELETE) \/conta\/maquinas(\/|$)/.test(rota) || /^(GET|POST|PATCH|DELETE) \/orgs(\/|$)/.test(rota) || rota.startsWith("GET /admin/") || rota.startsWith("POST /admin/") || rota.startsWith("PATCH /admin/") || rota.startsWith("PUT /admin/") || rota.startsWith("DELETE /admin/")) {
@@ -215,6 +220,8 @@ async function sitePagina(req: Request, env: Env, url: URL): Promise<Response> {
   if (sem !== null) return comCabecalhos(Response.redirect(`${env.SITE_ORIGIN}${sem}${url.search}`, 301), {});
   if (url.pathname === "/config.js") return comCabecalhos(configJs({ console: env.CONSOLE_ORIGIN, canal: env.CANAL, ga: gaDoEnv(env) }), {});
   // Lista de espera (hoje: quem chega de Windows): o único POST do site, na mesma origem das páginas.
+  // Código por visita: o clique num botão de WhatsApp grava o código que vai na mensagem pronta.
+  if (url.pathname === "/lead-ref") return comCabecalhos(req.method === "POST" ? await postLeadRef(req, env) : json({ erro: "use POST" }, 405), { "cache-control": "no-store" });
   if (url.pathname === "/lista-espera") return comCabecalhos(req.method === "POST" ? await postListaEspera(req, env) : json({ erro: "use POST" }, 405), { "cache-control": "no-store" });
   // "Console da conta" e "Não tem uma conta?" na home: sem depender de JS, o site manda ao console do ambiente certo.
   if (url.pathname === "/console" || url.pathname.startsWith("/account")) return comCabecalhos(Response.redirect(`${env.CONSOLE_ORIGIN}${url.pathname.startsWith("/account") ? url.pathname : "/account/overview"}`, 302), { "cache-control": "no-store" });
