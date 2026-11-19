@@ -5,13 +5,14 @@
  * (rotas/maquinas.ts). Tudo fica na auditoria.
  */
 import type { Env, TipoVenda } from "../tipos.js";
-import { apagarConta, ativarDevice, atenderPedido, auditoriaAdmin, marcarVendaOculta, encerrarAddonPago, encerrarExtraPago, auditar, contaPorId, contarSupers, devicesDaConta, gravarLicenca, licencaGravada, removerDevice, gravarPerfil, gravarProvedor, removerPerfil, revogarSessoesDaConta, visaoAdmin } from "../db.js";
+import { apagarConta, ativarDevice, atenderPedido, auditoriaAdmin, marcarVendaOculta, papelAdmin, encerrarAddonPago, encerrarExtraPago, auditar, contaPorId, contarSupers, devicesDaConta, gravarLicenca, licencaGravada, removerDevice, gravarPerfil, gravarProvedor, removerPerfil, revogarSessoesDaConta, visaoAdmin } from "../db.js";
 import { consultarFirebase, definirSenhaFirebase } from "../firebase-admin.js";
 import { DEVICE_ID_RE, UUID_RE, decidirLiberarDevice, ehAdminInicial, validaBusca, validaEmail, validaPapel, validaPatchLicenca, validaSenhaNova } from "../sessao-core.js";
 import { json, lerJson, type Autenticado } from "../http.js";
 import { assinaturaIdValido } from "../pagamento-core.js";
 import { enviarEmailSenha, impedimentosDeApagar } from "./conta.js";
 import { catalogoAddons } from "./pagamentos.js";
+import { limiteDoPapel } from "../pagamento-core.js";
 
 export async function getAdminVisao(auth: Autenticado, env: Env, url: URL): Promise<Response> {
   if (auth.claims.adm === null) return json({ erro: "só admin" }, 403);
@@ -45,10 +46,10 @@ export async function postLiberarDevice(auth: Autenticado, env: Env, id: string,
   const conta = await contaPorId(env.DB, id);
   if (conta === null) return json({ erro: "conta não existe" }, 404);
   const corpo = (await lerJson(req)) as Record<string, unknown> | null;
-  const [devices, licenca] = await Promise.all([devicesDaConta(env.DB, conta.id), licencaGravada(env.DB, conta)]);
+  const [devices, licenca, papel] = await Promise.all([devicesDaConta(env.DB, conta.id), licencaGravada(env.DB, conta), papelAdmin(env.DB, conta.email, env.ADMIN_BOOTSTRAP_EMAIL)]);
   const device = devices.find((d) => d.id === deviceId);
   if (device === undefined) return json({ erro: "device não existe nesta conta" }, 404);
-  const d = decidirLiberarDevice(device.status, devices.filter((x) => x.status !== "pending").length, licenca.deviceLimit, corpo?.subirLimite === true);
+  const d = decidirLiberarDevice(device.status, devices.filter((x) => x.status !== "pending").length, limiteDoPapel(licenca.deviceLimit, papel), corpo?.subirLimite === true);
   if ("erro" in d) return json({ erro: d.erro, noLimite: true }, 409);
   if (d.acao === "ja-ativo") return json({ ok: true, deviceLimit: licenca.deviceLimit });
   // Ativa antes de subir o limite: se o device sumiu no meio (removido por outro admin), o limite não muda à toa.

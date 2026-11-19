@@ -346,6 +346,13 @@ export function licencaDoSuper<L extends LicencaBase & { trialEnd: string | null
 }
 
 /**
+ * O limite (de devices ou de máquinas) que vale para a conta: o super admin não tem limite, seja o que for que esteja
+ * gravado. O `Infinity` só serve para decidir no servidor (admitirDevice, admitirMaquina, cabeNoLimite): nunca vai
+ * num JSON, onde viraria null. As respostas seguem com o número gravado, e as telas mostram "∞" pelo `semPrazo`.
+ */
+export const limiteDoPapel = (limite: number, papel: Papel): number => (papel === "super" ? Infinity : limite);
+
+/**
  * A licença que o app e o console recebem: a gravada mais os add-ons pagos que ainda não venceram. O app só libera um
  * add-on se a licença não estiver vencida; por isso, quem paga um add-on com o Pro ou o teste já vencidos recebe o
  * plano grátis (sem prazo) com os add-ons pagos, e não uma licença vencida que bloquearia o que foi pago. Nesse caso os

@@ -81,16 +81,22 @@ test("super admin com a licença gravada expirada: Pro ativo sem prazo no consol
     assert.equal((await DB.prepare("SELECT COUNT(*) AS n FROM pagamento_checkouts").first()).n, 0, "nenhum checkout foi criado");
 
     // A licença por máquina: a mesma regra, e o backend da máquina a aceita como Pro em vigor.
-    const M1 = "5d2c1c0a-3f1b-4a52-8b8e-1f2a3b4c5d6e", M2 = "7e3d2d1b-4a2c-4b63-9c9f-2a3b4c5d6e7f", M3 = "8b4e3e2c-5b3d-4c74-8d0a-3b4c5d6e7f8a";
+    const M1 = "5d2c1c0a-3f1b-4a52-8b8e-1f2a3b4c5d6e", M2 = "7e3d2d1b-4a2c-4b63-9c9f-2a3b4c5d6e7f", M3 = "8b4e3e2c-5b3d-4c74-8d0a-3b4c5d6e7f8a", M4 = "9c5f4f3d-6c4e-4d85-9e1b-4c5d6e7f8a9b";
     r = await chamar("POST", "/conta/maquinas", { id: M1, apelido: "Karen" }, ts);
     const v = be.verificaLicencaAssinada(r.corpo.licenca, { chaves, maquina: M1 });
     assert.equal(r.status, 200); assert.equal(v.ok, true);
     assert.deepEqual([v.payload.licenca.plan, v.payload.licenca.status, v.payload.licenca.expiresAt, v.payload.licenca.trialEnd], ["pro", "active", null, null]);
     assert.deepEqual(v.payload.licenca.produtos, [...catalogo, "meu-bot-fit"].sort(), "a máquina do super admin libera todos os add-ons");
+    // Máquinas sem limite para o super admin: a segunda entra, com o limite gravado em 1; nada é gravado no limite.
     r = await chamar("POST", "/conta/maquinas", { id: M2 }, ts);
-    assert.deepEqual([r.status, r.corpo.noLimite], [409, true], "o limite de máquinas do super admin não muda");
+    assert.equal(r.status, 200, JSON.stringify(r.corpo));
+    assert.equal(be.verificaLicencaAssinada(r.corpo.licenca, { chaves, maquina: M2 }).ok, true);
+    assert.equal((await chamar("POST", `/conta/maquinas/${M1}/licenca`, undefined, ts)).status, 200, "e a primeira continua renovando");
+    assert.equal((await chamar("GET", "/conta", undefined, ts)).corpo.maquinaLimite, 1, "o número gravado segue o mesmo; a tela mostra ∞ pelo semPrazo");
     r = await chamar("POST", "/conta/maquinas", { id: M3 }, tc);
     assert.equal(be.verificaLicencaAssinada(r.corpo.licenca, { chaves, maquina: M3 }).payload.licenca.status, "expired", "conta comum: a máquina recebe a licença expirada");
+    r = await chamar("POST", "/conta/maquinas", { id: M4 }, tc);
+    assert.deepEqual([r.status, r.corpo.noLimite], [409, true], "conta comum: o limite de máquinas continua valendo");
 
     // A lista do admin: a licença em vigor do super (Pro sem prazo) e, à parte, a gravada, que o editor mostra e muda.
     r = await chamar("GET", "/admin/visao", undefined, ts);

@@ -1,5 +1,5 @@
 import { avisoDepoisDo404, pedeReleitura, visaoVelha } from "./admin-core.js";
-import { INFINITO, SEM_PRAZO, TODOS_ADDONS, contagemRegressiva, estadoAssinaturaPro, fase, pedidoAssinar, podeAdicionarMaquina, promoNaTela, reaisCurto, semPrazo, vagasDeMaquina } from "./plano-core.js";
+import { INFINITO, SEM_LIMITE, SEM_PRAZO, TODOS_ADDONS, contagemRegressiva, estadoAssinaturaPro, fase, pedidoAssinar, podeAdicionarMaquina, promoNaTela, reaisCurto, semPrazo, vagasDeMaquina } from "./plano-core.js";
 // Console da conta meu-bot (console.agentesgrok.com/account/* e /organizations/<slug>/members|settings, molde Rambox). Entra pela mesma página de
 // login do app (auth.agentesgrok.com) com esquema=web: o console gera state + PKCE, a página devolve #code&state, e
 // POST /token {grant:"web"} vira um token de acesso de 1 h guardado neste navegador (localStorage: outra aba, inclusive
@@ -633,7 +633,7 @@ function pintarAdminContas(v) {
     else for (const p of l.produtos) tdAd.append(selo(`${rotuloProduto(p)} · concedido`), document.createTextNode(" "));
     if (pagosC.length === 0 && extrasC.length === 0 && l.produtos.length === 0) tdAd.textContent = "-";
     tr.append(tdAd);
-    const dv = el("td", "", `${ativos}/${l.deviceLimit}`); if (pend > 0) dv.append(document.createTextNode(" "), selo(`${pend} pendente${pend === 1 ? "" : "s"}`, "mau")); tr.append(dv);
+    const dv = el("td", "", semPrazo(l) ? `${ativos}/` : `${ativos}/${l.deviceLimit}`); if (semPrazo(l)) dv.append(infinito(SEM_LIMITE)); if (pend > 0) dv.append(document.createTextNode(" "), selo(`${pend} pendente${pend === 1 ? "" : "s"}`, "mau")); tr.append(dv);
     tr.append(el("td", "", String(c.maquinas)), el("td", "", String(c.pedidos)), el("td", "", data(c.criadaEm)));
     const acao = el("td"); const b = el("button", "btn btn-ghost", "Mudar"); b.type = "button"; b.addEventListener("click", () => editorLicenca(tr, c)); acao.append(b); tr.append(acao);
     tb.append(tr);
@@ -735,7 +735,8 @@ function pintarAdminDevices(v) {
     const tr = el("tr");
     // Uso da conta ao lado de cada Mac: ativos/limite, com aviso quando um Mac novo já cairia em Pendente.
     const ativos = c.devices.filter((x) => x.status !== "pending").length, limite = c.licenca.deviceLimit;
-    const uso = el("td", "", `${ativos}/${limite}`); if (ativos >= limite) uso.append(document.createTextNode(" "), selo("no limite", "mau"));
+    const semLimite = semPrazo(c.licenca);
+    const uso = el("td", "", semLimite ? `${ativos}/` : `${ativos}/${limite}`); if (semLimite) uso.append(infinito(SEM_LIMITE)); else if (ativos >= limite) uso.append(document.createTextNode(" "), selo("no limite", "mau"));
     tr.append(contaCelula(c.email, c.nome), uso, el("td", "", `${d.name || d.id.slice(0, 8)}${d.platform ? ` · ${d.platform}` : ""}`), el("td", "", d.user || "-"), el("td", "", Object.entries(d.apps ?? {}).map(([a, x]) => `${a} ${x.version}`).join(", ") || "-"));
     const st = el("td"); st.append(selo(d.status === "pending" ? "Pendente" : "Ativo", d.status === "pending" ? "mau" : "ok")); tr.append(st);
     tr.append(el("td", "", dataHora(d.lastSeen)));
@@ -824,7 +825,7 @@ function pintarOverview(c) {
     // A Visão geral não mostra prazo para as outras contas (ele está em Plano); para o super admin, o "∞" aparece já aqui.
     ...(semPrazo(l) ? [cartao("▦", "Vale até", infinito())] : []),
     cartao("↻", "Ciclo de cobrança", document.createTextNode(l.interval ? CICLO[l.interval] : "-")),
-    cartao("▭", "Devices", document.createTextNode(`${ativos} de ${l.deviceLimit}`), ...(pendentes > 0 ? [selo(`${pendentes} pendente${pendentes === 1 ? "" : "s"}`, "mau")] : [])),
+    cartao("▭", "Devices", ...(semPrazo(l) ? [document.createTextNode(`${ativos} de `), infinito(SEM_LIMITE)] : [document.createTextNode(`${ativos} de ${l.deviceLimit}`)]), ...(pendentes > 0 ? [selo(`${pendentes} pendente${pendentes === 1 ? "" : "s"}`, "mau")] : [])),
     cartao("⌂", "Máquinas", document.createTextNode(String(c.maquinas.length))),
     ...(semPrazo(l) ? [cartao("+", "Add-ons", infinito(TODOS_ADDONS))] : l.produtos.length > 0 ? [cartao("+", "Add-ons", ...l.produtos.map((p) => selo(rotuloProduto(p))))] : []),
     ...(c.pedidos > 0 ? [cartao("✉", "Pedidos abertos", document.createTextNode(String(c.pedidos)))] : []),
@@ -902,7 +903,7 @@ async function contaApagar(botao) {
 }
 function pintarDevices(c) {
   const l = c.licenca, ativos = c.devices.filter((d) => d.status !== "pending").length;
-  $("dv-resumo").textContent = `${c.devices.length} device${c.devices.length === 1 ? "" : "s"} · ${ativos} ativo${ativos === 1 ? "" : "s"} de ${l.deviceLimit} do plano.`;
+  $("dv-resumo").textContent = `${c.devices.length} device${c.devices.length === 1 ? "" : "s"} · ${ativos} ativo${ativos === 1 ? "" : "s"}${semPrazo(l) ? `, sem limite (${INFINITO})` : ` de ${l.deviceLimit} do plano`}.`;
   const tb = $("dv-tabela").querySelector("tbody"); tb.replaceChildren();
   if (c.devices.length === 0) { const tr = el("tr"); const td = el("td", "", "Nenhum device ainda: entre com a conta no app meu-bot de um Mac."); td.colSpan = 5; tr.append(td); tb.append(tr); }
   for (const d of c.devices) {
@@ -923,7 +924,7 @@ function pintarMaquinas(c) {
   const maquinas = c.maquinas ?? [], limite = c.maquinaLimite ?? 1;
   const ocupadas = maquinas.filter(ocupaVaga).length;
   const vagas = vagasDeMaquina(limite, c.maquinaExtras);
-  $("dv-maquinas").textContent = `${ocupadas} de ${limite} máquina${limite === 1 ? "" : "s"} em uso${vagas.detalhe === "" ? "" : ` (${vagas.detalhe})`}.`;
+  $("dv-maquinas").textContent = semPrazo(c.licenca) ? `${ocupadas} máquina${ocupadas === 1 ? "" : "s"} em uso, sem limite (${INFINITO}).` : `${ocupadas} de ${limite} máquina${limite === 1 ? "" : "s"} em uso${vagas.detalhe === "" ? "" : ` (${vagas.detalhe})`}.`;
   // No limite e com a máquina extra à venda: o caminho para ter mais uma fica ao lado da conta.
   if (ocupadas >= limite && EXTRA_MAQUINA !== null && cfg.pagamentos === "1" && podeAdicionarMaquina(c.licenca)) { const a = el("a", "", `Adicionar uma máquina por ${reais(EXTRA_MAQUINA.centavos)}/mês`); a.href = "/account/plan"; $("dv-maquinas").append(document.createTextNode(" "), a); }
   if (maquinas.length === 0) { const tr = el("tr"); const td = el("td", "", "Nenhuma máquina usa a licença da conta ainda."); td.colSpan = 4; tr.append(td); tb.append(tr); return; }
@@ -1096,8 +1097,8 @@ function pintarPlano(c) {
     cartao("✓", "Status", document.createTextNode(STATUS[l.status] ?? l.status)),
     cartao("▦", "Vale até", semPrazo(l) ? infinito() : document.createTextNode(l.expiresAt ? data(l.expiresAt) : l.trialEnd ? `trial até ${data(l.trialEnd)}` : "sem prazo")),
     cartao("↻", "Ciclo", document.createTextNode(l.interval ? CICLO[l.interval] : "-")),
-    cartao("▭", "Limite de devices", document.createTextNode(String(l.deviceLimit))),
-    cartao("⌂", "Máquinas com a licença", document.createTextNode(`${(c.maquinas ?? []).filter(ocupaVaga).length} de ${c.maquinaLimite ?? 1}${vagasDeMaquina(c.maquinaLimite, c.maquinaExtras).detalhe === "" ? "" : ` (${vagasDeMaquina(c.maquinaLimite, c.maquinaExtras).detalhe})`}`)),
+    cartao("▭", "Limite de devices", semPrazo(l) ? infinito(SEM_LIMITE) : document.createTextNode(String(l.deviceLimit))),
+    cartao("⌂", "Máquinas com a licença", semPrazo(l) ? infinito(SEM_LIMITE) : document.createTextNode(`${(c.maquinas ?? []).filter(ocupaVaga).length} de ${c.maquinaLimite ?? 1}${vagasDeMaquina(c.maquinaLimite, c.maquinaExtras).detalhe === "" ? "" : ` (${vagasDeMaquina(c.maquinaLimite, c.maquinaExtras).detalhe})`}`)),
     cartao("+", "Add-ons", ...(semPrazo(l) ? [infinito(TODOS_ADDONS)] : l.produtos.length > 0 ? l.produtos.map((p) => selo(rotuloProduto(p))) : [document.createTextNode("nenhum")])),
   );
   // Assinar pela AbacatePay: só com os pagamentos ligados no Worker (config.js) e enquanto não há Pro pago ativo.

@@ -1,7 +1,7 @@
 // Assinatura do Pro pela AbacatePay: conferência do webhook, leitura do evento, decisão, prazo e a compra do GA4.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { assinaturaIdValido, resultadoCancelamento, CHAVE_HMAC_ABACATEPAY, clientIdDeReserva, clientIdValido, compraGa4, decidir, hmacBase64, iguais, lerAddons, lerEvento, licencaComAddons, licencaDoSuper, licencaEmVigor, metodosSemPix, precoExigido, precoDaCobranca, pedidoDoCheckout, direitoPromo, lerPromo, refValida, sessionIdValido, validoAte, webhookConfere, umaPorContaEProduto, lerExtras, tipoDoExtra } from "../dist/pagamento-core.js";
+import { assinaturaIdValido, resultadoCancelamento, CHAVE_HMAC_ABACATEPAY, clientIdDeReserva, clientIdValido, compraGa4, decidir, hmacBase64, iguais, lerAddons, lerEvento, licencaComAddons, licencaDoSuper, limiteDoPapel, licencaEmVigor, metodosSemPix, precoExigido, precoDaCobranca, pedidoDoCheckout, direitoPromo, lerPromo, refValida, sessionIdValido, validoAte, webhookConfere, umaPorContaEProduto, lerExtras, tipoDoExtra } from "../dist/pagamento-core.js";
 
 const SECRET = "s".repeat(40);
 const REF = "mb_123e4567-e89b-12d3-a456-426614174000";
@@ -390,4 +390,20 @@ test("licencaEmVigor: licença expirada gravada + papel super = Pro ativo sem pr
   assert.equal(licencaEmVigor(expirada, [pago], "admin", [], agora).plan, "free");
   const sp = licencaEmVigor(expirada, [pago], "super", [], agora);
   assert.deepEqual([sp.plan, sp.status, sp.semPrazo, sp.produtos], ["pro", "active", true, ["meu-bot-finance", "meu-bot-fit"]]);
+});
+
+test("limiteDoPapel: o super admin não tem limite de devices nem de máquinas; admin comum e conta sem papel seguem o gravado", async () => {
+  const { admitirDevice } = await import("../dist/sessao-core.js");
+  const { admitirMaquina, cabeNoLimite } = await import("../dist/licenca-core.js");
+  assert.deepEqual([limiteDoPapel(1, "super"), limiteDoPapel(1, "admin"), limiteDoPapel(3, null)], [Infinity, 1, 3]);
+  // Device novo com 50 ativos: pendente para a conta comum, ativo para o super admin; o conhecido pendente segue pendente.
+  assert.equal(admitirDevice(null, 50, limiteDoPapel(1, null)), "pending");
+  assert.equal(admitirDevice(null, 50, limiteDoPapel(1, "super")), "active");
+  // Máquina nova com outra já vinculada: sem vaga no limite 1, e entra sem limite; a vinculada mais nova renova.
+  const agoraMs = Date.parse("2026-11-19T00:00:00.000Z");
+  const daConta = [{ id: "a", ultimaEmissaoEm: "2026-11-18T00:00:00.000Z", desvinculadaEm: null }];
+  assert.equal("erro" in admitirMaquina(daConta, "b", limiteDoPapel(1, null), agoraMs), true);
+  assert.deepEqual(admitirMaquina(daConta, "b", limiteDoPapel(1, "super"), agoraMs), { acao: "vincular" });
+  const posicoes = [{ id: "a", criadaEm: "2026-11-01", desvinculadaEm: null }, { id: "b", criadaEm: "2026-11-02", desvinculadaEm: null }];
+  assert.deepEqual([cabeNoLimite(posicoes, "b", limiteDoPapel(1, null)), cabeNoLimite(posicoes, "b", limiteDoPapel(1, "super"))], [false, true]);
 });

@@ -9,7 +9,7 @@ import { auditar, codigoPor, contaPorId, criarSessao, devicePor, devicesDaConta,
 import { ACESSO_TTL_S, ESQUEMA_WEB, admitirDevice, agoraIso, assinarJwt, maisSegundos, pkceConfere, refreshTtlS, segredo, sha256Hex, uuid, validaPedidoToken } from "../sessao-core.js";
 import { json, lerJson } from "../http.js";
 import { catalogoAddons, promoLigada } from "./pagamentos.js";
-import type { Papel } from "../pagamento-core.js";
+import { limiteDoPapel, type Papel } from "../pagamento-core.js";
 
 async function emitir(env: Env, conta: { id: string; email: string }, s: Omit<SessaoLinha, "refresh_hash" | "revogada_em">, refresh: string, papel?: Papel): Promise<Response> {
   const hash = await sha256Hex(refresh);
@@ -49,7 +49,7 @@ export async function postToken(req: Request, env: Env): Promise<Response> {
     const papel = await papelAdmin(env.DB, conta.email, env.ADMIN_BOOTSTRAP_EMAIL);
     const [licenca, todos] = await Promise.all([licencaDaConta(env.DB, conta, papel, catalogoAddons(env)), devicesDaConta(env.DB, conta.id)]);
     const ativos = todos.filter((x) => x.status !== "pending" && x.id !== atual?.id).length;
-    const status = admitirDevice(atual, ativos, licenca.deviceLimit);
+    const status = admitirDevice(atual, ativos, limiteDoPapel(licenca.deviceLimit, papel));
     await gravarDevice(env.DB, conta.id, { ...d, status }, atual, agora, conta.dados_uso !== 0);
     if (atual === null) await auditar(env.DB, conta.email, status === "pending" ? "device.pedido" : "device.novo", conta.id, `${d.name || d.id} · ${d.app} ${d.versao}`, agora);
     const familia = uuid();

@@ -47,9 +47,10 @@ export async function postAssinatura(auth: Autenticado, env: Env, req: Request):
   // O que vai no checkout além do Pro: o add-on ou o extra (null = Pro).
   const item = extra ?? addon;
   const agoraMs = Date.now();
-  // O super admin já tem o Pro e todos os add-ons; só a máquina extra ele assina. Lido da tabela, não do token de 1 h.
+  // O super admin já tem o Pro, todos os add-ons e máquinas sem limite: não assina nada. Lido da tabela, não do token de 1 h.
   const papel = await papelAdmin(env.DB, auth.conta.email, env.ADMIN_BOOTSTRAP_EMAIL);
   if (extra !== null) {
+    if (papel === "super") return json({ erro: "sua conta de super admin já usa a licença em quantas máquinas quiser" }, 409);
     // Máquina extra só serve a quem tem o Pro valendo (a licença que a máquina recebe é a do Pro). Não há "já tem":
     // cada assinatura é uma máquina a mais, até o teto.
     const l = await licencaDaConta(env.DB, auth.conta, papel, catalogoAddons(env));
