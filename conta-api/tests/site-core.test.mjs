@@ -128,7 +128,7 @@ test("carrossel da home: o próximo quadro dá a volta nas pontas e o quadro à 
 test("celular da home: iPad conta como celular, o link para o Mac leva a campanha e a conversa leva o anúncio", () => {
   const window = {};
   vm.runInNewContext(readFileSync(new URL("../public/site/celular.js", import.meta.url), "utf8"), { window, URL, URLSearchParams });
-  const { ehCelular, linkParaMac, refDoAnuncio, zapComRef } = window.MEU_BOT_CELULAR;
+  const { ehCelular, linkParaMac, refDoAnuncio, zapComRef, codigoVisita, corpoDoLead } = window.MEU_BOT_CELULAR;
   const mac = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/18.0 Safari/605.1.15";
   assert.equal(ehCelular("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)", 5), true);
   assert.equal(ehCelular("Mozilla/5.0 (Linux; Android 15)", 5), true);
@@ -158,6 +158,13 @@ test("celular da home: iPad conta como celular, o link para o Mac leva a campanh
   const zap = "https://wa.me/5521923670743?text=Ol%C3%A1!%20Quero%20saber%20mais.";
   assert.equal(new URL(zapComRef(zap, "empresario")).searchParams.get("text"), "Olá! Quero saber mais. (ref: empresario)");
   assert.equal(zapComRef(zap, null), zap, "sem anúncio, o link fica como está");
+  // O código da visita vai junto da referência, ou sozinho; o servidor aceita o que o site gera.
+  assert.equal(new URL(zapComRef(zap, "empresario", "ABC234")).searchParams.get("text"), "Olá! Quero saber mais. (ref: empresario · cód: ABC234)");
+  assert.equal(new URL(zapComRef(zap, null, "ABC234")).searchParams.get("text"), "Olá! Quero saber mais. (cód: ABC234)");
+  assert.equal(codigoVisita(Uint8Array.from([0, 31, 32, 255, 8, 13])), "A9A9JP", "cada byte escolhe um dos 32 símbolos");
+  assert.equal(codigoVisita(new Uint8Array(3)), null);
+  assert.deepEqual({ ...corpoDoLead("ABC234", "celular", anuncio, { clientId: "1.1700000000", sessionId: "1700000001" }, "AbCdEf1234567890") }, { codigo: "ABC234", origem: "celular", gaClientId: "1.1700000000", gaSessionId: "1700000001", gclid: "AbCdEf1234567890", utmSource: "google", utmMedium: "cpc", utmCampaign: "grok-mac-teste", utmContent: "empresario" });
+  assert.deepEqual({ ...corpoDoLead("ABC234", undefined, "?utm_source=a%20b", null, null) }, { codigo: "ABC234", origem: "site", gaClientId: null, gaSessionId: null, gclid: null, utmSource: null, utmMedium: null, utmCampaign: null, utmContent: null });
 });
 
 test("home: no celular a conversa no WhatsApp vem antes de mandar o link, e o celular.js carrega antes do site.js", () => {

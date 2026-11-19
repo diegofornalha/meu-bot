@@ -27,10 +27,27 @@
   };
   /** De qual anúncio a visita veio, para quem atende no WhatsApp: o grupo (utm_content) ou a campanha; null sem campanha. */
   const refDoAnuncio = (busca) => { const de = new URLSearchParams(busca || ""); return limpo(de.get("utm_content")) || limpo(de.get("utm_campaign")); };
-  /** O link do wa.me com a referência do anúncio no fim da mensagem pronta; sem referência, o link fica como está. */
-  const zapComRef = (href, ref) => {
-    if (!ref) return href;
-    try { const u = new URL(href); const t = u.searchParams.get("text"); if (!t) return href; return `${u.origin}${u.pathname}?text=${encodeURIComponent(`${t} (ref: ${ref})`)}`; } catch { return href; }
+  /** O alfabeto do código por visita: 32 símbolos, sem I, O, 0 e 1 (o mesmo de ALFABETO_LEAD, src/lead-core.ts). */
+  const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  /** O código por visita a partir de 6 bytes aleatórios (cada um escolhe um símbolo); null sem os 6 bytes. */
+  const codigoVisita = (bytes) => {
+    if (!bytes || bytes.length < 6) return null;
+    let c = ""; for (let i = 0; i < 6; i++) c += ALFABETO[bytes[i] & 31];
+    return c;
   };
-  if (typeof window !== "undefined") window.MEU_BOT_CELULAR = { ehCelular, linkParaMac, refDoAnuncio, zapComRef };
+  /**
+   * O link do wa.me com, no fim da mensagem pronta, a referência do anúncio e o código da visita, os que houver:
+   * "(ref: empresario · cód: ABC234)". Sem nenhum dos dois, o link fica como está.
+   */
+  const zapComRef = (href, ref, codigo) => {
+    const fim = [ref ? `ref: ${ref}` : null, codigo ? `cód: ${codigo}` : null].filter(Boolean).join(" · ");
+    if (!fim) return href;
+    try { const u = new URL(href); const t = u.searchParams.get("text"); if (!t) return href; return `${u.origin}${u.pathname}?text=${encodeURIComponent(`${t} (${fim})`)}`; } catch { return href; }
+  };
+  /** O corpo do POST /lead-ref: o código, o botão, a visita do Analytics, o clique do anúncio e a campanha (só valores na forma). */
+  const corpoDoLead = (codigo, origem, busca, visita, clique) => {
+    const de = new URLSearchParams(busca || "");
+    return { codigo, origem: origem || "site", gaClientId: (visita && visita.clientId) || null, gaSessionId: (visita && visita.sessionId) || null, gclid: clique || null, utmSource: limpo(de.get("utm_source")), utmMedium: limpo(de.get("utm_medium")), utmCampaign: limpo(de.get("utm_campaign")), utmContent: limpo(de.get("utm_content")) };
+  };
+  if (typeof window !== "undefined") window.MEU_BOT_CELULAR = { ehCelular, linkParaMac, refDoAnuncio, zapComRef, codigoVisita, corpoDoLead };
 })();
