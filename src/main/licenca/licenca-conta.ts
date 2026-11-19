@@ -13,7 +13,7 @@ import { verificaLicencaAssinada } from "../conta/licenca-assinada-core";
 import { LOCAL_HOST } from "../maquina/localBackend";
 import { gravarJsonRemoto } from "../maquina/json-remoto";
 import { runSsh } from "../whatsapp/whatsapp";
-import { LICENCA_CONTA_PATH, MAQUINA_PATH, deveAvisarVista, deveRenovarLicenca, idDaMaquinaDe, jsonCru } from "./licenca-conta-core";
+import { LICENCA_CONTA_PATH, MAQUINA_PATH, deveAvisarVista, deveRenovarLicenca, vistaDepoisDaFalha, idDaMaquinaDe, jsonCru } from "./licenca-conta-core";
 
 export { LICENCA_CONTA_PATH, MAQUINA_PATH };
 const SEP = "<<<REA-SEP>>>";
@@ -142,6 +142,7 @@ export async function avisarMaquinaVista(host: string, origem: "admin" | "conta"
   if (!remota(host) || origem === undefined || contaView().conta === null) return;
   if (!deveAvisarVista(vistaEm.get(host), origem, now)) return;
   vistaEm.set(host, { em: now, origem });
-  try { if (!(await avisarMaquinaEmUso(await idDaMaquina(host), apelido(host), origem))) vistaEm.delete(host); }
-  catch (e) { vistaEm.delete(host); log(`[licenca] ${host}: aviso de máquina em uso falhou (${e instanceof Error ? e.message : String(e)})`); }
+  // Falhou: tenta de novo em 5 min, não a cada releitura da licença (cada tentativa é um SSH a mais).
+  try { if (!(await avisarMaquinaEmUso(await idDaMaquina(host), apelido(host), origem))) vistaEm.set(host, vistaDepoisDaFalha(origem, now)); }
+  catch (e) { vistaEm.set(host, vistaDepoisDaFalha(origem, now)); log(`[licenca] ${host}: aviso de máquina em uso falhou (${e instanceof Error ? e.message : String(e)})`); }
 }

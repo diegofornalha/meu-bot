@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 
 const req = createRequire(import.meta.url);
-const { deveRenovarLicenca, RENOVAR_APOS_MS, deveAvisarVista, AVISAR_VISTA_APOS_MS } = req("../../dist/main/licenca/licenca-conta-core.js");
+const { deveRenovarLicenca, RENOVAR_APOS_MS, deveAvisarVista, AVISAR_VISTA_APOS_MS, AVISAR_VISTA_RECUO_MS, vistaDepoisDaFalha } = req("../../dist/main/licenca/licenca-conta-core.js");
 const { parseContaInfo } = req("../../dist/main/conta/conta-core.js");
 
 const AGORA = Date.parse("2026-11-18T12:00:00Z"), DIA = 24 * 60 * 60 * 1000;
@@ -48,4 +48,11 @@ test("máquina em uso: avisa na primeira leitura, quando a origem muda e a cada 
   assert.equal(deveAvisarVista({ em: AGORA - 1000, origem: "admin" }, "admin", AGORA), false);
   assert.equal(deveAvisarVista({ em: AGORA - 1000, origem: "admin" }, "conta", AGORA), true, "aplicou a licença da conta: o console troca na hora");
   assert.equal(deveAvisarVista({ em: AGORA - AVISAR_VISTA_APOS_MS, origem: "conta" }, "conta", AGORA), true);
+});
+
+test("máquina em uso: depois de uma falha, a nova tentativa espera 5 min", () => {
+  const falhou = vistaDepoisDaFalha("admin", AGORA);
+  assert.equal(deveAvisarVista(falhou, "admin", AGORA + 1000), false, "não martela a cada releitura");
+  assert.equal(deveAvisarVista(falhou, "admin", AGORA + AVISAR_VISTA_RECUO_MS), true);
+  assert.equal(deveAvisarVista(falhou, "conta", AGORA + 1000), true, "origem mudou: avisa mesmo no recuo");
 });
