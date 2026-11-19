@@ -23,7 +23,7 @@ import { deleteAdminConta, deleteDevice, deletePerfil, getAdminAuditoria, postVe
 import { downloadMac, downloadWindows, REPO } from "./release-github.js";
 import { GUIAS, lerReleases, novidadesHtml, sitemapXml } from "./novidades-core.js";
 import { CSP_ADS, CSP_GA, gaIds } from "./analytics-core.js";
-import { caminhoCanonico, llmsPorPagamentos, paginaDaPromoDesligada, redirecionamentoInicial, rascunhoForaDoCanal } from "./site-core.js";
+import { caminhoCanonico, llmsPorPagamentos, paginaDaPromoDesligada, redirecionamentoInicial, paginaForaDoAr } from "./site-core.js";
 import { postListaEspera } from "./rotas/lista.js";
 import { deleteMaquina, postMaquina, postRenovarLicenca } from "./rotas/maquinas.js";
 import { addonsAVenda, extrasAVenda, pagamentosLigados, deleteAdminAssinatura, postAssinatura, postCancelarAssinatura, postWebhookAbacate, promoLigada } from "./rotas/pagamentos.js";
@@ -248,8 +248,6 @@ async function sitePagina(req: Request, env: Env, url: URL): Promise<Response> {
   // robots.txt e llms.txt vivem em public/site/ e saem na raiz do host; privacidade e termos também.
   const raiz: Record<string, string> = { "/robots.txt": "/site/robots.txt", "/llms.txt": "/site/llms.txt", "/privacidade": "/site/privacidade.html", "/termos": "/site/termos.html", "/grok-no-whatsapp": "/site/grok-no-whatsapp.html", "/parceria-xai": "/site/parceria-xai.html", "/baixar": "/site/baixar.html", "/perguntas": "/site/perguntas.html", "/grok-bot-e-meu-bot": "/site/grok-bot-e-meu-bot.html", "/guias": "/site/guias/index.html" };
   // Guias: só os da lista GUIAS (o resto cai na 404 do site).
-  // Rascunho da página de planos: só o staging a serve em /suporte (em produção o caminho cai na 404 do site).
-  if (env.CANAL === "staging") raiz["/suporte"] = "/site/suporte.html";
   // A página do Windows (versão de teste, noindex): nos dois sites, fora do sitemap.
   raiz["/baixar-windows"] = "/site/baixar-windows.html";
   // A página das regras da promoção do primeiro mês (noindex; só o console a linka, fora do sitemap e do llms.txt):
@@ -259,27 +257,18 @@ async function sitePagina(req: Request, env: Env, url: URL): Promise<Response> {
   const guia = /^\/guias\/([a-z0-9-]+)$/.exec(url.pathname)?.[1];
   if (guia && (GUIAS as readonly string[]).includes(guia)) raiz[url.pathname] = `/site/guias/${guia}.html`;
   const caminho = url.pathname === "/" ? "/site/index.html" : url.pathname === "/obrigado" ? "/site/obrigado.html" : raiz[url.pathname] ?? url.pathname;
-  // O rascunho dos planos não sai em produção nem pelo caminho direto do arquivo; a página da promoção desligada, idem.
-  const soStaging = rascunhoForaDoCanal(caminho, env.CANAL) || paginaDaPromoDesligada(caminho, promo);
-  let res = soStaging ? new Response(null, { status: 404 }) : await env.ASSETS.fetch(new Request(new URL(caminho, url.origin).toString(), { method: "GET", headers: req.headers }));
+  // O rascunho dos planos (suporte.html) não sai em nenhum ambiente, nem pelo caminho direto do arquivo; a página da
+  // promoção desligada, idem. /suporte não está no mapa de páginas: cai na 404 do site.
+  const foraDoAr = paginaForaDoAr(caminho) || paginaDaPromoDesligada(caminho, promo);
+  let res = foraDoAr ? new Response(null, { status: 404 }) : await env.ASSETS.fetch(new Request(new URL(caminho, url.origin).toString(), { method: "GET", headers: req.headers }));
   // Caminho que não existe: a página 404 do site (com status 404), em vez do corpo vazio dos assets.
-  if (res.status === 404 && (soStaging || !url.pathname.startsWith("/site/"))) res = new Response((await env.ASSETS.fetch(new Request(new URL("/site/404.html", url.origin).toString()))).body, { status: 404, headers: { "content-type": "text/html; charset=utf-8" } });
-  // A home é um HTML só para os dois canais, mas cada host entrega só a sua parte: em produção os blocos do ensaio
-  // (data-canal="staging" e a faixa) saem do HTML, porque o Google lê o que está escondido; em staging saem os de produção.
-  if (caminho === "/site/index.html") res = porCanal(res, env.CANAL === "staging" ? "staging" : "producao");
+  if (res.status === 404 && (foraDoAr || !url.pathname.startsWith("/site/"))) res = new Response((await env.ASSETS.fetch(new Request(new URL("/site/404.html", url.origin).toString()))).body, { status: 404, headers: { "content-type": "text/html; charset=utf-8" } });
   // Sempre revalida (no-cache + ETag dos assets): o site muda junto com o Worker, e um CSS velho de 5 min já mostrou a
   // página quebrada; no-store desligava também o voltar/avançar instantâneo do navegador.
-  // Staging é a mesma home em revisão: fora do Google, para não competir com agentesgrok.com.
+  // O HTML é o mesmo nos dois canais (o staging mostra o que a produção vai mostrar; a faixa e o selo vêm do site.js).
+  // Staging fica fora do Google, para não competir com agentesgrok.com.
   const robos = env.CANAL === "staging" ? { "x-robots-tag": "noindex, nofollow" } : {};
   return comCabecalhos(res, { "content-security-policy": cspDoSite(env), "cache-control": "no-cache", ...robos });
-}
-/** Tira do HTML os blocos do outro canal e, em staging, mostra os do ensaio e a faixa (o site.js faz o mesmo, mas o Google não roda JS). */
-function porCanal(res: Response, canal: "staging" | "producao"): Response {
-  const outro = canal === "staging" ? "producao" : "staging";
-  const rw = new HTMLRewriter().on(`[data-canal="${outro}"]`, { element(e) { e.remove(); } });
-  if (canal === "staging") rw.on(`[data-canal="staging"], #rascunho`, { element(e) { e.removeAttribute("hidden"); } });
-  else rw.on("#rascunho", { element(e) { e.remove(); } });
-  return rw.transform(res);
 }
 
 export default {

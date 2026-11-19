@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import vm from "node:vm";
 import { varsDoWrangler } from "../../scripts/release-core.mjs";
-import { llmsPorPagamentos, paginaDaPromoDesligada, caminhoCanonico, ehAliasDoSite, paraHttps, redirecionamentoInicial, semBarraFinal, rascunhoForaDoCanal } from "../dist/site-core.js";
+import { llmsPorPagamentos, paginaDaPromoDesligada, caminhoCanonico, ehAliasDoSite, paraHttps, redirecionamentoInicial, semBarraFinal, paginaForaDoAr, PAGINAS_FORA_DO_AR } from "../dist/site-core.js";
 
 test("paraHttps: http vira https com caminho e query; https e lixo ficam null", () => {
   assert.equal(paraHttps("http://agentesgrok.com/"), "https://agentesgrok.com/");
@@ -57,15 +57,41 @@ test("llmsPorPagamentos: a linha marcada sai sem a marca com pagamentos ligados 
   assert.equal(llmsPorPagamentos(t, false), "- Plano: R$ 97.\n- Outro");
 });
 
-test("rascunhoForaDoCanal: o rascunho dos planos só sai no staging, também pelo caminho do arquivo", () => {
-  assert.equal(rascunhoForaDoCanal("/site/suporte.html", "producao"), true);
-  assert.equal(rascunhoForaDoCanal("/site/suporte.html", undefined), true, "sem canal vale como produção");
-  assert.equal(rascunhoForaDoCanal("/site/suporte.html", "staging"), false);
-  // A página do Windows (versão de teste) sai também em produção desde 17 nov 2026.
-  assert.equal(rascunhoForaDoCanal("/site/baixar-windows.html", "producao"), false);
-  assert.equal(rascunhoForaDoCanal("/site/perguntas.html", "producao"), false);
-  // Em produção /suporte não está no mapa de páginas: o caminho segue cru e não é um arquivo do site.
-  assert.equal(rascunhoForaDoCanal("/suporte", "producao"), false);
+test("paginaForaDoAr: o rascunho dos planos não sai em nenhum ambiente, em nenhuma forma do caminho do arquivo", () => {
+  for (const c of ["/site/suporte.html", "/site/suporte", "/site/suporte/"]) assert.equal(paginaForaDoAr(c), true, c);
+  // A página do Windows (versão de teste) e as outras saem nos dois ambientes.
+  for (const c of ["/site/baixar-windows.html", "/site/perguntas.html", "/site/index.html", "/site/suporte.css"]) assert.equal(paginaForaDoAr(c), false, c);
+  // /suporte não está no mapa de páginas: o caminho segue cru, não é um arquivo do site e cai na 404.
+  assert.equal(paginaForaDoAr("/suporte"), false);
+  for (const a of PAGINAS_FORA_DO_AR) assert.ok(readFileSync(new URL(`../public${a}`, import.meta.url), "utf8").includes("NÃO É SERVIDA"), `${a} diz no topo que não é servida`);
+});
+
+// O staging mostra o que o cliente vai ver na produção: nenhuma página troca conteúdo por ambiente. O que identifica
+// o staging (faixa, selo e título) vem do site.js; noindex, /config.js, /health e a medição são do Worker.
+const arquivosDoSite = (dir = new URL("../public/site/", import.meta.url)) => readdirSync(dir, { withFileTypes: true }).flatMap((e) => e.isDirectory() ? arquivosDoSite(new URL(`${e.name}/`, dir)) : /\.(html|js|css|txt)$/.test(e.name) ? [new URL(e.name, dir)] : []);
+
+test("site: nenhum arquivo marca conteúdo por canal (data-canal), e o Worker não reescreve a home por ambiente", () => {
+  const arquivos = arquivosDoSite();
+  assert.ok(arquivos.length > 10, "achou os arquivos do site");
+  for (const a of arquivos) assert.ok(!/data-canal|dataset\.canal/.test(readFileSync(a, "utf8")), `${a.pathname} tem conteúdo por canal`);
+  const worker = readFileSync(new URL("../src/index.ts", import.meta.url), "utf8");
+  assert.ok(!/HTMLRewriter|porCanal/.test(worker), "o Worker entrega o HTML do site como está no repositório, igual nos dois canais");
+});
+
+test("site: no site.js o canal só identifica o ambiente (faixa, selo e título), e só um bloco depende dele", () => {
+  const js = readFileSync(new URL("../public/site/site.js", import.meta.url), "utf8");
+  assert.equal(js.match(/cfg\.canal/g)?.length, 1, "um uso só de cfg.canal");
+  const bloco = /if \(cfg\.canal === "staging"\) \{([\s\S]*?)\n  \}/.exec(js)?.[1] ?? "";
+  for (const marca of ['"rasc"', '"selo-canal"', 'document.title += " · staging"']) assert.ok(bloco.includes(marca), marca);
+  assert.equal(bloco.trim().split("\n").length, 3, "faixa, selo e título; nada mais");
+});
+
+test("site: nenhuma página publicada aponta para o rascunho /suporte", () => {
+  const fora = PAGINAS_FORA_DO_AR.map((a) => a.replace("/site/", ""));
+  for (const a of arquivosDoSite()) {
+    if (fora.some((f) => a.pathname.endsWith(`/public/site/${f}`))) continue;
+    assert.ok(!/href="\/suporte\b/.test(readFileSync(a, "utf8")), `${a.pathname} linka /suporte`);
+  }
 });
 
 test("home: o preço do Finanças escrito na página é o do catálogo de produção (wrangler.toml)", () => {
@@ -203,4 +229,41 @@ test("promoção: a página é noindex, para quem já testou, e nada no site a d
   assert.doesNotMatch(worker, /promocao/, "fora do sitemap");
   // O console linka as regras a partir do cartão da promoção.
   assert.match(readFileSync(new URL("../public/console/console.js", import.meta.url), "utf8"), /a\.href = `\$\{cfg\.site\}\/promocao`/);
+});
+
+// O Worker de verdade (dist/index.js) com as vars de cada ambiente do wrangler.toml e os arquivos de public/ no lugar
+// dos static assets: o que cada site responde.
+const siteDosDoisCanais = async () => {
+  const worker = (await import("../dist/index.js")).default;
+  const vars = varsDoWrangler(readFileSync(new URL("../wrangler.toml", import.meta.url), "utf8"));
+  const ASSETS = { fetch: async (r) => { try { return new Response(readFileSync(new URL(`../public${new URL(r.url).pathname}`, import.meta.url)), { headers: { "content-type": "text/html; charset=utf-8" } }); } catch { return new Response(null, { status: 404 }); } } };
+  const pedir = async (canal, caminho) => {
+    const env = { ...vars[canal], ASSETS };
+    const r = await worker.fetch(new Request(env.SITE_ORIGIN + caminho), env, { waitUntil() {} });
+    return { status: r.status, corpo: await r.text(), cabecalhos: Object.fromEntries(r.headers) };
+  };
+  return { pedir };
+};
+
+test("site: a home servida pelo Worker é a mesma nos dois canais; só o noindex difere", async () => {
+  const { pedir } = await siteDosDoisCanais();
+  const p = await pedir("producao", "/"), s = await pedir("staging", "/");
+  assert.deepEqual([p.status, s.status], [200, 200]);
+  assert.ok(p.corpo.includes('id="precos"') && p.corpo.includes("R$ 97"), "a home tem os planos");
+  assert.equal(s.corpo, p.corpo, "o HTML da home do staging é o da produção, byte a byte");
+  assert.equal(p.corpo, readFileSync(new URL("../public/site/index.html", import.meta.url), "utf8"), "e é o arquivo do repositório, sem reescrita");
+  const diferentes = [...new Set([...Object.keys(p.cabecalhos), ...Object.keys(s.cabecalhos)])].filter((k) => p.cabecalhos[k] !== s.cabecalhos[k]).sort();
+  assert.deepEqual(diferentes, ["x-robots-tag"]);
+  assert.deepEqual([p.cabecalhos["x-robots-tag"], s.cabecalhos["x-robots-tag"]], [undefined, "noindex, nofollow"]);
+  // O que identifica o ambiente: o canal no /config.js.
+  for (const canal of ["producao", "staging"]) assert.ok((await pedir(canal, "/config.js")).corpo.includes(`"canal":"${canal}"`), canal);
+});
+
+test("site: o rascunho /suporte responde a 404 do site nos dois canais, também pelo caminho do arquivo", async () => {
+  const { pedir } = await siteDosDoisCanais();
+  const pagina404 = readFileSync(new URL("../public/site/404.html", import.meta.url), "utf8");
+  for (const canal of ["producao", "staging"]) for (const caminho of ["/suporte", "/site/suporte.html", "/site/suporte"]) {
+    const r = await pedir(canal, caminho);
+    assert.deepEqual([r.status, r.corpo === pagina404], [404, true], `${canal} ${caminho}`);
+  }
 });

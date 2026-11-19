@@ -9,7 +9,10 @@ Um Worker só serve `agentesgrok.com` (site), `auth.`, `console.` e `conta.` (AP
 `-staging` (`site-staging.agentesgrok.com` …). O app (`npm run release…`) é outra coisa: ver skill `publicar`.
 
 **A regra: main → staging → produção, sempre nessa ordem e no mesmo histórico.** O que ainda vai sair fica no staging;
-a produção só recebe um commit que **já está no staging** e que o **dono aprovou**.
+a produção só recebe um commit que **já está no staging** e que o **dono aprovou**. **Ramo não vai para o staging:**
+ele é sempre o `origin/main`, e o script recusa qualquer outro commit (em 19 nov 2026 uma sessão publicou um ramo por
+cima da main e quem conferia o staging via outra coisa). Para ver um ramo antes do merge, veja "Ver um ramo antes do
+merge", abaixo.
 
 1. **Merge no `main`** de algo em `conta-api/`.
 2. **O staging recebe sozinho:** o agente da release (`scripts/release-auto.mjs`, a cada 10 min) vê que `conta-api/`
@@ -34,8 +37,9 @@ Cada ambiente diz o commit que tem no ar: `curl -s https://conta-staging.agentes
 
 - **Login no Cloudflare:** `cd conta-api && npx wrangler whoami`. Sem login, peça ao usuário para rodar no prompt
   `! cd <worktree>/conta-api && npx wrangler login` e clicar em **Allow** no navegador (conta que tem o agentesgrok.com).
-- **De onde publicar:** de um worktree, nunca do checkout principal (outras sessões o usam). Para a produção, o
-  worktree fica **no commit aprovado** (o script recusa outro):
+- **De onde publicar:** de um worktree, nunca do checkout principal (outras sessões o usam). Para o staging, o
+  worktree fica **no `origin/main`** (`git -C ../meu-bot-site-deploy fetch origin && git -C ../meu-bot-site-deploy
+  checkout -q --detach origin/main`). Para a produção, fica **no commit aprovado** (o script recusa outro):
   `git fetch origin && git worktree add --detach ../meu-bot-site-deploy <sha>` (se já existe:
   `git -C ../meu-bot-site-deploy checkout -q --detach <sha>`).
 - `conta-api/node_modules` não vem no worktree: o script roda `npm ci` dentro de `conta-api`.
@@ -45,7 +49,9 @@ Cada ambiente diz o commit que tem no ar: `curl -s https://conta-staging.agentes
 
 `node scripts/site-publicar.mjs …`, de dentro do worktree; para no primeiro erro.
 
-- **Sem argumento ou `--so-staging`:** `wrangler whoami`, `npm ci` e `npm test` em `conta-api`, migrações
+- **Sem argumento ou `--so-staging`:** antes de tudo, `git fetch origin` e a pergunta "o `HEAD` deste worktree é
+  exatamente o `origin/main`?". Não é (um ramo, uma main velha), ou o fetch falhou (sem rede): recusa com saída 1, sem
+  login, teste nem deploy, e diz o caminho (abrir a PR, mesclar, o staging recebe sozinho). Passando: `wrangler whoami`, `npm ci` e `npm test` em `conta-api`, migrações
   (`npm run migrar:staging`), deploy do staging com o commit (`wrangler deploy --env staging --var COMMIT:<sha>`) e a
   conferência no ar. Termina dizendo os dois comandos da aprovação. **Não publica a produção.**
 - **`--aprovar <sha> [--roteiro <arquivo>]`:** recusa se o staging não está exatamente nesse commit (e diz qual está).
@@ -69,9 +75,33 @@ O staging fica fora dos buscadores pelo cabeçalho `x-robots-tag: noindex, nofol
 produção. Confira também, à mão, o que a mudança da vez alterou (a página nova, o texto novo): o script só garante o
 básico.
 
-**Mostrar um branch no staging antes do merge:** `--so-staging` de dentro do worktree do branch funciona, mas dura
-pouco: na rodada seguinte (até 10 min) o agente vê que o staging não é a main e publica a main por cima. Commit de
-branch nunca chega à produção (o `--producao` recusa o que não está no `origin/main`).
+## Ver um ramo antes do merge
+
+O staging não serve para isso (`--so-staging` recusa o ramo). O Worker do ramo roda **neste Mac**, sem publicar nada e
+sem login no Cloudflare, de dentro de `conta-api` no worktree do ramo (com `node_modules`: `npm ci`, ou o symlink do
+checkout principal):
+
+```bash
+npx wrangler dev --env staging --host site-staging.agentesgrok.com --upstream-protocol https \
+  --persist-to "${TMPDIR:-/tmp}/meu-bot-wrangler-dev"
+# abre em http://localhost:8787 (outra porta: --port <n>)
+```
+
+- **As duas flags são obrigatórias.** O Worker escolhe o que servir pelo host e manda para https tudo o que chega por
+  http (`redirecionamentoInicial`, `conta-api/src/site-core.ts`). Sem `--upstream-protocol https`, toda rota responde
+  301 (para o próprio endereço, num laço); sem `--host`, o host é o da primeira rota do `wrangler.toml`, a API
+  (`conta-staging…`), e a home dá 404.
+- **Um host por vez.** `--host site-staging.agentesgrok.com` serve o site (home, `/baixar`, `/obrigado`, `/config.js`
+  com `canal: "staging"`, o `x-robots-tag`); `--host console-staging.agentesgrok.com` serve as páginas do console;
+  `--host auth-staging.agentesgrok.com`, as do login (a raiz dele redireciona para o console de verdade); sem `--host`,
+  a API (`/health` responde com `commit: null`). Conferido com o wrangler 4.158.0, o do `package-lock.json`.
+- **Limites.** O banco é um D1 local e vazio e os secrets não existem aqui: serve para ver página, texto, estilo e
+  rota, não login, pagamento nem dados. As páginas apontam para os endereços de verdade do staging (`/config.js`): um
+  clique em "entrar" sai do Mac e cai no staging no ar, que está na main, não no ramo. `/promocao` deu 404 aqui (ela só existe com a
+  promoção e os pagamentos ligados).
+- **`--persist-to` fora do repositório:** sem ele o wrangler grava o estado em `conta-api/.wrangler/`.
+
+Commit de ramo nunca chega à produção (o `--producao` recusa o que não está no `origin/main`).
 
 ## Roteiro
 
@@ -90,6 +120,7 @@ ar. Depois de publicar o staging, diga que a produção espera o "aprovado" e mo
 
 - O download do site lê o GitHub com cache de 10 min no edge: release nova aparece sozinha, sem deploy.
 - Nunca `npx wrangler deploy` à mão (o `npm run deploy` do `conta-api` recusa): sobe sem o commit e fura a ordem.
+- Ramo não vai para o staging, nem "só para mostrar": abra a PR, mescle, e o staging recebe a main.
 - Rollback: `npx wrangler rollback [--env staging]` volta ao deploy anterior; use se a conferência falhar e avise.
 - Paridade: as vars dos dois ambientes no `wrangler.toml` têm de ser iguais, fora as exceções escritas com motivo (e as
   temporárias, com validade) em `conta-api/tests/paridade-ambientes.test.mjs`. O teste roda no `npm test` do

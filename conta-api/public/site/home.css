@@ -131,7 +131,7 @@ summary { cursor: pointer; font-weight: 600; font-size: 17px; letter-spacing: -.
 details p { color: var(--mut); margin: .7em 0 0; }
 #faq > p { margin-top: 22px; }
 
-/* Página de planos (rascunho no staging): quatro colunas, duas em tela média. */
+/* Página de planos (suporte.html, rascunho que nenhum ambiente serve): quatro colunas, duas em tela média. */
 .planos-topo { padding: 40px 0 48px; }
 .planos-lista { padding: 56px 0 72px; }
 .planos-lista .mini { margin-top: 24px; }

@@ -74,4 +74,7 @@ quando a PR entrar.
 
 - Nunca `push --force` num branch que já tem PR aberto sem combinar com o usuário. Para corrigir, faça um commit novo.
 - Correção nova vai em branch novo, não no branch de outro PR ainda aberto.
+- Ramo não vai para o staging do site: ele é sempre a main (`scripts/site-publicar.mjs --so-staging` recusa o que não é
+  o `origin/main`). Mudança em `conta-api/` chega lá pelo merge (o agente da release publica em até 10 min). Para ver
+  o ramo antes disso, o Worker roda local: skill `publicar-site`, "Ver um ramo antes do merge".
 - Não feche, não faça merge e não comente em PR ou issue de outra pessoa sem o usuário pedir.

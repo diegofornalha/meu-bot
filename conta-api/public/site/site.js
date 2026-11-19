@@ -5,10 +5,9 @@
   const cfg = window.MEU_BOT_CONTA || {};
   const $ = (id) => document.getElementById(id);
   // Staging se apresenta: faixa no topo da home, selo ao lado da marca e o título, para ninguém confundir com produção.
-  // Planos e respostas por canal: produção vende (R$ 97/mês com o chip da Coflow); staging é o ensaio, grátis para beta testers.
-  for (const el of document.querySelectorAll("[data-canal]")) el.hidden = el.dataset.canal !== (cfg.canal === "staging" ? "staging" : "producao");
+  // É só isso que muda: planos, preços, botões e respostas são os da produção (o HTML servido é o mesmo nos dois).
   if (cfg.canal === "staging") {
-    const r = $("rascunho"); if (r) r.hidden = false;
+    if (location.pathname === "/") { const f = document.createElement("div"); f.className = "rasc"; f.textContent = "Staging: o mesmo site da produção, em conferência. O site de produção é agentesgrok.com."; document.body.prepend(f); }
     const m = document.querySelector(".marca"); if (m) { const s = document.createElement("span"); s.className = "selo-canal"; s.textContent = "staging"; m.append(s); }
     document.title += " · staging";
   }
