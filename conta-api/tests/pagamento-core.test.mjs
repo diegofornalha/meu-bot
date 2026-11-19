@@ -331,6 +331,9 @@ test("lerExtras: só máquina e device na forma certa entram; vazio, tipo descon
   assert.deepEqual(lerExtras('{"device":{"produto":"prod_abc12345","centavos":4700,"rotulo":"Device extra"}}'), [{ tipo: "device", nome: "extra-device", produto: "prod_abc12345", centavos: 4700, rotulo: "Device extra" }]);
   assert.deepEqual(lerExtras('{"chip":{"produto":"prod_abc12345","centavos":4700,"rotulo":"Chip extra"}}'), [], "tipo que o servidor não sabe aplicar não se vende");
   assert.equal(tipoDoExtra("extra-device"), "device");
+  // Preço de tabela ("De R$ 97 por R$ 47"): entra só quando é maior que o preço cobrado.
+  assert.equal(lerExtras('{"device":{"produto":"prod_abc12345","centavos":4700,"deCentavos":9700,"rotulo":"Device extra"}}')[0].deCentavos, 9700);
+  for (const de of ["4700", "4000", '"9700"', "97.5"]) assert.equal("deCentavos" in lerExtras(`{"device":{"produto":"prod_abc12345","centavos":4700,"deCentavos":${de},"rotulo":"Device extra"}}`)[0], false, de);
   assert.deepEqual(lerExtras('{"maquina":{"produto":"errado","centavos":9700,"rotulo":"Máquina extra"}}'), []);
   assert.deepEqual(lerExtras('{"maquina":{"produto":"prod_abc12345","centavos":0,"rotulo":"Máquina extra"}}'), []);
   assert.equal(tipoDoExtra("extra-maquina"), "maquina");

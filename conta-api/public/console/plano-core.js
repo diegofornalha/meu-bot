@@ -169,6 +169,15 @@ export function addonsNaVisaoGeral(ofertaDoPro, produtos, addons) {
   return (Array.isArray(addons) ? addons : []).filter((a) => a && !tem.includes(a.nome));
 }
 
+/**
+ * A linha "De R$ 97 por R$ 47 por mês" de uma unidade extra: só quando o catálogo traz o preço de tabela (`deCentavos`)
+ * e ele é maior que o preço cobrado; senão null (a tela mostra só o preço).
+ */
+export function deParaDoExtra(extra) {
+  const de = extra?.deCentavos, por = extra?.centavos;
+  return Number.isInteger(de) && Number.isInteger(por) && de > por && por > 0 ? { de: reaisCurto(de), por: reaisCurto(por) } : null;
+}
+
 /** Onde o painel "Assinar o Pro" fica na página aberta: na vaga do Plano quando a pessoa está no Plano; no topo da Visão geral em qualquer outra. */
 export function vagaDoAssinar(secao) {
   return secao === "plan" ? "pl-assinar-vaga" : "ov-assinar-vaga";

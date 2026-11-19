@@ -189,7 +189,8 @@ export type TipoExtra = (typeof TIPOS_EXTRA)[number];
  * `nome` é o que vai em `pagamento_checkouts.produto` e `assinaturas.produto` ("extra-maquina"): fora do padrão
  * `meu-bot-*` dos add-ons, para nunca cair em `licenca.produtos`.
  */
-export interface OfertaExtra { tipo: TipoExtra; nome: string; produto: string; centavos: number; rotulo: string }
+/** `deCentavos` (opcional): o preço de tabela, quando a unidade é vendida por menos ("De R$ 97 por R$ 47"); só vale maior que `centavos`. */
+export interface OfertaExtra { tipo: TipoExtra; nome: string; produto: string; centavos: number; rotulo: string; deCentavos?: number }
 export const nomeDoExtra = (tipo: TipoExtra): string => `extra-${tipo}`;
 /** O tipo de um produto de extra ("extra-maquina" → "maquina"); null para o Pro, add-on ou nome desconhecido. */
 export function tipoDoExtra(produto: string | null | undefined): TipoExtra | null {
@@ -197,7 +198,8 @@ export function tipoDoExtra(produto: string | null | undefined): TipoExtra | nul
 }
 /**
  * Lê `ABACATEPAY_EXTRAS` (`{"maquina":{"produto":"prod_...","centavos":9700,"rotulo":"Máquina extra"}}`). Vazio ou
- * fora da forma: nada à venda. Tipo desconhecido é descartado, como add-on fora da forma em `lerAddons`.
+ * fora da forma: nada à venda. Tipo desconhecido é descartado, como add-on fora da forma em `lerAddons`. O item pode
+ * trazer `deCentavos`, o preço de tabela que a tela mostra riscado; menor ou igual ao preço é ignorado.
  */
 export function lerExtras(bruto: string | undefined): OfertaExtra[] {
   let o: Record<string, unknown> | null = null;
@@ -209,7 +211,8 @@ export function lerExtras(bruto: string | undefined): OfertaExtra[] {
     if (a === null) continue;
     const produto = txt(a.produto, 80), centavos = num(a.centavos), rotulo = txt(a.rotulo, 40);
     if (produto === null || !/^prod_[A-Za-z0-9]{6,70}$/.test(produto) || centavos === null || centavos <= 0 || rotulo === null) continue;
-    out.push({ tipo, nome: nomeDoExtra(tipo), produto, centavos, rotulo });
+    const de = num(a.deCentavos);
+    out.push({ tipo, nome: nomeDoExtra(tipo), produto, centavos, rotulo, ...(de !== null && Number.isInteger(de) && de > centavos ? { deCentavos: de } : {}) });
   }
   return out;
 }
