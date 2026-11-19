@@ -29,7 +29,7 @@ test("rotas da licença na máquina: vincular, vaga, renovar, tirar, limite do a
   const { publicKey, privateKey } = generateKeyPairSync("ed25519");
   const chaves = [{ id: "licenca-2026-11", chave: publicKey.export({ format: "der", type: "spki" }).toString("base64") }];
   const HMAC = Buffer.from("k".repeat(32)).toString("base64");
-  const env = { ...px.env, DB, SESSAO_HMAC_KEY: HMAC, LICENCA_PRIVATE_KEY: privateKey.export({ format: "der", type: "pkcs8" }).toString("base64") };
+  const env = { ...px.env, DB, ADMIN_BOOTSTRAP_EMAIL: "Dona@Exemplo.com ", SESSAO_HMAC_KEY: HMAC, LICENCA_PRIVATE_KEY: privateKey.export({ format: "der", type: "pkcs8" }).toString("base64") };
   const agora = new Date().toISOString();
   const A = "0b0f6c1e-6d1f-4b7e-9c55-0d6a3f1c2e11", B = "1c1f7d2f-7e2f-4c8f-8d66-1e7b4f2d3f22";
   for (const [id, email] of [[A, "ana@exemplo.com"], [B, "bia@exemplo.com"]]) await DB.prepare("INSERT INTO contas (id, firebase_uid, email, email_verificado, criada_em, atualizada_em) VALUES (?1, ?2, ?3, 1, ?4, ?4)").bind(id, "uid-" + id, email, agora).run();
@@ -73,6 +73,13 @@ test("rotas da licença na máquina: vincular, vaga, renovar, tirar, limite do a
   diz("conta free também emite, e a licença sai free", vb.ok === true && vb.payload.licenca.plan === "free");
   const aud = (await DB.prepare("SELECT acao, detalhe FROM auditoria ORDER BY rowid").all()).results.map((a) => a.acao);
   diz("auditoria registra", aud.filter((a) => a.startsWith("maquina.")).length >= 5, [...new Set(aud)].join(","));
+  // O admin inicial (ADMIN_BOOTSTRAP_EMAIL) não é removido nem rebaixado por outro super admin; os outros perfis, sim.
+  await DB.prepare("INSERT INTO admins (email, papel, criado_em) VALUES ('dona@exemplo.com', 'super', ?1), ('outro@exemplo.com', 'super', ?1)").bind(agora).run();
+  r = await chamar("DELETE", "/admin/perfis/dona%40exemplo.com", undefined, tadm); diz("remover o admin inicial: 403", r.status === 403, `${r.status} ${r.corpo.erro}`);
+  r = await chamar("PUT", "/admin/perfis/dona%40exemplo.com", { papel: "admin" }, tadm); diz("rebaixar o admin inicial: 403", r.status === 403, `${r.status} ${r.corpo.erro}`);
+  diz("o admin inicial continua super no banco", (await DB.prepare("SELECT papel FROM admins WHERE email = 'dona@exemplo.com'").first())?.papel === "super");
+  r = await chamar("GET", "/admin/visao", undefined, tadm); diz("a visão marca só o admin inicial como fixo", r.corpo.perfis.find((p) => p.email === "dona@exemplo.com")?.fixo === true && r.corpo.perfis.find((p) => p.email === "outro@exemplo.com")?.fixo === false, JSON.stringify(r.corpo.perfis));
+  r = await chamar("DELETE", "/admin/perfis/outro%40exemplo.com", undefined, tadm); diz("outro super admin continua removível", r.status === 200, `${r.status} ${r.corpo.erro}`);
   // Chave que não é Ed25519: 503, e nada foi gravado (a máquina não ocupa vaga sem licença).
   const M9 = "8b4e3e2c-5b3d-4c74-8d0a-3b4c5d6e7f8a";
   await chamar("DELETE", "/conta/maquinas/9a5f4f3d-6c4e-4d85-8e1b-4c5d6e7f8a9b", { apagada: true }, tb);

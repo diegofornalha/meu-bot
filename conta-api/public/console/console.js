@@ -445,9 +445,9 @@ function pintarAdminPerfis(v) {
     const tr = el("tr");
     tr.append(el("td", "", p.email));
     const papel = el("td"); const sel = el("select"); for (const [val, t] of [["admin", "admin"], ["super", "super admin"]]) { const o = el("option", "", t); o.value = val; o.selected = val === p.papel; sel.append(o); }
-    sel.disabled = p.email === conta.email; sel.addEventListener("change", () => { void perfilGravar(p.email, sel.value, sel); }); papel.append(sel); tr.append(papel);
+    sel.disabled = p.email === conta.email || p.fixo === true; if (p.fixo === true) sel.title = "O admin inicial é sempre super admin."; sel.addEventListener("change", () => { void perfilGravar(p.email, sel.value, sel); }); papel.append(sel); tr.append(papel);
     tr.append(el("td", "", p.entrou ? "sim" : "ainda não"), el("td", "", data(p.criadoEm)));
-    const td = el("td"); if (p.email !== conta.email) { const b = el("button", "btn btn-ghost", "Remover"); b.type = "button"; b.addEventListener("click", () => { void perfilRemover(p.email, b); }); td.append(b); } tr.append(td);
+    const td = el("td"); if (p.fixo === true) td.append(el("span", "sub", "admin inicial")); else if (p.email !== conta.email) { const b = el("button", "btn btn-ghost", "Remover"); b.type = "button"; b.addEventListener("click", () => { void perfilRemover(p.email, b); }); td.append(b); } tr.append(td);
     tb.append(tr);
   }
 }

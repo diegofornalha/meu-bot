@@ -1,6 +1,6 @@
 /** Acesso ao D1: consultas tipadas, uma função por intenção. O que sai do banco é dado; quem decide é a rota. */
 import type { AdminAssinatura, AdminContaResumo, AdminListaEspera, ContaAssinatura, AdminOrg, MaquinaApi, AdminPagamento, AdminVendas, AdminPedido, AdminPerfil, AdminVisao, CodigoLinha, ContaApi, ContaLinha, DeviceApi, DeviceLinha, License, LicencaLinha, MaquinaLinha, MembroApi, MembroLinha, OrgApi, OrgLinha, OrgResumo, PapelOrg, PerfilApi, PromoApi, SessaoLinha } from "./tipos.js";
-import { agoraIso, nomeExibicao, parseProvedores, provedoresDoLogin, unirProvedores, uuid, type MetodoLogin, type PatchLicenca, type PatchOrg, type PatchPerfil } from "./sessao-core.js";
+import { agoraIso, ehAdminInicial, nomeExibicao, parseProvedores, provedoresDoLogin, unirProvedores, uuid, type MetodoLogin, type PatchLicenca, type PatchOrg, type PatchPerfil } from "./sessao-core.js";
 import type { UsuarioFirebase } from "./firebase.js";
 import { direitoPromo, licencaComAddons, umaPorContaEProduto, type Promo } from "./pagamento-core.js";
 import { valeAte } from "./licenca-core.js";
@@ -85,7 +85,7 @@ export async function houveContaApagada(db: D1Database, email: string): Promise<
 export async function papelAdmin(db: D1Database, email: string, bootstrap: string, agora = agoraIso()): Promise<"super" | "admin" | null> {
   const r = await db.prepare("SELECT papel FROM admins WHERE email = ?1").bind(email).first<{ papel: string }>();
   if (r !== null && r !== undefined) return r.papel === "super" ? "super" : "admin";
-  if (email === bootstrap.trim().toLowerCase()) {
+  if (ehAdminInicial(email, bootstrap)) {
     const n = await db.prepare("SELECT COUNT(*) AS n FROM admins").first<{ n: number }>();
     if ((n?.n ?? 0) === 0) { await db.prepare("INSERT INTO admins (email, papel, criado_em) VALUES (?1, 'super', ?2)").bind(email, agora).run(); return "super"; }
   }
@@ -273,7 +273,7 @@ const deviceApi = (d: DeviceLinha): DeviceApi => {
   return { id: d.id, alias: d.alias_legado, name: d.name ?? "", user: d.user ?? "", platform: d.platform ?? "", status: d.status === "pending" ? "pending" : "active", requestedAt: d.requested_at, firstSeen: d.first_seen, lastSeen: d.last_seen, apps, este: false };
 };
 interface PedidoLinha { id: string; conta_id: string; tipo: string; detalhe: string | null; maquina_id: string | null; criado_em: string; atendido_em: string | null; atendido_por: string | null; email: string; nome: string | null }
-export async function visaoAdmin(db: D1Database, busca: string, comVendas = false, agora = agoraIso()): Promise<AdminVisao> {
+export async function visaoAdmin(db: D1Database, busca: string, adminInicial: string, comVendas = false, agora = agoraIso()): Promise<AdminVisao> {
   const like = `%${busca.replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
   const contas = (await db.prepare("SELECT * FROM contas WHERE apagada_em IS NULL AND (?1 = '' OR email LIKE ?2 ESCAPE '\\' OR nome LIKE ?2 ESCAPE '\\' OR nome_proprio LIKE ?2 ESCAPE '\\' OR sobrenome LIKE ?2 ESCAPE '\\') ORDER BY criada_em DESC LIMIT 500").bind(busca, like).all<ContaLinha>()).results;
   const [licencas, devices, maquinas, pedidosN, admins, pedidos, orgsLinhas] = await Promise.all([
@@ -299,7 +299,7 @@ export async function visaoAdmin(db: D1Database, busca: string, comVendas = fals
   const todas = busca === "" ? resumo : (await db.prepare("SELECT id, criada_em FROM contas WHERE apagada_em IS NULL").all<{ id: string; criada_em: string }>()).results.map((c) => ({ id: c.id, licenca: licencaDaLinha(lic.get(c.id) ?? null, c.criada_em), devices: devs.get(c.id) ?? [] }));
   const totais = { contas: todas.length, pro: todas.filter((c) => c.licenca.plan === "pro").length, devicesPendentes: devices.results.filter((d) => d.status === "pending").length, pedidosAbertos: pedidos.results.length, orgs: orgs.length };
   const emails = new Set((await db.prepare("SELECT email FROM contas WHERE apagada_em IS NULL").all<{ email: string }>()).results.map((c) => c.email));
-  const perfis: AdminPerfil[] = admins.results.map((a) => ({ email: a.email, papel: a.papel === "super" ? "super" : "admin", criadoEm: a.criado_em, entrou: emails.has(a.email) }));
+  const perfis: AdminPerfil[] = admins.results.map((a) => ({ email: a.email, papel: a.papel === "super" ? "super" : "admin", criadoEm: a.criado_em, entrou: emails.has(a.email), fixo: ehAdminInicial(a.email, adminInicial) }));
   return { contas: resumo, perfis, pedidos: pedidos.results.map((p): AdminPedido => ({ id: p.id, tipo: p.tipo, detalhe: p.detalhe, maquinaId: p.maquina_id, criadoEm: p.criado_em, atendidoEm: p.atendido_em, atendidoPor: p.atendido_por, conta: { id: p.conta_id, email: p.email, nome: p.nome } })), orgs, totais, vendas: comVendas ? await vendasAdmin(db, lic, pagos, pedidos.results.filter((p) => p.tipo === "pagamento.revisar").length, agora) : null, listaEspera: comVendas ? await listaEsperaAdmin(db) : null };
 }
 /** Quem paga o quê (super admin): as assinaturas com o prazo que sustentam, os últimos pagamentos e os totais em dia. */

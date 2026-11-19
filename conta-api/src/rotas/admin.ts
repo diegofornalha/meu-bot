@@ -7,13 +7,13 @@
 import type { Env } from "../tipos.js";
 import { ativarDevice, atenderPedido, encerrarAddonPago, auditar, contaPorId, contarSupers, devicesDaConta, gravarLicenca, licencaGravada, removerDevice, gravarPerfil, gravarProvedor, removerPerfil, revogarSessoesDaConta, visaoAdmin } from "../db.js";
 import { consultarFirebase, definirSenhaFirebase } from "../firebase-admin.js";
-import { DEVICE_ID_RE, UUID_RE, decidirLiberarDevice, validaBusca, validaEmail, validaPapel, validaPatchLicenca, validaSenhaNova } from "../sessao-core.js";
+import { DEVICE_ID_RE, UUID_RE, decidirLiberarDevice, ehAdminInicial, validaBusca, validaEmail, validaPapel, validaPatchLicenca, validaSenhaNova } from "../sessao-core.js";
 import { json, lerJson, type Autenticado } from "../http.js";
 import { enviarEmailSenha } from "./conta.js";
 
 export async function getAdminVisao(auth: Autenticado, env: Env, url: URL): Promise<Response> {
   if (auth.claims.adm === null) return json({ erro: "só admin" }, 403);
-  return json(await visaoAdmin(env.DB, validaBusca(url.searchParams.get("busca")), auth.claims.adm === "super"));
+  return json(await visaoAdmin(env.DB, validaBusca(url.searchParams.get("busca")), env.ADMIN_BOOTSTRAP_EMAIL, auth.claims.adm === "super"));
 }
 export async function postAtenderPedido(auth: Autenticado, env: Env, id: string): Promise<Response> {
   if (auth.claims.adm === null) return json({ erro: "só admin" }, 403);
@@ -119,6 +119,7 @@ export async function putPerfil(auth: Autenticado, env: Env, emailRaw: string, r
   const papel = validaPapel(corpo !== null && typeof corpo === "object" ? (corpo as { papel?: unknown }).papel : undefined);
   if (papel === null) return json({ erro: "papel: super ou admin" }, 400);
   if (email === auth.conta.email && papel !== "super") return json({ erro: "você não pode se rebaixar; peça a outro super admin" }, 400);
+  if (ehAdminInicial(email, env.ADMIN_BOOTSTRAP_EMAIL) && papel !== "super") return json({ erro: "o admin inicial é sempre super admin; não dá para rebaixar" }, 403);
   await gravarPerfil(env.DB, email, papel);
   await auditar(env.DB, auth.conta.email, "perfil.gravado", auth.conta.id, `${email} = ${papel}`);
   return json({ ok: true });
@@ -128,6 +129,7 @@ export async function deletePerfil(auth: Autenticado, env: Env, emailRaw: string
   const email = validaEmail(decodeURIComponent(emailRaw));
   if (email === null) return json({ erro: "e-mail fora do formato" }, 400);
   if (email === auth.conta.email) return json({ erro: "você não pode remover o próprio acesso" }, 400);
+  if (ehAdminInicial(email, env.ADMIN_BOOTSTRAP_EMAIL)) return json({ erro: "o admin inicial não pode ser removido" }, 403);
   if (!(await removerPerfil(env.DB, email))) return json({ erro: "esse e-mail não é admin" }, 404);
   if ((await contarSupers(env.DB)) === 0) { await gravarPerfil(env.DB, email, "super"); return json({ erro: "era o último super admin; não removido" }, 400); }
   await auditar(env.DB, auth.conta.email, "perfil.removido", auth.conta.id, email);
