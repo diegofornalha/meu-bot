@@ -102,6 +102,16 @@ export function caminhoDoPlano(o: { remoto: boolean; conta: License | null; maqu
   return o.remoto && o.maquinaLimite !== null && o.origem !== "conta" && contaTemLicenca(o.conta, now) ? "usar-da-conta" : "assinar";
 }
 
+/**
+ * A frase da tela da conta para uma máquina que usa a licença da conta. Sem aviso, ela se renova sozinha. Com aviso (a
+ * conta recusou a renovação: máquina fora do limite), diz o motivo e que a licença daqui só vale até vencer.
+ */
+export function fraseDaLicencaDaConta(onde: string, avisoRenovacao: string | undefined): { texto: string; alerta: boolean } {
+  const aviso = (avisoRenovacao ?? "").trim();
+  if (aviso === "") return { texto: `${onde} usa a licença da sua conta. Ela se renova sozinha enquanto a assinatura estiver em dia.`, alerta: false };
+  return { texto: `${onde} usa a licença da sua conta, mas ela parou de ser renovada: ${aviso.replace(/[.\s]+$/, "")}. A licença que já está aqui vale até vencer.`, alerta: true };
+}
+
 /** Página do console onde se assina (a cobrança é pela AbacatePay, no conta-api). O main monta o endereço do canal e entra logado (`contaAbrirConsole`). */
 export const CAMINHO_ASSINATURA = "/account/plan";
 /**

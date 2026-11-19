@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { acessoAddon, acessoProduto, browserAccess, crmProprioOk, displayUrl, financeOk, modulosNaLicenca, pagamentoDoBloqueio, planoLiberaPro, proBlockText, tabLabel } from "../../dist/renderer/lib/pro.js";
+import { acessoAddon, acessoProduto, browserAccess, crmProprioOk, displayUrl, financeOk, modulosNaLicenca, pagamentoDoBloqueio, planoLiberaPro, proBlockText, tabLabel, fraseDaLicencaDaConta } from "../../dist/renderer/lib/pro.js";
 
 const lic = (over) => ({ license: { plan: "free", status: "free", interval: null, memberSince: "2026-10-18T00:00:00Z", trialEnd: null, expiresAt: null, deviceLimit: 1, produtos: [], updatedAt: "2026-10-18T00:00:00Z", updatedBy: "admin", ...over }, devices: [] });
 
@@ -146,4 +146,12 @@ test("pagamento padrão: sem nada gravado pelo admin, o aviso manda assinar pelo
   // Plano ilegível continua sem orientação: pagar não resolve o que é técnico.
   assert.equal(pagamentoDoBloqueio("unknown", lic({})), null);
   assert.equal(pagamentoDoBloqueio("free", null), null);
+});
+
+test("licença da conta na máquina: renova sozinha; recusada, a tela diz o motivo e que vale até vencer", () => {
+  assert.deepEqual(fraseDaLicencaDaConta("meu-box-2", undefined), { texto: "meu-box-2 usa a licença da sua conta. Ela se renova sozinha enquanto a assinatura estiver em dia.", alerta: false });
+  assert.equal(fraseDaLicencaDaConta("meu-box-2", "  ").alerta, false);
+  const r = fraseDaLicencaDaConta("meu-box-2", "a sua conta usa a licença em mais máquinas do que o plano cobre agora (1): uma máquina extra venceu ou o limite mudou. Tire a licença de outra máquina.");
+  assert.equal(r.alerta, true);
+  assert.equal(r.texto, "meu-box-2 usa a licença da sua conta, mas ela parou de ser renovada: a sua conta usa a licença em mais máquinas do que o plano cobre agora (1): uma máquina extra venceu ou o limite mudou. Tire a licença de outra máquina. A licença que já está aqui vale até vencer.");
 });

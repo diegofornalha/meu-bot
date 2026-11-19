@@ -7,7 +7,7 @@ import { el } from "../lib/dom.js";
 import { ipcErrorText } from "../lib/ipc-error.js";
 import { ctx, ehRemoto } from "../app/ctx.js";
 import { relerPlano } from "../lib/aviso-pagamento.js";
-import { caminhoDoPlano } from "../lib/pro.js";
+import { caminhoDoPlano, fraseDaLicencaDaConta } from "../lib/pro.js";
 import { hostLabel } from "../lib/probe-text.js";
 import { montarMenuConta } from "../lib/conta-menu.js";
 
@@ -59,7 +59,8 @@ function blocoMaquina(c: ContaView, repintar: () => void): HTMLElement {
     }, (err: unknown) => { b.disabled = false; b.textContent = antes; dizer(`Não deu certo: ${ipcErrorText(err)}`); });
   };
   if (ctx.license?.origem === "conta") {
-    box.append(el("p", "hint", `${onde} usa a licença da sua conta. Ela se renova sozinha enquanto a assinatura estiver em dia.`));
+    const frase = fraseDaLicencaDaConta(onde, ctx.license.avisoRenovacao);
+    box.append(el("p", "hint", `${frase.alerta ? "⚠ " : ""}${frase.texto}`));
     const tirar = el("button", "btn btn-ghost btn-small", "Tirar o Pro desta máquina"); tirar.type = "button";
     tirar.addEventListener("click", () => {
       if (tirar.dataset.confirma !== "1") { tirar.dataset.confirma = "1"; tirar.textContent = "Toque de novo para tirar"; setTimeout(() => { if (tirar.isConnected && !tirar.disabled) { delete tirar.dataset.confirma; tirar.textContent = "Tirar o Pro desta máquina"; } }, 5000); return; }

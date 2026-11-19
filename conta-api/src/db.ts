@@ -307,6 +307,8 @@ export async function visaoAdmin(db: D1Database, busca: string, adminInicial: st
   const pagosLinhas = (await db.prepare("SELECT conta_id, produto, expires_at FROM addons_pagos").all<{ conta_id: string; produto: string; expires_at: string }>()).results;
   const pagos = new Map<string, { produto: string; expiresAt: string }[]>();
   for (const a of pagosLinhas) { const lista = pagos.get(a.conta_id) ?? []; lista.push({ produto: a.produto, expiresAt: a.expires_at }); pagos.set(a.conta_id, lista); }
+  const extrasDe = new Map<string, { assinaturaId: string; tipo: string; expiresAt: string }[]>();
+  for (const x of (await db.prepare("SELECT conta_id, assinatura_id, tipo, expires_at FROM extras_pagos ORDER BY expires_at").all<{ conta_id: string; assinatura_id: string; tipo: string; expires_at: string }>()).results) { const lista = extrasDe.get(x.conta_id) ?? []; lista.push({ assinaturaId: x.assinatura_id, tipo: x.tipo, expiresAt: x.expires_at }); extrasDe.set(x.conta_id, lista); }
   const devs = new Map<string, DeviceApi[]>();
   for (const d of devices.results) { const lista = devs.get(d.conta_id) ?? []; lista.push(deviceApi(d)); devs.set(d.conta_id, lista); }
   const maq = new Map(maquinas.results.map((m) => [m.conta_id, m.n]));
@@ -318,7 +320,7 @@ export async function visaoAdmin(db: D1Database, busca: string, adminInicial: st
     const gravada = licencaDaLinha(lic.get(c.id) ?? null, c.criada_em);
     return adm.get(c.email) === "super" ? { licenca: licencaDoSuper(gravada), licencaGravada: gravada } : { licenca: gravada };
   };
-  const resumo: AdminContaResumo[] = contas.map((c) => ({ id: c.id, email: c.email, nome: nomeExibicao(c), foto: c.foto, admin: adm.get(c.email) ?? null, criadaEm: c.criada_em, ...licencasDe(c), addonsPagos: pagos.get(c.id) ?? [], devices: devs.get(c.id) ?? [], maquinas: maq.get(c.id) ?? 0, maquinaLimite: limiteValido(lic.get(c.id)?.maquina_limit), pedidos: ped.get(c.id) ?? 0 }));
+  const resumo: AdminContaResumo[] = contas.map((c) => ({ id: c.id, email: c.email, nome: nomeExibicao(c), foto: c.foto, admin: adm.get(c.email) ?? null, criadaEm: c.criada_em, ...licencasDe(c), addonsPagos: pagos.get(c.id) ?? [], extrasPagos: extrasDe.get(c.id) ?? [], devices: devs.get(c.id) ?? [], maquinas: maq.get(c.id) ?? 0, maquinaLimite: limiteValido(lic.get(c.id)?.maquina_limit), pedidos: ped.get(c.id) ?? 0 }));
   const todas = busca === "" ? resumo : (await db.prepare("SELECT id, email, criada_em FROM contas WHERE apagada_em IS NULL").all<{ id: string; email: string; criada_em: string }>()).results.map((c) => ({ id: c.id, licenca: licencasDe(c).licenca, devices: devs.get(c.id) ?? [] }));
   const totais = { contas: todas.length, pro: todas.filter((c) => c.licenca.plan === "pro").length, devicesPendentes: devices.results.filter((d) => d.status === "pending").length, pedidosAbertos: pedidos.results.length, orgs: orgs.length };
   const emails = new Set((await db.prepare("SELECT email FROM contas WHERE apagada_em IS NULL").all<{ email: string }>()).results.map((c) => c.email));
@@ -364,6 +366,15 @@ async function vendasAdmin(db: D1Database, lic: Map<string, LicencaLinha>, pagos
  */
 export async function encerrarAddonPago(db: D1Database, contaId: string, produto: string, agora = agoraIso()): Promise<boolean> {
   const r = await db.prepare("UPDATE addons_pagos SET expires_at = ?3, atualizado_em = ?3, encerrado_em = ?3 WHERE conta_id = ?1 AND produto = ?2 AND expires_at > ?3").bind(contaId, produto, agora).run();
+  return (r.meta.changes ?? 0) > 0;
+}
+/**
+ * O admin encerra agora uma unidade extra paga (máquina extra), por reembolso ou disputa: o prazo vira o momento atual
+ * e a vaga sai do limite em vigor. Como em `encerrarAddonPago`, a assinatura na AbacatePay não é cancelada aqui: a
+ * marca `encerrado_em` faz a cobrança seguinte ir para revisão. false se a conta não tem essa assinatura em dia.
+ */
+export async function encerrarExtraPago(db: D1Database, contaId: string, assinaturaId: string, agora = agoraIso()): Promise<boolean> {
+  const r = await db.prepare("UPDATE extras_pagos SET expires_at = ?3, atualizado_em = ?3, encerrado_em = ?3 WHERE conta_id = ?1 AND assinatura_id = ?2 AND expires_at > ?3").bind(contaId, assinaturaId, agora).run();
   return (r.meta.changes ?? 0) > 0;
 }
 /** O admin ativa um device pendente; false se o device não existe nessa conta. */
