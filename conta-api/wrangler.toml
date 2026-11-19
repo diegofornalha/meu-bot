@@ -88,13 +88,11 @@ ABACATEPAY_ADDONS = '{"meu-bot-finance":{"produto":"prod_0nZWGHEd334ZBsBbmzbpxB1
 # máquinas da conta enquanto está paga. Formato: '{"maquina":{"produto":"prod_...","centavos":9700,"rotulo":"Máquina extra"}}'.
 # VAZIO = não se vende (o console não mostra o painel "Máquinas"). Produto "meu-bot Máquina extra mensal" (R$ 97,
 # mensal), criado na loja de produção em 19 nov 2026, depois de a compra ser provada no staging.
-# Device extra ("meu-bot Device extra mensal", R$ 47, mensal): produto criado em 19 nov 2026 nas duas lojas e AINDA FORA
-# do catálogo. Para ligar a venda, acrescente nos dois ambientes (preço de tabela R$ 97, mostrado riscado):
-#   produção: "device":{"produto":"prod_PFUz6rnDDxWaJ1txWjTDkdaz","centavos":4700,"deCentavos":9700,"rotulo":"Device extra"}
-#   staging:  "device":{"produto":"prod_xfHGBBR1WTgntZbsUyEjQECA","centavos":4700,"deCentavos":9700,"rotulo":"Device extra"}
+# Device extra ("meu-bot Device extra mensal", R$ 47, mensal, preço de tabela R$ 97 riscado): à venda nos dois ambientes
+# desde 19 nov 2026, depois de a compra ser provada no staging.
 # Módulos do Diego em produção ("meu-bot Módulos do Diego mensal", R$ 997): produto criado em 19 nov 2026,
 # prod_SJJ64CXEJdhWf0PYU11EJRp1, fora do ABACATEPAY_ADDONS de produção até o dono decidir vender aqui.
-ABACATEPAY_EXTRAS = '{"maquina":{"produto":"prod_Msxxa0hpGhFqpxs04wejuWYJ","centavos":9700,"rotulo":"Máquina extra"}}'
+ABACATEPAY_EXTRAS = '{"maquina":{"produto":"prod_Msxxa0hpGhFqpxs04wejuWYJ","centavos":9700,"rotulo":"Máquina extra"},"device":{"produto":"prod_PFUz6rnDDxWaJ1txWjTDkdaz","centavos":4700,"deCentavos":9700,"rotulo":"Device extra"}}'
 
 [env.staging]
 name = "conta-api-staging"

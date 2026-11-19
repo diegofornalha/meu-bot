@@ -30,7 +30,6 @@ const CAMPOS_IGUAIS_DO_ADDON = ["centavos", "rotulo"];
  * add-ons); `chave` = var preenchida só no ambiente `so` (no outro, vazia). Cada uma só vale na forma descrita: outra diferença na mesma chave reprova.
  */
 const TEMPORARIAS = [
-  { catalogo: EXTRAS, addon: "device", so: "staging", ate: "2026-12-15", motivo: "a compra do device extra está sendo provada no staging antes de ligar em produção", decidir: "ponha o device no ABACATEPAY_EXTRAS de [vars] (o produto de produção já existe), tire-o do staging, ou renove a validade aqui com o motivo" },
   { addon: "meu-bot-diego", so: "staging", ate: "2026-12-15", motivo: "o produto de produção dos Módulos do Diego ainda não foi criado na AbacatePay", decidir: "crie o produto de produção e ponha o add-on em [vars], tire-o do staging, ou renove a validade aqui com o motivo" },
 ];
 
@@ -116,8 +115,6 @@ test("paridade: valor diferente, chave num ambiente só e add-on desigual reprov
   assert.match(sobreExtras(extras(JSON.stringify({ maquina: maq }), JSON.stringify({ maquina: { ...maq, centavos: 4700 } }))).join("\n"), /extra maquina: centavos difere/);
   assert.match(sobreExtras(extras(JSON.stringify({ maquina: maq }), "")).join("\n"), /extra maquina só existe em producao/);
   assert.match(sobreExtras(extras("", JSON.stringify({ outro: maq }))).join("\n"), /extra outro só existe em staging/);
-  assert.deepEqual(sobreExtras(extras("", JSON.stringify({ device: maq }))), [], "device só no staging: exceção temporária, enquanto se prova a compra");
-  assert.match(sobreExtras(extras("", JSON.stringify({ device: maq })), "2026-12-16").join("\n"), /extra device só em staging: a exceção temporária venceu/);
   assert.match(sobreExtras(extras("", JSON.stringify({ maquina: maq }))).join("\n"), /extra maquina só existe em staging/, "sem exceção: o que se vende no staging se vende em produção");
   assert.match(sobreExtras(extras("lixo", "")).join("\n"), /ABACATEPAY_EXTRAS de produção não é um objeto JSON/);
 });
