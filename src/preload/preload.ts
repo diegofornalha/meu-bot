@@ -337,6 +337,7 @@ const adminApi: MeuBotAdminApi = {
   setLicense: (patch: LicensePatch) => ipcRenderer.invoke("admin:license-set", { patch }),
   approveDevice: (deviceId: string) => ipcRenderer.invoke("admin:license-approve", { deviceId }),
   removeDevice: (deviceId: string) => ipcRenderer.invoke("admin:license-revoke", { deviceId }),
+  adminAberturasZerar: () => ipcRenderer.invoke("admin:aberturas-zerar", {}),
   adminProdutos: () => ipcRenderer.invoke("admin:produtos-list", {}),
   adminAuditoriaVisivel: () => ipcRenderer.invoke("admin:auditoria-visivel", {}),
   adminAuditoria: () => ipcRenderer.invoke("admin:auditoria", {}),
