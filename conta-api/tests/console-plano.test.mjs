@@ -1,7 +1,7 @@
 // Painel "Assinar o Pro" do console (public/console/plano-core.js): quando some e quando avisa do prazo atual.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { avisoAddonPago, contagemRegressiva, diasAteOFim, estadoAssinaturaPro, fase, pedidoAssinar, promoNaTela, reaisCurto, semPrazo, podeAdicionarMaquina, vagaDoAssinar, vagasDeMaquina } from "../public/console/plano-core.js";
+import { addonsNaVisaoGeral, avisoAddonPago, contagemRegressiva, diasAteOFim, estadoAssinaturaPro, fase, ofertaDoProAparece, pedidoAssinar, promoNaTela, reaisCurto, semPrazo, podeAdicionarMaquina, vagaDoAssinar, vagasDeMaquina } from "../public/console/plano-core.js";
 
 const pro = { plan: "pro", status: "active" };
 const ativa = { status: "ACTIVE", produto: null };
@@ -170,4 +170,27 @@ test("oferta do Pro: a vaga do painel abre a Visão geral, o painel nasce na vag
   assert.match(js, /vagaDoAssinar\(rota\(\)\?\.secao\)/);
   assert.equal(vagaDoAssinar("plan"), "pl-assinar-vaga");
   for (const s of ["overview", "devices", undefined]) assert.equal(vagaDoAssinar(s), "ov-assinar-vaga");
+});
+
+test("oferta do Pro: quem já tem o Pro não vê; volta nos últimos 7 dias; teste e free veem sempre", () => {
+  const AGORA = Date.parse("2026-11-19T12:00:00Z"), em = (dias) => new Date(AGORA + dias * 86400000).toISOString();
+  assert.equal(ofertaDoProAparece({ ...pro, expiresAt: em(33) }, [], AGORA), false, "Pro liberado com um mês pela frente");
+  assert.equal(ofertaDoProAparece({ ...pro, expiresAt: em(8) }, [{ status: "CANCELLED", produto: null }], AGORA), false);
+  assert.equal(ofertaDoProAparece({ ...pro, expiresAt: em(7) }, [], AGORA), true, "última semana: assina antes de ficar sem");
+  assert.equal(ofertaDoProAparece({ ...pro, expiresAt: em(-1) }, [], AGORA), true, "Pro vencido");
+  assert.equal(ofertaDoProAparece(pro, [], AGORA), false, "Pro sem data de fim");
+  assert.equal(ofertaDoProAparece({ ...pro, expiresAt: em(2) }, [ativa], AGORA), false, "assinatura em andamento");
+  assert.equal(ofertaDoProAparece({ ...pro, expiresAt: em(2), semPrazo: true }, [], AGORA), false, "super admin");
+  assert.equal(ofertaDoProAparece({ plan: "pro", status: "trialing", trialEnd: em(3) }, [], AGORA), true, "teste grátis");
+  assert.equal(ofertaDoProAparece({ plan: "free", status: "expired" }, [], AGORA), true);
+  assert.equal(ofertaDoProAparece({ plan: "free", status: "active" }, [], AGORA), true);
+});
+
+test("Visão geral: quem já tem o Pro vê os add-ons que ainda não tem; com a oferta do Pro na tela, nenhum", () => {
+  const fin = { nome: "meu-bot-finance", rotulo: "Finanças" }, diego = { nome: "meu-bot-diego", rotulo: "Módulos do Diego" };
+  assert.deepEqual(addonsNaVisaoGeral(false, [], [fin, diego]), [fin, diego]);
+  assert.deepEqual(addonsNaVisaoGeral(false, ["meu-bot-diego"], [fin, diego]), [fin]);
+  assert.deepEqual(addonsNaVisaoGeral(false, ["meu-bot-finance", "meu-bot-diego"], [fin, diego]), []);
+  assert.deepEqual(addonsNaVisaoGeral(true, [], [fin, diego]), [], "uma oferta por vez");
+  assert.deepEqual(addonsNaVisaoGeral(false, undefined, undefined), []);
 });
