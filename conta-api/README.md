@@ -2,8 +2,13 @@
 
 Um Worker só para a conta meu-bot: a API (`conta.agentesgrok.com`), a página de login (`auth.agentesgrok.com`) e o
 console da conta (`console.agentesgrok.com/account/…`). O `wrangler.toml` descreve os dois ambientes (produção e
-`--env staging`), os secrets e as vars; os comandos estão no `package.json` (`npm test`, `npm run dev`, `migrar`,
-`deploy`).
+`--env staging`), os secrets e as vars; os comandos estão no `package.json` (`npm test`, `npm run dev`, `migrar`).
+
+Publicar é pelo `scripts/site-publicar.mjs` da raiz (skill `publicar-site`), na ordem main → staging → produção: o
+staging recebe a main sozinho (agente da release) e a produção só recebe o commit que está no staging e foi aprovado
+(`--aprovar <sha>`, depois `--producao`). O `/health` de cada ambiente diz o `commit` publicado. `npm run deploy` e
+`deploy:staging` recusam de propósito: um `wrangler deploy` à mão sobe sem o commit e fura essa ordem. As vars dos dois
+ambientes têm de ser iguais, fora as exceções escritas (com motivo) em `tests/paridade-ambientes.test.mjs`.
 
 ## Chave Web do Firebase (projeto `meu-bot-conta`)
 
