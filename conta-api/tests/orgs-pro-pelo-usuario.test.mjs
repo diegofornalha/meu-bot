@@ -72,6 +72,9 @@ test("no Worker: usuário coberto tem o Pro pela organização; sai e perde; a d
     assert.deepEqual(ca.licenca.produtos, [], "o add-on da dona não é herdado");
     assert.deepEqual(await plano(tp), ["pro", "active", FIM_PRI, null], "a Pri segue com o próprio Pro, que vai mais longe");
     assert.deepEqual(await plano(td), ["pro", "active", FIM_DONA, null], "a dona usa o próprio Pro");
+    // A página de membros sabe quem está coberto e se o Pro da dona vale.
+    const tela = async () => { const o = (await chamar("GET", "/orgs/acme", undefined, td)).corpo; return [o.donaComPro, Object.fromEntries(o.membros.map((m) => [m.email.split("@")[0], m.coberto]))]; };
+    assert.deepEqual(await tela(), [true, { dona: true, ana: true, pri: true }]);
 
     // Além das vagas: a quarta pessoa não cabe e não é coberta.
     assert.equal((await chamar("POST", "/orgs/acme/membros", { email: "bia@exemplo.com" }, td)).status, 409);
@@ -82,11 +85,13 @@ test("no Worker: usuário coberto tem o Pro pela organização; sai e perde; a d
     await DB.prepare("UPDATE organizacoes SET assentos = 1 WHERE id = ?1").bind(org.id).run();
     assert.deepEqual(await plano(ta), ["free", "free", null, null]);
     assert.equal((await chamar("GET", "/orgs/acme", undefined, ta)).status, 200, "continua na organização");
+    assert.deepEqual(await tela(), [true, { dona: true, ana: false, pri: false }], "com 1 vaga, só a dona está coberta");
     await DB.prepare("UPDATE organizacoes SET assentos = 3 WHERE id = ?1").bind(org.id).run();
 
     // A dona perde o Pro: os usuários perdem junto.
     await DB.prepare("UPDATE licencas SET expires_at = ?2 WHERE conta_id = ?1").bind(D, em(-1)).run();
     assert.deepEqual(await plano(ta), ["free", "free", null, null]);
+    assert.equal((await tela())[0], false, "a tela da dona sabe que o Pro dela parou");
     await DB.prepare("UPDATE licencas SET expires_at = ?2 WHERE conta_id = ?1").bind(D, FIM_DONA).run();
     assert.deepEqual(await plano(ta), ["pro", "active", FIM_DONA, "acme"]);
 

@@ -485,7 +485,9 @@ export async function visaoAdmin(db: D1Database, busca: string, adminInicial: st
     db.prepare("SELECT p.*, c.email, c.nome FROM pedidos p JOIN contas c ON c.id = p.conta_id WHERE p.atendido_em IS NULL ORDER BY p.criado_em DESC LIMIT 500").all<PedidoLinha>(),
     db.prepare("SELECT o.id, o.slug, o.nome, o.assentos, o.criada_em, c.email AS dona, (SELECT COUNT(*) FROM membros m WHERE m.org_id = o.id) AS membros FROM organizacoes o JOIN contas c ON c.id = o.dona_conta_id WHERE o.apagada_em IS NULL ORDER BY o.criada_em DESC LIMIT 500").all<{ id: string; slug: string; nome: string; assentos: number; criada_em: string; dona: string; membros: number }>(),
   ]);
-  const orgs: AdminOrg[] = orgsLinhas.results.map((o) => ({ id: o.id, slug: o.slug, nome: o.nome, dona: o.dona, membros: o.membros, assentos: o.assentos, criadaEm: o.criada_em }));
+  // Os usuários pagos em dia de cada organização (extras_pagos de tipo "assento"); `assentos` é a parte inclusa, a que o super admin edita.
+  const pagosOrg = new Map((await db.prepare("SELECT org_id, COUNT(*) AS n FROM extras_pagos WHERE tipo = 'assento' AND org_id IS NOT NULL AND expires_at > ?1 GROUP BY org_id").bind(agoraIso()).all<{ org_id: string; n: number }>()).results.map((x) => [x.org_id, x.n]));
+  const orgs: AdminOrg[] = orgsLinhas.results.map((o) => ({ id: o.id, slug: o.slug, nome: o.nome, dona: o.dona, membros: o.membros, assentos: o.assentos, assentosPagos: pagosOrg.get(o.id) ?? 0, criadaEm: o.criada_em }));
   const lic = new Map(licencas.results.map((l) => [l.conta_id, l]));
   const pagosLinhas = (await db.prepare("SELECT conta_id, produto, expires_at FROM addons_pagos").all<{ conta_id: string; produto: string; expires_at: string }>()).results;
   const pagos = new Map<string, { produto: string; expiresAt: string }[]>();
@@ -658,9 +660,17 @@ export async function montarOrgApi(db: D1Database, org: OrgLinha, meuEmail: stri
     db.prepare("SELECT m.*, c.nome, c.nome_proprio, c.sobrenome, c.foto FROM membros m LEFT JOIN contas c ON c.id = m.conta_id WHERE m.org_id = ?1 ORDER BY CASE m.papel WHEN 'dona' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END, m.convidado_em").bind(org.id).all<MembroLinha & { nome: string | null; nome_proprio: string | null; sobrenome: string | null; foto: string | null }>(),
     db.prepare("SELECT email, nome, nome_proprio, sobrenome FROM contas WHERE id = ?1").bind(org.dona_conta_id).first<{ email: string; nome: string | null; nome_proprio: string | null; sobrenome: string | null }>(),
   ]);
-  const lista: MembroApi[] = membros.results.map((m) => ({ email: m.email, nome: m.conta_id === null ? null : nomeExibicao(m), foto: m.foto, papel: papelOrg(m.papel), status: m.status === "ativo" ? "ativo" : "convidado", convidadoPor: m.convidado_por, convidadoEm: m.convidado_em, entrouEm: m.entrou_em, eu: m.email === meuEmail }));
+  const lista: MembroApi[] = membros.results.map((m) => ({ email: m.email, nome: m.conta_id === null ? null : nomeExibicao(m), foto: m.foto, papel: papelOrg(m.papel), status: m.status === "ativo" ? "ativo" : "convidado", convidadoPor: m.convidado_por, convidadoEm: m.convidado_em, entrouEm: m.entrou_em, eu: m.email === meuEmail, coberto: false }));
   const vagas = await assentosDaOrg(db, org);
-  return { id: org.id, slug: org.slug, nome: org.nome, dominioEmail: org.dominio_email, assentos: vagas.limite, assentosInclusos: vagas.limite - vagas.extras, assentosPagos: vagas.extras, ocupados: lista.length, criadaEm: org.criada_em, dona: { email: dona?.email ?? "", nome: dona ? nomeExibicao(dona) : null }, meuPapel, membros: lista, url: `${consoleOrigin}/organizations/${org.slug}/members` };
+  // Quem está coberto pelo Pro da organização: os primeiros da fila até o número de usuários (a mesma ordem de
+  // coberturaDaOrg: a dona, depois quem entrou ou foi convidado antes). E se o Pro da dona vale, sem o que ninguém é coberto.
+  const fila = [...membros.results].sort((x, y) => Number(y.conta_id === org.dona_conta_id) - Number(x.conta_id === org.dona_conta_id) || (x.entrou_em ?? x.convidado_em).localeCompare(y.entrou_em ?? y.convidado_em) || x.email.localeCompare(y.email));
+  const cobertos = new Set(fila.slice(0, vagas.limite).map((m) => m.email));
+  for (const m of lista) m.coberto = cobertos.has(m.email);
+  const contaDona = await contaPorId(db, org.dona_conta_id);
+  const ld = contaDona === null ? null : await licencaGravada(db, contaDona);
+  const donaComPro = contaDona !== null && ((await papelAdmin(db, contaDona.email, "")) === "super" || (ld !== null && ld.plan === "pro" && ld.status === "active" && (ld.expiresAt === null || Date.parse(ld.expiresAt) > Date.now())));
+  return { id: org.id, slug: org.slug, nome: org.nome, dominioEmail: org.dominio_email, assentos: vagas.limite, assentosInclusos: vagas.limite - vagas.extras, assentosPagos: vagas.extras, donaComPro, ocupados: lista.length, criadaEm: org.criada_em, dona: { email: dona?.email ?? "", nome: dona ? nomeExibicao(dona) : null }, meuPapel, membros: lista, url: `${consoleOrigin}/organizations/${org.slug}/members` };
 }
 /** A conta pelo e-mail exato (já normalizado: minúsculo, sem espaços). */
 export async function contaPorEmail(db: D1Database, email: string): Promise<ContaLinha | null> {
