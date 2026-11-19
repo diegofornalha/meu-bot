@@ -214,7 +214,7 @@ export function lerAddons(bruto: string | undefined): OfertaAddon[] {
  * O que se vende por unidade, além do que o Pro inclui. Só o que o servidor sabe aplicar entra aqui: a máquina (mais
  * uma máquina com a licença) e o device (mais um Mac com o app na conta).
  */
-export const TIPOS_EXTRA = ["maquina", "device"] as const;
+export const TIPOS_EXTRA = ["maquina", "device", "assento"] as const;
 export type TipoExtra = (typeof TIPOS_EXTRA)[number];
 /**
  * Uma unidade extra vendida à parte: cada assinatura paga soma 1 ao limite da conta enquanto vale (extras_pagos).
@@ -264,8 +264,9 @@ export function precoExigido(produto: string | null | undefined, precoPro: numbe
  * para a página Plano; add-on e unidade extra voltam para o Marketplace do console, com o produto na query para a
  * tela esperar por ele.
  */
-export function voltaDoCheckout(consoleOrigin: string, item: string | null): { concluiu: string; desistiu: string } {
-  const base = `${consoleOrigin}/account/${item === null ? "plan" : "marketplace"}`;
+export function voltaDoCheckout(consoleOrigin: string, item: string | null, orgSlug: string | null = null): { concluiu: string; desistiu: string } {
+  // Usuário pago de uma organização: a pessoa volta para a página de membros dela, onde a vaga nova aparece.
+  const base = orgSlug !== null ? `${consoleOrigin}/organizations/${orgSlug}/members` : `${consoleOrigin}/account/${item === null ? "plan" : "marketplace"}`;
   return { concluiu: `${base}?assinatura=paga${item === null ? "" : `&produto=${encodeURIComponent(item)}`}`, desistiu: base };
 }
 

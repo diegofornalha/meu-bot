@@ -90,7 +90,7 @@ export type PapelOrg = "dona" | "admin" | "membro";
 export interface OrgResumo { id: string; slug: string; nome: string; papel: PapelOrg; membros: number; assentos: number }
 export interface MembroApi { email: string; nome: string | null; foto: string | null; papel: PapelOrg; status: "convidado" | "ativo"; convidadoPor: string | null; convidadoEm: string; entrouEm: string | null; eu: boolean }
 /** `GET /orgs/:slug`: a organização inteira para quem é membro (ou super admin). */
-export interface OrgApi { id: string; slug: string; nome: string; dominioEmail: string | null; assentos: number; ocupados: number; criadaEm: string; dona: { email: string; nome: string | null }; meuPapel: PapelOrg | "super"; membros: MembroApi[]; url: string }
+export interface OrgApi { id: string; slug: string; nome: string; dominioEmail: string | null; /** Usuários em vigor: `assentosInclusos` (a dona e as cortesias do super admin) mais `assentosPagos` (usuários pagos em dia). */ assentos: number; assentosInclusos: number; assentosPagos: number; ocupados: number; criadaEm: string; dona: { email: string; nome: string | null }; meuPapel: PapelOrg | "super"; membros: MembroApi[]; url: string }
 /** `GET /admin/visao`: uma linha por organização. */
 export interface AdminOrg { id: string; slug: string; nome: string; dona: string; membros: number; assentos: number; criadaEm: string }
 export interface CodigoLinha { code: string; conta_id: string; state: string; challenge: string; esquema: string; app: string | null; versao_app: string | null; criado_em: string; expira_em: string; usado_em: string | null }

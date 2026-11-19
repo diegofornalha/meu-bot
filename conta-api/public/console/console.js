@@ -417,7 +417,7 @@ function pintarOrgMembros(o, gerencia) {
 }
 function pintarOrgConfig(o, gerencia) {
   const form = $("org-form");
-  form.elements.nome.value = o.nome; form.elements.dominioEmail.value = o.dominioEmail ?? ""; form.elements.assentos.value = String(o.assentos);
+  form.elements.nome.value = o.nome; form.elements.dominioEmail.value = o.dominioEmail ?? ""; form.elements.assentos.value = String(o.assentosInclusos ?? o.assentos);
   form.elements.nome.disabled = form.elements.dominioEmail.disabled = !gerencia; $("org-salvar").hidden = !gerencia; $("org-salvo").hidden = true; $("org-salvar").disabled = false;
   form.elements.assentos.disabled = o.meuPapel !== "super";
   $("org-url").textContent = o.url; $("org-url").href = o.url;
@@ -438,9 +438,9 @@ async function orgSalvar() {
   const r = await api("PATCH", `/orgs/${encodeURIComponent(orgAtual.slug)}`, patch, s.acesso);
   if (r.status !== 200) { $("org-salvar").disabled = false; mostrarErro(erroDe(r)); return; }
   mostrarErro(null); orgAtual = r.corpo;
-  if (orgAtual.meuPapel === "super" && Number(form.elements.assentos.value) !== orgAtual.assentos) {
+  if (orgAtual.meuPapel === "super" && Number(form.elements.assentos.value) !== (orgAtual.assentosInclusos ?? orgAtual.assentos)) {
     const ra = await api("PATCH", `/admin/orgs/${encodeURIComponent(orgAtual.slug)}`, { assentos: Number(form.elements.assentos.value) }, s.acesso);
-    if (ra.status !== 200) { mostrarErro(erroDe(ra)); } else orgAtual.assentos = ra.corpo.assentos;
+    if (ra.status !== 200) { mostrarErro(erroDe(ra)); } else { orgAtual.assentosInclusos = ra.corpo.assentos; orgAtual.assentos = ra.corpo.assentos + (orgAtual.assentosPagos ?? 0); } // o campo é a parte do admin (inclusos e cortesias); os usuários pagos somam à parte
   }
   await recarregarConta();
   if (conta !== null) mostrarConsole(conta);
