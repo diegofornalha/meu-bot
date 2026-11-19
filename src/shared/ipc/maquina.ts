@@ -57,6 +57,8 @@ export interface HostProbe {
   tailscaleCheck: boolean;
   /** ~/.claude/statusline.sh é o nosso: grava ~/.cache/claude-statusline/ratelimits.json, que a status line do app lê. */
   statusLine: boolean;
+  /** Há uma status line na máquina, mas não é a do meu-bot (ex.: a global de um Mac): funciona no terminal e não grava o cache de limites. Ausente em sondagem local ou antiga. */
+  statusLineAlheia?: boolean;
   /** OpenClaw: a guarda do WhatsApp do meu-bot (plugin meu-bot-guarda) está nesta máquina; null = sem OpenClaw. */
   guarda: boolean | null;
   /** Versão da guarda instalada (package.json do plugin); null = sem guarda ou desconhecida. */

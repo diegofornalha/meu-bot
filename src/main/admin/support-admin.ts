@@ -35,7 +35,7 @@ import net from "node:net";
 import { PRODUTOS } from "../app/variant-core";
 import { parseAberturas } from "./aberturas-core";
 import { resumoDaSaude } from "./suporte-resumo-core";
-import { enviarResumoSuporte } from "../conta/conta";
+import { enviarResumoSuporte, gestaoLiberada } from "../conta/conta";
 
 /** `superAdmin`: este app lê a central de auditoria (página Auditoria). `backupDestinatario`: chave age pública do super admin (backups). */
 /** `pagamentoPadrao`: orientação de pagamento (Pix, link) gravada em toda licença que ainda não tem uma, ao mexer nela. */
@@ -173,6 +173,9 @@ function rememberPlan(alias: string, plan: PlanName): void {
 
 /** Pessoas do suporte (atualiza pela caixa de entrada); `warning` explica se a caixa não respondeu. */
 export async function supportPeople(): Promise<{ people: SupportPerson[]; warning: string | null }> {
+  // Sem admin logado nada aqui roda: esta função lê a caixa e o plano de cada pessoa por SSH e retoma a preparação das
+  // contas adotadas. Com uma conta comum na sessão, ela chegou a contatar uma máquina antes do login do admin.
+  if (!gestaoLiberada()) return { people: [], warning: null };
   // As leituras (caixa e planos, por SSH) levam segundos: o salvo é relido depois delas e só recebe o que mudou, senão
   // uma pessoa gravada nesse meio tempo (ex.: usuário da aba Usuários) seria apagada pela cópia velha.
   const pull = await pullInbox().catch((e: unknown) => ({ lidos: [], warning: e instanceof Error ? e.message : String(e) }));
@@ -535,7 +538,8 @@ async function enviarResumo(alias: string, h: AdminHealth): Promise<void> {
 const VARREDURA_MS = 30 * 60_000;
 let varrendo = false;
 async function varrerSuporte(): Promise<void> {
-  if (varrendo) return;
+  // Sem admin logado a varredura não toca em máquina nenhuma (gestaoLiberada); tenta de novo no próximo intervalo.
+  if (varrendo || !gestaoLiberada()) return;
   varrendo = true;
   try {
     for (const p of knownPeople().filter((x) => x.on && !x.archived)) {

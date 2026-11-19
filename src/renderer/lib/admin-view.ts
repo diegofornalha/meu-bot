@@ -65,7 +65,9 @@ export function healthLines(h: AdminHealth, fmtPhone: (digits: string | null) =>
     h.xai === null ? { text: "xAI (Grok): não preparada nesta máquina", ok: null }
       : h.xai.loggedIn ? { text: `xAI (Grok) logada${h.xai.email !== null ? ` (${h.xai.email})` : ""}`, ok: true }
         : { text: "xAI (Grok) deslogada: o grok-4 não responde", ok: false },
-    { text: p.statusLine ? "status line instalada" : "sem status line", ok: p.statusLine },
+    p.statusLine ? { text: "status line instalada", ok: true }
+      : p.statusLineAlheia === true ? { text: "status line de outra origem: aparece no terminal, mas os limites do Claude não chegam ao meu-bot", ok: null }
+        : { text: "sem status line", ok: false },
   );
   // Disco da home e memória (como o Rambox mede): o whisper baixa ~500 MB e o OpenClaw enche de transcripts.
   if (typeof p.diskTotalMb === "number" && p.diskTotalMb > 0 && typeof p.diskFreeMb === "number") {

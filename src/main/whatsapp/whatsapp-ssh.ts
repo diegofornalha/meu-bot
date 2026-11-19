@@ -7,7 +7,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { LOCAL_WA_HOST, scriptLocal } from "./whatsapp-local-core";
+import { LOCAL_WA_HOST, scriptLocal, scriptRemoto } from "./whatsapp-local-core";
 
 export const SSH_OPTS = [
   "-o", "BatchMode=yes", "-o", "ConnectTimeout=30", "-o", "ServerAliveInterval=10", "-o", "ServerAliveCountMax=3",
@@ -16,13 +16,13 @@ export const SSH_OPTS = [
 
 /**
  * `bash -s` na máquina: por SSH, ou neste Mac quando o host é "local" (no home, com o prelúdio do macOS). O script vai
- * pelo stdin de quem chama, com `scriptDe(host, …)`.
+ * pelo stdin de quem chama, com `scriptDe(host, …)`, que também leva os ajustes do macOS a uma máquina por SSH que seja um Mac.
  */
 export function spawnBash(host: string): ChildProcessWithoutNullStreams {
   if (host === LOCAL_WA_HOST) return spawn("/bin/bash", ["-s"], { cwd: os.homedir(), env: { ...process.env, HOME: os.homedir() }, stdio: ["pipe", "pipe", "pipe"] });
   return spawn("ssh", [...SSH_OPTS, "--", host, "bash -s"], { windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
 }
-export const scriptDe = (host: string, script: string): string => (host === LOCAL_WA_HOST ? scriptLocal(script) : script);
+export const scriptDe = (host: string, script: string): string => (host === LOCAL_WA_HOST ? scriptLocal(script) : scriptRemoto(script));
 
 export function runSsh(host: string, script: string, timeoutMs: number): Promise<{ code: number | null; stdout: string; stderr: string }> {
   return new Promise((resolve) => {
