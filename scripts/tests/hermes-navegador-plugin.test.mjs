@@ -52,7 +52,7 @@ test("a versão do módulo é a do plugin.yaml e o hook registrado é o pre_llm_
   const { home } = maquina();
   const o = rodar(home, { passos: [] });
   assert.deepEqual(o.hooks, ["pre_llm_call"]);
-  assert.match(readFileSync(join(PLUGIN, "plugin.yaml"), "utf8"), new RegExp(`^version: "${o.versao.replace(/\./g, "\\.")}"$`, "m"));
+  assert.ok(readFileSync(join(PLUGIN, "plugin.yaml"), "utf8").split("\n").includes(`version: "${o.versao}"`), "plugin.yaml com a versão do módulo");
   assert.equal(JSON.parse(readFileSync(join(home, ".local/share/meu-bot/navegador-whatsapp.carregado"), "utf8")).versao, o.versao);
 });
 

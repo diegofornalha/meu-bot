@@ -82,7 +82,7 @@ test("desligar apaga os passes pendentes; ligar tira do ~/.hermes/AGENTS.md o bl
 test("o plugin é componente versionado e instala pelo mesmo instalador do de pausa (máquina de mentira)", () => {
   const init = readFileSync(join(PLUGIN, "__init__.py"), "utf8"), yaml = readFileSync(join(PLUGIN, "plugin.yaml"), "utf8");
   const fonte = { init, yaml, versao: pausa.versaoDoPluginYaml(yaml) };
-  assert.match(init, new RegExp(`^VERSAO = "${fonte.versao.replace(/\./g, "\\.")}"`, "m"));
+  assert.ok(init.split("\n").some((l) => l.startsWith(`VERSAO = "${fonte.versao}"`)), "VERSAO do módulo igual à do plugin.yaml");
   const comp = bundle.COMPONENTES.find((c) => c.nome === "hermes-navegador");
   assert.equal(comp.versao, "backend-colima/hermes-plugins/meu-bot-navegador/plugin.yaml");
   for (const a of comp.arquivos) assert.ok(existsSync(join(RAIZ, a)), `${a} existe`);
