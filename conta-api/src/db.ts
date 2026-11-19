@@ -229,7 +229,6 @@ export async function auditar(db: D1Database, quem: string, acao: string, contaI
   await db.prepare("INSERT INTO auditoria (quando, quem, acao, conta_id, detalhe) VALUES (?1, ?2, ?3, ?4, ?5)").bind(agora, quem, acao, contaId, detalhe).run();
 }
 
-/** A conta como o app a vê: licença, devices (com "este"), máquinas, pedidos e o papel de admin. */
 /**
  * A conta já pagou o Pro alguma vez? Vale qualquer cobrança paga do Pro (`pagamentos`, produto NULL: uma linha por
  * cobrança que o webhook liberou) ou assinatura do Pro já criada (`assinaturas`, produto NULL). `fora` tira da conta a
@@ -253,7 +252,7 @@ export async function promoDaConta(db: D1Database, conta: ContaLinha, promo: Pro
   const d = direitoPromo({ ...base, jaPagouPro: await jaPagouPro(db, conta.id) });
   return d === null ? null : { precoCentavos: promo.precoCentavos, ate: d.ate, cupom: promo.cupom };
 }
-/** `promo`: a configuração da promoção do primeiro mês no ambiente; só o console (`GET|PATCH /conta`) a passa. */
+/** A conta como o app a vê: licença, devices (com "este"), máquinas, pedidos e o papel de admin. `promo`: a configuração da promoção do primeiro mês no ambiente; só o console (`GET|PATCH /conta`) a passa. */
 export async function montarContaApi(db: D1Database, conta: ContaLinha, admin: "super" | "admin" | null, deviceAtual: string | null, promo: Promo | null = null): Promise<ContaApi> {
   const [gravada, pagos, devices, maquinas, pedidos, orgs, maquinaLimite, ass] = await Promise.all([licencaGravada(db, conta), addonsPagos(db, conta.id), devicesDaConta(db, conta.id), maquinasDaConta(db, conta.id), pedidosAbertos(db, conta.id), orgsDaConta(db, conta.id), limiteDeMaquinas(db, conta.id),
     db.prepare("SELECT id, produto, status, valor_centavos FROM assinaturas WHERE conta_id = ?1 ORDER BY criada_em DESC LIMIT 50").bind(conta.id).all<{ id: string; produto: string | null; status: string; valor_centavos: number | null }>()]);
