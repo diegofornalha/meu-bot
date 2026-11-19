@@ -245,6 +245,26 @@ async function pintarAuditoria() {
 }
 $("audit-busca").addEventListener("input", filtrarAuditoria);
 $("audit-recarregar").addEventListener("click", () => { void pintarAuditoria(); });
+// "Zerar" só existe no staging (a API recusa em produção): recomeça a auditoria depois de uma rodada de testes.
+// Dois cliques: o segundo confirma, em até 5 s.
+$("audit-zerar").hidden = cfg.canal !== "staging";
+$("audit-zerar").addEventListener("click", (ev) => { void zerarAuditoria(ev.currentTarget); });
+async function zerarAuditoria(botao) {
+  if (botao.dataset.confirma !== "1") {
+    botao.dataset.confirma = "1"; botao.textContent = "Confirmar: apagar tudo desta tela";
+    setTimeout(() => { if (!botao.disabled) { delete botao.dataset.confirma; botao.textContent = "Zerar"; } }, 5000);
+    return;
+  }
+  const s = sessaoGuardada(); if (s === null) return;
+  botao.disabled = true; mostrarErro(null);
+  const r = await api("POST", "/admin/auditoria/zerar", {}, s.acesso);
+  botao.disabled = false; delete botao.dataset.confirma; botao.textContent = "Zerar";
+  if (r.status !== 200) { mostrarErro(erroDe(r)); return; }
+  await pintarAuditoria();
+  // As assinaturas apagadas saem também da lista de cada conta e dos totais do admin.
+  await carregarVisao(visaoBusca).catch(() => undefined);
+  if (r.corpo?.naoCanceladas > 0) mostrarErro(`${r.corpo.naoCanceladas} assinatura(s) ficaram: a AbacatePay não confirmou o cancelamento. Tente zerar de novo.`);
+}
 // ---- janelas de suporte (/support-window): o último resumo de cada pessoa que o meu-bot-admin-gestao leu
 let janelas = [];
 const marca = (ok) => (ok === true ? "✓" : ok === false ? "✗" : "•");

@@ -19,7 +19,7 @@ import { postSair, postSessao, postSessaoConsole } from "./rotas/sessao.js";
 import { postToken } from "./rotas/token.js";
 import { deleteConta, getConta, patchConta, postSenha } from "./rotas/conta.js";
 import { getSuporteResumos, postSuporteResumo } from "./rotas/suporte.js";
-import { deleteAdminConta, deleteDevice, deletePerfil, getAdminAuditoria, postVendaOculta, getAdminFirebase, getAdminVisao, patchLicenca, postAdminSenha, postAtenderPedido, postEncerrarAddon, postEncerrarExtra, postLiberarDevice, putAdminSenha, putPerfil } from "./rotas/admin.js";
+import { deleteAdminConta, deleteDevice, deletePerfil, getAdminAuditoria, postVendaOculta, postZerarAuditoria, getAdminFirebase, getAdminVisao, patchLicenca, postAdminSenha, postAtenderPedido, postEncerrarAddon, postEncerrarExtra, postLiberarDevice, putAdminSenha, putPerfil } from "./rotas/admin.js";
 import { downloadMac, downloadWindows, REPO } from "./release-github.js";
 import { GUIAS, lerReleases, novidadesHtml, sitemapXml } from "./novidades-core.js";
 import { CSP_ADS, CSP_GA, gaIds } from "./analytics-core.js";
@@ -164,6 +164,7 @@ async function api(req: Request, env: Env, url: URL, espera: (p: Promise<unknown
     else if (removerVenda !== null) res = await deleteAdminAssinatura(auth, env, removerVenda[1]!);
     else if (vendaOculta !== null) res = await postVendaOculta(auth, env, vendaOculta[1] === "assinaturas" ? "assinaturas" : "pagamentos", vendaOculta[2]!, vendaOculta[3] === "ocultar");
     else if (rota === "GET /admin/auditoria") res = await getAdminAuditoria(auth, env);
+    else if (rota === "POST /admin/auditoria/zerar") res = await postZerarAuditoria(auth, env);
     else if (rota === "GET /admin/suporte") res = await getSuporteResumos(auth, env);
     else if (atender !== null) res = await postAtenderPedido(auth, env, atender[1]!);
     else if (licenca !== null) res = await patchLicenca(auth, env, licenca[1]!, req);

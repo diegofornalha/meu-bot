@@ -124,7 +124,7 @@ export async function postAssinatura(auth: Autenticado, env: Env, req: Request):
  * Pede à AbacatePay que pare de cobrar a assinatura `id` e lê a resposta (`resultadoCancelamento`); `fora` quando ela
  * não respondeu. Só `cancelada` e `ja-cancelada` garantem que não há mais cobrança.
  */
-async function cancelarNaAbacate(env: Env, id: string): Promise<ReturnType<typeof resultadoCancelamento> | "fora"> {
+export async function cancelarNaAbacate(env: Env, id: string): Promise<ReturnType<typeof resultadoCancelamento> | "fora"> {
   let r: Response; let resp: unknown;
   try {
     r = await fetch(`${API}/subscriptions/cancel`, { method: "POST", headers: { authorization: `Bearer ${env.ABACATEPAY_KEY}`, "content-type": "application/json" }, body: JSON.stringify({ id }) });

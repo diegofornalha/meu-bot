@@ -103,6 +103,35 @@ export async function marcarVendaOculta(db: D1Database, tipo: TipoVenda, id: str
   const r = await db.prepare(`UPDATE ${tabela} SET oculta_em = ?2, oculta_por = ?3 WHERE id = ?1 AND oculta_em IS ${quem === null ? "NOT NULL" : "NULL"} RETURNING conta_id`).bind(id, quem === null ? null : agora, quem).first<{ conta_id: string }>();
   return r === null ? null : { contaId: r.conta_id };
 }
+/** Tabelas com linhas de uma conta, fora assinaturas e pagamentos, na ordem em que saem antes da linha de `contas`. */
+const TABELAS_DA_CONTA = ["sessoes", "codigos_login", "pagamento_checkouts", "addons_pagos", "extras_pagos", "pedidos", "devices", "maquinas", "membros", "licencas"] as const;
+/** As assinaturas que a tela Auditoria mostra como ocultas: o que `zerarAuditoria` tem de cancelar antes de apagar. */
+export async function assinaturasOcultas(db: D1Database): Promise<{ id: string; status: string }[]> {
+  return (await db.prepare("SELECT id, status FROM assinaturas WHERE oculta_em IS NOT NULL").all<{ id: string; status: string }>()).results;
+}
+/**
+ * Zera o que a tela Auditoria mostra (só o staging chama: são dados de teste). Numa transação:
+ * - apaga as assinaturas ocultas em `semCobranca` (quem chama garantiu que a AbacatePay não cobra mais) e os extras delas;
+ * - apaga os pagamentos ocultos, menos os de uma assinatura oculta que ficou (a que não deu para cancelar);
+ * - apaga de vez as contas já apagadas que não têm mais assinatura nem pagamento, com tudo o que era delas;
+ * - apaga o registro de ações inteiro.
+ * Devolve quantas linhas saíram de cada lugar.
+ */
+export async function zerarAuditoria(db: D1Database, semCobranca: readonly string[]): Promise<{ assinaturas: number; pagamentos: number; contas: number; registro: number }> {
+  const marcas = semCobranca.map((_, i) => `?${i + 1}`).join(", ");
+  const ids = marcas === "" ? "(NULL)" : `(${marcas})`;
+  const livres = "SELECT id FROM contas WHERE apagada_em IS NOT NULL AND id NOT IN (SELECT conta_id FROM assinaturas) AND id NOT IN (SELECT conta_id FROM pagamentos) AND id NOT IN (SELECT dona_conta_id FROM organizacoes)";
+  const r = await db.batch([
+    db.prepare(`DELETE FROM extras_pagos WHERE assinatura_id IN ${ids}`).bind(...semCobranca),
+    db.prepare(`DELETE FROM assinaturas WHERE oculta_em IS NOT NULL AND id IN ${ids}`).bind(...semCobranca),
+    db.prepare("DELETE FROM pagamentos WHERE oculta_em IS NOT NULL AND (assinatura_id IS NULL OR assinatura_id NOT IN (SELECT id FROM assinaturas WHERE oculta_em IS NOT NULL))"),
+    ...TABELAS_DA_CONTA.map((t) => db.prepare(`DELETE FROM ${t} WHERE conta_id IN (${livres})`)),
+    db.prepare(`DELETE FROM contas WHERE id IN (${livres})`),
+    db.prepare("DELETE FROM auditoria"),
+  ]);
+  const n = (i: number): number => r[i]?.meta.changes ?? 0;
+  return { assinaturas: n(1), pagamentos: n(2), contas: n(3 + TABELAS_DA_CONTA.length), registro: n(4 + TABELAS_DA_CONTA.length) };
+}
 /**
  * Apaga a assinatura `id` (quem chama já garantiu que a AbacatePay não cobra mais) e oculta os pagamentos dela em nome
  * de `quem`. Os pagamentos não são apagados: a linha de cada um é o que impede liberar o acesso de novo se o mesmo
