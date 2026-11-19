@@ -28,7 +28,7 @@ const inicial = (nome: string): string => esc(nome.replace(/^Mais uma? /, "").sl
  * inteiro é o link para a página do item; ninguém compra daqui.
  */
 export function corpoDaLista(itens: readonly ItemMarketplace[]): string {
-  const cartao = (i: ItemMarketplace): string => `      <a class="mk-cartao" href="/marketplace/${i.slug}" data-mk="ver" data-item="${esc(i.id)}">
+  const cartao = (i: ItemMarketplace): string => `      <a class="mk-cartao" href="/marketplace/${i.slug}" data-mk="ver" data-item="${esc(i.id)}" data-nome="${esc(i.nome)}" data-tipo="${i.tipo}">
         <span class="mk-topo"><span class="mk-avatar" aria-hidden="true">${inicial(i.nome)}</span><span class="mk-tipo">${TIPO[i.tipo]}</span></span>
         <h2>${esc(i.nome)}</h2>
         <p>${esc(i.resumo)}</p>
@@ -49,7 +49,7 @@ export function corpoDoItem(i: ItemMarketplace): string {
     <h1>${esc(i.nome)}</h1>
     <p>${esc(i.resumo)}</p>
     <p class="mk-preco">${precoHtml(i)}</p>
-    <p><a class="btn btn-primary" href="${caminhoDeContratar(i)}" data-mk="contratar" data-item="${esc(i.id)}">Contratar pelo console</a></p>
+    <p><a class="btn btn-primary" href="${caminhoDeContratar(i)}" data-mk="contratar" data-item="${esc(i.id)}" data-nome="${esc(i.nome)}" data-tipo="${i.tipo}" data-valor="${(i.centavos / 100).toFixed(2)}">Contratar pelo console</a></p>
     <h2>Como funciona</h2>
     <p>${esc(i.descricao)}</p>${inclui}${exige}
     <p class="meta">Assinatura mensal, paga na página segura da AbacatePay. Você cancela quando quiser, pelo console da conta, e o acesso continua até o fim do mês pago.</p>`;

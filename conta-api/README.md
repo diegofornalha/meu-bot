@@ -87,7 +87,7 @@ nesta versão: o rodapé do site diz que medimos visitas sem anúncios e sem dad
 |---|---|---|
 | site | `page_view` | `page_location` limpo |
 | site | `baixar_mac` | `origem`: qual botão levou à /obrigado (`hero`, `teste`, `final`, `fixo`, `baixar`, `perguntas`, `grok-whatsapp-topo`…; staging: `beta`). Não é evento principal: o download é o `download_iniciado` |
-| site | `plano_interesse` | `plano`: `chip-coflow` (R$ 97/mês), `proprio-chip` (cotação); os botões levam ao console da conta |
+| site | `plano_interesse` | `plano`: `chip-coflow` (R$ 97/mês), `proprio-chip` (cotação), `promo-primeiro-mes` (página /promocao); os botões levam ao console da conta |
 | site | `link_celular` | `via`: `whatsapp`, `email` (no celular, o download vira "mandar o link para o meu Mac") |
 | site | `lista_windows` | visitante de Windows pediu para ser avisado: `via`: `whatsapp` (abriu a conversa com a Coflow), `formulario` (gravou o contato em `lista_espera`); `origem`: `hero`, `final`, `fixo`, `obrigado` |
 | site | `windows_sem_download` | a /obrigado foi aberta no Windows: mostrou o convite da lista em vez de baixar o `.dmg` |
@@ -102,7 +102,9 @@ nesta versão: o rodapé do site diz que medimos visitas sem anúncios e sem dad
 | login | `sem_app_visto` | `acao`: `visto`, `baixar`, `console`, `signup` |
 | login | `login_org_visto`, `login_org_perguntado` | `com_slug`, `achada` |
 | cadastro | `cadastro_iniciado`, `cadastro_concluido`, `cadastro_falhou` | `cadastro_concluido` sai no /signup e também no login, quando a conta Firebase nasce ali (`via: login`, `metodo`: `google`, `link`); `metodo`: `senha`, `google`; `motivo`: `senha-curta`, `email-em-uso`, `senha-fraca`, `email-invalido`, `popup-fechado`, `google`, `outro` |
-| console | `checkout_iniciado` | `plano`: `chip-coflow` (clique em "Assinar", antes de ir à AbacatePay) |
+| site, console | `view_item_list`, `select_item`, `view_item` | Marketplace: a vitrine vista (`item_list_id: marketplace`, `items`), o clique num cartão e a página de um item vista (`value`, `currency: BRL`). `items[].item_id` é `<id>-mensal` (`pro-mensal`, `meu-bot-finance-mensal`, `extra-maquina-mensal`), o mesmo do `purchase` |
+| site | `marketplace_contratar` | clique em "Contratar pelo console" na página pública de um item (`items`) |
+| console | `checkout_iniciado` | `plano`: `chip-coflow` (o Pro), ou o nome técnico do add-on ou da unidade extra (`meu-bot-finance`, `extra-maquina`); `promo: primeiro-mes` na promoção. Clique em "Assinar", antes de ir à AbacatePay |
 | servidor | `purchase`, `assinatura_renovada` | Measurement Protocol, no client_id/session_id do console guardado no checkout: `transaction_id` (id do pagamento), `value`, `currency: BRL`, `items`. `purchase` só na primeira cobrança (é o que o Google Ads importa); renovações vão como `assinatura_renovada` |
 | console | `page_view` | `secao` (`overview`, `plan`, `org`, `entrada`…), caminho anonimizado |
 | console | `console_entrada`, `console_saida` | `via`: `app`, `login`; `admin` |
