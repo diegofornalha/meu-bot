@@ -192,23 +192,41 @@ function mostrarConsole(c) {
 }
 
 // ---- auditoria (/account/audit, só super admin): as contas apagadas e o registro de ações, que as outras telas não mostram
-let auditoria = { apagadas: [], registro: [] };
+let auditoria = { apagadas: [], ocultas: [], registro: [] };
 function filtrarAuditoria() {
   const q = $("audit-busca").value.trim().toLowerCase();
   const casa = (x) => q === "" || JSON.stringify(x).toLowerCase().includes(q);
   const linha = (tb, celulas) => { const tr = el("tr"); for (const t of celulas) tr.append(el("td", "", t)); tb.append(tr); };
   const vazio = (tb, colunas, texto) => { const tr = el("tr"); const td = el("td", "", texto); td.colSpan = colunas; tr.append(td); tb.append(tr); };
-  const apagadas = auditoria.apagadas.filter(casa), registro = auditoria.registro.filter(casa);
+  const apagadas = auditoria.apagadas.filter(casa), ocultas = auditoria.ocultas.filter(casa), registro = auditoria.registro.filter(casa);
   const ta = $("audit-apagadas").querySelector("tbody"); ta.replaceChildren();
   if (apagadas.length === 0) vazio(ta, 6, auditoria.apagadas.length === 0 ? "Nenhuma conta apagada." : "Nenhuma conta apagada com esse filtro.");
   for (const c of apagadas) {
     const licenca = c.plan === null ? "-" : `${c.plan} · ${c.status}${c.expiresAt ? ` até ${data(c.expiresAt)}` : ""}`;
     linha(ta, [c.email, dataHora(c.criadaEm), dataHora(c.apagadaEm), c.apagadaPor === null ? "sem registro" : c.apagadaPor === c.email ? "a própria pessoa" : c.apagadaPor, licenca, reais(c.pagoCentavos)]);
   }
+  const to = $("audit-ocultas").querySelector("tbody"); to.replaceChildren();
+  if (ocultas.length === 0) vazio(to, 8, auditoria.ocultas.length === 0 ? "Nada ocultado da tela Assinaturas." : "Nada ocultado com esse filtro.");
+  for (const v of ocultas) {
+    linha(to, [v.tipo === "assinaturas" ? "assinatura" : "pagamento", v.conta.email, rotuloProduto(v.produto), reais(v.valorCentavos), dataHora(v.quando), dataHora(v.ocultaEm), v.ocultaPor ?? "-"]);
+    const b = el("button", "btn btn-ghost btn-small", "Mostrar de novo"); b.type = "button"; b.title = "Volta para a tela Assinaturas e para os totais."; b.addEventListener("click", () => { void vendaOculta(v.tipo, v.id, false, b); });
+    const td = el("td"); td.append(b); to.lastElementChild.append(td);
+  }
   const tr = $("audit-registro").querySelector("tbody"); tr.replaceChildren();
   if (registro.length === 0) vazio(tr, 5, auditoria.registro.length === 0 ? "Nenhuma ação registrada." : "Nenhuma ação com esse filtro.");
   for (const a of registro) linha(tr, [dataHora(a.quando), a.quem, a.acao, a.conta === null ? "-" : `${a.conta.email ?? a.conta.id}${a.conta.apagada ? " (apagada)" : ""}`, a.detalhe ?? "-"]);
-  $("audit-estado").textContent = `${apagadas.length} de ${auditoria.apagadas.length} conta${auditoria.apagadas.length === 1 ? "" : "s"} apagada${auditoria.apagadas.length === 1 ? "" : "s"} · ${registro.length} de ${auditoria.registro.length} ações`;
+  $("audit-estado").textContent = `${ocultas.length} de ${auditoria.ocultas.length} ocultado${auditoria.ocultas.length === 1 ? "" : "s"} · ${apagadas.length} de ${auditoria.apagadas.length} conta${auditoria.apagadas.length === 1 ? "" : "s"} apagada${auditoria.apagadas.length === 1 ? "" : "s"} · ${registro.length} de ${auditoria.registro.length} ações`;
+}
+/** Oculta da tela Assinaturas (ou traz de volta) uma assinatura ou um pagamento, e redesenha a tela de onde o clique veio. */
+async function vendaOculta(tipo, id, ocultar, botao) {
+  const s = sessaoGuardada(); if (s === null) return;
+  botao.disabled = true; mostrarErro(null);
+  const r = await api("POST", `/admin/vendas/${tipo}/${encodeURIComponent(id)}/${ocultar ? "ocultar" : "mostrar"}`, {}, s.acesso);
+  // 404: a linha já mudou de lado (outra aba, outro super admin); reler mostra o estado de agora.
+  if (r.status !== 200 && r.status !== 404) { botao.disabled = false; mostrarErro(erroDe(r)); return; }
+  if (!ocultar) { await pintarAuditoria(); return; }
+  await carregarVisao(visaoBusca).catch((e) => mostrarErro(e?.message ?? String(e)));
+  if (conta !== null) mostrarConsole(conta);
 }
 async function pintarAuditoria() {
   const s = sessaoGuardada(); if (s === null) return;
@@ -216,7 +234,7 @@ async function pintarAuditoria() {
   const r = await api("GET", "/admin/auditoria", undefined, s.acesso);
   if (r.status !== 200) { mostrarErro(erroDe(r)); $("audit-estado").textContent = ""; return; }
   mostrarErro(null);
-  auditoria = { apagadas: Array.isArray(r.corpo?.apagadas) ? r.corpo.apagadas : [], registro: Array.isArray(r.corpo?.registro) ? r.corpo.registro : [] };
+  auditoria = { apagadas: Array.isArray(r.corpo?.apagadas) ? r.corpo.apagadas : [], ocultas: Array.isArray(r.corpo?.ocultas) ? r.corpo.ocultas : [], registro: Array.isArray(r.corpo?.registro) ? r.corpo.registro : [] };
   filtrarAuditoria();
 }
 $("audit-busca").addEventListener("input", filtrarAuditoria);
@@ -546,6 +564,12 @@ function pintarListaEspera(le) {
     tb.append(tr);
   }
 }
+/** A célula "Ocultar" de uma linha da tela Assinaturas: some daqui e dos totais, e fica na Auditoria. */
+function botaoOcultar(tipo, id) {
+  const b = el("button", "btn btn-ghost btn-small", "Ocultar"); b.type = "button"; b.title = "Tira desta tela e dos totais e manda para a Auditoria, de onde volta. A assinatura e a cobrança não mudam.";
+  b.addEventListener("click", () => { void vendaOculta(tipo, id, true, b); });
+  const td = el("td"); td.append(b); return td;
+}
 function pintarAdminVendas(v) {
   const vd = v.vendas; if (!vd) return;
   $("ad-vendas-totais").replaceChildren(...cartoesVendas(vd));
@@ -555,20 +579,20 @@ function pintarAdminVendas(v) {
   const sit = $("ad-vendas-situacao").value;
   const linhas = vd.assinaturas.filter((a) => (selP.value === "" || (a.produto ?? "pro") === selP.value) && (sit === "" || situacaoDe(a).chave === sit));
   const tb = $("ad-assinaturas").querySelector("tbody"); tb.replaceChildren();
-  if (linhas.length === 0) { const tr = el("tr"); const td = el("td", "", vd.assinaturas.length === 0 ? "Nenhuma assinatura paga ainda." : "Nenhuma assinatura com esse filtro."); td.colSpan = 7; tr.append(td); tb.append(tr); }
+  if (linhas.length === 0) { const tr = el("tr"); const td = el("td", "", vd.assinaturas.length === 0 ? "Nenhuma assinatura paga ainda." : "Nenhuma assinatura com esse filtro."); td.colSpan = 8; tr.append(td); tb.append(tr); }
   for (const a of linhas) {
     const s = situacaoDe(a); const tr = el("tr");
     const tdP = el("td"); tdP.append(selo(rotuloProduto(a.produto), a.produto === null ? "ok" : ""));
     const tdS = el("td"); tdS.append(selo(s.texto, s.tom));
-    tr.append(contaCelula(a.conta.email, a.conta.nome), tdP, tdS, el("td", "", `${reais(a.valorCentavos)}/mês`), el("td", "", data(a.criadaEm)), el("td", "", a.ultimoPagamentoEm ? dataHora(a.ultimoPagamentoEm) : "-"), el("td", "", a.valeAte ? data(a.valeAte) : "-"));
+    tr.append(contaCelula(a.conta.email, a.conta.nome), tdP, tdS, el("td", "", `${reais(a.valorCentavos)}/mês`), el("td", "", data(a.criadaEm)), el("td", "", a.ultimoPagamentoEm ? dataHora(a.ultimoPagamentoEm) : "-"), el("td", "", a.valeAte ? data(a.valeAte) : "-"), botaoOcultar("assinaturas", a.id));
     tb.append(tr);
   }
   pintarListaEspera(v.listaEspera);
   const tp = $("ad-pagamentos").querySelector("tbody"); tp.replaceChildren();
-  if (vd.pagamentos.length === 0) { const tr = el("tr"); const td = el("td", "", "Nenhum pagamento ainda."); td.colSpan = 6; tr.append(td); tp.append(tr); }
+  if (vd.pagamentos.length === 0) { const tr = el("tr"); const td = el("td", "", "Nenhum pagamento ainda."); td.colSpan = 7; tr.append(td); tp.append(tr); }
   for (const p of vd.pagamentos) {
     const tr = el("tr");
-    tr.append(el("td", "", dataHora(p.pagoEm)), contaCelula(p.conta.email, p.conta.nome), el("td", "", rotuloProduto(p.produto)), el("td", "", reais(p.valorCentavos)), el("td", "", p.primeira ? "primeira" : "renovação"), el("td", "", p.noAnalytics ? "registrada" : "não foi"));
+    tr.append(el("td", "", dataHora(p.pagoEm)), contaCelula(p.conta.email, p.conta.nome), el("td", "", rotuloProduto(p.produto)), el("td", "", reais(p.valorCentavos)), el("td", "", p.primeira ? "primeira" : "renovação"), el("td", "", p.noAnalytics ? "registrada" : "não foi"), botaoOcultar("pagamentos", p.id));
     tp.append(tr);
   }
 }
