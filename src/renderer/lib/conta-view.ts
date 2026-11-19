@@ -75,10 +75,15 @@ export function contaLinhas(c: Extract<ContaDaPessoa, { estado: "ok" }>, now: nu
  */
 export function diferencasDaConta(c: Extract<ContaDaPessoa, { estado: "ok" }>, view: LicenseView | null): HealthLine[] {
   if (view === null || c.achadaPor === "email") return [];
+  // Atribuída pelo admin: a máquina roda com a licença gravada nela, não com a da conta. Os dois planos são
+  // independentes, então discordar é o normal e não um defeito a apontar.
+  if (c.atribuida === true) return [{ text: "Máquina atribuída a esta conta pelo admin: ela roda com a licença gravada aqui embaixo, não com o plano da conta. Os dois podem ser diferentes", ok: true }];
   const m = view.license, k = c.conta.licenca, out: HealthLine[] = [];
   if (m.plan !== k.plan) out.push({ text: `Diferença no plano: na máquina está ${PLAN_LABEL[m.plan]}, na conta ${PLAN_LABEL[k.plan]}`, ok: false });
   if (m.status !== k.status) out.push({ text: `Diferença no status: na máquina está ${STATUS_LABEL[m.status]}, na conta ${STATUS_LABEL[k.status]}`, ok: false });
-  const dia = (l: Prazo): string => (semPrazo(l) ? INFINITO : fmtDate(l.expiresAt ?? l.trialEnd));
+  // A data do teste só é a validade enquanto o plano está em teste: num plano ativo sem vencimento ela é sobra antiga.
+  const fim = (l: Prazo & { status?: string }): string | null => l.expiresAt ?? (l.status === "trialing" ? l.trialEnd ?? null : null);
+  const dia = (l: Prazo & { status?: string }): string => (semPrazo(l) ? INFINITO : fim(l) === null ? "sem vencimento" : fmtDate(fim(l)));
   if (dia(m) !== dia(k)) out.push({ text: `Diferença na validade: na máquina vai até ${dia(m)}, na conta até ${dia(k)}`, ok: false });
   return out;
 }

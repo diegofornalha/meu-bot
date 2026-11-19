@@ -200,7 +200,7 @@ export function parseAtribuicao(status: number, corpo: unknown): AtribuirMaquina
     const c = r?.conta !== null && typeof r?.conta === "object" ? (r.conta as Record<string, unknown>) : null;
     return { ok: true, conta: c !== null && typeof c.email === "string" ? { email: c.email, nome: typeof c.nome === "string" && c.nome !== "" ? c.nome : null } : null };
   }
-  // 404 sem texto de erro é a rota que ainda não existe na API publicada.
-  if (status === 404 && typeof r?.erro !== "string") return { ok: false, erro: "a API da conta ainda não tem a atribuição de máquina (aguarda publicação)" };
+  // 404 sem texto de erro, ou "rota desconhecida", é a rota que ainda não existe na API publicada.
+  if (status === 404 && (typeof r?.erro !== "string" || r.erro === "rota desconhecida")) return { ok: false, erro: "a API da conta ainda não tem a atribuição de máquina (aguarda publicação)" };
   return { ok: false, erro: erroDaApi(status, corpo) };
 }

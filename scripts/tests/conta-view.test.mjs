@@ -122,3 +122,14 @@ test("gestão, atribuir máquina: e-mail digitado e resposta da API", () => {
   assert.equal(parseAtribuicao(403, { erro: "só admin" }).erro, "só admin");
   assert.equal(parseContaDoAdmin(200, { achadaPor: "maquina", atribuida: true, conta: null }).estado, "sem-resposta");
 });
+
+test("gestão: máquina atribuída não acusa diferença, e teste antigo não vira validade de plano ativo", () => {
+  const conta = (o) => ({ estado: "ok", achadaPor: "maquina", conta: { email: "d@e.com", licenca: lic({ plan: "pro", status: "trialing", trialEnd: em(2) }) }, ...o });
+  const maquina = { license: lic({ plan: "pro", status: "active", trialEnd: em(-9), expiresAt: null }) };
+  const atribuida = app.diferencasDaConta(conta({ atribuida: true }), maquina);
+  assert.equal(atribuida.length, 1); assert.equal(atribuida[0].ok, true); assert.match(atribuida[0].text, /atribuída a esta conta pelo admin/);
+  const ligada = app.diferencasDaConta(conta({}), maquina).map((l) => l.text);
+  assert.ok(ligada.some((t) => /Diferença no status/.test(t)));
+  assert.ok(ligada.some((t) => /na máquina vai até sem vencimento/.test(t)), ligada.join(" | "));
+  assert.match(parseAtribuicao(404, { erro: "rota desconhecida" }).erro, /aguarda publicação/);
+});
