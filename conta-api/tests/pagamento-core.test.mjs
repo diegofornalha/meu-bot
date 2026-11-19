@@ -1,7 +1,7 @@
 // Assinatura do Pro pela AbacatePay: conferência do webhook, leitura do evento, decisão, prazo e a compra do GA4.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { voltaDoCheckout, assinaturaIdValido, resultadoCancelamento, CHAVE_HMAC_ABACATEPAY, clientIdDeReserva, clientIdValido, compraGa4, decidir, hmacBase64, iguais, lerAddons, lerEvento, licencaComAddons, licencaDoSuper, limiteDoPapel, licencaEmVigor, metodosSemPix, precoExigido, precoDaCobranca, pedidoDoCheckout, direitoPromo, lerPromo, refValida, sessionIdValido, validoAte, webhookConfere, umaPorContaEProduto, lerExtras, tipoDoExtra, precoComCupom, validaCupom } from "../dist/pagamento-core.js";
+import { voltaDoCheckout, assinaturaIdValido, resultadoCancelamento, CHAVE_HMAC_ABACATEPAY, clientIdDeReserva, clientIdValido, compraGa4, decidir, hmacBase64, iguais, lerAddons, lerEvento, licencaComAddons, licencaDoSuper, limiteDoPapel, licencaEmVigor, metodosSemPix, precoExigido, precoDaCobranca, pedidoDoCheckout, direitoPromo, lerPromo, refValida, sessionIdValido, validoAte, webhookConfere, umaPorContaEProduto, lerExtras, tipoDoExtra, precoComCupom, validaCupom, cuponsDoCheckout, CUPONS_POR_CHECKOUT } from "../dist/pagamento-core.js";
 
 const SECRET = "s".repeat(40);
 const REF = "mb_123e4567-e89b-12d3-a456-426614174000";
@@ -431,6 +431,7 @@ test("tenho um cupom: código digitado, preço da primeira cobrança e o que o w
   assert.match(precoComCupom({ ...fixo, status: "INACTIVE" }, 9700).erro, /não está mais ativo/);
   assert.match(precoComCupom({ ...fixo, maxRedeems: 5, redeemsCount: 5 }, 9700).erro, /todas as vezes/);
   assert.match(precoComCupom({ ...fixo, discount: 9700 }, 9700).erro, /não se aplica/, "desconto que zera a cobrança");
+  assert.match(precoComCupom({ ...fixo, discount: 9650 }, 9700).erro, /não se aplica/, "total entre R$ 0,01 e R$ 0,99: a AbacatePay recusa");
   assert.match(precoComCupom({ ...fixo, discountKind: "PERCENTAGE", discount: 10000 }, 9700).erro, /não se aplica/);
   assert.match(precoComCupom({ ...fixo, discount: 0 }, 9700).erro, /desconto/);
   assert.match(precoComCupom({ ...fixo, discountKind: "OUTRO" }, 9700).erro, /desconto/);
@@ -444,4 +445,21 @@ test("tenho um cupom: código digitado, preço da primeira cobrança e o que o w
   assert.equal(precoDaCobranca({ ...base, checkout: { produto: null, promo: false, cupomCentavos: null } }), 9700);
   assert.equal(precoDaCobranca({ ...base, checkout: { produto: null, promo: false, cupomCentavos: 99999 } }), 9700, "nunca acima do cheio");
   assert.equal(precoDaCobranca({ ...base, checkout: { produto: null, promo: false, cupomCentavos: 0 } }), 9700, "valor inválido não libera de graça");
+});
+
+test("tenho um cupom, sem código: o checkout aceita os cupons ativos que servem e exige o menor preço entre eles", () => {
+  const promo = { cupom: "PRIMEIROMES1", precoCentavos: 100, dias: 3 };
+  const c = (id, o = {}) => ({ id, status: "ACTIVE", discountKind: "PERCENTAGE", discount: 1000, maxRedeems: -1, redeemsCount: 0, ...o });
+  // Sem a lista (chave sem o escopo, AbacatePay fora): só o da promoção, com o preço da configuração.
+  assert.deepEqual(cuponsDoCheckout([], promo, 9700), { codigos: ["PRIMEIROMES1"], centavos: 100 });
+  assert.deepEqual(cuponsDoCheckout(null, promo, 9700), { codigos: ["PRIMEIROMES1"], centavos: 100 });
+  assert.equal(cuponsDoCheckout([], null, 9700), null, "sem promoção e sem lista: não há cupom");
+  // Com a lista: entram os que servem, do mais barato para o mais caro; desligado, esgotado e fora da forma ficam de fora.
+  const lista = [c("DEZ"), c("METADE", { discount: 5000 }), c("VELHO", { status: "INACTIVE" }), c("ESGOTADO", { maxRedeems: 1, redeemsCount: 1 }), c("com espaço"), c("PRIMEIROMES1", { discountKind: "FIXED", discount: 9600 }), "lixo", null];
+  assert.deepEqual(cuponsDoCheckout(lista, promo, 9700), { codigos: ["PRIMEIROMES1", "METADE", "DEZ"], centavos: 100 });
+  assert.deepEqual(cuponsDoCheckout(lista, null, 9700), { codigos: ["PRIMEIROMES1", "METADE", "DEZ"], centavos: 100 });
+  assert.deepEqual(cuponsDoCheckout([c("DEZ")], null, 9700), { codigos: ["DEZ"], centavos: 8730 });
+  const muitos = Array.from({ length: 30 }, (_, i) => c(`CUPOM${String(i).padStart(2, "0")}`, { discount: 100 * (i + 1) }));
+  const r = cuponsDoCheckout(muitos, null, 9700);
+  assert.equal(r.codigos.length, CUPONS_POR_CHECKOUT); assert.equal(r.codigos[0], "CUPOM29", "os de menor preço primeiro");
 });

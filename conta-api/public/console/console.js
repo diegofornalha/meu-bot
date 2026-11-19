@@ -1090,7 +1090,7 @@ function pintarPromo(c) {
   promoMostrada = semPrazo(c.licenca) ? null : promoNaTela(c.promo);
   const caixa = $("pl-promo"); caixa.hidden = promoMostrada === null; caixa.replaceChildren();
   // Com a promoção do primeiro mês já na tela, o cupom é o dela: o "Tenho um cupom" some para não haver dois caminhos.
-  $("pl-cupom-abrir").hidden = promoMostrada !== null; if (promoMostrada !== null) $("pl-cupom").hidden = true;
+  $("pl-cupom-abrir").hidden = promoMostrada !== null;
   $("pl-assinar-btn").textContent = promoMostrada === null ? ASSINAR_NORMAL : `Assinar por ${reaisCurto(promoMostrada.precoCentavos)} no primeiro mês`;
   if (promoMostrada === null) return;
   const { precoCentavos, ate, cupom } = promoMostrada;
@@ -1120,7 +1120,7 @@ async function assinar(produto = null, btn = $("pl-assinar-btn"), aviso = $("pl-
   // Desabilita ANTES de copiar: a cópia pode demorar (o navegador pede permissão) e um segundo clique abriria outro checkout.
   btn.disabled = true;
   const copiou = typeof pedido.cupom === "string" ? await copiarCupom(pedido.cupom) : pedido.promo === true ? await copiarCupom(promoMostrada.cupom) : false;
-  aviso.textContent = copiou ? "Cupom copiado. Abrindo a página de pagamento…" : "Abrindo a página de pagamento…";
+  aviso.textContent = copiou ? "Cupom copiado. Abrindo a página de pagamento…" : pedido.cupom === true ? "Abrindo a página de pagamento… Lá, digite o código em \"Código do cupom\" e toque em Aplicar." : "Abrindo a página de pagamento…";
   const v = typeof ga.visita === "function" ? await ga.visita() : { clientId: null, sessionId: null };
   const r = await api("POST", "/conta/assinatura", { gaClientId: v.clientId, gaSessionId: v.sessionId, ...pedido }, s.acesso);
   // Unidade extra: guarda quantas a conta já tinha, para a volta do pagamento saber quando a nova chegou (pagoChegou).
@@ -1362,15 +1362,8 @@ function pintarSuporte(c) {
 
 // ---- arranque
 $("pl-assinar-btn").addEventListener("click", () => { void assinar(); });
-// "Tenho um cupom": abre o campo; o código digitado vai para a API, que confere o cupom e abre o pagamento no cartão.
-$("pl-cupom-abrir").addEventListener("click", () => { $("pl-cupom").hidden = !$("pl-cupom").hidden; if (!$("pl-cupom").hidden) $("pl-cupom-codigo").focus(); });
-const assinarComCupom = () => {
-  const codigo = cupomDigitado($("pl-cupom-codigo").value);
-  if (codigo === null) { $("pl-cupom-aviso").textContent = "Digite o código do cupom (letras e números, sem espaços)."; $("pl-cupom-codigo").focus(); return; }
-  void assinar(null, $("pl-cupom-btn"), $("pl-cupom-aviso"), false, codigo);
-};
-$("pl-cupom-btn").addEventListener("click", assinarComCupom);
-$("pl-cupom-codigo").addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); assinarComCupom(); } });
+// "Tenho um cupom": vai direto à página de pagamento (só cartão), onde a pessoa digita o código em "Código do cupom".
+$("pl-cupom-abrir").addEventListener("click", () => { void assinar(null, $("pl-cupom-abrir"), $("pl-cupom-aviso"), false, true); });
 // Tema: o seletor mostra a escolha guardada (tema.js já a aplicou no <html>) e troca na hora.
 if (window.MEU_BOT_TEMA) { $("tema").value = window.MEU_BOT_TEMA.atual(); $("tema").addEventListener("change", () => window.MEU_BOT_TEMA.definir($("tema").value)); }
 for (const id of ["ad-vendas-produto", "ad-vendas-situacao"]) $(id).addEventListener("change", () => { if (visao !== null) pintarAdminVendas(visao); });

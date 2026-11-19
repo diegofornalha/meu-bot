@@ -91,8 +91,9 @@ export function fase(l, agora = Date.now()) {
  */
 export function pedidoAssinar(produto, promoMostrada, semPromo = false, cupom = null) {
   if (produto !== null && produto !== undefined) return { produto };
-  // "Tenho um cupom": o código digitado vale no lugar da promoção da tela (a API confere e calcula o primeiro mês).
-  if (typeof cupom === "string" && cupom !== "") return { cupom };
+  // "Tenho um cupom": a pessoa vai direto à página de pagamento e digita o código lá (`true`); um código já em mãos
+  // (string) também vale. Nos dois casos, no lugar da promoção da tela.
+  if (cupom === true || (typeof cupom === "string" && cupom !== "")) return { cupom };
   if (promoMostrada === null || promoMostrada === undefined) return {};
   return semPromo ? { semPromo: true } : { promo: true };
 }

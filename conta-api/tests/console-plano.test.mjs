@@ -305,6 +305,9 @@ test("tenho um cupom: o código digitado vai no pedido, no lugar da promoção d
   assert.deepEqual(pedidoAssinar(null, { cupom: "X", precoCentavos: 100, ate: "2026-12-01" }, false, "OUTRO10"), { cupom: "OUTRO10" });
   assert.deepEqual(pedidoAssinar("meu-bot-finance", null, false, "PRIMEIROMES1"), { produto: "meu-bot-finance" });
   assert.deepEqual(pedidoAssinar(null, null, false, null), {});
+  // O botão da tela não leva código: a pessoa digita na página de pagamento.
+  assert.deepEqual(pedidoAssinar(null, null, false, true), { cupom: true });
+  assert.deepEqual(pedidoAssinar("extra-maquina", null, false, true), { produto: "extra-maquina" });
 });
 
 test("Marketplace: o item do Analytics tem o mesmo item_id que o servidor manda na compra", async () => {
