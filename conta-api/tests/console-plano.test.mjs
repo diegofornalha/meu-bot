@@ -1,7 +1,7 @@
 // Painel "Assinar o Pro" do console (public/console/plano-core.js): quando some e quando avisa do prazo atual.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addonsNaVisaoGeral, assinaturasDoItem, estadoDoItem, assinaturasAtivasDe, oQueAContaTem, pagoChegou, deParaDoExtra, avisoAddonPago, contagemRegressiva, diasAteOFim, cupomDigitado, estadoAssinaturaPro, fase, linhasDeMaquinas, ofertaDoProAparece, pedidoAssinar, promoNaTela, reaisCurto, semPrazo, podeAdicionarMaquina, vagaDoAssinar, vagasDeDevice, vagasDeMaquina } from "../public/console/plano-core.js";
+import { addonsNaVisaoGeral, assinaturasDoItem, estadoDoItem, itemGa, assinaturasAtivasDe, oQueAContaTem, pagoChegou, deParaDoExtra, avisoAddonPago, contagemRegressiva, diasAteOFim, cupomDigitado, estadoAssinaturaPro, fase, linhasDeMaquinas, ofertaDoProAparece, pedidoAssinar, promoNaTela, reaisCurto, semPrazo, podeAdicionarMaquina, vagaDoAssinar, vagasDeDevice, vagasDeMaquina } from "../public/console/plano-core.js";
 
 const pro = { plan: "pro", status: "active" };
 const ativa = { status: "ACTIVE", produto: null };
@@ -305,4 +305,21 @@ test("tenho um cupom: o código digitado vai no pedido, no lugar da promoção d
   assert.deepEqual(pedidoAssinar(null, { cupom: "X", precoCentavos: 100, ate: "2026-12-01" }, false, "OUTRO10"), { cupom: "OUTRO10" });
   assert.deepEqual(pedidoAssinar("meu-bot-finance", null, false, "PRIMEIROMES1"), { produto: "meu-bot-finance" });
   assert.deepEqual(pedidoAssinar(null, null, false, null), {});
+});
+
+test("Marketplace: o item do Analytics tem o mesmo item_id que o servidor manda na compra", async () => {
+  const { compraGa4, itemIdGa } = await import("../dist/pagamento-core.js");
+  assert.deepEqual([itemIdGa(null), itemIdGa("meu-bot-finance"), itemIdGa("extra-maquina")], ["pro-mensal", "meu-bot-finance-mensal", "extra-maquina-mensal"]);
+  const base = { clientId: "1.1700000000", sessionId: null, pagamentoId: "p", valorCentavos: 9700, primeira: true, ambiente: "staging" };
+  assert.equal(compraGa4(base).events[0].params.items[0].item_id, itemIdGa(null), "a compra do Pro usa a regra");
+  // O console repete o formato: cada item da vitrine tem o id que a compra dele terá.
+  for (const [id, produto] of [["pro", null], ["meu-bot-finance", "meu-bot-finance"], ["extra-device", "extra-device"]]) assert.equal(itemGa({ id }).item_id, itemIdGa(produto), id);
+  assert.deepEqual(itemGa({ id: "meu-bot-finance", nome: "Finanças", tipo: "app" }), { item_id: "meu-bot-finance-mensal", item_name: "Finanças", item_category: "app" });
+  // O site não importa módulos: roda o trecho dele e compara o resultado, em vez de conferir o texto do código.
+  const { readFile } = await import("node:fs/promises");
+  const site = await readFile(new URL("../public/site/site.js", import.meta.url), "utf8");
+  const fonte = /const mkItem = (\(e\) => \(\{.*?\}\));/s.exec(site);
+  assert.ok(fonte, "site.js define mkItem");
+  const mkItem = new Function(`return ${fonte[1]}`)();
+  for (const [id, produto] of [["pro", null], ["meu-bot-finance", "meu-bot-finance"]]) assert.equal(mkItem({ dataset: { item: id } }).item_id, itemIdGa(produto), `site: ${id}`);
 });

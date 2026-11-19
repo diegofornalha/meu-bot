@@ -18,7 +18,7 @@ import { limiteDeDevicesComExtras, promoverDevicesPendentes, addonsPagos, audita
 import { DEVICE_LIMITE_MAX, agoraIso, janelaMinuto, uuid } from "../sessao-core.js";
 import { json, lerJson, type Autenticado } from "../http.js";
 import { gaIds } from "../analytics-core.js";
-import { assinaturaIdValido, clientIdDeReserva, clientIdValido, compraGa4, decidir, detalheLiberar, lerAddons, lerEvento, lerExtras, lerPromo, metodosSemPix, pedidoDoCheckout, precoComCupom, precoDaCobranca, validaCupom, voltaDoCheckout, refValida, resultadoCancelamento, sessionIdValido, validoAte, webhookConfere, tipoDoExtra, type Decisao, type OfertaAddon, type OfertaExtra, type Promo } from "../pagamento-core.js";
+import { assinaturaIdValido, clientIdDeReserva, clientIdValido, compraGa4, decidir, detalheLiberar, lerAddons, lerEvento, lerExtras, lerPromo, metodosSemPix, itemIdGa, pedidoDoCheckout, precoComCupom, precoDaCobranca, validaCupom, voltaDoCheckout, refValida, resultadoCancelamento, sessionIdValido, validoAte, webhookConfere, tipoDoExtra, type Decisao, type OfertaAddon, type OfertaExtra, type Promo } from "../pagamento-core.js";
 import { MAQUINA_LIMITE_MAX } from "../licenca-core.js";
 import { itensDoMarketplace, type ItemMarketplace } from "../marketplace-core.js";
 
@@ -339,7 +339,7 @@ async function liberarAddon(env: Env, ck: CheckoutLinha, produto: string, d: Ext
     .bind(d.assinaturaId, ck.conta_id, ck.ref, d.valor, agora, produto, d.metodo).run();
   await auditar(env.DB, quem, d.primeira ? "addon.pago" : "addon.renovado", ck.conta_id, `${produto} · ${d.pagamentoId} · ${d.valor} centavos · até ${ate}`);
   const rotulo = lerAddons(env.ABACATEPAY_ADDONS).find((a) => a.nome === produto)?.rotulo ?? produto;
-  espera(enviarCompraGa(env, ck, d.pagamentoId, d.valor, d.primeira, { id: `${produto}-mensal`, nome: `${rotulo} mensal` }));
+  espera(enviarCompraGa(env, ck, d.pagamentoId, d.valor, d.primeira, { id: itemIdGa(produto), nome: `${rotulo} mensal` }));
   return `${produto} liberado até ${ate}`;
 }
 
@@ -373,7 +373,7 @@ async function liberarExtra(env: Env, ck: CheckoutLinha, produto: string, d: Ext
     }
   }
   const rotulo = lerExtras(env.ABACATEPAY_EXTRAS).find((x) => x.nome === produto)?.rotulo ?? produto;
-  espera(enviarCompraGa(env, ck, d.pagamentoId, d.valor, d.primeira, { id: `${produto}-mensal`, nome: `${rotulo} mensal` }));
+  espera(enviarCompraGa(env, ck, d.pagamentoId, d.valor, d.primeira, { id: itemIdGa(produto), nome: `${rotulo} mensal` }));
   return `${produto} liberado até ${ate}`;
 }
 
