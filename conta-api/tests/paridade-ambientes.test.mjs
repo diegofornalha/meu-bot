@@ -59,18 +59,18 @@ function divergencias(vars, hoje) {
     erros.push(naForma ? textoDaVencida(t, `${k} preenchida só em ${t.so}`) : `${k} difere: produção "${p}", staging "${s}". Iguale, ou diga o motivo em DIFERENTES (ou em TEMPORARIAS, com validade)`);
   }
   for (const [chave, item] of Object.entries(CATALOGOS)) {
-  const ap = lerCatalogo(chave, producao[chave], "produção", erros), as = lerCatalogo(chave, staging[chave], "staging", erros);
-  for (const nome of new Set([...Object.keys(ap), ...Object.keys(as)])) {
-    const so = ap[nome] === undefined ? "staging" : as[nome] === undefined ? "producao" : null;
-    if (so !== null) {
-      const t = TEMPORARIAS.find((x) => (x.catalogo ?? ADDONS) === chave && x.addon === nome && x.so === so) ?? null;
-      if (t === null) erros.push(`${item} ${nome} só existe em ${so}: os dois ambientes vendem os mesmos itens`);
-      else if (vencida(t, hoje)) erros.push(textoDaVencida(t, `${item} ${nome} só em ${so}`));
-      continue;
+    const ap = lerCatalogo(chave, producao[chave], "produção", erros), as = lerCatalogo(chave, staging[chave], "staging", erros);
+    for (const nome of new Set([...Object.keys(ap), ...Object.keys(as)])) {
+      const so = ap[nome] === undefined ? "staging" : as[nome] === undefined ? "producao" : null;
+      if (so !== null) {
+        const t = TEMPORARIAS.find((x) => (x.catalogo ?? ADDONS) === chave && x.addon === nome && x.so === so) ?? null;
+        if (t === null) erros.push(`${item} ${nome} só existe em ${so}: os dois ambientes vendem os mesmos itens`);
+        else if (vencida(t, hoje)) erros.push(textoDaVencida(t, `${item} ${nome} só em ${so}`));
+        continue;
+      }
+      for (const campo of CAMPOS_IGUAIS_DO_ADDON) if (ap[nome][campo] !== as[nome][campo]) erros.push(`${item} ${nome}: ${campo} difere (produção ${JSON.stringify(ap[nome][campo])}, staging ${JSON.stringify(as[nome][campo])}); só o produto pode diferir`);
+      for (const campo of new Set([...Object.keys(ap[nome]), ...Object.keys(as[nome])])) if (campo !== "produto" && !CAMPOS_IGUAIS_DO_ADDON.includes(campo) && JSON.stringify(ap[nome][campo]) !== JSON.stringify(as[nome][campo])) erros.push(`${item} ${nome}: ${campo} difere entre os ambientes; só o produto pode diferir`);
     }
-    for (const campo of CAMPOS_IGUAIS_DO_ADDON) if (ap[nome][campo] !== as[nome][campo]) erros.push(`${item} ${nome}: ${campo} difere (produção ${JSON.stringify(ap[nome][campo])}, staging ${JSON.stringify(as[nome][campo])}); só o produto pode diferir`);
-    for (const campo of new Set([...Object.keys(ap[nome]), ...Object.keys(as[nome])])) if (campo !== "produto" && !CAMPOS_IGUAIS_DO_ADDON.includes(campo) && JSON.stringify(ap[nome][campo]) !== JSON.stringify(as[nome][campo])) erros.push(`${item} ${nome}: ${campo} difere entre os ambientes; só o produto pode diferir`);
-  }
   }
   return erros;
 }
