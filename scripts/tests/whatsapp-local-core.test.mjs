@@ -58,3 +58,23 @@ test("as funções do prelúdio valem num bash filho (os instaladores rodam como
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /^function\nfunction\nfunction\nrc=124$/m);
 });
+
+// Máquina por SSH: os ajustes do macOS só entram num Mac, e sem a escolha de agente (que é do host "local").
+const remoto = (script, antes = "") => spawnSync("/bin/bash", ["-s"], { input: antes + c.scriptRemoto(script), encoding: "utf8", timeout: 30_000, env: { PATH: "/usr/bin:/bin", HOME: process.env.HOME } });
+
+test("scriptRemoto: num Mac leva o PATH do Homebrew e o timeout; o script da pessoa vem depois, inteiro", () => {
+  const s = c.scriptRemoto("echo oi\n");
+  assert.ok(s.startsWith('if [ "$(uname -s 2>/dev/null)" = Darwin ]; then\n') && s.endsWith("\nfi\necho oi\n"));
+  assert.doesNotMatch(s, /whatsapp-agente/, "a escolha de agente não vai para a máquina dos outros");
+  const mac = remoto('echo "t=$(type -t timeout)"; case "$PATH" in */opt/homebrew/bin*) echo brew=1 ;; *) echo brew=0 ;; esac; timeout 1 sleep 5; echo "rc=$?"\n', "uname() { echo Darwin; }\n");
+  assert.match(mac.stdout, /brew=1/);
+  assert.match(mac.stdout, /rc=124/, "o comando que passa do prazo é morto, como no GNU timeout");
+});
+
+test("scriptRemoto: em Linux o bloco não roda e nada muda", () => {
+  const linux = remoto('echo "t=[$(type -t timeout)]"; echo "p=$PATH"; type -t stat; echo fim\n', "uname() { echo Linux; }\n");
+  assert.doesNotMatch(linux.stdout, /t=\[function\]/, "nenhuma função nossa definida");
+  assert.match(linux.stdout, /p=\/usr\/bin:\/bin\n/, "PATH intocado");
+  assert.match(linux.stdout, /fim/);
+});
+

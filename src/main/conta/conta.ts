@@ -19,7 +19,7 @@ import { log } from "../maquina/tunnel";
 import { refreshPickerIfOpen, sendToPicker } from "../maquina/picker";
 import { parseRetornoAuth } from "./deep-link-core";
 import { deviceIdentidade, devicePedido } from "./device";
-import { FOTO_MAX, URLS, deveRenovar, erroDaApi, novoLogin, parseContaInfo, parseLoginPendente, parsePrefs, parseSessao, retornoConfere, sessaoAcabou, urlDeLogin, type ContaPrefs, type LoginPendente, type SessaoGuardada } from "./conta-core";
+import { FOTO_MAX, URLS, deveRenovar, erroDaApi, novoLogin, parseContaInfo, parseLoginPendente, parsePrefs, parseSessao, retornoConfere, sessaoAcabou, urlDeLogin, type ContaPrefs, type LoginPendente, type SessaoGuardada, acessoGestao } from "./conta-core";
 
 const ARQ = (): string => path.join(app.getPath("userData"), "conta.bin");
 const ARQ_LOGIN = (): string => path.join(app.getPath("userData"), "conta-login.json");
@@ -98,6 +98,12 @@ const avisar = (): ContaView => {
 };
 /** Há sessão guardada neste Mac? É o portão: sem conta, o app só mostra o seletor com o cartão de login. */
 export const contaEntrada = (): boolean => lerSessao() !== null;
+/**
+ * A gestão está aberta para a conta que entrou neste app? Só com papel de admin ou super admin (acessoGestao). É o
+ * portão de tudo que o meu-bot-admin-gestao faz nas máquinas das pessoas: handlers (handleAdmin), lista de pessoas e
+ * varredura. Vale o papel guardado na sessão, que cada leitura da conta atualiza.
+ */
+export const gestaoLiberada = (): boolean => acessoGestao(lerSessao()?.conta ?? null) === "ok";
 const ouvintesSaida = new Set<() => void>();
 /** Quem quer saber quando a sessão acaba (Sair, ou a API a derrubou): o main fecha as janelas e volta ao seletor. */
 export function aoSair(cb: () => void): void { ouvintesSaida.add(cb); }
