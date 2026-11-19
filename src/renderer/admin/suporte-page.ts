@@ -211,19 +211,17 @@ export function mountSuportePage(deps: SuportePageDeps): SuportePage {
       prodCtl.append(el("span", "hint", contratados.length === 0 && candidatos.length === 0 ? "Add-ons: nenhum (só o plano)" : "Add-ons (por cima do plano):"));
       for (const nome of contratados) prodCtl.append(licBtnConfirm(`× ${produtoLabel(nome, deps.addons())}`, `Confirmar? tira o ${produtoLabel(nome, deps.addons())} dela`, () => setLic(`produto ${nome} tirado`, { produtos: contratados.filter((x) => x !== nome) })));
       for (const nome of candidatos) prodCtl.append(licBtn(`＋ ${produtoLabel(nome, deps.addons())}`, () => setLic(`produto ${nome} incluído`, { produtos: [...contratados, nome] })));
-      // Orientação de pagamento: aparece para a pessoa no aviso de plano (Pro vencido, add-on, Computador…).
+      // Orientação de pagamento ("Como pagar" e link): não se grava mais por aqui, porque a pessoa assina pelo site. Uma
+      // máquina que ainda tem uma antiga continua mostrando-a no aviso de plano (com "Peça ao admin"), então ela aparece
+      // aqui só para ser apagada; depois disso o aviso volta ao caminho normal, "Assinar pelo site".
       const pg0 = view.license.pagamento ?? null;
-      const pagTxt = el("textarea", "admin-pagamento") as HTMLTextAreaElement;
-      pagTxt.rows = 3; pagTxt.maxLength = 2000; pagTxt.placeholder = "Ex.: Pix (chave e-mail) financeiro@…; valor R$ 49/mês. Depois toque em \"Já paguei\"."; pagTxt.value = pg0?.instrucoes ?? ""; pagTxt.disabled = state.licBusy;
-      const pagLink = el("input") as HTMLInputElement; pagLink.type = "url"; pagLink.placeholder = "https://… (opcional)"; pagLink.value = pg0?.link ?? "";
       const pagCtl = el("div", "admin-actions");
-      const pagWrap = el("label", "admin-field admin-field-linha"); pagWrap.append(el("span", "hint", "Como pagar (opcional: vazio, o aviso de plano mostra \"Assinar pelo site\")"), pagTxt);
-      pagCtl.append(
-        pagWrap,
-        field("Link de pagamento", pagLink),
-        licBtn("Salvar orientação", () => setLic("orientação de pagamento", { pagamento: { instrucoes: pagTxt.value, link: pagLink.value.trim() === "" ? null : pagLink.value.trim() } })),
-        ...(pg0 !== null ? [licBtnConfirm("Apagar orientação", "Confirmar? o aviso volta a só \"pedir ao admin\"", () => setLic("orientação de pagamento apagada", { pagamento: null }))] : []),
-      );
+      if (pg0 !== null) {
+        pagCtl.append(
+          el("span", "hint", `Orientação de pagamento antiga nesta máquina: “${pg0.instrucoes.trim() === "" ? "(sem texto)" : pg0.instrucoes.trim().slice(0, 200)}”${pg0.link !== null ? ` · ${pg0.link}` : ""}. A pessoa ainda a vê no aviso de plano.`),
+          licBtnConfirm("Apagar orientação", "Confirmar? o aviso volta a \"Assinar pelo site\"", () => setLic("orientação de pagamento apagada", { pagamento: null })),
+        );
+      }
       lc.append(expCtl, triCtl, cycleCtl, limCtl, prodCtl, ctl, pagCtl);
       if (state.licMsg !== null) lc.append(el("p", `hint ${state.licMsg.bad ? "guide-pair-note" : "audio-ok"}`, state.licMsg.text));
     }

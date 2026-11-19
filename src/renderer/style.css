@@ -1221,7 +1221,6 @@ table.fin-abc tr.fin-abc-C td.fin-abc-tag { color: #757575; }
 /* Aviso de plano: "Como pagar" (orientação gravada pelo admin na licença). */
 .plano-pagamento { margin: 10px 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); text-align: left; }
 .plano-pagamento-texto { white-space: pre-wrap; margin: 6px 0; user-select: text; }
-.admin-pagamento { font: inherit; font-size: 13px; padding: 7px 9px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); resize: vertical; }
 /* Computador: a tela do bot ao vivo (noVNC no <webview>) e o estado por cima. */
 .computador-panel { padding-bottom: 12px; }
 .computador-head { display: flex; align-items: center; gap: 10px; }
