@@ -91,8 +91,11 @@ export function fase(l, agora = Date.now()) {
  */
 export function pedidoAssinar(produto, promoMostrada, semPromo = false, cupom = false) {
   if (produto !== null && produto !== undefined) return { produto };
-  // "Tenho um cupom": a pessoa vai direto à página de pagamento e digita o código lá. Vale no lugar da promoção da tela.
+  // "Tenho um cupom" › Cartão (`true`): a pessoa vai direto à página de pagamento e digita o código lá.
+  // "Tenho um cupom" › Pix (`{pix: código}`): o nosso servidor confere o código e abre o Pix do primeiro mês.
+  // Os dois valem no lugar da promoção da tela.
   if (cupom === true) return { cupom: true };
+  if (cupom !== null && typeof cupom === "object" && typeof cupom.pix === "string" && cupom.pix.trim() !== "") return { cupom: true, pix: true, codigo: cupom.pix.trim() };
   if (promoMostrada === null || promoMostrada === undefined) return {};
   return semPromo ? { semPromo: true } : { promo: true };
 }
@@ -297,4 +300,17 @@ export function oQueAContaTem(conta, nomes = {}) {
   if (mq > 0) out.push(`${mq} máquina${mq === 1 ? "" : "s"} extra${mq === 1 ? "" : "s"}`);
   if (dv > 0) out.push(`${dv} Mac${dv === 1 ? "" : "s"} extra${dv === 1 ? "" : "s"}`);
   return out;
+}
+
+/**
+ * O aviso da página Plano para quem volta do pagamento (`?assinatura=paga`): com a assinatura do Pro em andamento, está
+ * confirmado. Pro ativo sem assinatura é o primeiro mês pago por Pix (compra avulsa, sem assinatura) ou um Pro que a
+ * conta já tinha antes de assinar: a tela diz até quando vale e continua esperando a assinatura aparecer, se houver.
+ * `data` formata o dia como o resto do console.
+ */
+export function voltaDoPagamento(licenca, assinaturas, data = (iso) => iso) {
+  const { pagoAtivo, proSemAssinatura } = estadoAssinaturaPro(licenca, assinaturas);
+  if (pagoAtivo) return { texto: "Pagamento confirmado: o Pro está ativo.", esperar: false };
+  if (proSemAssinatura) return { texto: `O Pro está ativo${licenca?.expiresAt ? ` até ${data(licenca.expiresAt)}` : ""}. Se você acabou de assinar, a assinatura aparece aqui em alguns segundos.`, esperar: true };
+  return { texto: "Recebemos você de volta. Assim que a AbacatePay confirmar o pagamento, o Pro aparece aqui (costuma levar alguns segundos).", esperar: true };
 }

@@ -47,7 +47,7 @@ export interface EventoAssinatura {
   devMode: boolean;
   assinatura: { id: string; status: string; metodo: string | null; valor: number | null } | null;
   /** O nosso externalId (mb_...) e o bill_... do checkout. */
-  checkout: { id: string | null; ref: string | null; frequencia: string | null } | null;
+  checkout: { id: string | null; ref: string | null; frequencia: string | null; /** Quanto entrou e a situação, no checkout avulso (não há bloco `payment`). */ pago: number | null; status: string } | null;
   /** A cobrança deste evento: card_.../char_..., quanto entrou e se está paga. */
   pagamento: { id: string; pago: number | null; status: string; quando: string | null } | null;
 }
@@ -67,7 +67,7 @@ export function lerEvento(bruto: unknown): EventoAssinatura | { erro: string } {
   if (data === null) return { erro: "sem data" };
   const s = obj(data.subscription), c = obj(data.checkout), p = obj(data.payment);
   const assinatura = s !== null && txt(s.id, 100) !== null ? { id: s.id as string, status: txt(s.status, 30) ?? "", metodo: txt(s.method, 20), valor: num(s.amount) } : null;
-  const checkout = c !== null ? { id: txt(c.id, 100), ref: txt(c.externalId, 100), frequencia: txt(c.frequency, 30) } : null;
+  const checkout = c !== null ? { id: txt(c.id, 100), ref: txt(c.externalId, 100), frequencia: txt(c.frequency, 30), pago: num(c.paidAmount), status: txt(c.status, 30) ?? "" } : null;
   const pagamento = p !== null && txt(p.id, 100) !== null ? { id: p.id as string, pago: num(p.paidAmount), status: txt(p.status, 30) ?? "", quando: txt(p.updatedAt, 40) } : null;
   return { id, evento, devMode: e.devMode === true, assinatura, checkout, pagamento };
 }
@@ -77,6 +77,7 @@ export const refValida = (ref: string | null): ref is string => ref !== null && 
 
 export type Decisao =
   | { acao: "liberar"; ref: string; assinaturaId: string; pagamentoId: string; valor: number; primeira: boolean; metodo: "CARD" | "PIX" | null }
+  | { acao: "liberarAvulso"; ref: string; pagamentoId: string; valor: number }
   | { acao: "cancelada"; ref: string | null; assinaturaId: string }
   | { acao: "falhou"; ref: string | null; assinaturaId: string | null }
   | { acao: "revisar"; ref: string | null; motivo: string }
@@ -110,6 +111,31 @@ export function decidir(e: EventoAssinatura, canal: "producao" | "staging", prec
   if (e.evento === "subscription.payment_failed") return { acao: "falhou", ref, assinaturaId: e.assinatura?.id ?? null };
   if (e.evento === "checkout.refunded" || e.evento === "checkout.disputed" || e.evento === "checkout.lost") return { acao: "revisar", ref, motivo: e.evento };
   return { acao: "ignorar", motivo: `evento ${e.evento} não é tratado` };
+}
+
+/** O evento que a AbacatePay manda quando um checkout comum (não assinatura) é pago. */
+export const EVENTO_AVULSO = "checkout.completed";
+/**
+ * O que fazer com o `checkout.completed` de um checkout AVULSO nosso (o primeiro mês do Pro por Pix, com cupom). Quem
+ * chama já conferiu que o checkout é nosso e foi criado como avulso; num checkout de assinatura este evento continua
+ * ignorado por `decidir`. Libera só com o checkout pago e o valor exato que foi combinado ao criá-lo, e só para conta
+ * que ainda não tinha pago o Pro: o resto vai para a revisão do admin. O id do pagamento é o do checkout (`bill_…`):
+ * o evento não traz bloco `payment`, e ele é o mesmo em toda retentativa.
+ */
+export function decidirAvulso(e: EventoAssinatura, canal: "producao" | "staging", exigidoCentavos: number | null, jaPagou: boolean): Decisao {
+  if (canal === "producao" && e.devMode) return { acao: "ignorar", motivo: "evento do Modo Teste em produção" };
+  if (canal === "staging" && !e.devMode) return { acao: "ignorar", motivo: "evento real no staging" };
+  const ref = e.checkout?.ref ?? null;
+  if (!refValida(ref) || e.checkout === null || e.checkout.id === null) return { acao: "revisar", ref, motivo: "compra avulsa sem o nosso externalId ou sem o id do checkout" };
+  if (e.checkout.status !== "PAID") return { acao: "ignorar", motivo: `checkout ${e.checkout.status || "sem status"}` };
+  const valor = e.checkout.pago ?? 0;
+  if (exigidoCentavos === null || !(exigidoCentavos > 0) || valor !== exigidoCentavos) return { acao: "revisar", ref, motivo: `compra avulsa: pago ${valor} centavos, esperado ${exigidoCentavos ?? "?"}` };
+  if (jaPagou) return { acao: "revisar", ref, motivo: `compra avulsa do primeiro mês numa conta que já tinha pago o Pro: ${valor} centavos` };
+  return { acao: "liberarAvulso", ref, pagamentoId: e.checkout.id, valor };
+}
+/** O código que a pessoa digitou é o cupom da promoção? Sem diferenciar maiúsculas nem espaços nas pontas. */
+export function ehCupomDaPromo(digitado: unknown, promo: Promo | null): boolean {
+  return promo !== null && typeof digitado === "string" && digitado.trim() !== "" && digitado.trim().toUpperCase() === promo.cupom.toUpperCase();
 }
 
 /**

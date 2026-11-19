@@ -80,6 +80,10 @@ PROMO_DIAS = "3"
 # Produto "meu-bot Pro mensal" (R$ 97, mensal) da loja meu-bot em produção na AbacatePay. A assinatura só liga quando
 # os secrets ABACATEPAY_KEY e ABACATEPAY_WEBHOOK_SECRET também existirem neste ambiente.
 ABACATEPAY_PRODUTO = "prod_3ubFY5sxLU1nG2a5GPbj5S1Q"
+# Produto AVULSO (sem ciclo) "meu-bot Pro, primeiro mês", R$ 1,00, da loja em produção: o primeiro mês por Pix com o
+# cupom ("Tenho um cupom" › Pix). Vazio = esse caminho fica desligado e o console oferece só o cartão.
+# Ao preencher os dois ambientes, ponha a chave em DIFERENTES de tests/paridade-ambientes.test.mjs (ids próprios).
+ABACATEPAY_PRODUTO_PRIMEIRO_MES = ""
 ABACATEPAY_PRECO_CENTAVOS = "9700"
 ABACATEPAY_METODOS = "CARD,PIX"
 # Apps vendidos à parte (lerAddons, src/pagamento-core.ts): produto "meu-bot Finanças mensal" (R$ 997, mensal).
@@ -123,6 +127,8 @@ CANAL = "staging"
 # Produto "meu-bot Pro mensal" (R$ 97, mensal) da loja meu-bot no Modo Teste da AbacatePay. O de produção fica
 # em [vars], acima.
 ABACATEPAY_PRODUTO = "prod_12Das4f2bcXQtaR0bs4hrXms"
+# Produto AVULSO do primeiro mês por Pix no Modo Teste (veja o de produção em [vars]). Vazio = desligado.
+ABACATEPAY_PRODUTO_PRIMEIRO_MES = ""
 ABACATEPAY_PRECO_CENTAVOS = "9700"
 ABACATEPAY_METODOS = "CARD,PIX"
 # Apps vendidos à parte, cada um com produto mensal e preço próprios (lerAddons, src/pagamento-core.ts). App novo: criar
