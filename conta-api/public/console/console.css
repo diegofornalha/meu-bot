@@ -61,6 +61,9 @@ code { padding: 2px 6px; border-radius: 6px; background: var(--codigo); border: 
 .conteudo { padding: 20px 28px 40px; max-width: 1100px; width: 100%; }
 .cabecalho { display: flex; align-items: baseline; gap: 14px; padding-bottom: 14px; border-bottom: 2px solid var(--primario); margin-bottom: 20px; }
 .cabecalho .sub { margin: 0; margin-left: auto; font-size: 12px; }
+/* Contagem regressiva do plano: encosta à direita, antes do "lido às". */
+.cabecalho #prazo { margin-left: auto; }
+.cabecalho #prazo:not([hidden]) + .sub { margin-left: 0; }
 .cartoes { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; margin-bottom: 20px; }
 .cartao-info { background: var(--cartao); border: 1px solid var(--borda); border-radius: 12px; padding: 16px; display: flex; gap: 14px; align-items: center; }
 .cartao-info .ico { width: 40px; height: 40px; border-radius: 10px; background: var(--ghost); display: grid; place-items: center; color: var(--primario); font-size: 18px; flex: none; }

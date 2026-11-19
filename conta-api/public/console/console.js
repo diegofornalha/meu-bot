@@ -1,4 +1,4 @@
-import { estadoAssinaturaPro, promoNaTela, reaisCurto } from "./plano-core.js";
+import { contagemRegressiva, diasAteOFim, estadoAssinaturaPro, promoNaTela, reaisCurto } from "./plano-core.js";
 // Console da conta meu-bot (console.agentesgrok.com/account/* e /organizations/<slug>/members|settings, molde Rambox). Entra pela mesma página de
 // login do app (auth.agentesgrok.com) com esquema=web: o console gera state + PKCE, a página devolve #code&state, e
 // POST /token {grant:"web"} vira um token de acesso de 1 h guardado neste navegador (localStorage: outra aba, inclusive
@@ -150,6 +150,7 @@ function mostrarConsole(c) {
   $("titulo").textContent = TITULOS[secao] ?? "";
   document.title = `${TITULOS[secao] ?? "Organização"} · Console meu-bot`;
   medirPagina(secao);
+  $("prazo").hidden = secao !== "plan" || $("prazo").textContent === "";
   $("atualizado").textContent = `lido às ${new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
   pintarQuem(c);
   const admin = visao !== null;
@@ -453,11 +454,9 @@ async function perfilRemover(email, botao) {
   await carregarVisao(visaoBusca).catch((e) => mostrarErro(e?.message ?? String(e)));
   if (conta !== null) mostrarConsole(conta);
 }
-const DIA = 24 * 60 * 60 * 1000;
 /** A fase da conta, para o admin acompanhar: trial (dias restantes), trial vencido, Pro ativo, expirado, free. */
 function fase(l, agora = Date.now()) {
-  const fim = Date.parse(l.expiresAt ?? l.trialEnd ?? "");
-  const dias = Number.isNaN(fim) ? null : Math.ceil((fim - agora) / DIA);
+  const dias = diasAteOFim(l, agora); // a mesma conta da contagem regressiva da página Plano (plano-core.js)
   if (l.status === "trialing") return dias === null ? { texto: "Trial", tom: "ok" } : dias >= 0 ? { texto: `Trial · ${dias === 0 ? "último dia" : `${dias} dia${dias === 1 ? "" : "s"}`}`, tom: "ok" } : { texto: `Trial venceu há ${-dias} dia${dias === -1 ? "" : "s"}`, tom: "mau" };
   if (l.status === "active" && l.plan === "pro") return dias !== null && dias < 0 ? { texto: `Pro venceu há ${-dias} dia${dias === -1 ? "" : "s"}`, tom: "mau" } : { texto: dias === null ? "Pro ativo" : `Pro · ${dias} dia${dias === 1 ? "" : "s"}`, tom: "ok" };
   if (l.status === "expired") return { texto: "Expirado", tom: "mau" };
@@ -933,6 +932,12 @@ async function cancelarAssinatura(a, sim, nao, aviso) {
 }
 function pintarPlano(c) {
   const l = c.licenca;
+  // Contagem regressiva no cabeçalho, ao lado do "lido às": quanto falta do teste ou do Pro (plano-core.js).
+  const falta = contagemRegressiva(l, Date.now());
+  $("prazo").textContent = falta === null ? "" : falta.texto;
+  $("prazo").className = `selo${falta !== null && falta.tom ? ` ${falta.tom}` : ""}`;
+  $("prazo").title = falta === null ? "" : `Vale até ${data(l.expiresAt ?? l.trialEnd)}`;
+  $("prazo").hidden = falta === null || rota()?.secao !== "plan";
   $("pl-cartoes").replaceChildren(
     cartao("⬢", "Plano", selo(PLANO[l.plan] ?? l.plan, l.plan === "pro" ? "ok" : "")),
     cartao("✓", "Status", document.createTextNode(STATUS[l.status] ?? l.status)),
