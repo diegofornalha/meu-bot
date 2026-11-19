@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webFrame } from "electron";
-import type { BackupRestauroPedido, ClienteMcp, FinanceAbcLado, FinanceAbcPor, AdminAction, AlertPrefs, AudioSetup, BackendModel, SupportProgress, SupportShare, ConversationRef, ExportFormat, FreedomLevel, LicensePatch, MainEventChannel, MainEvents, MemoryView, ObjectiveChoice, MeuBotApi, MeuBotAdminApi, MeuBotClientApi, MeuBotSharedApi, SettingsUpdate, SettingsView, StoredConversationView, TabMenuAction, WaMarkPatch, WhatsappGroupAgent, WhatsappGroupPatch, TypingChoice, WindowInfo, StatusLineSegments, ContaId, ZoomAction, ZoomState, FinanceConta, FinanceMoeda, FinanceLancarInput, FinanceTipoLinha, WhatsappAlvo } from "../shared/ipc";
+import type { CrmPipelineExtras, BackupRestauroPedido, ClienteMcp, FinanceAbcLado, FinanceAbcPor, AdminAction, AlertPrefs, AudioSetup, BackendModel, SupportProgress, SupportShare, ConversationRef, ExportFormat, FreedomLevel, LicensePatch, MainEventChannel, MainEvents, MemoryView, ObjectiveChoice, MeuBotApi, MeuBotAdminApi, MeuBotClientApi, MeuBotSharedApi, SettingsUpdate, SettingsView, StoredConversationView, TabMenuAction, WaMarkPatch, WhatsappGroupAgent, WhatsappGroupPatch, TypingChoice, WindowInfo, StatusLineSegments, ContaId, ZoomAction, ZoomState, FinanceConta, FinanceMoeda, FinanceLancarInput, FinanceTipoLinha, WhatsappAlvo } from "../shared/ipc";
 
 // Preload roda em sandbox: não pode importar módulos do app, por isso a lista fica aqui.
 const MAIN_EVENT_CHANNELS: readonly MainEventChannel[] = [
@@ -221,7 +221,7 @@ const clientApi: MeuBotClientApi = {
   browserExtensions: () => ipcRenderer.invoke("browser:extensions", {}),
   browserAgent: (on: boolean) => ipcRenderer.invoke("browser:agent", { on }),
   crmLocal: () => ipcRenderer.invoke("crm:local", {}),
-  crmCriarPipeline: (name: string, stages: string[]) => ipcRenderer.invoke("crm:pipeline-criar", { name, stages }),
+  crmCriarPipeline: (name: string, stages: string[], extras?: CrmPipelineExtras) => ipcRenderer.invoke("crm:pipeline-criar", { name, stages, ...extras }),
   crmDefinirPadrao: (key: string) => ipcRenderer.invoke("crm:pipeline-padrao", { key }),
   browserAgentWhatsapp: (on?: boolean, numeros?: string[]) => ipcRenderer.invoke("browser:agent-whatsapp", on === undefined ? {} : numeros === undefined ? { on } : { on, numeros }),
   browserActive: (wcId: number) => ipcRenderer.send("browser:active", { wcId }),

@@ -117,3 +117,21 @@ test("promptConsolidacao leva o resumo anterior e corta transcrição longa no i
   assert.equal(m.parseConsolidacao("```\nResumo novo\n```"), "Resumo novo");
   assert.throws(() => m.parseConsolidacao("  "));
 });
+
+test("agenteAutonomo: ausente = false; criar e editar com true; valor não booleano é recusado", () => {
+  const p = pipe();
+  assert.equal(p.agenteAutonomo, false, "sem a marca na criação");
+  assert.equal(m.pipelineView(p).agenteAutonomo, false);
+  const { agenteAutonomo: _, ...antigo } = p;
+  assert.equal(m.pipelineView(antigo).agenteAutonomo, false, "pipeline gravado antes da marca");
+  const a = m.novoPipeline({ name: "Leads", agenteAutonomo: true }, T, rnd);
+  assert.equal(a.agenteAutonomo, true); assert.equal(m.pipelineView(a).agenteAutonomo, true);
+  const ligado = m.patchPipeline(p, { agenteAutonomo: true }, [], T + 1, rnd).pipeline;
+  assert.equal(ligado.agenteAutonomo, true); assert.deepEqual(ligado.stages, p.stages, "o resto não muda");
+  assert.equal(m.patchPipeline(ligado, { name: "Outro nome" }, [], T + 2, rnd).pipeline.agenteAutonomo, true, "patch sem a marca não a apaga");
+  assert.equal(m.patchPipeline(ligado, { agenteAutonomo: false }, [], T + 2, rnd).pipeline.agenteAutonomo, false);
+  for (const ruim of ["true", 1, null, "sim"]) {
+    assert.throws(() => m.novoPipeline({ name: "X", agenteAutonomo: ruim }, T, rnd), (e) => e.code === "invalido" && /agenteAutonomo/.test(e.message), String(ruim));
+    assert.throws(() => m.patchPipeline(p, { agenteAutonomo: ruim }, [], T, rnd), (e) => e.code === "invalido", String(ruim));
+  }
+});

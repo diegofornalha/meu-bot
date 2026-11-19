@@ -3,7 +3,7 @@
  * padrão do WhatsApp (sem ele nada é anotado), criar um pipeline e escolher o padrão. Tutorial 17, passo
  * "Criar o primeiro pipeline". A validação final é da máquina (crm-modelo.js › novoPipeline).
  */
-import type { CrmLocal } from "../../shared/ipc";
+import type { CrmLocal, CrmPipelineExtras } from "../../shared/ipc";
 import { ensureTunnel } from "../maquina/tunnel";
 import { getBackendPort } from "../app/settings";
 import { log } from "../maquina/backend";
@@ -35,8 +35,8 @@ export async function crmLocal(host: string): Promise<CrmLocal> {
 
 /** Caixas para oferecer quando o dono liga um grupo do WhatsApp a uma caixa (as mais ativas primeiro). */
 /** Cria um pipeline; o único do CRM vira o padrão sozinho (crm-api.js › pipelinePadrao). Devolve o estado novo. */
-export async function crmCriarPipeline(host: string, name: string, stages: readonly string[]): Promise<CrmLocal> {
-  await api(host, "POST", "/pipelines", { name, stages });
+export async function crmCriarPipeline(host: string, name: string, stages: readonly string[], extras: CrmPipelineExtras = {}): Promise<CrmLocal> {
+  await api(host, "POST", "/pipelines", { name, stages, ...extras });
   let estado = await crmLocal(host);
   // Vários pipelines e nenhum padrão: o que acabou de nascer passa a ser o do WhatsApp.
   if (estado.padrao === null) {

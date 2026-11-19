@@ -185,14 +185,22 @@ function createCrmApi(deps) {
     }
 
     // ---- pipelines ----
+    // Ligar ou desligar a autonomia do agente num pipeline é do dono (app). Vinda do agente, a marca não é gravada:
+    // o pedido fica no feed (`autonomia.pedida`) e a resposta é 403, no mesmo molde de `exclusao_requer_dono`.
+    const autonomiaSoDoDono = async (input, alvo) => {
+      if (por !== 'agente' || input === null || typeof input !== 'object' || !('agenteAutonomo' in input)) return;
+      await store.mutate(por, (tx) => { tx.mudar('autonomia.pedida', { alvo, valor: input.agenteAutonomo === true }); });
+      throw new modelo.ErroCrm('autonomia_requer_dono', 'ligar ou desligar a autonomia do agente num pipeline é do dono: o pedido ficou registrado, ele decide no app');
+    };
     if (a === 'pipelines' && b === undefined) {
-      if (m === 'GET') return { pipelines: store.listPipelines().map((pl) => ({ key: pl.key, name: pl.name, boxes: store.listBoxes(pl.key).length, updatedAt: pl.updatedAt })) };
-      if (m === 'POST') { const input = await body(req); const pl = await store.mutate(por, (tx) => { const novo = modelo.novoPipeline(input, tx.now, tx.rnd); if (tx.getPipeline(novo.key)) throw new modelo.ErroCrm('conflito', `pipeline ${novo.key} já existe`); tx.setPipeline(novo); tx.mudar('pipeline.create', { pipeline: novo.key }); return novo; }); return { pipeline: modelo.pipelineView(pl) }; }
+      if (m === 'GET') return { pipelines: store.listPipelines().map((pl) => ({ key: pl.key, name: pl.name, boxes: store.listBoxes(pl.key).length, agenteAutonomo: pl.agenteAutonomo === true, updatedAt: pl.updatedAt })) };
+      if (m === 'POST') { const input = await body(req); await autonomiaSoDoDono(input, 'pipelines'); const pl = await store.mutate(por, (tx) => { const novo = modelo.novoPipeline(input, tx.now, tx.rnd); if (tx.getPipeline(novo.key)) throw new modelo.ErroCrm('conflito', `pipeline ${novo.key} já existe`); tx.setPipeline(novo); tx.mudar('pipeline.create', { pipeline: novo.key }); return novo; }); return { pipeline: modelo.pipelineView(pl) }; }
     }
     if (a === 'pipelines' && b !== undefined && c === undefined) {
       if (m === 'GET') return modelo.pipelineView(pipelineOr404(b));
       if (m === 'PATCH') {
         const patch = await body(req);
+        await autonomiaSoDoDono(patch, `pipelines/${b}`);
         const pl = await store.mutate(por, (tx) => {
           const cur = pipelineOr404(b);
           const r = modelo.patchPipeline(cur, patch, tx.listBoxes(b), tx.now, tx.rnd);
@@ -754,6 +762,10 @@ function createCrmApi(deps) {
       log(`crm ${req.method} ${url.pathname} → 200 (${Date.now() - t0} ms, ${por})`);
       return json(res, 200, out);
     } catch (e) {
+      if (e instanceof modelo.ErroCrm && e.code === 'autonomia_requer_dono') {
+        log(`crm ${req.method} ${url.pathname} → 403 (agente; pedido registrado)`);
+        return erroHttp(res, json, 403, e.message, e.code);
+      }
       if (e instanceof modelo.ErroCrm) {
         const status = e.code === 'nao_encontrado' ? 404 : e.code === 'conflito' ? 409 : 400;
         log(`crm ${req.method} ${url.pathname} → ${status}: ${e.message}`);

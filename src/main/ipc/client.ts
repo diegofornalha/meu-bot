@@ -7,7 +7,7 @@ import { VOZES, isVozId } from "../whatsapp/vozes-core";
 import { app, dialog, Menu, Notification } from "electron";
 import fs from "node:fs";
 import path from "node:path";
-import type { AudioSetup, ClaudeLoginEvent, LicenseView, ClaudeSessionRef, ExportFormat, LimiaresClaude, TabMenuAction, WhatsappEvent, WhatsappStatus } from "../../shared/ipc";
+import type { CrmPipelineExtras, AudioSetup, ClaudeLoginEvent, LicenseView, ClaudeSessionRef, ExportFormat, LimiaresClaude, TabMenuAction, WhatsappEvent, WhatsappStatus } from "../../shared/ipc";
 import { conversationToMarkdown, conversationTitle, slugify } from "../conversa/export";
 import { atualizarContaClaude, conferirContaClaude, criarContaClaude, deleteBackendSession, fetchAccountStatus, fetchAlertPrefs, fetchBackendSession, fetchContasClaude, limiaresContasClaude, log, removerContaClaude, reordenarContasClaude, runBackendTurn, saveAlertPrefs, usarAgoraContaClaude } from "../maquina/backend";
 import { lerLicenca, lerLicencaDaMaquina } from "../licenca/licenca-maquina";
@@ -377,10 +377,14 @@ export function registerClientIpc(): void {
   handleClient("crm:local", (event) => crmLocal(ctxOf(event).host));
   handleClient("crm:pipeline-criar", async (event, payload: unknown) => {
     const h = ctxOf(event); await assertAcesso(h.host);
-    const p = payload as { name?: unknown; stages?: unknown } | null;
+    const p = payload as { name?: unknown; stages?: unknown; fields?: unknown; agenteAutonomo?: unknown } | null;
     if (typeof p?.name !== "string" || p.name.trim() === "" || p.name.length > 60) throw new Error("nome inválido");
     if (!Array.isArray(p.stages) || p.stages.length < 2 || p.stages.length > 12 || !p.stages.every((s) => typeof s === "string" && s.trim() !== "" && s.length <= 40)) throw new Error("etapas inválidas (2 a 12)");
-    const r = await crmCriarPipeline(h.host, p.name.trim(), (p.stages as string[]).map((s) => s.trim()));
+    // Campos e autonomia vêm do modelo escolhido; a forma de cada campo quem valida é o crm-modelo.js da máquina.
+    if (p.fields !== undefined && (!Array.isArray(p.fields) || p.fields.length > 30)) throw new Error("campos inválidos");
+    if (p.agenteAutonomo !== undefined && typeof p.agenteAutonomo !== "boolean") throw new Error("agenteAutonomo inválido");
+    const extras: CrmPipelineExtras = { ...(p.fields !== undefined ? { fields: p.fields as NonNullable<CrmPipelineExtras["fields"]> } : {}), ...(p.agenteAutonomo !== undefined ? { agenteAutonomo: p.agenteAutonomo } : {}) };
+    const r = await crmCriarPipeline(h.host, p.name.trim(), (p.stages as string[]).map((s) => s.trim()), extras);
     void registrar(h.host, "crm.pipeline-criar", `"${p.name.trim()}"`);
     return r;
   });

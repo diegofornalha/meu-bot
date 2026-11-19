@@ -2,6 +2,8 @@
 
 /** Tutorial 17 · CRM pelo WhatsApp (Pro): configuração na máquina (crm.json sem a chave) e instalação do plugin. */
 /** CRM próprio da máquina (meu-bot-crm): pipelines e o padrão do WhatsApp (null = nenhum: nada é anotado). */
+/** O que um modelo pronto acrescenta ao pipeline novo: campos e a marca de autonomia do agente (crm-modelo.js valida). */
+export interface CrmPipelineExtras { fields?: { name: string; type: string; options: string[] }[]; agenteAutonomo?: boolean }
 export interface CrmLocal { pipelines: { key: string; name: string; boxes: number }[]; padrao: string | null }
 
 export interface CrmInfo {

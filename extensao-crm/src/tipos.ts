@@ -3,8 +3,8 @@ export interface Etapa { key: string; name: string }
 export interface Opcao { key: string; name: string }
 export type TipoCampo = "TEXT" | "NUMBER" | "DATE" | "DROPDOWN" | "TAG" | "CHECKBOX";
 export interface Campo { key: string; name: string; type: TipoCampo; options: Opcao[] }
-export interface Pipeline { key: string; name: string; stages: Etapa[]; fields: Campo[] }
-export interface PipelineResumo { key: string; name: string; boxes: number; updatedAt: number }
+export interface Pipeline { key: string; name: string; stages: Etapa[]; fields: Campo[]; /** O agente age sem pedir ao dono neste pipeline; hosts antigos não mandam (= false). */ agenteAutonomo?: boolean }
+export interface PipelineResumo { key: string; name: string; boxes: number; updatedAt: number; agenteAutonomo?: boolean }
 /** Linha da lista de um pipeline (GET /pipelines/:k/boxes). `fields` por chave, valores crus. */
 /** Responsável pela caixa (e-mail; nome quando se sabe). */
 export interface Responsavel { email: string; nome: string }

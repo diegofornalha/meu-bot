@@ -8,7 +8,7 @@ timeout 120 openclaw plugins uninstall meu-bot-crm >/dev/null 2>&1 || true
 rm -rf "$HOME/.openclaw/extensions/meu-bot-crm"
 if [ -d "$SRC/db" ]; then
   if [ "${1:-}" = "--apagar-dados" ]; then mv "$SRC/db" "$HOME/.local/share/meu-bot/crm-db-removido-$(date +%Y%m%d-%H%M%S)"; echo "dados do CRM movidos para crm-db-removido-*"; fi
-  find "$SRC" -maxdepth 1 -type f \( -name '*.js' -o -name '*.mjs' -o -name '*.json' -o -name 'lock-*' -o -name '*.log' \) -delete
+  find "$SRC" -maxdepth 1 -type f \( -name '*.js' -o -name '*.mjs' -o -name '*.json' -o -name 'skill-*.md' -o -name 'lock-*' -o -name '*.log' \) -delete
   echo "CRM removido desta máquina (os dados em $SRC/db ficaram)"
 else
   rm -rf "$SRC"

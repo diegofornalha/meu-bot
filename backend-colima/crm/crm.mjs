@@ -15,7 +15,10 @@
  *   contact-upsert --phone +N [--name "x"] [--email e] [--box <box>]
  *   telefone-set +N <box>                       (o telefone passa a ser de um contato vinculado ao box)
  *   threads <box> · thread-add <box> <threadGmailId> · thread-remove <box> <threadGmailId>
- *   pipeline-create --name "x" [--stages "A|B|C"] · pipeline-rename <pipeline> "Nome" · pipeline-delete <pipeline>
+ *   pipeline-create --name "x" [--stages "A|B|C"] [--autonomo true|false] · pipeline-set <pipeline> --autonomo true|false
+ *   (--autonomo: neste pipeline o agente cria caixa, preenche campos e muda etapa sem perguntar ao dono; quem liga é o
+ *   dono, no app: com a chave do agente o backend responde 403 `autonomia_requer_dono` e registra o pedido)
+ *   pipeline-rename <pipeline> "Nome" · pipeline-delete <pipeline>
  *   stage-add <pipeline> "Nome" · stage-rename <pipeline> "Atual" "Novo" · stage-remove <pipeline> "Etapa" [--mover "Outra"]
  *   field-add <pipeline> "Nome" TEXT|NUMBER|DATE|DROPDOWN|TAG|CHECKBOX [--options "a|b"]
  *   (pipeline, etapa e campo: só a pedido explícito do dono; os mesmos que o menu ⋯ do Gmail faz)
@@ -41,6 +44,8 @@ for (let i = 1; i < argv.length; i++) { const a = argv[i]; if (a.startsWith("--"
 const q = (o) => { const p = new URLSearchParams(); for (const [k, v] of Object.entries(o)) if (v !== undefined && v !== null && v !== "") p.set(k, String(v)); const s = p.toString(); return s === "" ? "" : `?${s}`; };
 const enc = encodeURIComponent;
 const api = (m, p, b) => crmApi(m, p, b, { por: "agente" });
+/** --autonomo true|false → boolean; ausente → undefined; qualquer outro valor é erro (não vira false calado). */
+const autonomo = () => { if (opt.autonomo === undefined) return undefined; if (opt.autonomo !== "true" && opt.autonomo !== "false") throw new Error("--autonomo aceita true ou false"); return opt.autonomo === "true"; };
 
 /** Pipeline escolhido: --pipeline, senão o configurado em crm.json (lido do backend). */
 async function pipelineKey() {
@@ -59,7 +64,7 @@ async function main() {
       let pipeline = null; if (st.config.pipelineKey) { try { pipeline = await api("GET", `/pipelines/${enc(st.config.pipelineKey)}`); } catch (e) { pipeline = { erro: e.message }; } }
       return out({ ok: true, usuario: null, pipelines: ps.pipelines, pipeline, silencioMin: st.config.silencioMin, criarSemPerguntar: st.config.criarSemPerguntar, boxes: st.boxes, seq: st.seq });
     }
-    case "pipelines": return out({ pipelines: (await api("GET", "/pipelines")).pipelines.map((p) => ({ key: p.key, name: p.name, boxes: p.boxes })) });
+    case "pipelines": return out({ pipelines: (await api("GET", "/pipelines")).pipelines.map((p) => ({ key: p.key, name: p.name, boxes: p.boxes, agenteAutonomo: p.agenteAutonomo === true })) });
     case "pipeline": return out(await api("GET", `/pipelines/${enc(pos[0] ?? await pipelineKey())}`));
     case "box-find": {
       // Procura em todos os pipelines (a pessoa pode estar em qualquer um); --pipeline <key> restringe a um.
@@ -169,7 +174,13 @@ async function main() {
     case "pipeline-create": {
       if (typeof opt.name !== "string" || opt.name.trim() === "") throw new Error("--name é obrigatório");
       const stages = typeof opt.stages === "string" ? opt.stages.split("|").map((s) => s.trim()).filter(Boolean) : [];
-      return out(await api("POST", "/pipelines", { name: opt.name.trim(), stages }));
+      const auto = autonomo();
+      return out(await api("POST", "/pipelines", { name: opt.name.trim(), stages, ...(auto !== undefined ? { agenteAutonomo: auto } : {}) }));
+    }
+    case "pipeline-set": {
+      const pk = pos[0]; const auto = autonomo();
+      if (!pk || auto === undefined) throw new Error("uso: pipeline-set <pipeline> --autonomo true|false");
+      return out(await api("PATCH", `/pipelines/${enc(pk)}`, { agenteAutonomo: auto }));
     }
     case "stage-add": {
       const [pk, nome] = pos; if (!pk || !nome) throw new Error("uso: stage-add <pipeline> \"Nome\"");

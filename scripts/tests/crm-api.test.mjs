@@ -468,3 +468,52 @@ test("exclusao pelo agente: 403, pedido registrado e comentario no box; pelo app
     assert.equal((await call("GET", `/boxes/${bx.key}`)).status, 404);
   } finally { srvA.close(); }
 });
+
+test("agenteAutonomo: nasce false, cria e edita com true, a lista devolve a marca, não booleano → 400", async () => {
+  const sem = await call("POST", "/pipelines", { name: "Sem marca", stages: ["A", "B"] }, { "x-crm-por": "app" });
+  assert.equal(sem.status, 200); assert.equal(sem.j.pipeline.agenteAutonomo, false);
+  const com = await call("POST", "/pipelines", { name: "Leads do site", stages: ["Novo", "Respondido"], agenteAutonomo: true }, { "x-crm-por": "app" });
+  assert.equal(com.status, 200); assert.equal(com.j.pipeline.agenteAutonomo, true);
+  assert.equal((await call("GET", `/pipelines/${com.j.pipeline.key}`)).j.agenteAutonomo, true);
+  const marca = async (k) => (await call("GET", "/pipelines")).j.pipelines.find((p) => p.key === k).agenteAutonomo;
+  assert.equal(await marca(sem.j.pipeline.key), false); assert.equal(await marca(com.j.pipeline.key), true);
+  const liga = await call("PATCH", `/pipelines/${sem.j.pipeline.key}`, { agenteAutonomo: true });
+  assert.equal(liga.status, 200); assert.equal(liga.j.pipeline.agenteAutonomo, true); assert.equal(await marca(sem.j.pipeline.key), true);
+  const outro = await call("PATCH", `/pipelines/${sem.j.pipeline.key}`, { name: "Sem marca 2" });
+  assert.equal(outro.j.pipeline.agenteAutonomo, true, "editar outra coisa não desliga");
+  assert.equal((await call("PATCH", `/pipelines/${sem.j.pipeline.key}`, { agenteAutonomo: false })).j.pipeline.agenteAutonomo, false);
+  assert.equal((await call("PATCH", `/pipelines/${sem.j.pipeline.key}`, { agenteAutonomo: "true" })).status, 400);
+  assert.equal((await call("POST", "/pipelines", { name: "Ruim", agenteAutonomo: 1 })).status, 400);
+  assert.equal(await marca(sem.j.pipeline.key), false, "a recusa não gravou nada");
+});
+
+test("autonomia pelo agente: 403 na criação e na edição, pedido no feed, nada gravado; pelo app (dono) continua valendo", async () => {
+  // Mesmo molde da exclusão: o server.js carimba papel=agente quando a chave usada é a CRM_AGENT_KEY.
+  const srvA = http.createServer((req, res) => api.handle(req, res, new URL(req.url, "http://x"), "agente"));
+  await new Promise((r) => srvA.listen(0, "127.0.0.1", r));
+  const agente = async (method, path, body) => { const r = await fetch(`http://127.0.0.1:${srvA.address().port}/v1/crm${path}`, { method, headers: { "content-type": "application/json", "x-crm-por": "app" }, body: JSON.stringify(body) }); return { status: r.status, j: await r.json() }; };
+  const pedidos = () => readFileSync(join(dir, "db", "mudancas.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l)).filter((x) => x.tipo === "autonomia.pedida");
+  try {
+    const antes = (await call("GET", "/pipelines")).j.pipelines.length;
+    // Criação: nem com true nem com false; o pipeline não nasce.
+    const c = await agente("POST", "/pipelines", { name: "Funil do agente", stages: ["A", "B"], agenteAutonomo: true });
+    assert.equal(c.status, 403); assert.equal(c.j.error.code, "autonomia_requer_dono");
+    assert.equal((await agente("POST", "/pipelines", { name: "Funil do agente", agenteAutonomo: false })).status, 403);
+    assert.equal((await call("GET", "/pipelines")).j.pipelines.length, antes, "nada foi criado");
+    // Edição: a marca não muda, e o resto do patch também não entra.
+    const e = await agente("PATCH", `/pipelines/${P.key}`, { name: "Renomeado pelo agente", agenteAutonomo: true });
+    assert.equal(e.status, 403); assert.equal(e.j.error.code, "autonomia_requer_dono");
+    const g = await call("GET", `/pipelines/${P.key}`); assert.equal(g.j.agenteAutonomo, false); assert.notEqual(g.j.name, "Renomeado pelo agente");
+    const ped = pedidos(); assert.equal(ped.length, 3);
+    assert.deepEqual(ped.map((x) => [x.alvo, x.valor, x.por]), [["pipelines", true, "agente"], ["pipelines", false, "agente"], [`pipelines/${P.key}`, true, "agente"]]);
+    // Sem a marca no corpo, o agente segue criando e editando pipeline como antes.
+    const livre = await agente("POST", "/pipelines", { name: "Funil sem marca", stages: ["A", "B"] });
+    assert.equal(livre.status, 200); assert.equal(livre.j.pipeline.agenteAutonomo, false);
+    assert.equal((await agente("PATCH", `/pipelines/${livre.j.pipeline.key}`, { name: "Funil sem marca 2" })).status, 200);
+    // O dono, pelo app (é por onde o modelo "Leads do site" cria o funil), liga na criação e na edição.
+    const dono = await call("POST", "/pipelines", { name: "Leads do dono", stages: ["Novo", "Respondido"], agenteAutonomo: true }, { "x-crm-por": "app" });
+    assert.equal(dono.status, 200); assert.equal(dono.j.pipeline.agenteAutonomo, true);
+    assert.equal((await call("PATCH", `/pipelines/${livre.j.pipeline.key}`, { agenteAutonomo: true })).j.pipeline.agenteAutonomo, true);
+    assert.equal(pedidos().length, 3, "o que o dono faz não vira pedido");
+  } finally { srvA.close(); }
+});

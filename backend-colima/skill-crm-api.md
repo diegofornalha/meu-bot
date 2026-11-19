@@ -13,7 +13,7 @@ O pipeline padrão fica em `~/.local/share/meu-bot/crm.json`; `--pipeline <key>`
 - **Apagar pede, não apaga.** `box-delete`, `pipeline-delete`, `arquivo-delete`, `contato-delete` e `org-delete` vindos de
   você voltam 403 `exclusao_requer_dono` e deixam o pedido registrado (comentário no box, quando há box). Diga ao dono o
   que você pediu para apagar e que ele confirma no app. Não tente contornar com outra rota, chave ou cabeçalho.
-- `diag` · `pipelines` · `pipeline [key]` (etapas e campos, com as opções das listas)
+- `diag` · `pipelines` · `pipeline [key]` (etapas e campos, com as opções das listas, e a marca `agenteAutonomo`)
 - `box-find --phone +595…` | `--name "Junior"` | `--query "kommo"` | `--email fulano@x.com` | `--email @dominio` | `--thread <threadGmailId>`
   (procura em **todos os pipelines**; a caixa pode estar em "Aluguel de Carro" etc.; `--pipeline <key>` restringe)
   → boxes (com os últimos comentários quando acha um só)
@@ -27,7 +27,11 @@ O pipeline padrão fica em `~/.local/share/meu-bot/crm.json`; `--pipeline <key>`
 - `threads <boxKey>` · `thread-add <boxKey> <threadGmailId>` · `thread-remove <boxKey> <threadGmailId>`
   (uma conversa do Gmail só pode estar em um box; o id é o hexadecimal da conversa)
 - Pipelines, etapas e campos (os mesmos que o menu ⋯ do CRM no Gmail faz) — **só a pedido explícito do dono**:
-  - `pipeline-create --name "x" --stages "A|B|C"` · `pipeline-rename <pipeline> "Nome"` · `pipeline-delete <pipeline>` (só vazio)
+  - `pipeline-create --name "x" --stages "A|B|C" [--autonomo true|false]` · `pipeline-rename <pipeline> "Nome"` · `pipeline-delete <pipeline>` (só vazio)
+  - `pipeline-set <pipeline> --autonomo true|false` (a marca `agenteAutonomo`: com ela você mexe nas caixas desse
+    pipeline sem perguntar). **Quem liga ou desliga é o dono, no app.** Vindo de você, `--autonomo` (aqui ou no
+    `pipeline-create`) volta 403 `autonomia_requer_dono` e deixa o pedido registrado: diga ao dono o que você pediu e
+    não tente contornar.
   - `stage-add <pipeline> "Nome"` · `stage-rename <pipeline> "Atual" "Novo"` · `stage-remove <pipeline> "Etapa" [--mover "Outra"]`
     (etapa com caixas só sai com `--mover`)
   - `field-add <pipeline> "Nome" TIPO [--options "a|b"]` (TIPO: TEXT | NUMBER | DATE | DROPDOWN | TAG | CHECKBOX)
@@ -53,14 +57,27 @@ O pipeline padrão fica em `~/.local/share/meu-bot/crm.json`; `--pipeline <key>`
 1. Sempre comece por `box-find --phone` (telefone do WhatsApp); sem resultado, `--name`; e-mail do Gmail, `--email`.
 2. Antes de anotar, leia os `comentarios` do box para não repetir.
 3. Anotações de conversa vão em `comment` (data + fato + próximo passo), não em `notes` (notes é a ficha fixa).
-4. Criar box, mudar etapa e campos de lista: só com o dono confirmando (no fluxo automático, proponha no bloco
-   `crm-json`; se o dono pediu explicitamente, faça).
+4. Criar box, mudar etapa e campos de lista depende do pipeline (veja `agenteAutonomo` em `pipeline <key>`):
+   - `agenteAutonomo: true`: crie a caixa, preencha os campos e mude a etapa sem perguntar.
+   - nos outros: só com o dono confirmando (no fluxo automático, proponha no bloco `crm-json`; se o dono pediu
+     explicitamente, faça).
+   Apagar continua voltando 403 em qualquer pipeline, autônomo ou não.
 5. Nunca invente valores; o que a conversa não disse fica em branco.
 6. Assunto que não cabe no pipeline configurado: não encaixe. Liste os `pipelines`, proponha 2 ou 3 saídas e
    espere. Pipeline, etapa e campo novos só com o dono confirmando.
 7. Este crm.mjs é do meu-bot: não o edite. Se faltar uma ação, diga à pessoa o que falta para ela pedir no app.
 8. Dados do Streak: `node ~/.local/share/meu-bot/crm/importar-streak.mjs --chave <chave> --pipeline <key>` traz um
    pipeline uma vez (a chave não é gravada); nunca mostre a chave na resposta.
+
+## Lead que chega pelo WhatsApp
+Vale para o funil de leads (modelo "Leads do site": Novo › Respondido › Link enviado › Baixou › Assinou › Perdido).
+1. Comece por `box-find --phone +N`. Achou a caixa: use essa, não crie outra.
+2. Sem caixa: `box-create --pipeline <funil de leads> --name "Nome" --phone +N --stage "Novo"`.
+3. Primeira mensagem terminando com `(ref: x)`: `field-set <boxKey> "Ref do anúncio" "x"` e
+   `field-set <boxKey> "Origem" "Anúncio"`.
+4. A cada conversa, um `comment` com data + fato + próximo passo, e a etapa acompanhando o que aconteceu.
+5. Não copie o conteúdo da conversa para a caixa: fica só o fato resumido.
+6. Nunca invente valor: campo que a conversa não esclareceu fica em branco.
 
 ## Fluxo automático (plugin meu-bot-crm)
 O job `crm-job.mjs` chama você com a conversa nova e espera no fim um bloco:

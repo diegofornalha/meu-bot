@@ -83,3 +83,16 @@ test("arquivo corrompido: abrir falha com a mensagem do caminho (não sobrescrev
   assert.equal(readFileSync(join(db, "meta.json"), "utf8"), "{lixo", "ficou como estava");
   rmSync(dir, { recursive: true, force: true });
 });
+
+test("agenteAutonomo: a marca sobrevive a reabrir; arquivo antigo sem ela volta false", async () => {
+  const { dir, db } = fresh();
+  const s = openStore(db, { now: () => T0, rnd });
+  const [com, sem] = await s.mutate("t", (tx) => { const a = m.novoPipeline({ name: "Leads", agenteAutonomo: true }, tx.now, tx.rnd); const b = m.novoPipeline({ name: "Antigo" }, tx.now, tx.rnd); tx.setPipeline(a); tx.setPipeline(b); tx.mudar("pipeline.create"); return [a, b]; });
+  // Pipeline gravado por uma versão anterior: o arquivo não tem o campo.
+  const { writeFileSync } = await import("node:fs"); const arq = join(db, "pipelines", `${sem.key}.json`);
+  const { agenteAutonomo: _, ...antigo } = JSON.parse(readFileSync(arq, "utf8")); writeFileSync(arq, JSON.stringify(antigo));
+  const s2 = openStore(db, { now: () => T0, rnd });
+  assert.equal(s2.getPipeline(com.key).agenteAutonomo, true);
+  assert.equal(s2.getPipeline(sem.key).agenteAutonomo, false);
+  rmSync(dir, { recursive: true, force: true });
+});

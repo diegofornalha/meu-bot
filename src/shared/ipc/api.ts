@@ -7,7 +7,7 @@ import type { ContaView } from "./conta";
 import type { TelaEndereco, TelaInstalacao, TelaStatus } from "./computador";
 import type { InspectorAbrir } from "./inspector";
 import type { ClaudeSessionRef, ContextEvent, ConversationRef, DoneEvent, ErrorEvent, ExportFormat, MemoryView, StoredConversationView, TabMenuAction, ToolEvent } from "./conversa";
-import type { CrmDiag, CrmInfo, CrmLocal } from "./crm";
+import type { CrmDiag, CrmInfo, CrmLocal, CrmPipelineExtras } from "./crm";
 import type { FinanceAbc, FinanceAbcLado, FinanceAbcPor, FinanceCategoria, FinanceConfig, FinanceConta, FinanceImportacao, FinanceInfo, FinanceLancamento, FinanceLancarInput, FinanceMoeda, FinanceTipoLinha } from "./financeiro";
 import type { AgendaEvento, BackupCopiasView, BackupDadosProgresso, BackupDadosView, BackupRestauroPedido, BackupRestauroProgresso, BackupRestauroResultado, GmailAgenteState, GmailApagado, GmailDetalhe, GmailLista, GoogleContaStatus, PlanilhaLeitura } from "./google";
 import type { LicensePatch, LicenseView, PlanoDaContaResultado } from "./licenca";
@@ -381,8 +381,8 @@ export interface MeuBotClientApi {
   browserAgentWhatsapp(on?: boolean, numeros?: string[]): Promise<NavWhatsappInfo>;
   /** meu-bot-crm: pipelines do CRM da máquina e o padrão do WhatsApp. */
   crmLocal(): Promise<CrmLocal>;
-  /** meu-bot-crm: cria um pipeline (o único vira o padrão do WhatsApp). */
-  crmCriarPipeline(name: string, stages: string[]): Promise<CrmLocal>;
+  /** meu-bot-crm: cria um pipeline (o único vira o padrão do WhatsApp). `extras`: campos e autonomia do modelo escolhido. */
+  crmCriarPipeline(name: string, stages: string[], extras?: CrmPipelineExtras): Promise<CrmLocal>;
   /** meu-bot-crm: escolhe o pipeline onde as conversas do WhatsApp são anotadas. */
   crmDefinirPadrao(key: string): Promise<CrmLocal>;
   /** Qual aba interna está ativa (id do webContents): as ações do agente sem `aba` caem nela. */

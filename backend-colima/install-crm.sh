@@ -28,12 +28,35 @@ if [ "$OC" = 1 ]; then
   timeout 60 openclaw config set plugins.entries.meu-bot-crm.hooks.allowConversationAccess true --strict-json >/dev/null 2>&1 || echo "aviso: não consegui gravar hooks.allowConversationAccess (confira no openclaw.json)"
   timeout 60 openclaw config set plugins.entries.meu-bot-crm.enabled true --strict-json >/dev/null 2>&1 || true
 fi
-# Skills do agente (sementes; o agente pode editar as dele): a do CRM próprio e a do Streak.
+# Skills do agente (sementes; o agente pode editar as dele): a do CRM próprio e a do Streak. Vão para ~/.claude/skills
+# e, em máquina com Hermes (~/.hermes existe), também para ~/.hermes/skills, que é onde o Hermes as lê.
+# Ao lado de cada SKILL.md fica .semente.sha256, o hash da semente instalada. Na reinstalação: SKILL.md igual a esse
+# hash é cópia intocada e recebe a semente nova; diferente, o agente editou e fica como está; sem o arquivo de hash
+# (instalação antiga) não dá para saber, então também fica. A semente fica guardada em $SRC para quem quiser comparar.
+sha() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | cut -d' ' -f1; else shasum -a 256 "$1" | cut -d' ' -f1; fi; }
+HERMES=""; [ -d "$HOME/.hermes" ] && HERMES=1
 for par in "skill-crm-api.md:crm-api" "skill-streak-crm-api.md:streak-crm-api"; do
   src="$HERE/${par%%:*}"; nome="${par##*:}"
   if [ -f "$src" ]; then
-    SK="$HOME/.claude/skills/$nome/SKILL.md"
-    if [ -f "$SK" ]; then echo "skill $nome já existe (mantida)"; else mkdir -p "$(dirname "$SK")"; cp "$src" "$SK"; echo "skill $nome instalada"; fi
+    GUARDADA="$SRC/${par%%:*}"; cp "$src" "$GUARDADA"; chmod 644 "$GUARDADA"
+    NOVA=$(sha "$src")
+    for alvo in "Claude:$HOME/.claude" ${HERMES:+"Hermes:$HOME/.hermes"}; do
+      ag="${alvo%%:*}"; SK="${alvo#*:}/skills/$nome/SKILL.md"; MARCA="$(dirname "$SK")/.semente.sha256"
+      if [ ! -f "$SK" ]; then
+        mkdir -p "$(dirname "$SK")"; cp "$src" "$SK"; printf '%s\n' "$NOVA" > "$MARCA"; echo "skill $nome instalada no $ag"
+      else
+        ATUAL=$(sha "$SK"); GRAVADA=$(cat "$MARCA" 2>/dev/null || true)
+        if [ "$ATUAL" = "$NOVA" ]; then
+          printf '%s\n' "$NOVA" > "$MARCA"; echo "skill $nome já existe no $ag (mantida)"
+        elif [ -n "$GRAVADA" ] && [ "$ATUAL" = "$GRAVADA" ]; then
+          cp "$src" "$SK"; printf '%s\n' "$NOVA" > "$MARCA"; echo "skill $nome atualizada no $ag"
+        elif [ -n "$GRAVADA" ]; then
+          echo "skill $nome no $ag foi editada pelo agente (mantida); o texto novo está em $GUARDADA"
+        else
+          echo "skill $nome já existe no $ag e não sei se foi editada (mantida); o texto novo está em $GUARDADA"
+        fi
+      fi
+    done
   fi
 done
 # Lê o arquivo cru (o backend pode ainda não ter migrado a licença antiga): "personalizado" virou Pro em 22 out.
