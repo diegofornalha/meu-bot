@@ -1,7 +1,7 @@
 // Painel "Assinar o Pro" do console (public/console/plano-core.js): quando some e quando avisa do prazo atual.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addonsNaVisaoGeral, deParaDoExtra, avisoAddonPago, contagemRegressiva, diasAteOFim, estadoAssinaturaPro, fase, linhasDeMaquinas, ofertaDoProAparece, pedidoAssinar, promoNaTela, reaisCurto, semPrazo, podeAdicionarMaquina, vagaDoAssinar, vagasDeDevice, vagasDeMaquina } from "../public/console/plano-core.js";
+import { addonsNaVisaoGeral, assinaturasAtivasDe, oQueAContaTem, pagoChegou, deParaDoExtra, avisoAddonPago, contagemRegressiva, diasAteOFim, estadoAssinaturaPro, fase, linhasDeMaquinas, ofertaDoProAparece, pedidoAssinar, promoNaTela, reaisCurto, semPrazo, podeAdicionarMaquina, vagaDoAssinar, vagasDeDevice, vagasDeMaquina } from "../public/console/plano-core.js";
 
 const pro = { plan: "pro", status: "active" };
 const ativa = { status: "ACTIVE", produto: null };
@@ -169,6 +169,7 @@ test("oferta do Pro: a vaga do painel abre a Visão geral, o painel nasce na vag
   const js = await readFile(new URL("../public/console/console.js", import.meta.url), "utf8");
   assert.match(js, /vagaDoAssinar\(rota\(\)\?\.secao\)/);
   assert.equal(vagaDoAssinar("plan"), "pl-assinar-vaga");
+  assert.equal(vagaDoAssinar("marketplace"), "mk-assinar-vaga");
   for (const s of ["overview", "devices", undefined]) assert.equal(vagaDoAssinar(s), "ov-assinar-vaga");
 });
 
@@ -227,4 +228,41 @@ test("máquinas que você usa: as da conta ocupam vaga, as do admin aparecem sem
   assert.equal(r.semVaga, 1);
   assert.equal(r.linhas[3].valeAte, null);
   assert.deepEqual(linhasDeMaquinas(undefined, undefined), { linhas: [], ocupadas: 0, semVaga: 0 }, "API antiga, sem os campos");
+});
+
+test("Marketplace: a seção existe no menu, recebe os painéis de compra e o Plano fica sem eles", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const html = await readFile(new URL("../public/console/index.html", import.meta.url), "utf8");
+  assert.match(html, /<a href="\/account\/marketplace" data-secao="marketplace">/);
+  const mk = html.slice(html.indexOf('<section data-secao="marketplace"'), html.indexOf('<section data-secao="support"'));
+  for (const id of ["mk-tem", "mk-assinar-vaga", "pl-extras", "pl-addons", "mk-vazio"]) assert.ok(mk.includes(`id="${id}"`), id);
+  const plano = html.slice(html.indexOf('<section data-secao="plan"'), html.indexOf('<section data-secao="marketplace"'));
+  assert.ok(!plano.includes('id="pl-extras"') && !plano.includes('id="pl-addons"'));
+  assert.match(plano, /href="\/account\/marketplace"/);
+  for (const id of ["pl-extras", "pl-addons"]) assert.equal(html.split(`id="${id}"`).length, 2, `${id} uma vez só`);
+  const js = await readFile(new URL("../public/console/console.js", import.meta.url), "utf8");
+  assert.match(js, /const SECOES = \[[^\]]*"marketplace"/);
+  assert.match(js, /marketplace: pintarMarketplace/);
+  assert.ok(!js.includes('a.href = "/account/plan"'), "os atalhos de compra levam ao Marketplace");
+});
+
+test("Marketplace: o pago chegou? add-on pela licença; unidade extra pela contagem de assinaturas", () => {
+  const maq = (status = "ACTIVE") => ({ produto: "extra-maquina", status });
+  assert.equal(assinaturasAtivasDe([maq(), maq("CANCELLED"), { produto: null, status: "ACTIVE" }], "extra-maquina"), 1);
+  assert.equal(assinaturasAtivasDe(undefined, "extra-maquina"), 0);
+  assert.equal(pagoChegou({ licenca: { produtos: ["meu-bot-finance"] } }, "meu-bot-finance", null), true);
+  assert.equal(pagoChegou({ licenca: { produtos: [] } }, "meu-bot-finance", null), false);
+  assert.equal(pagoChegou({ assinaturas: [maq()] }, "extra-maquina", 0), true, "tinha 0, agora 1");
+  assert.equal(pagoChegou({ assinaturas: [maq()] }, "extra-maquina", 1), false, "a segunda ainda não entrou");
+  assert.equal(pagoChegou({ assinaturas: [maq(), maq()] }, "extra-maquina", 1), true);
+  assert.equal(pagoChegou({ assinaturas: [maq()] }, "extra-maquina", null), false, "sem o número de antes, não afirma");
+  assert.equal(pagoChegou({}, null, null), true, "sem produto na volta, nada a esperar");
+});
+
+test("Marketplace: o que a conta tem", () => {
+  const nomes = { "meu-bot-finance": "Finanças" };
+  assert.deepEqual(oQueAContaTem({ licenca: { plan: "pro", status: "active", produtos: ["meu-bot-finance", "meu-bot-x"] }, maquinaExtras: 1, deviceExtras: 2 }, nomes), ["Pro", "Finanças", "meu-bot-x", "1 máquina extra", "2 Macs extras"]);
+  assert.deepEqual(oQueAContaTem({ licenca: { plan: "pro", status: "trialing", produtos: [] } }, nomes), ["Pro (teste grátis)"]);
+  assert.deepEqual(oQueAContaTem({ licenca: { plan: "free", status: "expired", produtos: [] } }, nomes), []);
+  assert.deepEqual(oQueAContaTem(undefined), []);
 });

@@ -1,5 +1,5 @@
 import { avisoDepoisDo404, pedeReleitura, visaoVelha } from "./admin-core.js";
-import { INFINITO, SEM_LIMITE, SEM_PRAZO, TODOS_ADDONS, avisoAddonPago, contagemRegressiva, addonsNaVisaoGeral, estadoAssinaturaPro, fase, linhasDeMaquinas, deParaDoExtra, ofertaDoProAparece, pedidoAssinar, podeAdicionarMaquina, promoNaTela, reaisCurto, semPrazo, vagaDoAssinar, vagasDeDevice, vagasDeMaquina } from "./plano-core.js";
+import { INFINITO, SEM_LIMITE, SEM_PRAZO, TODOS_ADDONS, avisoAddonPago, contagemRegressiva, addonsNaVisaoGeral, estadoAssinaturaPro, fase, linhasDeMaquinas, deParaDoExtra, ofertaDoProAparece, oQueAContaTem, pagoChegou, assinaturasAtivasDe, pedidoAssinar, podeAdicionarMaquina, promoNaTela, reaisCurto, semPrazo, vagaDoAssinar, vagasDeDevice, vagasDeMaquina } from "./plano-core.js";
 // Console da conta meu-bot (console.agentesgrok.com/account/* e /organizations/<slug>/members|settings, molde Rambox). Entra pela mesma página de
 // login do app (auth.agentesgrok.com) com esquema=web: o console gera state + PKCE, a página devolve #code&state, e
 // POST /token {grant:"web"} vira um token de acesso de 1 h guardado neste navegador (localStorage: outra aba, inclusive
@@ -13,8 +13,8 @@ const caminhoAnonimo = (c) => c.replace(/^\/organizations\/(?!new(?:\/|$))[^/]+/
 let ultimoCaminhoMedido = null;
 function medirPagina(secao) { const cam = caminhoAnonimo(location.pathname); if (cam === ultimoCaminhoMedido) return; ultimoCaminhoMedido = cam; ga.pagina(cam, { secao }); }
 const CH_SESSAO = "meu-bot-console-sessao", CH_LOGIN = "meu-bot-console-login";
-const SECOES = ["overview", "profile", "devices", "plan", "support", "access", "sales", "audit", "organizations"];
-const TITULOS = { sales: "Assinaturas", audit: "Auditoria", janelas: "Janelas de suporte", overview: "Visão geral", profile: "Perfil", devices: "Devices", plan: "Plano", support: "Suporte", access: "Perfis de acesso", orgs: "Organizações", "org-nova": "Nova organização" };
+const SECOES = ["overview", "profile", "devices", "plan", "marketplace", "support", "access", "sales", "audit", "organizations"];
+const TITULOS = { sales: "Assinaturas", audit: "Auditoria", janelas: "Janelas de suporte", overview: "Visão geral", profile: "Perfil", devices: "Devices", plan: "Plano", marketplace: "Marketplace", support: "Suporte", access: "Perfis de acesso", orgs: "Organizações", "org-nova": "Nova organização" };
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/;
 const PAPEL_ORG = { dona: "dona", admin: "admin", membro: "membro" };
 const TOKEN_RE = /^[A-Za-z0-9_-]{16,128}$/;
@@ -34,7 +34,9 @@ const EXTRAS = (() => { try { const a = JSON.parse(cfg.extras ?? "[]"); return A
 const EXTRA_MAQUINA = EXTRAS.find((x) => x.tipo === "maquina") ?? null;
 const EXTRA_DEVICE = EXTRAS.find((x) => x.tipo === "device") ?? null;
 /** O nome de cada tipo de extra na lista do admin (vale mesmo com o catálogo vazio, para extras já pagos). */
-const ROTULO_EXTRA = { maquina: "Máquina extra" };
+const ROTULO_EXTRA = { maquina: "Máquina extra", device: "Device extra" };
+/** As fichas do Marketplace deste ambiente (config.js; marketplace-core.ts no Worker): o texto de cada item à venda, pelo nome técnico. */
+const FICHAS = (() => { try { const a = JSON.parse(cfg.marketplace ?? "[]"); return Object.fromEntries((Array.isArray(a) ? a : []).filter((x) => x && typeof x.id === "string" && typeof x.nome === "string").map((x) => [x.id, x])); } catch { return {}; } })();
 const rotuloProduto = (p) => (p === null || p === undefined ? "Pro" : ADDONS.find((a) => a.nome === p)?.rotulo ?? EXTRAS.find((x) => x.nome === p)?.rotulo ?? p);
 /** Situação de uma assinatura: cancelada; em dia (ativa com prazo no futuro); atrasada (ativa sem renovar). */
 const situacaoDe = (a, agora = Date.now()) => (a.status === "CANCELLED" ? { chave: "cancelada", texto: "Cancelada", tom: "" } : a.valeAte && Date.parse(a.valeAte) > agora ? { chave: "em-dia", texto: "Em dia", tom: "ok" } : { chave: "atrasada", texto: "Atrasada", tom: "mau" });
@@ -167,6 +169,8 @@ function mostrarEntrada(erro) {
 function mostrarConsole(c) {
   conta = c;
   $("entrada").hidden = true; $("console").hidden = false;
+  // Checkout de add-on ou de unidade aberto antes do Marketplace existir volta em /account/plan?…&produto=…: o lugar dele agora é o Marketplace.
+  if (rota()?.secao === "plan" && new URLSearchParams(location.search).get("produto")) history.replaceState(null, "", `/account/marketplace${location.search}`);
   const r = rota() ?? { secao: "overview", slug: null, aba: null };
   const secao = r.secao;
   if (rota() === null) history.replaceState(null, "", "/account/overview");
@@ -194,8 +198,8 @@ function mostrarConsole(c) {
   if (secao === "audit") { void pintarAuditoria(); return; }
   if (secao === "orgs") { pintarAdminOrgs(visao); return; }
   if (secao === "org") { void abrirOrg(r.slug, r.aba); return; }
-  ({ overview: pintarOverview, profile: pintarPerfil, devices: pintarDevices, plan: pintarPlano, support: pintarSuporte, access: () => undefined, sales: () => undefined })[secao](c);
-  if (admin) ({ overview: pintarAdminTotais, profile: () => undefined, devices: pintarAdminDevices, plan: pintarAdminContas, support: pintarAdminPedidos, access: pintarAdminPerfis, sales: pintarAdminVendas })[secao](visao);
+  ({ overview: pintarOverview, profile: pintarPerfil, devices: pintarDevices, plan: pintarPlano, marketplace: pintarMarketplace, support: pintarSuporte, access: () => undefined, sales: () => undefined })[secao](c);
+  if (admin) ({ overview: pintarAdminTotais, profile: () => undefined, devices: pintarAdminDevices, plan: pintarAdminContas, marketplace: () => undefined, support: pintarAdminPedidos, access: pintarAdminPerfis, sales: pintarAdminVendas })[secao](visao);
 }
 
 // ---- auditoria (/account/audit, só super admin): as contas apagadas e o registro de ações, que as outras telas não mostram
@@ -875,8 +879,15 @@ function cartao(ico, rotulo, ...valor) {
 const statusTom = (l) => (l.status === "active" || l.status === "trialing" ? "ok" : l.status === "expired" ? "mau" : "");
 function pintarOverview(c) {
   pintarAssinar(c);
-  // Quem já tem o Pro vê no topo o que ainda não tem: os add-ons (plano-core.js, addonsNaVisaoGeral).
-  pintarAddons(c.licenca, null, c.liberacoes, "ov-addons", addonsNaVisaoGeral(!$("pl-assinar").hidden, c.licenca.produtos, ADDONS));
+  // Quem já tem o Pro vê no topo o que ainda pode somar (plano-core.js, addonsNaVisaoGeral), com o caminho do Marketplace.
+  const faltam = cfg.pagamentos === "1" ? addonsNaVisaoGeral(!$("pl-assinar").hidden, c.licenca.produtos, ADDONS) : [];
+  $("ov-addons").replaceChildren();
+  if (faltam.length > 0) {
+    const painel = el("div", "painel"), a = el("a", "btn btn-primary", "Ver o Marketplace"); a.href = "/account/marketplace";
+    const p = el("p"); p.append(a);
+    painel.append(el("h2", "", "Some mais à sua conta"), el("p", "", `Disponível para você: ${faltam.map((x) => FICHAS[x.nome]?.nome ?? x.rotulo).join(", ")}.`), p);
+    $("ov-addons").append(painel);
+  }
   const l = c.licenca, ativos = c.devices.filter((d) => d.status !== "pending").length, pendentes = c.devices.length - ativos;
   $("ov-cartoes").replaceChildren(
     cartao("⬢", "Plano", selo(PLANO[l.plan] ?? l.plan, l.plan === "pro" ? "ok" : "")),
@@ -966,7 +977,7 @@ function pintarDevices(c) {
   const vagasDv = vagasDeDevice(l.deviceLimit, c.deviceExtras), pendentes = c.devices.length - ativos;
   $("dv-resumo").textContent = `${c.devices.length} device${c.devices.length === 1 ? "" : "s"} · ${ativos} ativo${ativos === 1 ? "" : "s"}${semPrazo(l) ? `, sem limite (${INFINITO})` : ` de ${l.deviceLimit} do plano${vagasDv.detalhe === "" ? "" : ` (${vagasDv.detalhe})`}`}.`;
   // Mac esperando vaga e o device extra à venda: o caminho para liberá-lo fica ao lado da conta.
-  if (pendentes > 0 && EXTRA_DEVICE !== null && cfg.pagamentos === "1" && podeAdicionarMaquina(l)) { const a = el("a", "", `Adicionar um Mac por ${reais(EXTRA_DEVICE.centavos)}/mês`); a.href = "/account/plan"; $("dv-resumo").append(document.createTextNode(` ${pendentes === 1 ? "O Mac pendente entra" : "Os Macs pendentes entram"} quando houver vaga. `), a); }
+  if (pendentes > 0 && EXTRA_DEVICE !== null && cfg.pagamentos === "1" && podeAdicionarMaquina(l)) { const a = el("a", "", `Adicionar um Mac por ${reais(EXTRA_DEVICE.centavos)}/mês`); a.href = "/account/marketplace"; $("dv-resumo").append(document.createTextNode(` ${pendentes === 1 ? "O Mac pendente entra" : "Os Macs pendentes entram"} quando houver vaga. `), a); }
   const tb = $("dv-tabela").querySelector("tbody"); tb.replaceChildren();
   if (c.devices.length === 0) { const tr = el("tr"); const td = el("td", "", "Nenhum device ainda: entre com a conta no app meu-bot de um Mac."); td.colSpan = 5; tr.append(td); tb.append(tr); }
   for (const d of c.devices) {
@@ -990,7 +1001,7 @@ function pintarMaquinas(c) {
   $("dv-maquinas").textContent = semPrazo(c.licenca) ? `${ocupadas} máquina${ocupadas === 1 ? "" : "s"} em uso, sem limite (${INFINITO}).` : `${ocupadas} de ${limite} máquina${limite === 1 ? "" : "s"} em uso${vagas.detalhe === "" ? "" : ` (${vagas.detalhe})`}.`;
   if (semVaga > 0 && !semPrazo(c.licenca)) $("dv-maquinas").append(document.createTextNode(" Máquina com licença do admin não ocupa vaga."));
   // No limite e com a máquina extra à venda: o caminho para ter mais uma fica ao lado da conta.
-  if (ocupadas >= limite && EXTRA_MAQUINA !== null && cfg.pagamentos === "1" && podeAdicionarMaquina(c.licenca)) { const a = el("a", "", `Adicionar uma máquina por ${reais(EXTRA_MAQUINA.centavos)}/mês`); a.href = "/account/plan"; $("dv-maquinas").append(document.createTextNode(" "), a); }
+  if (ocupadas >= limite && EXTRA_MAQUINA !== null && cfg.pagamentos === "1" && podeAdicionarMaquina(c.licenca)) { const a = el("a", "", `Adicionar uma máquina por ${reais(EXTRA_MAQUINA.centavos)}/mês`); a.href = "/account/marketplace"; $("dv-maquinas").append(document.createTextNode(" "), a); }
   if (linhas.length === 0) { const tr = el("tr"); const td = el("td", "", "Nenhuma máquina em uso ainda. Abra a janela de uma máquina no app, com a conta logada, e ela aparece aqui."); td.colSpan = 4; tr.append(td); tb.append(tr); return; }
   for (const l of linhas) {
     const tr = el("tr");
@@ -1078,6 +1089,8 @@ async function assinar(produto = null, btn = $("pl-assinar-btn"), aviso = $("pl-
   aviso.textContent = copiou ? "Cupom copiado. Abrindo a página de pagamento…" : "Abrindo a página de pagamento…";
   const v = typeof ga.visita === "function" ? await ga.visita() : { clientId: null, sessionId: null };
   const r = await api("POST", "/conta/assinatura", { gaClientId: v.clientId, gaSessionId: v.sessionId, ...pedido }, s.acesso);
+  // Unidade extra: guarda quantas a conta já tinha, para a volta do pagamento saber quando a nova chegou (pagoChegou).
+  if (r.status === 200 && produto !== null && conta !== null) { try { sessionStorage.setItem(`mb-antes-${produto}`, String(assinaturasAtivasDe(conta.assinaturas, produto))); } catch { /* sem sessionStorage: a tela espera o tempo todo */ } }
   if (r.status === 200 && r.corpo && typeof r.corpo.url === "string") { ga.evento("checkout_iniciado", { plano: produto ?? "chip-coflow", ...(r.corpo.promo === true ? { promo: "primeiro-mes" } : {}) }); location.assign(r.corpo.url); return; }
   btn.disabled = false;
   // O prazo acabou com a tela aberta: repinta o painel com o preço normal e mantém o aviso da API.
@@ -1099,6 +1112,8 @@ function pintarAddons(l, voltouDe, liberacoes, caixaId = "pl-addons", lista = AD
     const painel = el("div", "painel"); const aviso = el("p", "sub"); aviso.setAttribute("role", "status");
     painel.append(el("h2", "", tem ? a.rotulo : `Assinar o ${a.rotulo}`));
     if (pago !== null) { aviso.textContent = pago.texto; painel.append(aviso); caixa.append(painel); continue; }
+    // O que o app é, pela ficha do Marketplace (a mesma da página pública).
+    if (FICHAS[a.nome]?.resumo) painel.append(el("p", "", FICHAS[a.nome].resumo));
     painel.append(el("p", "", `${reais(a.centavos)} por mês, à parte do Pro. O pagamento é feito na página segura da AbacatePay, e o ${a.rotulo} entra nesta conta assim que o pagamento é confirmado; para ele aparecer no app, o suporte ainda o libera na sua máquina. Você cancela quando quiser e o acesso continua até o fim do mês pago.`));
     if (voltouDe === a.nome) aviso.textContent = `Recebemos você de volta. Assim que a AbacatePay confirmar o pagamento, o ${a.rotulo} aparece aqui (costuma levar alguns segundos).`;
     const p = el("p"); const b = el("button", "btn btn-primary", `Assinar por ${reais(a.centavos)}/mês`); b.type = "button"; b.addEventListener("click", () => { void assinar(a.nome, b, aviso); }); p.append(b);
@@ -1106,7 +1121,7 @@ function pintarAddons(l, voltouDe, liberacoes, caixaId = "pl-addons", lista = AD
   }
 }
 /**
- * Os painéis "Máquinas" e "Devices" do Plano: quanto o plano cobre agora e o botão para adicionar mais uma unidade
+ * Os painéis das unidades extras, no Marketplace: quanto o plano cobre agora e o botão para adicionar mais uma unidade
  * (os extras de ABACATEPAY_EXTRAS). Cada assinatura soma uma unidade; quem não tem o Pro valendo não vê os painéis,
  * porque as duas valem junto com o Pro. Cada painel só aparece se o seu extra está à venda no ambiente.
  */
@@ -1135,6 +1150,27 @@ function pintarExtras(c, voltouDe) {
     const pendentes = c.devices.filter((d) => d.status === "pending").length;
     painelDe(EXTRA_DEVICE, "Mais um Mac com o app", `É um Mac a mais para você entrar com a conta no app; não é a máquina onde o agente roda. O seu plano cobre ${vagas.total} device${vagas.total === 1 ? "" : "s"}${vagas.detalhe === "" ? "" : ` (${vagas.detalhe})`}: cada device é um Mac com o app na sua conta. Cada Mac a mais custa ${preco} por mês.${pendentes > 0 ? ` Você tem ${pendentes} Mac${pendentes === 1 ? "" : "s"} esperando vaga: com o pagamento confirmado, o que pediu primeiro entra sozinho.` : ""} ${pagamento}`, `Adicionar um Mac por ${preco}/mês`);
   }
+}
+/**
+ * A página Marketplace: o que a conta tem e o que dá para somar. O Pro é a base (o painel de assinar vem para cá
+ * quando a oferta vale: vagaDoAssinar); embaixo, as unidades extras e os apps à venda no ambiente. É para cá que a
+ * AbacatePay devolve quem pagou um add-on ou uma unidade (`?assinatura=paga&produto=…`): a tela relê a conta até o
+ * que foi pago aparecer (pagoChegou), no máximo 10 vezes.
+ */
+function pintarMarketplace(c) {
+  const l = c.licenca;
+  pintarAssinar(c);
+  const nomes = Object.fromEntries(Object.entries(FICHAS).map(([id, f]) => [id, f.nome]));
+  const tem = semPrazo(l) ? [`Pro ${INFINITO}`, TODOS_ADDONS] : oQueAContaTem(c, nomes);
+  $("mk-tem").textContent = tem.length === 0 ? "Ainda nada além da conta gratuita. Comece pelo Pro." : `${tem.join(" · ")}.`;
+  const qs = new URLSearchParams(location.search);
+  const voltouDe = qs.get("assinatura") === "paga" ? qs.get("produto") : null;
+  pintarExtras(c, voltouDe);
+  pintarAddons(l, voltouDe, c.liberacoes);
+  $("mk-vazio").hidden = cfg.pagamentos !== "1" || !$("pl-assinar").hidden || $("pl-extras").childElementCount + $("pl-addons").childElementCount > 0;
+  let antes = null; try { const n = Number(sessionStorage.getItem(`mb-antes-${voltouDe}`)); antes = voltouDe !== null && sessionStorage.getItem(`mb-antes-${voltouDe}`) !== null && Number.isInteger(n) ? n : null; } catch { antes = null; }
+  const esperando = voltouDe !== null && !pagoChegou(c, voltouDe, antes);
+  if (esperando && esperasPagamento < 10) { esperasPagamento++; setTimeout(() => { void lerConta().then((c2) => { if (c2 && rota()?.secao === "marketplace") pintarMarketplace(c2); }).catch(() => undefined); }, 3000); }
 }
 /** "Suas assinaturas": o que a conta paga pela AbacatePay, com a situação e até quando vale. */
 function pintarAssinaturas(c) {
@@ -1213,13 +1249,10 @@ function pintarPlano(c) {
   // Super admin (Pro sem prazo) não tem o que assinar: o painel e a promoção somem; os add-ons continuam abaixo.
   const { pagoAtivo } = pintarAssinar(c);
   const qs = new URLSearchParams(location.search);
-  const voltouDe = qs.get("assinatura") === "paga" ? qs.get("produto") : null;
-  const voltou = qs.get("assinatura") === "paga" && voltouDe === null;
+  const voltou = qs.get("assinatura") === "paga" && !qs.get("produto");
   if (voltou) $("pl-assinar-aviso").textContent = pagoAtivo ? "Pagamento confirmado: o Pro está ativo." : "Recebemos você de volta. Assim que a AbacatePay confirmar o pagamento, o Pro aparece aqui (costuma levar alguns segundos).";
-  pintarExtras(c, voltouDe);
-  pintarAddons(l, voltouDe, c.liberacoes);
   pintarAssinaturas(c);
-  const esperando = (voltou && !pagoAtivo) || (voltouDe !== null && !l.produtos.includes(voltouDe));
+  const esperando = voltou && !pagoAtivo;
   if (esperando && esperasPagamento < 10) { esperasPagamento++; setTimeout(() => { void lerConta().then((c2) => { if (c2) pintarPlano(c2); }).catch(() => undefined); }, 3000); }
   const pg = l.pagamento;
   $("pl-pagamento").hidden = !pg;
