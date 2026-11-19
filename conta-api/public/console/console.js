@@ -1,3 +1,4 @@
+import { avisoDepoisDo404, pedeReleitura, visaoVelha } from "./admin-core.js";
 import { contagemRegressiva, diasAteOFim, estadoAssinaturaPro, pedidoAssinar, promoNaTela, reaisCurto } from "./plano-core.js";
 // Console da conta meu-bot (console.agentesgrok.com/account/* e /organizations/<slug>/members|settings, molde Rambox). Entra pela mesma página de
 // login do app (auth.agentesgrok.com) com esquema=web: o console gera state + PKCE, a página devolve #code&state, e
@@ -43,6 +44,8 @@ if (typeof cfg.site === "string" && cfg.site !== "") $("entrada-home").href = cf
 let conta = null;
 /** Visão do admin (todas as contas, pedidos, totais); null para quem não é admin ou enquanto não carregou. */
 let visao = null, visaoBusca = "";
+/** Quando a lista do admin foi lida de fato (ms), e quando o que a tela mostra foi lido (conta ou lista): o "lido às". */
+let visaoLidaEm = null, lidoEm = Date.now();
 function sessaoGuardada() { const s = ss.get(CH_SESSAO); return s !== null && typeof s.acesso === "string" && Date.parse(s.expiraEm ?? "") > Date.now() + 30_000 ? s : null; }
 async function api(metodo, rota, corpo, acesso) {
   const headers = { accept: "application/json" };
@@ -75,6 +78,7 @@ async function trocarCodigo(code, state, verifierDoApp = null) {
   const r = await api("POST", "/token", { grant: "web", code, verifier });
   if (r.status !== 200 || !r.corpo || typeof r.corpo.acesso !== "string") throw new Error(erroDe(r));
   ss.set(CH_SESSAO, { acesso: r.corpo.acesso, expiraEm: r.corpo.expiraEm });
+  lidoEm = Date.now();
   return r.corpo.conta;
 }
 async function lerConta() {
@@ -83,6 +87,7 @@ async function lerConta() {
   const r = await api("GET", "/conta", undefined, s.acesso);
   if (r.status === 401) { ss.set(CH_SESSAO, null); return null; }
   if (r.status !== 200) throw new Error(erroDe(r));
+  lidoEm = Date.now();
   return r.corpo;
 }
 async function carregarVisao(busca) {
@@ -90,7 +95,18 @@ async function carregarVisao(busca) {
   if (s === null || conta === null || conta.admin === null) { visao = null; return; }
   const r = await api("GET", `/admin/visao?busca=${encodeURIComponent(busca)}`, undefined, s.acesso);
   if (r.status !== 200) throw new Error(erroDe(r));
-  visao = r.corpo; visaoBusca = busca;
+  visao = r.corpo; visaoBusca = busca; visaoLidaEm = Date.now(); lidoEm = visaoLidaEm;
+}
+/**
+ * Falha numa ação do admin sobre a conta `c`. Um 404 diz que a lista está velha (a conta ou o device foi removido
+ * depois da leitura): relê, redesenha (o que fecha o editor aberto) e avisa. Os outros erros só aparecem.
+ */
+async function falhaAdmin(r, c) {
+  if (!pedeReleitura(r.status)) { mostrarErro(erroDe(r)); return; }
+  let relida = true;
+  await carregarVisao(visaoBusca).catch(() => { relida = false; });
+  if (conta !== null) mostrarConsole(conta);
+  mostrarErro(avisoDepoisDo404(erroDe(r), c.id, relida && visao !== null ? visao.contas : null));
 }
 async function atender(id, botao) {
   const s = sessaoGuardada();
@@ -151,7 +167,7 @@ function mostrarConsole(c) {
   document.title = `${TITULOS[secao] ?? "Organização"} · Console meu-bot`;
   medirPagina(secao);
   $("prazo").hidden = secao !== "plan" || $("prazo").textContent === "";
-  $("atualizado").textContent = `lido às ${new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
+  $("atualizado").textContent = `lido às ${new Date(lidoEm).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
   pintarQuem(c);
   const admin = visao !== null;
   $("console").classList.toggle("modo-admin", admin);
@@ -559,7 +575,7 @@ async function adminSenha(c, botao) {
   const s = sessaoGuardada(); if (s === null) return;
   botao.disabled = true;
   const r = await api("POST", `/admin/contas/${encodeURIComponent(c.id)}/senha`, {}, s.acesso);
-  if (r.status !== 200) { botao.disabled = false; mostrarErro(erroDe(r)); return; }
+  if (r.status !== 200) { botao.disabled = false; await falhaAdmin(r, c); return; }
   mostrarErro(null);
   const texto = botao.textContent; botao.textContent = "E-mail enviado";
   setTimeout(() => { botao.textContent = texto; botao.disabled = false; }, 8000);
@@ -604,11 +620,11 @@ function editorLicenca(tr, c) {
     if (status.value === "trialing") { patch.trialEnd = ateIso; patch.expiresAt = ateIso; } else { patch.expiresAt = ateIso; patch.trialEnd = null; }
     const s = sessaoGuardada(); if (s === null) return;
     const r = await api("PATCH", `/admin/contas/${encodeURIComponent(c.id)}/licenca`, patch, s.acesso);
-    if (r.status !== 200) { salvar.disabled = false; mostrarErro(erroDe(r)); return; }
+    if (r.status !== 200) { salvar.disabled = false; await falhaAdmin(r, c); return; }
     if (senha.value !== "") {
       // Troca a senha no Firebase e desconecta a pessoa de todos os Macs; ela passa a entrar com e-mail e senha.
       const rs = await api("PUT", `/admin/contas/${encodeURIComponent(c.id)}/senha`, { senha: senha.value }, s.acesso);
-      if (rs.status !== 200) { salvar.disabled = false; mostrarErro(`Licença salva, mas a senha não: ${erroDe(rs)}`); return; }
+      if (rs.status !== 200) { salvar.disabled = false; if (pedeReleitura(rs.status)) await falhaAdmin(rs, c); else mostrarErro(`Licença salva, mas a senha não: ${erroDe(rs)}`); return; }
     }
     mostrarErro(null);
     ga.evento("plano_alterado", { plan: plan.value, status: status.value });
@@ -646,7 +662,7 @@ async function encerrarAddon(c, a, botao) {
   const s = sessaoGuardada(); if (s === null) return;
   botao.disabled = true; mostrarErro(null);
   const r = await api("POST", `/admin/contas/${encodeURIComponent(c.id)}/addons/${encodeURIComponent(a.produto)}/encerrar`, {}, s.acesso);
-  if (r.status !== 200) { botao.disabled = false; delete botao.dataset.confirma; botao.textContent = "Encerrar"; mostrarErro(erroDe(r)); return; }
+  if (r.status !== 200) { botao.disabled = false; delete botao.dataset.confirma; botao.textContent = "Encerrar"; await falhaAdmin(r, c); return; }
   await depoisDeDevice();
 }
 /** Relê a visão do admin e redesenha a seção depois de uma ação em devices. */
@@ -666,7 +682,7 @@ async function liberarDevice(c, d, botao) {
     mostrarErro(erroDe(r));
     return;
   }
-  if (r.status !== 200) { botao.disabled = false; mostrarErro(erroDe(r)); return; }
+  if (r.status !== 200) { botao.disabled = false; await falhaAdmin(r, c); return; }
   await depoisDeDevice();
 }
 /** "Remover": dois cliques (o segundo confirma, em até 5 s), porque o Mac perde o acesso e precisa entrar de novo. */
@@ -679,7 +695,7 @@ async function removerDevice(c, d, botao) {
   const s = sessaoGuardada(); if (s === null) return;
   botao.disabled = true; mostrarErro(null);
   const r = await api("DELETE", `/admin/contas/${encodeURIComponent(c.id)}/devices/${encodeURIComponent(d.id)}`, undefined, s.acesso);
-  if (r.status !== 200) { botao.disabled = false; delete botao.dataset.confirma; botao.textContent = "Remover"; mostrarErro(erroDe(r)); return; }
+  if (r.status !== 200) { botao.disabled = false; delete botao.dataset.confirma; botao.textContent = "Remover"; await falhaAdmin(r, c); return; }
   await depoisDeDevice();
 }
 const TIPO_PEDIDO = { "pagamento.liberar": "Liberar na máquina", "pagamento.revisar": "Revisar pagamento", "plano.pedir": "Pro", "addon.pedir": "Add-on", "device.pedir": "Device", "importar": "Importar licença" };
@@ -1019,6 +1035,13 @@ $("org-convite-form").addEventListener("submit", (ev) => { ev.preventDefault(); 
 $("org-form").addEventListener("submit", (ev) => { ev.preventDefault(); void orgSalvar(); });
 $("org-apagar").addEventListener("click", (ev) => { void orgApagar(ev.currentTarget); });
 window.addEventListener("popstate", () => { if (conta !== null) mostrarConsole(conta); });
+// A lista do admin só é lida na entrada e depois de uma ação: de volta à aba, uma lista velha é relida. Com um
+// editor de conta aberto não relê, para não apagar o que o admin está digitando (a ação dele trata o 404).
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible" || conta === null || visao === null || !visaoVelha(visaoLidaEm, Date.now())) return;
+  if (document.querySelector("#console tr.editor") !== null) return;
+  void carregarVisao(visaoBusca).then(() => { if (conta !== null) mostrarConsole(conta); }).catch(() => undefined);
+});
 
 (async () => {
   const hash = new URLSearchParams(location.hash.slice(1));

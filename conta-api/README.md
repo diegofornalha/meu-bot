@@ -203,3 +203,21 @@ No dashboard da AbacatePay: produto de assinatura mensal (o `prod_...` vai em `A
 um webhook v2 para `https://conta[-staging].agentesgrok.com/pagamentos/abacatepay` com os eventos
 `subscription.completed`, `subscription.renewed`, `subscription.cancelled`, `subscription.payment_failed`,
 `checkout.refunded`, `checkout.disputed` e `checkout.lost`.
+
+## Contas de teste no staging
+
+Para testar a promoção e o vencimento do teste sem passar pelo login, `scripts/conta-teste-staging.mjs` cria e remove
+contas `promo-teste-<8 hex>@example.com` no D1 `conta-staging`:
+
+```sh
+node scripts/conta-teste-staging.mjs listar
+node scripts/conta-teste-staging.mjs criar [--vence-em-horas N]   # padrão 72; negativo = teste já vencido
+node scripts/conta-teste-staging.mjs remover <id | e-mail>
+```
+
+- O banco e o ambiente são fixos no script (staging); ele não fala com produção e só toca contas `promo-teste-`.
+- Criar e remover gravam em `auditoria` (`conta-teste.criada`, `conta-teste.removida`). Não apague contas com
+  `wrangler d1 execute` à mão: some o rastro, e o painel do admin fica mostrando a conta até reler a lista.
+- A conta criada assim existe só no banco. O Firebase não a conhece, então ela não entra pela página de login e o
+  "definir senha" do super admin responde que o Firebase não conhece a conta. Para testar login e senha, crie a conta
+  entrando de verdade pelo `auth-staging.agentesgrok.com`.
