@@ -142,7 +142,7 @@ test("teste grátis: os dias escritos no site, no login e no app são os do TRIA
   assert.equal(dias[0], dias[1], "produção e staging com o mesmo teste");
   const pub = new URL("../public/", import.meta.url);
   const arquivos = readdirSync(pub, { recursive: true }).filter((f) => /\.(html|txt)$/.test(String(f))).map((f) => new URL(String(f), pub));
-  arquivos.push(new URL("../../src/renderer/picker.html", import.meta.url));
+  arquivos.push(new URL("../../src/renderer/picker.html", import.meta.url), new URL("../../README.md", import.meta.url));
   // Frases que falam do teste grátis: "N dias grátis", "grátis por N dias", "teste de N dias", "N dias de teste", "fim dos N dias", "testa N dias", "por N dias".
   const frases = [/(\d+) dias grátis/g, /grátis (?:por|de) (\d+) dias/g, /teste (?:de|por) (\d+) dias/g, /(\d+) dias de teste/g, /fim dos (\d+) dias/g, /testa (\d+) dias/g, /teste (?:o [^.<]{0,40} )?por (\d+) dias/g, /<small>por (\d+) dias<\/small>/g];
   let achados = 0;
