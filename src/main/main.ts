@@ -27,7 +27,7 @@ import { limparSessaoAntiga, pararInspector } from "./inspector/inspector";
 import { getBackendPort, getControleRemoto, guardarAntesDeVoltar } from "./app/settings";
 import { installAppMenu, refreshAppMenu } from "./app/menu";
 import { changeWindowZoom } from "./app/zoom";
-import { clientPickerSource, hostPadraoAtual, initPicker, seletorPodeAbrirAgora, showPicker } from "./maquina/picker";
+import { clientPickerSource, hostPadraoAtual, initPicker, podeAbrirMaquina, seletorPodeAbrirAgora, showPicker } from "./maquina/picker";
 import { registerUsuariosMacIpc, showUsuariosMac } from "./usuarios-mac/usuarios-mac-janela";
 import { hostFromArgv, reliefHostFromArgv } from "./app/shortcuts";
 import { initRelief, showRelief } from "./app/relief";
@@ -78,6 +78,8 @@ function openFromArgs(argv: readonly string[]): void {
   if (host === null) { showPicker(); return; }
   // Portão da conta: sem sessão neste Mac, o atalho da mesa cai no seletor (que abre no cartão de login).
   if (!contaEntrada()) { showPicker({ preselect: host }); return; }
+  // Gestão: conta sem papel de admin não abre máquina nem pelo atalho; o seletor diz por quê.
+  if (!podeAbrirMaquina()) { showPicker(); return; }
   if ((host !== LOCAL_HOST || !caps().hostLocal) && !listSshHosts().includes(host)) { showPicker({ error: `A máquina "${host}" do atalho não está no ~/.ssh/config.`, preselect: host }); return; }
   setLastHost(host);
   openMainWindow(host, "shortcut");

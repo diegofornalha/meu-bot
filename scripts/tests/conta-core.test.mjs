@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
-const { URLS, LOGIN_PENDENTE_MS, deveRenovar, erroDaApi, novoLogin, parseContaInfo, parseLoginPendente, parsePrefs, parseSessao, retornoConfere, sessaoAcabou, urlDeLogin } = createRequire(import.meta.url)("../../dist/main/conta/conta-core.js");
+const { SEM_PAPEL_GESTAO, acessoGestao, papelParaGestao, URLS, LOGIN_PENDENTE_MS, deveRenovar, erroDaApi, novoLogin, parseContaInfo, parseLoginPendente, parsePrefs, parseSessao, retornoConfere, sessaoAcabou, urlDeLogin } = createRequire(import.meta.url)("../../dist/main/conta/conta-core.js");
 
 const AGORA = Date.parse("2026-11-07T12:00:00Z");
 const UUID = "077a1dd5-1fd3-45bc-9eef-506a7fd71201";
@@ -73,4 +73,21 @@ test("deveRenovar: a menos de 5 min do fim, ou data ilegível; erroDaApi usa o `
   assert.equal(erroDaApi(429, null), "muitas tentativas; espere um minuto");
   assert.match(erroDaApi(502, {}), /502/);
   assert.equal(sessaoAcabou(401), true); assert.equal(sessaoAcabou(500), false);
+});
+
+test("gestão: só conta com papel de admin ou super admin abre; conta comum e ninguém logado ficam de fora", () => {
+  assert.equal(acessoGestao({ admin: "super" }), "ok");
+  assert.equal(acessoGestao({ admin: "admin" }), "ok");
+  assert.equal(acessoGestao({ admin: null }), "sem-papel");
+  assert.equal(acessoGestao({ admin: "dona" }), "sem-papel", "papel desconhecido não libera");
+  assert.equal(acessoGestao(null), "sem-conta");
+  assert.match(SEM_PAPEL_GESTAO, /só admin ou super admin/);
+});
+
+test("gestão: o papel confirmado agora pelo servidor vence o guardado; sem resposta vale o último guardado", () => {
+  assert.equal(acessoGestao(papelParaGestao({ admin: null }, { admin: "super" })), "sem-papel", "rebaixado no console perde o acesso na conferência");
+  assert.equal(acessoGestao(papelParaGestao({ admin: "admin" }, { admin: null })), "ok", "promovido entra sem reabrir o app");
+  assert.equal(acessoGestao(papelParaGestao(null, { admin: "admin" })), "ok", "sem internet: vale o último confirmado");
+  assert.equal(acessoGestao(papelParaGestao(null, { admin: null })), "sem-papel");
+  assert.equal(acessoGestao(papelParaGestao(null, null)), "sem-conta");
 });

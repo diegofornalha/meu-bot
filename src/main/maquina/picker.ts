@@ -8,7 +8,8 @@
 import { molduraDaJanela } from "../app/moldura-core";
 import { caps } from "../app/variant";
 import type { MainEventChannel, MainEvents } from "../../shared/ipc";
-import { contaEntrada } from "../conta/conta";
+import { contaEntrada, contaView, papelConfirmado } from "../conta/conta";
+import { SEM_PAPEL_GESTAO, acessoGestao, papelParaGestao } from "../conta/conta-core";
 import { readPlanoEmVigorSsh } from "../licenca/licenca-maquina";
 import { deveAtualizar, precisaAtualizarBackend } from "../atualizacao/updater-core";
 import { app, BrowserWindow, screen, shell } from "electron";
@@ -233,7 +234,21 @@ function ensureModulosAtuais(host: string, probe: HostProbe): void {
   void atualizarModulos(host, log).catch((e: unknown) => { log(`[modulos] ${host}: atualização automática falhou: ${e instanceof Error ? e.message : String(e)}`); });
 }
 
-const current = (): PickerSource => { if (source === null) throw new Error("seletor sem fonte: initPicker não rodou"); return source; };
+/**
+ * O meu-bot-admin-gestao só mostra as pessoas e abre máquina para conta com papel de admin ou super admin
+ * (acessoGestao). Os outros apps não têm esse portão.
+ */
+const acessoDaGestao = (): "ok" | "sem-conta" | "sem-papel" => (caps().supportAdmin ? acessoGestao(contaView().conta) : "ok");
+/**
+ * A fonte do seletor. Com a gestão fechada para a conta atual, a lista sai vazia: sem pessoas na tela, o seletor não
+ * sonda máquina nenhuma (nada de SSH nem túnel) até entrar um admin.
+ */
+const current = (): PickerSource => {
+  if (source === null) throw new Error("seletor sem fonte: initPicker não rodou");
+  if (acessoDaGestao() === "ok") return source;
+  const fonte = source;
+  return { ...fonte, hosts: () => [], support: () => { const s = fonte.support(); return s === null ? null : { ...s, people: [] }; } };
+};
 
 /** A chegada animada do seletor toca uma vez por sessão do app; depois a lista aparece seca. */
 let arrivalShown = false;
@@ -261,7 +276,7 @@ function initPayload(): PickerInit {
     openDirect: getOpenDirect(),
     names: getHostNames(),
     onboardingDone: isOnboardingDone(),
-    error: lastError,
+    error: lastError ?? (acessoDaGestao() === "sem-papel" ? SEM_PAPEL_GESTAO : null),
     arrival,
     version: app.getVersion(),
   };
@@ -465,6 +480,10 @@ export function initPicker(src: PickerSource): void {
   });
   handleShared("picker:choose", async (event, payload: unknown) => {
     if (!fromPicker(event)) throw new Error("origem inválida");
+    if (!contaEntrada() && !caps().usuariosMac) throw new Error("entre com sua conta meu-bot para abrir uma máquina");
+    // Gestão: o papel é conferido no servidor na hora de abrir (rebaixado no console perde o acesso aqui); sem
+    // resposta, vale o último confirmado (papelParaGestao).
+    if (caps().supportAdmin && acessoGestao(papelParaGestao(await papelConfirmado(), contaView().conta)) !== "ok") { refreshPickerIfOpen(); throw new Error(SEM_PAPEL_GESTAO); }
     if (!podeAbrirMaquina()) throw new Error("entre com sua conta meu-bot para abrir uma máquina");
     const escolhido = hostArg(payload);
     if (escolhido === LOCAL_HOST && !caps().hostLocal) throw new Error(SEM_CAPACIDADE_MSG);
@@ -556,8 +575,11 @@ export function showPicker(opts: { error?: string; preselect?: string } = {}): v
   void win.loadFile(path.join(__dirname, "..", "..", "renderer", "picker.html"));
 }
 
-/** Portão da conta: só abre máquina quem entrou (o admin-mac não tem conta: é a janela das contas deste Mac). */
-export const podeAbrirMaquina = (): boolean => caps().usuariosMac || contaEntrada();
+/**
+ * Portão da conta: só abre máquina quem entrou (o admin-mac não tem conta: é a janela das contas deste Mac); no
+ * meu-bot-admin-gestao, só quem entrou com papel de admin ou super admin.
+ */
+export const podeAbrirMaquina = (): boolean => caps().usuariosMac || (contaEntrada() && acessoDaGestao() === "ok");
 export const isPickerOpen = (): boolean => pickerWin !== null && !pickerWin.isDestroyed();
 /** Um evento do main para o seletor (a conta mudou); nada se ele não está aberto. */
 export function sendToPicker<K extends MainEventChannel>(channel: K, payload: MainEvents[K]): void {
