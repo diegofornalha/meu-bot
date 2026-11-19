@@ -333,7 +333,7 @@ export function cuponsDoCheckout(lista: unknown, promo: Promo | null, precoCheio
     if (id !== null && !("erro" in p)) achados.set(id, p.centavos);
   }
   // O preço da promoção vem da configuração e vale mesmo que a AbacatePay não tenha respondido a lista.
-  if (promo !== null && promo.precoCentavos >= 1 && promo.precoCentavos < precoCheio) achados.set(promo.cupom.toUpperCase(), Math.min(promo.precoCentavos, achados.get(promo.cupom.toUpperCase()) ?? promo.precoCentavos));
+  if (promo !== null && promo.precoCentavos >= 100 && promo.precoCentavos < precoCheio) achados.set(promo.cupom.toUpperCase(), Math.min(promo.precoCentavos, achados.get(promo.cupom.toUpperCase()) ?? promo.precoCentavos));
   const ordenados = [...achados.entries()].sort((a, b) => a[1] - b[1]).slice(0, CUPONS_POR_CHECKOUT);
   return ordenados.length === 0 ? null : { codigos: ordenados.map(([id]) => id), centavos: ordenados[0]![1] };
 }

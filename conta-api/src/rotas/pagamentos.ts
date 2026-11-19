@@ -122,7 +122,8 @@ export async function postAssinatura(auth: Autenticado, env: Env, req: Request):
     if (await jaPagouPro(env.DB, auth.conta.id)) return json({ erro: "o cupom vale só na primeira assinatura do Pro desta conta" }, 409);
     const aceitos = cuponsDoCheckout(await lerCuponsAtivos(env), promoLigada(env), preco(env));
     if (aceitos === null) return json({ erro: "não há cupom disponível agora; assine pelo preço normal ou fale com a gente" }, 409);
-    cupom = { codigo: aceitos.codigos.join(",").slice(0, 400), codigos: aceitos.codigos, centavos: aceitos.centavos };
+    // No registro fica o cupom de menor preço e quantos mais o checkout aceita; a lista inteira vai só para a AbacatePay.
+    cupom = { codigo: `${aceitos.codigos[0]!}${aceitos.codigos.length > 1 ? ` +${aceitos.codigos.length - 1}` : ""}`, codigos: aceitos.codigos, centavos: aceitos.centavos };
   } else if (digitado !== null) {
     if (item !== null) return json({ erro: "o cupom vale só para a assinatura do Pro" }, 400);
     if (await jaPagouPro(env.DB, auth.conta.id)) return json({ erro: "o cupom vale só na primeira assinatura do Pro desta conta" }, 409);
