@@ -183,3 +183,6 @@ code { padding: 2px 6px; border-radius: 6px; background: var(--codigo); border: 
 .mk-cabeca h2 { margin: 0; }
 #mk-ficha ul { padding-left: 20px; }
 .mk-assinatura { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.mk-titulo { font-size: 16px; margin: 22px 0 0; }
+.mk-cartao .btn { align-self: flex-start; margin-top: 10px; }
+div.mk-cartao:hover { border-color: var(--borda); }

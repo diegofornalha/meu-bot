@@ -61,6 +61,7 @@
         <div id="ov-addons"></div>
         <details class="pessoal" open><summary>Minha conta</summary>
         <div class="cartoes" id="ov-cartoes"></div>
+        <div class="painel" id="ov-uso" hidden></div>
         </details>
         <div class="admin" id="ad-overview" hidden>
           <h2>Todas as contas <span class="selo">admin</span></h2>
@@ -106,9 +107,12 @@
       <section data-secao="devices" hidden>
         <details class="pessoal" open><summary>Minha conta</summary>
         <p class="sub" id="dv-resumo"></p>
-        <div class="painel tabela-rolagem"><table class="tabela" id="dv-tabela"><thead><tr><th>Mac</th><th>Usuário</th><th>Apps</th><th>Status</th><th>Visto</th></tr></thead><tbody></tbody></table></div>
-        <p class="sub">Um device é um Mac onde você entrou com a conta no app. O plano inclui 2. Além do limite, o Mac fica pendente até haver vaga.</p>
-        <div class="painel tabela-rolagem"><h2>Máquinas que você usa</h2><table class="tabela" id="dv-maquinas-tabela"><thead><tr><th>Máquina</th><th>Situação</th><th>Vale até</th><th></th></tr></thead><tbody></tbody></table></div>
+        <h2 class="mk-titulo">Macs com o app</h2>
+        <div class="mk-grade" id="dv-grade"></div>
+        <p class="sub" id="dv-aviso" role="status"></p>
+        <p class="sub">Um device é um Mac onde você entrou com a conta no app. O plano inclui 2. Além do limite, o Mac fica pendente até haver vaga. Remover um Mac abre a vaga na hora; o app daquele Mac precisa entrar de novo.</p>
+        <h2 class="mk-titulo">Máquinas do agente</h2>
+        <div class="mk-grade" id="dv-maquinas-grade"></div>
         <p class="sub" id="dv-maquinas" role="status"></p>
         <p class="sub">Uma máquina é o computador remoto onde o seu agente roda. A lista mostra as que você abre pelo app com esta conta. Para levar o plano da conta até uma delas, abra a janela da máquina no app e toque em "Usar o meu Pro nesta máquina": só essas ocupam vaga. É outro limite, separado do de devices.</p>
         </details>
