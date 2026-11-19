@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { commitNoAr, dataPorExtenso, decideRodada, decideSite, decideSiteStaging, desfazDeploy, dirDoEstado, estavelMaisNova, faltasDeConteudo, faltasDoSite, fecharChangelog, lerConfigJs, ordemDosAmbientes, plistDoAgente, podeAprovar, podePublicarProducao, proximaBase, QUIETUDE_MS, saudeStaging, SOAK_MS, stagingMaisNovo, varsDoWrangler } from "../release-core.mjs";
+import { commitNoAr, dataPorExtenso, decideRodada, decideSite, decideSiteStaging, desfazDeploy, dirDoEstado, estavelMaisNova, faltasDeConteudo, faltasDoSite, fecharChangelog, lerConfigJs, ordemDosAmbientes, plistDoAgente, podeAprovar, podePublicarProducao, podePublicarStaging, proximaBase, QUIETUDE_MS, saudeStaging, SOAK_MS, stagingMaisNovo, varsDoWrangler } from "../release-core.mjs";
 
 const AGORA = Date.parse("2026-11-10T15:00:00Z");
 const ok = { ok: true, motivo: "ok" };
@@ -114,6 +114,17 @@ test("site: o commit no ar vem do /health; sem sha completo é desconhecido, nã
   assert.equal(commitNoAr({ ok: true, canal: "producao" }), null, "Worker de antes do portão");
   assert.equal(commitNoAr({ commit: "abc123" }), null, "sha curto não identifica o commit");
   assert.equal(commitNoAr(null), null, "sem resposta");
+});
+
+test("site: o staging só recebe o origin/main, nunca um ramo", () => {
+  assert.deepEqual(podePublicarStaging({ head: A, main: A }), { ok: true });
+  assert.match(podePublicarStaging({ head: B, main: A }).erro, new RegExp(`está no commit ${B}, e o origin/main é ${A}`), "diz os dois commits");
+  assert.match(podePublicarStaging({ head: B, main: A }).erro, /abra a PR e mescle/, "diz o caminho certo");
+  assert.match(podePublicarStaging({ head: A, main: null }).erro, /não sei qual commit é o origin\/main/, "main desconhecida não prova nada");
+  assert.match(podePublicarStaging({ head: A, main: "lixo" }).erro, /não sei qual commit é o origin\/main/);
+  assert.match(podePublicarStaging({ head: null, main: A }).erro, /não consegui ler o commit deste worktree/);
+  assert.match(podePublicarStaging({ head: A, main: A, atualizada: false }).erro, /git fetch origin falhou/, "sem fetch, o origin/main local pode ser velho");
+  for (const caso of [{ head: B, main: A }, { head: A, main: null }, { head: null, main: A }, { head: null, main: null }, { head: A, main: A, atualizada: false }]) assert.equal(podePublicarStaging(caso).ok, undefined);
 });
 
 test("site: só se aprova o commit que está no staging", () => {
