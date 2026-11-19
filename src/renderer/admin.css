@@ -22,7 +22,6 @@ body.admin-mode #suporte-line[hidden] { display: flex !important; }
 .admin-actions > .admin-field { flex: 1 1 200px; min-width: 160px; max-width: 320px; }
 /* Campo que ocupa a linha inteira (o texto de "Como pagar"): o resto do grupo desce para a linha de baixo, sem
    sobrepor. Antes a caixa tinha largura mínima maior que o campo e invadia o "Link de pagamento" (10 nov 2026). */
-.admin-actions > .admin-field.admin-field-linha { flex: 1 1 100%; max-width: none; }
 .admin-actions > .btn { flex: none; }
 .admin-field textarea { resize: vertical; }
 /* Devices da conta: nome em destaque, sistema/apps em cinza (encolhem com reticências), status e o botão sempre à direita. */
