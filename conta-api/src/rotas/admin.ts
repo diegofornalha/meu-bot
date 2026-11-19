@@ -5,7 +5,7 @@
  * (rotas/maquinas.ts). Tudo fica na auditoria.
  */
 import type { Env } from "../tipos.js";
-import { apagarConta, ativarDevice, atenderPedido, encerrarAddonPago, auditar, contaPorId, contarSupers, devicesDaConta, gravarLicenca, licencaGravada, removerDevice, gravarPerfil, gravarProvedor, removerPerfil, revogarSessoesDaConta, visaoAdmin } from "../db.js";
+import { apagarConta, ativarDevice, atenderPedido, auditoriaAdmin, encerrarAddonPago, auditar, contaPorId, contarSupers, devicesDaConta, gravarLicenca, licencaGravada, removerDevice, gravarPerfil, gravarProvedor, removerPerfil, revogarSessoesDaConta, visaoAdmin } from "../db.js";
 import { consultarFirebase, definirSenhaFirebase } from "../firebase-admin.js";
 import { DEVICE_ID_RE, UUID_RE, decidirLiberarDevice, ehAdminInicial, validaBusca, validaEmail, validaPapel, validaPatchLicenca, validaSenhaNova } from "../sessao-core.js";
 import { json, lerJson, type Autenticado } from "../http.js";
@@ -116,6 +116,11 @@ export async function deleteAdminConta(auth: Autenticado, env: Env, id: string):
   await apagarConta(env.DB, conta);
   await auditar(env.DB, auth.conta.email, "conta.apagada", conta.id, `pelo super admin; era ${conta.email}`);
   return json({ ok: true });
+}
+/** `GET /admin/auditoria`: as contas apagadas e as últimas ações registradas, só para o super admin (console › Auditoria). */
+export async function getAdminAuditoria(auth: Autenticado, env: Env): Promise<Response> {
+  if (auth.claims.adm !== "super") return json({ erro: "só o super admin" }, 403);
+  return json(await auditoriaAdmin(env.DB));
 }
 /** `GET /admin/contas/:id/firebase`: o que o Firebase sabe desta conta (uid e e-mail), para o super admin diagnosticar. */
 export async function getAdminFirebase(auth: Autenticado, env: Env, id: string): Promise<Response> {

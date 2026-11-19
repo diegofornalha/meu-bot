@@ -13,8 +13,8 @@ const caminhoAnonimo = (c) => c.replace(/^\/organizations\/(?!new(?:\/|$))[^/]+/
 let ultimoCaminhoMedido = null;
 function medirPagina(secao) { const cam = caminhoAnonimo(location.pathname); if (cam === ultimoCaminhoMedido) return; ultimoCaminhoMedido = cam; ga.pagina(cam, { secao }); }
 const CH_SESSAO = "meu-bot-console-sessao", CH_LOGIN = "meu-bot-console-login";
-const SECOES = ["overview", "profile", "devices", "plan", "support", "access", "sales", "organizations"];
-const TITULOS = { sales: "Assinaturas", janelas: "Janelas de suporte", overview: "Visão geral", profile: "Perfil", devices: "Devices", plan: "Plano", support: "Suporte", access: "Perfis de acesso", orgs: "Organizações", "org-nova": "Nova organização" };
+const SECOES = ["overview", "profile", "devices", "plan", "support", "access", "sales", "audit", "organizations"];
+const TITULOS = { sales: "Assinaturas", audit: "Auditoria", janelas: "Janelas de suporte", overview: "Visão geral", profile: "Perfil", devices: "Devices", plan: "Plano", support: "Suporte", access: "Perfis de acesso", orgs: "Organizações", "org-nova": "Nova organização" };
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/;
 const PAPEL_ORG = { dona: "dona", admin: "admin", membro: "membro" };
 const TOKEN_RE = /^[A-Za-z0-9_-]{16,128}$/;
@@ -178,17 +178,49 @@ function mostrarConsole(c) {
   $("menu-sales").hidden = !(admin && c.admin === "super");
   $("menu-orgs-todas").hidden = !(admin && c.admin === "super");
   $("menu-janelas").hidden = !(admin && c.admin === "super");
+  $("menu-audit").hidden = !(admin && c.admin === "super");
   for (const id of ["ad-overview", "ad-plan", "ad-devices", "ad-support"]) $(id).hidden = !admin;
   for (const d of document.querySelectorAll("details.pessoal")) d.open = !admin;
-  if ((secao === "access" || secao === "sales" || secao === "orgs" || secao === "janelas") && !(admin && c.admin === "super")) { history.replaceState(null, "", "/account/overview"); mostrarConsole(c); return; }
+  if ((secao === "access" || secao === "sales" || secao === "orgs" || secao === "janelas" || secao === "audit") && !(admin && c.admin === "super")) { history.replaceState(null, "", "/account/overview"); mostrarConsole(c); return; }
   if (secao === "org-nova") { pintarOrgNova(); return; }
   if (secao === "janelas") { void pintarJanelas(); return; }
+  if (secao === "audit") { void pintarAuditoria(); return; }
   if (secao === "orgs") { pintarAdminOrgs(visao); return; }
   if (secao === "org") { void abrirOrg(r.slug, r.aba); return; }
   ({ overview: pintarOverview, profile: pintarPerfil, devices: pintarDevices, plan: pintarPlano, support: pintarSuporte, access: () => undefined, sales: () => undefined })[secao](c);
   if (admin) ({ overview: pintarAdminTotais, profile: () => undefined, devices: pintarAdminDevices, plan: pintarAdminContas, support: pintarAdminPedidos, access: pintarAdminPerfis, sales: pintarAdminVendas })[secao](visao);
 }
 
+// ---- auditoria (/account/audit, só super admin): as contas apagadas e o registro de ações, que as outras telas não mostram
+let auditoria = { apagadas: [], registro: [] };
+function filtrarAuditoria() {
+  const q = $("audit-busca").value.trim().toLowerCase();
+  const casa = (x) => q === "" || JSON.stringify(x).toLowerCase().includes(q);
+  const linha = (tb, celulas) => { const tr = el("tr"); for (const t of celulas) tr.append(el("td", "", t)); tb.append(tr); };
+  const vazio = (tb, colunas, texto) => { const tr = el("tr"); const td = el("td", "", texto); td.colSpan = colunas; tr.append(td); tb.append(tr); };
+  const apagadas = auditoria.apagadas.filter(casa), registro = auditoria.registro.filter(casa);
+  const ta = $("audit-apagadas").querySelector("tbody"); ta.replaceChildren();
+  if (apagadas.length === 0) vazio(ta, 6, auditoria.apagadas.length === 0 ? "Nenhuma conta apagada." : "Nenhuma conta apagada com esse filtro.");
+  for (const c of apagadas) {
+    const licenca = c.plan === null ? "-" : `${c.plan} · ${c.status}${c.expiresAt ? ` até ${data(c.expiresAt)}` : ""}`;
+    linha(ta, [c.email, dataHora(c.criadaEm), dataHora(c.apagadaEm), c.apagadaPor === null ? "sem registro" : c.apagadaPor === c.email ? "a própria pessoa" : c.apagadaPor, licenca, reais(c.pagoCentavos)]);
+  }
+  const tr = $("audit-registro").querySelector("tbody"); tr.replaceChildren();
+  if (registro.length === 0) vazio(tr, 5, auditoria.registro.length === 0 ? "Nenhuma ação registrada." : "Nenhuma ação com esse filtro.");
+  for (const a of registro) linha(tr, [dataHora(a.quando), a.quem, a.acao, a.conta === null ? "-" : `${a.conta.email ?? a.conta.id}${a.conta.apagada ? " (apagada)" : ""}`, a.detalhe ?? "-"]);
+  $("audit-estado").textContent = `${apagadas.length} de ${auditoria.apagadas.length} conta${auditoria.apagadas.length === 1 ? "" : "s"} apagada${auditoria.apagadas.length === 1 ? "" : "s"} · ${registro.length} de ${auditoria.registro.length} ações`;
+}
+async function pintarAuditoria() {
+  const s = sessaoGuardada(); if (s === null) return;
+  $("audit-estado").textContent = "lendo…";
+  const r = await api("GET", "/admin/auditoria", undefined, s.acesso);
+  if (r.status !== 200) { mostrarErro(erroDe(r)); $("audit-estado").textContent = ""; return; }
+  mostrarErro(null);
+  auditoria = { apagadas: Array.isArray(r.corpo?.apagadas) ? r.corpo.apagadas : [], registro: Array.isArray(r.corpo?.registro) ? r.corpo.registro : [] };
+  filtrarAuditoria();
+}
+$("audit-busca").addEventListener("input", filtrarAuditoria);
+$("audit-recarregar").addEventListener("click", () => { void pintarAuditoria(); });
 // ---- janelas de suporte (/support-window): o último resumo de cada pessoa que o meu-bot-admin-gestao leu
 let janelas = [];
 const marca = (ok) => (ok === true ? "✓" : ok === false ? "✗" : "•");
