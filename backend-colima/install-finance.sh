@@ -3,13 +3,15 @@
 # meu-bot-finance + a CLI finance.mjs do agente) em ~/.local/share/meu-bot/finance, registrada por
 # `openclaw plugins install --link`, com a permissão de hooks de conversa; e a skill finance-api para o agente.
 # Rodar no host, com a pasta finance/ e a skill ao lado. Idempotente. Nunca apaga finance/db/ (os dados).
-# A skill é atualizada enquanto ainda tiver o marcador de versão do meu-bot (apagar o marcador = manter a sua).
+# A skill é semente: a cópia que o agente não editou é atualizada; a editada fica (skills-lib.sh).
 # Sai com 2 sem OpenClaw/node; 3 se o OpenClaw não carregar o plugin (a CLI e a skill funcionam mesmo assim).
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:/opt/node/bin:/usr/local/bin:$PATH"
 command -v node >/dev/null 2>&1 || { echo "esta máquina não tem node; reinstale o backend do meu-bot"; exit 2; }
 [ -f "$HERE/finance/index.js" ] || { echo "a pasta finance/ não está ao lado deste script"; exit 1; }
+[ -f "$HERE/skills-lib.sh" ] || { echo "skills-lib.sh não está ao lado deste script: o envio veio incompleto ou o app é de antes desta versão. Atualize o meu-bot e instale de novo; nada foi alterado nesta máquina"; exit 1; }
+. "$HERE/skills-lib.sh"
 SRC=$HOME/.local/share/meu-bot/finance
 # Com o módulo financas ligado (marcador MODULO, issue #312), o plugin e os dados são dele: este instalador não mexe.
 [ -f "$SRC/MODULO" ] && { echo "o financeiro desta máquina é o módulo Finanças (página Módulos); o instalador antigo não roda"; exit 4; }
@@ -17,10 +19,9 @@ mkdir -p "$SRC/db"
 for f in index.js regras.mjs backend.mjs finance.mjs package.json openclaw.plugin.json; do cp "$HERE/finance/$f" "$SRC/"; done
 chmod 700 "$SRC" "$SRC/db"; chmod 644 "$SRC"/*.js "$SRC"/*.mjs "$SRC"/*.json; chmod 755 "$SRC/finance.mjs"
 echo "arquivos do financeiro copiados"
-# Skill do agente (Claude Code da máquina: chat do app e WhatsApp).
-SK="$HOME/.claude/skills/finance-api/SKILL.md"
-if [ -f "$SK" ] && ! grep -q "meu-bot-finance skill v" "$SK"; then echo "skill finance-api editada por você (mantida)";
-else mkdir -p "$(dirname "$SK")"; cp "$HERE/skill-finance-api.md" "$SK"; echo "skill finance-api instalada"; fi
+# Skill do agente (semente; skills-lib.sh): ~/.claude/skills e, com Hermes, ~/.hermes/skills. A cópia instalada antes
+# do hash da semente é reconhecida pelo marcador de versão, como este instalador sempre fez.
+skill_semente finance-api "$HERE/skill-finance-api.md" "" "meu-bot-finance skill v"
 command -v openclaw >/dev/null 2>&1 || { echo "pronto: financeiro instalado para o chat do app (esta máquina não tem OpenClaw: sem o agente do WhatsApp)"; exit 0; }
 [ -d "$HOME/.openclaw/extensions/meu-bot-finance" ] && [ ! -L "$HOME/.openclaw/extensions/meu-bot-finance" ] && rm -rf "$HOME/.openclaw/extensions/meu-bot-finance"
 echo "registrando o plugin meu-bot-finance no OpenClaw…"

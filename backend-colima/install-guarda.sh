@@ -8,6 +8,8 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:/opt/node/bin:$PATH"
 command -v openclaw >/dev/null 2>&1 || { echo "esta máquina não tem OpenClaw; a guarda é para o agente do WhatsApp dele"; exit 2; }
 [ -f "$HERE/guarda/index.js" ] || { echo "a pasta guarda/ não está ao lado deste script"; exit 1; }
+[ -f "$HERE/skills-lib.sh" ] || { echo "skills-lib.sh não está ao lado deste script: o envio veio incompleto ou o app é de antes desta versão. Atualize o meu-bot e instale de novo; nada foi alterado nesta máquina"; exit 1; }
+. "$HERE/skills-lib.sh"
 SRC=$HOME/.local/share/meu-bot/guarda
 mkdir -p "$SRC"
 cp "$HERE/guarda/index.js" "$HERE/guarda/regras.mjs" "$HERE/guarda/memoria.mjs" "$HERE/guarda/package.json" "$HERE/guarda/openclaw.plugin.json" "$SRC/"
@@ -20,14 +22,17 @@ if [ -f "$HERE/guarda/vigia-gateway.sh" ] && command -v systemctl >/dev/null 2>&
   printf '[Unit]\nDescription=meu-bot: vigia do gateway do OpenClaw (a cada minuto)\n\n[Timer]\nOnBootSec=2min\nOnUnitActiveSec=1min\nAccuracySec=15s\n\n[Install]\nWantedBy=timers.target\n' > "$U/meu-bot-vigia-gateway.timer"
   systemctl --user daemon-reload >/dev/null 2>&1 && systemctl --user enable --now meu-bot-vigia-gateway.timer >/dev/null 2>&1 && echo "vigia do gateway ligado (a cada minuto)" || echo "aviso: não consegui ligar o vigia do gateway (systemd de usuário)"
 fi
-# Skill whatsapp-grupos (grupos do agente: listar, habilitar com --remetentes, criar), junto da guarda: scripts e
-# SKILL.md regravados a cada atualização; data/ (cache nome↔JID desta conta) nunca é tocado.
+# Skill whatsapp-grupos (grupos do agente: listar, habilitar com --remetentes, criar), junto da guarda. Os scripts são
+# do app e moram num lugar só, ~/.claude/skills/whatsapp-grupos/scripts (é o caminho que o SKILL.md e o app usam):
+# regravados a cada atualização; data/ (cache nome↔JID desta conta) nunca é tocado. O SKILL.md é semente
+# (skills-lib.sh): vai para ~/.claude/skills e, com Hermes, ~/.hermes/skills; a cópia sem hash, de quando este
+# instalador a regravava sempre, é atualizada ("*").
 if [ -f "$HERE/skills/whatsapp-grupos/SKILL.md" ]; then
   K=$HOME/.claude/skills/whatsapp-grupos
   mkdir -p "$K/scripts" "$K/data"; chmod 700 "$K/data"
-  cp "$HERE/skills/whatsapp-grupos/SKILL.md" "$K/"
   cp "$HERE/skills/whatsapp-grupos/scripts/"* "$K/scripts/"; chmod 755 "$K/scripts/"*
-  echo "skill whatsapp-grupos em $K"
+  echo "scripts da skill whatsapp-grupos em $K/scripts"
+  skill_semente whatsapp-grupos "$HERE/skills/whatsapp-grupos/SKILL.md" "" "*"
 fi
 # Uma cópia antiga dentro de extensions/ (instalação à mão) confunde o registro: a fonte é o link.
 [ -d "$HOME/.openclaw/extensions/meu-bot-guarda" ] && [ ! -L "$HOME/.openclaw/extensions/meu-bot-guarda" ] && rm -rf "$HOME/.openclaw/extensions/meu-bot-guarda"

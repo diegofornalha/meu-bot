@@ -58,9 +58,16 @@ command -v openclaw >/dev/null 2>&1 || { echo "esta máquina não tem OpenClaw: 
 
 # O agente (chat do meu-bot e o dono pelo WhatsApp) também troca a voz a pedido: uma cópia deste script fica na máquina
 # e a skill "voz-das-respostas" ensina como chamá-la. A tela do app lê a mesma marcação (voz/voz-atual).
-mkdir -p "$D" "$HOME/.claude/skills/voz-das-respostas"
+# A skill é semente (skills-lib.sh): ~/.claude/skills e, com Hermes, ~/.hermes/skills; a cópia sem hash, de quando este
+# script a regravava sempre, é atualizada ("*"). A biblioteca vai para a máquina ao lado da cópia do script.
+HERE=$(cd "$(dirname "$0")" && pwd)
+[ -f "$HERE/skills-lib.sh" ] || { echo "skills-lib.sh não está ao lado deste script: o envio veio incompleto ou o app é de antes desta versão. Atualize o meu-bot e instale de novo; nada foi alterado nesta máquina"; exit 1; }
+. "$HERE/skills-lib.sh"
+mkdir -p "$D"
 [ -f "$0" ] && [ "$(readlink -f "$0")" != "$(readlink -f "$D/install-voz.sh" 2>/dev/null)" ] && cp "$0" "$D/install-voz.sh" && chmod 755 "$D/install-voz.sh"
-cat > "$HOME/.claude/skills/voz-das-respostas/SKILL.md" <<'MD'
+[ "$HERE/skills-lib.sh" -ef "$D/skills-lib.sh" ] || { cp "$HERE/skills-lib.sh" "$D/skills-lib.sh" && chmod 644 "$D/skills-lib.sh"; }
+SEMENTE="$D/skill-voz-das-respostas.md"
+cat > "$SEMENTE" <<'MD'
 ---
 name: voz-das-respostas
 description: Troca ou liga/desliga a voz das respostas em áudio do agente do WhatsApp (voz feminina, masculina, masculina natural; responder em áudio sempre, só quando receber áudio, ou nunca). Use quando o dono pedir "voz feminina", "muda a voz", "responde em áudio", "para de mandar áudio".
@@ -79,6 +86,7 @@ Script: `bash ~/.local/share/meu-bot/voz/install-voz.sh <modo> <voz>`
 - Só o dono pede isto. Se outra pessoa pedir pelo WhatsApp, não troque.
 - Responda ao dono, em português, com a última linha que o script imprimir.
 MD
+skill_semente voz-das-respostas "$SEMENTE" "$SEMENTE" "*"
 # Só estes comandos ficam liberados para o agente sem pedir autorização (o resto das permissões não muda).
 python3 - "$HOME" <<'PY' 2>/dev/null || true
 import json, os, sys
