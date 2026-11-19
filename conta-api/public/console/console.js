@@ -1,4 +1,4 @@
-import { estadoAssinaturaPro } from "./plano-core.js";
+import { contagemRegressiva, estadoAssinaturaPro } from "./plano-core.js";
 // Console da conta meu-bot (console.agentesgrok.com/account/* e /organizations/<slug>/members|settings, molde Rambox). Entra pela mesma página de
 // login do app (auth.agentesgrok.com) com esquema=web: o console gera state + PKCE, a página devolve #code&state, e
 // POST /token {grant:"web"} vira um token de acesso de 1 h guardado neste navegador (localStorage: outra aba, inclusive
@@ -150,6 +150,7 @@ function mostrarConsole(c) {
   $("titulo").textContent = TITULOS[secao] ?? "";
   document.title = `${TITULOS[secao] ?? "Organização"} · Console meu-bot`;
   medirPagina(secao);
+  $("prazo").hidden = secao !== "plan" || $("prazo").textContent === "";
   $("atualizado").textContent = `lido às ${new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
   pintarQuem(c);
   const admin = visao !== null;
@@ -912,6 +913,12 @@ async function cancelarAssinatura(a, sim, nao, aviso) {
 }
 function pintarPlano(c) {
   const l = c.licenca;
+  // Contagem regressiva no cabeçalho, ao lado do "lido às": quanto falta do teste ou do Pro (plano-core.js).
+  const falta = contagemRegressiva(l, Date.now());
+  $("prazo").textContent = falta === null ? "" : falta.texto;
+  $("prazo").className = `selo${falta !== null && falta.tom ? ` ${falta.tom}` : ""}`;
+  $("prazo").title = falta === null ? "" : `Vale até ${data(l.expiresAt ?? l.trialEnd)}`;
+  $("prazo").hidden = falta === null || rota()?.secao !== "plan";
   $("pl-cartoes").replaceChildren(
     cartao("⬢", "Plano", selo(PLANO[l.plan] ?? l.plan, l.plan === "pro" ? "ok" : "")),
     cartao("✓", "Status", document.createTextNode(STATUS[l.status] ?? l.status)),
