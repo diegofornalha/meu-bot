@@ -70,9 +70,9 @@ TRIAL_DIAS = "3"
 # Promoção do primeiro mês do Pro: quem teve o teste grátis tem PROMO_DIAS dias, depois que ele acaba, para assinar
 # pagando PROMO_PRECO_CENTAVOS na primeira cobrança (uma vez por conta, só no cartão). PROMO_CUPOM é o código do cupom
 # de valor fixo criado na AbacatePay (desconto = preço cheio menos PROMO_PRECO_CENTAVOS: R$ 96,00). VAZIO = promoção
-# desligada. O cupom de produção já existe na AbacatePay com o código PRIMEIROMES1; fica VAZIO aqui até o dono ligar,
-# depois do teste no staging.
-PROMO_CUPOM = ""
+# desligada. Ligada em produção em 19 nov 2026, por decisão do dono, depois da prova no staging (#370): o cupom
+# PRIMEIROMES1 existe na AbacatePay de produção. Para desligar, volte a deixar VAZIO e publique.
+PROMO_CUPOM = "PRIMEIROMES1"
 PROMO_PRECO_CENTAVOS = "100"
 PROMO_DIAS = "3"
 # Produto "meu-bot Pro mensal" (R$ 97, mensal) da loja meu-bot em produção na AbacatePay. A assinatura só liga quando
