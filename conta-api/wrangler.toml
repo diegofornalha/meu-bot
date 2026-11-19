@@ -134,7 +134,7 @@ ABACATEPAY_ADDONS = '{"meu-bot-finance":{"produto":"prod_PLmaXSs2SJ4Zf1hY6ugwNx4
 # máquinas da conta enquanto está paga. Formato: '{"maquina":{"produto":"prod_...","centavos":9700,"rotulo":"Máquina extra"}}'.
 # VAZIO = não se vende (o console não mostra o painel "Máquinas"). Produto "meu-bot Máquina extra mensal" (R$ 97,
 # mensal), criado no Modo Teste em 19 nov 2026.
-ABACATEPAY_EXTRAS = '{"maquina":{"produto":"prod_zMacfSNXKPWE6N5L4YgH31zB","centavos":9700,"rotulo":"Máquina extra"}}'
+ABACATEPAY_EXTRAS = '{"maquina":{"produto":"prod_zMacfSNXKPWE6N5L4YgH31zB","centavos":9700,"rotulo":"Máquina extra"},"device":{"produto":"prod_xfHGBBR1WTgntZbsUyEjQECA","centavos":4700,"deCentavos":9700,"rotulo":"Device extra"}}'
 AUTH_ORIGIN = "https://auth-staging.agentesgrok.com"
 API_ORIGIN = "https://conta-staging.agentesgrok.com"
 CONSOLE_ORIGIN = "https://console-staging.agentesgrok.com"
