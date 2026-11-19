@@ -75,6 +75,9 @@ test("tenho um cupom na rota: checkout no cartão com os cupons da loja; recusas
       await DB.prepare("INSERT INTO assinaturas (id, conta_id, ref, status, criada_em, atualizada_em) VALUES ('subs_antiga', ?1, 'mb_antiga', 'CANCELLED', ?2, ?2)").bind(B, agora).run();
       r = await chamar("POST", "/conta/assinatura", { cupom: true }, tb);
       assert.equal(r.status, 409); assert.match(r.corpo.erro, /primeira assinatura/); assert.equal(criados.length, antes);
+      // Um código em texto não é mais aceito pela rota: sem `cupom: true` o checkout sai normal, sem cupom nenhum.
+      r = await chamar("POST", "/conta/assinatura", { cupom: "PRIMEIROMES1" }, ta);
+      assert.equal(r.status, 200); assert.equal(criados.at(-1).coupons, undefined, "texto em `cupom` não vira desconto");
       // Sem `cupom`, o checkout normal continua com os métodos do ambiente e sem cupons.
       r = await chamar("POST", "/conta/assinatura", {}, tb);
       assert.equal(r.status, 200); assert.deepEqual(criados.at(-1).methods, ["CARD", "PIX"]); assert.equal(criados.at(-1).coupons, undefined);

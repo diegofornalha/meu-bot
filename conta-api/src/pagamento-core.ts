@@ -297,6 +297,8 @@ export function validaCupom(v: unknown): string | null {
   const t = typeof v === "string" ? v.trim().toUpperCase() : "";
   return /^[A-Z0-9][A-Z0-9_-]{2,39}$/.test(t) ? t : null;
 }
+/** O menor total que a AbacatePay aceita com cupom: abaixo de R$ 1,00 ela recusa no checkout (documentação de cupons). */
+export const CUPOM_MINIMO_CENTAVOS = 100;
 /**
  * Quanto sai a primeira cobrança com um cupom da AbacatePay (`GET /coupons/get`): `FIXED` desconta centavos,
  * `PERCENTAGE` vem em centésimos de ponto percentual (1000 = 10%). Arredonda para baixo: o webhook exige "pelo menos"
@@ -314,7 +316,7 @@ export function precoComCupom(cupom: unknown, precoCheio: number): { centavos: n
   const centavos = c.discountKind === "FIXED" ? precoCheio - d : c.discountKind === "PERCENTAGE" ? Math.floor((precoCheio * (10000 - d)) / 10000) : NaN;
   if (!Number.isInteger(centavos)) return { erro: "não consegui ler o desconto deste cupom" };
   // A AbacatePay recusa no checkout o cupom que deixaria o total entre R$ 0,01 e R$ 0,99 (documentação de cupons).
-  if (centavos < 100 || centavos >= precoCheio) return { erro: "este cupom não se aplica à assinatura do Pro" };
+  if (centavos < CUPOM_MINIMO_CENTAVOS || centavos >= precoCheio) return { erro: "este cupom não se aplica à assinatura do Pro" };
   return { centavos };
 }
 /** Quantos cupons um checkout aceita de uma vez ("Tenho um cupom" sem código): os de menor preço primeiro. */
@@ -333,7 +335,7 @@ export function cuponsDoCheckout(lista: unknown, promo: Promo | null, precoCheio
     if (id !== null && !("erro" in p)) achados.set(id, p.centavos);
   }
   // O preço da promoção vem da configuração e vale mesmo que a AbacatePay não tenha respondido a lista.
-  if (promo !== null && promo.precoCentavos >= 100 && promo.precoCentavos < precoCheio) achados.set(promo.cupom.toUpperCase(), Math.min(promo.precoCentavos, achados.get(promo.cupom.toUpperCase()) ?? promo.precoCentavos));
+  if (promo !== null && promo.precoCentavos >= CUPOM_MINIMO_CENTAVOS && promo.precoCentavos < precoCheio) achados.set(promo.cupom.toUpperCase(), Math.min(promo.precoCentavos, achados.get(promo.cupom.toUpperCase()) ?? promo.precoCentavos));
   const ordenados = [...achados.entries()].sort((a, b) => a[1] - b[1]).slice(0, CUPONS_POR_CHECKOUT);
   return ordenados.length === 0 ? null : { codigos: ordenados.map(([id]) => id), centavos: ordenados[0]![1] };
 }
