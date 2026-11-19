@@ -26,7 +26,6 @@ export async function patchConta(auth: Autenticado, env: Env, req: Request): Pro
   return json(await montarContaApi(env.DB, nova, adm, auth.claims.dev, promoLigada(env)));
 }
 
-/** Apagar a própria conta. Admin não apaga a sua (o super admin tira o perfil de acesso antes): evita um super órfão. */
 /**
  * O que impede apagar uma conta, pela própria pessoa (`DELETE /conta`) ou pelo super admin (`DELETE /admin/contas/:id`):
  * ter perfil de acesso (admin), ou ser dona de organização (os nomes).
@@ -36,6 +35,7 @@ export async function impedimentosDeApagar(env: Env, conta: ContaLinha): Promise
   const donaDe = (await orgsDaConta(env.DB, conta.id)).filter((o) => o.papel === "dona").map((o) => o.nome);
   return { admin, donaDe };
 }
+/** Apagar a própria conta. Admin não apaga a sua (o super admin tira o perfil de acesso antes): evita um super órfão. */
 export async function deleteConta(auth: Autenticado, env: Env): Promise<Response> {
   const { admin, donaDe } = await impedimentosDeApagar(env, auth.conta);
   if (admin) return json({ erro: "um admin não apaga a própria conta; peça ao super admin para remover seu perfil de acesso antes" }, 403);
