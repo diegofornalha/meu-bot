@@ -37,7 +37,7 @@ const EXTRA_DEVICE = EXTRAS.find((x) => x.tipo === "device") ?? null;
 const ROTULO_EXTRA = { maquina: "Máquina extra", device: "Device extra" };
 /** As fichas do Marketplace deste ambiente (config.js; marketplace-core.ts no Worker): o texto de cada item à venda, pelo nome técnico. */
 /** Os itens do Marketplace, na ordem da vitrine (o Pro primeiro). */
-const MKT = (() => { try { const a = JSON.parse(cfg.marketplace ?? "[]"); return (Array.isArray(a) ? a : []).filter((x) => x && typeof x.id === "string" && typeof x.nome === "string" && typeof x.slug === "string"); } catch { return []; } })();
+const MKT = (() => { try { const a = JSON.parse(cfg.marketplace ?? "[]"); return (Array.isArray(a) ? a : []).filter((x) => x && typeof x.id === "string" && typeof x.nome === "string" && typeof x.slug === "string" && Number.isInteger(x.centavos)); } catch { return []; } })();
 const FICHAS = Object.fromEntries(MKT.map((x) => [x.id, x]));
 const rotuloProduto = (p) => (p === null || p === undefined ? "Pro" : ADDONS.find((a) => a.nome === p)?.rotulo ?? EXTRAS.find((x) => x.nome === p)?.rotulo ?? p);
 /** Situação de uma assinatura: cancelada; em dia (ativa com prazo no futuro); atrasada (ativa sem renovar). */

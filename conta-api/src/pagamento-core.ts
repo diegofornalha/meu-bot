@@ -141,6 +141,12 @@ export function clientIdDeReserva(pagamentoId: string, agoraMs: number): string 
 export const sessionIdValido = (x: unknown): string | null => (typeof x === "string" && /^\d{6,12}$/.test(x) ? x : null);
 
 /**
+ * O `item_id` de um item no Analytics: "<nome técnico>-mensal" ("pro-mensal" para o Pro, de `produto` null). É a regra
+ * única da compra (`purchase`) e do Marketplace (vitrine, item visto e clique): o console (`itemGa`, plano-core.js) e o
+ * site (site.js) repetem o formato, e os testes conferem contra esta função.
+ */
+export const itemIdGa = (produto: string | null): string => `${produto ?? "pro"}-mensal`;
+/**
  * O corpo do Measurement Protocol (POST /mp/collect) para um pagamento. A primeira cobrança é `purchase` (o evento que
  * o Google Ads importa); as renovações são `assinatura_renovada`, para a receita aparecer sem contar de novo como
  * conversão do anúncio. `transaction_id` é o id do pagamento: o GA4 descarta compra repetida com o mesmo id.
@@ -149,7 +155,7 @@ export function compraGa4(p: { clientId: string; sessionId: string | null; pagam
   const valor = Math.round(p.valorCentavos) / 100;
   const params: Record<string, unknown> = {
     transaction_id: p.pagamentoId, value: valor, currency: "BRL", ambiente: p.ambiente, engagement_time_msec: 1,
-    items: [{ item_id: p.item?.id ?? "pro-mensal", item_name: p.item?.nome ?? "meu-bot Pro mensal", price: valor, quantity: 1 }],
+    items: [{ item_id: p.item?.id ?? itemIdGa(null), item_name: p.item?.nome ?? "meu-bot Pro mensal", price: valor, quantity: 1 }],
   };
   if (p.sessionId !== null) params.session_id = p.sessionId;
   if (p.ambiente === "staging") params.debug_mode = true;

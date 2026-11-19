@@ -299,15 +299,18 @@ test("Marketplace: as assinaturas de um item (o Pro é a de produto nulo), ativa
 });
 
 test("Marketplace: o item do Analytics tem o mesmo item_id que o servidor manda na compra", async () => {
-  const { compraGa4 } = await import("../dist/pagamento-core.js");
+  const { compraGa4, itemIdGa } = await import("../dist/pagamento-core.js");
+  assert.deepEqual([itemIdGa(null), itemIdGa("meu-bot-finance"), itemIdGa("extra-maquina")], ["pro-mensal", "meu-bot-finance-mensal", "extra-maquina-mensal"]);
   const base = { clientId: "1.1700000000", sessionId: null, pagamentoId: "p", valorCentavos: 9700, primeira: true, ambiente: "staging" };
-  assert.equal(itemGa({ id: "pro", nome: "Pro", tipo: "plano" }).item_id, compraGa4(base).events[0].params.items[0].item_id);
-  // Add-on e unidade: o servidor usa `${produto}-mensal` (rotas/pagamentos.ts).
+  assert.equal(compraGa4(base).events[0].params.items[0].item_id, itemIdGa(null), "a compra do Pro usa a regra");
+  // O console repete o formato: cada item da vitrine tem o id que a compra dele terá.
+  for (const [id, produto] of [["pro", null], ["meu-bot-finance", "meu-bot-finance"], ["extra-device", "extra-device"]]) assert.equal(itemGa({ id }).item_id, itemIdGa(produto), id);
   assert.deepEqual(itemGa({ id: "meu-bot-finance", nome: "Finanças", tipo: "app" }), { item_id: "meu-bot-finance-mensal", item_name: "Finanças", item_category: "app" });
-  assert.equal(itemGa({ id: "extra-maquina" }).item_id, "extra-maquina-mensal");
+  // O site não importa módulos: roda o trecho dele e compara o resultado, em vez de conferir o texto do código.
   const { readFile } = await import("node:fs/promises");
-  const rotas = await readFile(new URL("../src/rotas/pagamentos.ts", import.meta.url), "utf8");
-  assert.ok((rotas.match(/id: `\$\{produto\}-mensal`/g) || []).length >= 2, "o servidor continua mandando <produto>-mensal");
   const site = await readFile(new URL("../public/site/site.js", import.meta.url), "utf8");
-  assert.ok(site.includes("item_id: `${e.dataset.item}-mensal`"), "o site usa a mesma regra");
+  const fonte = /const mkItem = (\(e\) => \(\{.*?\}\));/s.exec(site);
+  assert.ok(fonte, "site.js define mkItem");
+  const mkItem = new Function(`return ${fonte[1]}`)();
+  for (const [id, produto] of [["pro", null], ["meu-bot-finance", "meu-bot-finance"]]) assert.equal(mkItem({ dataset: { item: id } }).item_id, itemIdGa(produto), `site: ${id}`);
 });
