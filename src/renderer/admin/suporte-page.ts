@@ -12,7 +12,8 @@ import type { PageTab } from "../lib/pages-types.js";
 import { ipcErrorText } from "../lib/ipc-error.js";
 import { cacheAgeText, type Cached } from "../lib/cache.js";
 import { actionResultText, dateInputToIso, deviceParts, healthLines, isoToDateInput, licenseSummary, progressEmptyText, progressLines, progressUpdatedText, transcriptionNote, visibleActions, usoResumo, aberturaTexto, USO_VAZIO_TEXTO, ESTE_MAC_MAQUINA, ESTE_MAC_BACKEND_TEXTO, produtoLabel, type HealthLine, type AddonRotulo } from "../lib/admin-view.js";
-import type { LicensePatch, LicenseView } from "../../shared/ipc";
+import type { ContaDaPessoa, LicensePatch, LicenseView } from "../../shared/ipc";
+import { contaLinhas, contaSemDadosTexto, diferencasDaConta } from "../lib/conta-view.js";
 
 export interface SuportePageDeps {
   /** Catálogo de add-ons (caps.addons): rótulos e o que dá para incluir na licença. */
@@ -40,10 +41,10 @@ export interface SuportePage {
   refreshHealth(): Promise<void>;
 }
 
-interface State { /** Nomes dos MVPs registrados em Produtos (botões "＋ produto" do card de licença); lidos ao abrir. */ mvps: string[]; health: AdminHealth | null; /** Quando a saúde na tela foi lida de verdade (null = veio do cache ou ainda não leu). */ healthAt: number | null; healthErr: string | null; logs: string | null; busy: AdminAction | "health" | "logs" | null; msg: { text: string; bad: boolean } | null; /** Mudança de licença em andamento. */ licBusy: boolean; licMsg: { text: string; bad: boolean } | null; /** Zerar das aberturas em andamento, e o erro dele. */ usoBusy: boolean; usoErr: string | null; /** O admin desligou o suporte nesta janela (só "Religar" no este Mac, nada nas outras). */ desligado: boolean }
+interface State { /** Nomes dos MVPs registrados em Produtos (botões "＋ produto" do card de licença); lidos ao abrir. */ mvps: string[]; health: AdminHealth | null; /** Quando a saúde na tela foi lida de verdade (null = veio do cache ou ainda não leu). */ healthAt: number | null; healthErr: string | null; logs: string | null; busy: AdminAction | "health" | "logs" | null; msg: { text: string; bad: boolean } | null; /** Mudança de licença em andamento. */ licBusy: boolean; licMsg: { text: string; bad: boolean } | null; /** Zerar das aberturas em andamento, e o erro dele. */ usoBusy: boolean; usoErr: string | null; /** A API da conta não respondeu na última leitura (a tela segue com a conta lida antes). */ contaErro: string | null; /** O admin desligou o suporte nesta janela (só "Religar" no este Mac, nada nas outras). */ desligado: boolean }
 
 export function mountSuportePage(deps: SuportePageDeps): SuportePage {
-  const state: State = { mvps: [], health: null, healthAt: null, healthErr: null, logs: null, busy: null, msg: null, licBusy: false, licMsg: null, usoBusy: false, usoErr: null, desligado: false };
+  const state: State = { mvps: [], health: null, healthAt: null, healthErr: null, logs: null, busy: null, msg: null, licBusy: false, licMsg: null, usoBusy: false, usoErr: null, contaErro: null, desligado: false };
   // A saúde da última vez aparece na hora (com a idade); a consulta real troca por baixo.
   const cachedHealth = deps.cache.read<AdminHealth>("health");
   if (cachedHealth !== null) { state.health = cachedHealth.value; state.healthAt = cachedHealth.at; deps.onWhatsapp(cachedHealth.value.whatsapp); deps.onPlan(cachedHealth.value.license?.license.plan ?? null); }
@@ -56,7 +57,11 @@ export function mountSuportePage(deps: SuportePageDeps): SuportePage {
   async function refreshHealth(): Promise<void> {
     state.busy = "health"; render();
     try {
-      state.health = await deps.api.adminHealth(); state.healthErr = null; state.healthAt = Date.now(); deps.cache.write("health", state.health);
+      const antes = state.health?.conta;
+      state.health = await deps.api.adminHealth(); state.healthErr = null;
+      // API da conta sem resposta: fica na tela a última conta lida (com o horário dela) e o motivo da falha.
+      state.contaErro = null;
+      if (state.health.conta?.estado === "sem-resposta" && antes?.estado === "ok") { state.contaErro = state.health.conta.motivo; state.health.conta = antes; } state.healthAt = Date.now(); deps.cache.write("health", state.health);
       deps.onWhatsapp(state.health.whatsapp);
       deps.onPlan(state.health.license?.license.plan ?? null);
     } catch (err) { state.healthErr = ipcErrorText(err); }
@@ -136,6 +141,18 @@ export function mountSuportePage(deps: SuportePageDeps): SuportePage {
     const lc = el("div", "admin-card");
     lc.append(el("strong", "", "Conta e licença"));
     const view = hp?.license ?? null;
+    // A conta da pessoa lida da API, com os textos do console; o que vem depois é a licença gravada na máquina.
+    const conta: ContaDaPessoa | undefined = hp?.conta;
+    if (conta !== undefined) {
+      const bloco = el("div", "admin-conta");
+      bloco.append(el("span", "hint", "Conta (como no console)"));
+      if (conta.estado === "ok") {
+        bloco.append(list([...contaLinhas(conta, Date.now(), deps.addons()), ...diferencasDaConta(conta, view)]));
+        const lida = new Date(conta.lidaEm).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+        bloco.append(el("p", "hint", state.contaErro !== null ? `Lido às ${lida}. Agora a API da conta não respondeu: ${state.contaErro}.` : `Lido da API da conta às ${lida}. "Atualizar" lê de novo.`));
+      } else bloco.append(el("p", "hint", contaSemDadosTexto(conta, who)));
+      lc.append(bloco, el("span", "hint", "Licença gravada nesta máquina"));
+    }
     if (hp === null) lc.append(carregando("Consultando a licença…", "suporte-licenca"));
     else if (view === null) lc.append(el("p", "hint", "Máquina fora do ar ou backend antigo (sem a rota de licença)."));
     else {

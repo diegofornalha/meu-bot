@@ -20,8 +20,8 @@ body.admin-mode #suporte-line[hidden] { display: flex !important; }
    o topo do rótulo), e em janela estreita quebram para a linha de baixo. */
 .admin-actions { align-items: flex-end; }
 .admin-actions > .admin-field { flex: 1 1 200px; min-width: 160px; max-width: 320px; }
-/* Campo que ocupa a linha inteira (o texto de "Como pagar"): o resto do grupo desce para a linha de baixo, sem
-   sobrepor. Antes a caixa tinha largura mínima maior que o campo e invadia o "Link de pagamento" (10 nov 2026). */
+/* Conta da pessoa lida da API (bloco no topo de "Conta e licença"), separada da licença gravada na máquina. */
+.admin-conta { display: flex; flex-direction: column; gap: 6px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
 .admin-actions > .btn { flex: none; }
 .admin-field textarea { resize: vertical; }
 /* Devices da conta: nome em destaque, sistema/apps em cinza (encolhem com reticências), status e o botão sempre à direita. */
