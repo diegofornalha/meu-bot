@@ -130,6 +130,12 @@ test("gestão: máquina atribuída não acusa diferença, e teste antigo não vi
   assert.equal(atribuida.length, 1); assert.equal(atribuida[0].ok, true); assert.match(atribuida[0].text, /atribuída a esta conta pelo admin/);
   const ligada = app.diferencasDaConta(conta({}), maquina).map((l) => l.text);
   assert.ok(ligada.some((t) => /Diferença no status/.test(t)));
-  assert.ok(ligada.some((t) => /na máquina vai até sem vencimento/.test(t)), ligada.join(" | "));
+  assert.ok(ligada.some((t) => /na máquina não tem vencimento, na conta até/.test(t)), ligada.join(" | "));
+  // A mesma regra no app e no console: plano ativo sem vencimento não "venceu" por causa de um teste antigo.
+  for (const m of [app, web]) {
+    assert.equal(m.fimDoPlano(maquina.license), null);
+    assert.equal(m.fase(maquina.license, AGORA).texto, "Pro ativo");
+    assert.equal(m.fimDoPlano(lic({ plan: "pro", status: "trialing", trialEnd: em(2) })), Date.parse(em(2)));
+  }
   assert.match(parseAtribuicao(404, { erro: "rota desconhecida" }).erro, /aguarda publicação/);
 });

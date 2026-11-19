@@ -13,7 +13,8 @@ export interface Selo { texto: string; tom: "ok" | "mau" | "" }
 const HORA = 60 * 60 * 1000, DIA = 24 * HORA;
 
 export const semPrazo = (l: Prazo | null | undefined): boolean => l?.semPrazo === true;
-export function fimDoPlano(l: Prazo | null | undefined): number | null { const fim = Date.parse(l?.expiresAt ?? l?.trialEnd ?? ""); return Number.isNaN(fim) ? null : fim; }
+/** A data do teste só é o fim do plano enquanto ele está em teste: num plano ativo sem vencimento ela é sobra antiga (a licença vale por `expiresAt`, como em `isActive`). */
+export function fimDoPlano(l: Prazo | null | undefined): number | null { const fim = Date.parse(l?.expiresAt ?? (l?.status === "trialing" ? l?.trialEnd : null) ?? ""); return Number.isNaN(fim) ? null : fim; }
 export function diasAteOFim(l: Prazo | null | undefined, agoraMs: number): number | null { const fim = fimDoPlano(l); return fim === null ? null : Math.ceil((fim - agoraMs) / DIA); }
 export function contagemRegressiva(l: Prazo | null | undefined, agoraMs: number): Selo | null {
   if (semPrazo(l)) return { texto: `${INFINITO} sem prazo`, tom: "ok" };
@@ -81,10 +82,8 @@ export function diferencasDaConta(c: Extract<ContaDaPessoa, { estado: "ok" }>, v
   const m = view.license, k = c.conta.licenca, out: HealthLine[] = [];
   if (m.plan !== k.plan) out.push({ text: `Diferença no plano: na máquina está ${PLAN_LABEL[m.plan]}, na conta ${PLAN_LABEL[k.plan]}`, ok: false });
   if (m.status !== k.status) out.push({ text: `Diferença no status: na máquina está ${STATUS_LABEL[m.status]}, na conta ${STATUS_LABEL[k.status]}`, ok: false });
-  // A data do teste só é a validade enquanto o plano está em teste: num plano ativo sem vencimento ela é sobra antiga.
-  const fim = (l: Prazo & { status?: string }): string | null => l.expiresAt ?? (l.status === "trialing" ? l.trialEnd ?? null : null);
-  const dia = (l: Prazo & { status?: string }): string => (semPrazo(l) ? INFINITO : fim(l) === null ? "sem vencimento" : fmtDate(fim(l)));
-  if (dia(m) !== dia(k)) out.push({ text: `Diferença na validade: na máquina vai até ${dia(m)}, na conta até ${dia(k)}`, ok: false });
+  const dia = (l: Prazo): string | null => { if (semPrazo(l)) return INFINITO; const fim = fimDoPlano(l); return fim === null ? null : fmtDate(new Date(fim).toISOString()); };
+  if (dia(m) !== dia(k)) out.push({ text: `Diferença na validade: ${dia(m) === null ? "na máquina não tem vencimento" : `na máquina vai até ${dia(m)}`}, ${dia(k) === null ? "na conta não tem vencimento" : `na conta até ${dia(k)}`}`, ok: false });
   return out;
 }
 /** O texto do bloco quando não há conta para mostrar. */

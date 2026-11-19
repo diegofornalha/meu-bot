@@ -42,8 +42,11 @@ export function promoNaTela(promo, agoraMs = Date.now()) {
 export const reaisCurto = (centavos) => `R$ ${centavos % 100 === 0 ? String(centavos / 100) : (centavos / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const HORA = 60 * 60 * 1000, DIA = 24 * HORA;
-/** Quando o plano acaba, em ms: o `expiresAt` e, sem ele, o `trialEnd`; null sem data válida. */
-export function fimDoPlano(licenca) { const fim = Date.parse(licenca?.expiresAt ?? licenca?.trialEnd ?? ""); return Number.isNaN(fim) ? null : fim; }
+/**
+ * Quando o plano acaba, em ms: o `expiresAt` e, sem ele, o `trialEnd` só enquanto o plano está em teste (num plano
+ * ativo sem vencimento a data do teste é sobra antiga; a licença vale por `expiresAt`); null sem data válida.
+ */
+export function fimDoPlano(licenca) { const fim = Date.parse(licenca?.expiresAt ?? (licenca?.status === "trialing" ? licenca?.trialEnd : null) ?? ""); return Number.isNaN(fim) ? null : fim; }
 /**
  * Quantos dias faltam para o plano acabar, arredondando para cima (negativo depois de vencido); null sem data.
  * É a conta única de "dias que faltam" do console: a página Plano e a lista do admin (`fase`) usam esta.
