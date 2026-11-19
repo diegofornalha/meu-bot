@@ -137,11 +137,20 @@ test("celular da home: iPad conta como celular, o link para o Mac leva a campanh
   assert.equal(ehCelular("Mozilla/5.0 (Windows NT 10.0; Win64; x64)", 10), false, "notebook Windows com toque não é celular");
 
   const anuncio = "?utm_source=google&utm_medium=cpc&utm_campaign=grok-mac-teste&utm_content=empresario&gclid=AbCdEf1234567890";
-  assert.equal(linkParaMac(anuncio, "celular"), "https://agentesgrok.com/?utm_source=google&utm_medium=cpc&utm_campaign=grok-mac-teste&utm_content=empresario-celular", "a campanha segue, o clique não");
-  assert.equal(linkParaMac("?utm_source=google&utm_campaign=x", "windows"), "https://agentesgrok.com/?utm_source=google&utm_campaign=x&utm_content=windows", "sem utm_content, o sufixo é o conteúdo");
-  assert.equal(linkParaMac("", "celular"), "https://agentesgrok.com/?utm_source=celular", "sem campanha, como era");
-  assert.equal(linkParaMac("?gclid=AbCdEf1234567890", "celular"), "https://agentesgrok.com/?utm_source=celular");
-  assert.equal(linkParaMac("?utm_source=a%20b&utm_campaign=x", "celular"), "https://agentesgrok.com/?utm_source=celular", "valor fora do formato não segue");
+  const PROD = "https://agentesgrok.com", STAGING = "https://site-staging.agentesgrok.com";
+  assert.equal(linkParaMac(anuncio, "celular", PROD), "https://agentesgrok.com/?utm_source=google&utm_medium=cpc&utm_campaign=grok-mac-teste&utm_content=empresario-celular", "a campanha segue, o clique não");
+  assert.equal(linkParaMac("?utm_source=google&utm_campaign=x", "windows", PROD), "https://agentesgrok.com/?utm_source=google&utm_campaign=x&utm_content=windows", "sem utm_content, o sufixo é o conteúdo");
+  assert.equal(linkParaMac("", "celular", PROD), "https://agentesgrok.com/?utm_source=celular", "sem campanha, como era");
+  assert.equal(linkParaMac("?gclid=AbCdEf1234567890", "celular", PROD), "https://agentesgrok.com/?utm_source=celular");
+  assert.equal(linkParaMac("?utm_source=a%20b&utm_campaign=x", "celular", PROD), "https://agentesgrok.com/?utm_source=celular", "valor fora do formato não segue");
+  // O link é o do site em que a pessoa está: quem testa no staging manda para si o staging, não a produção.
+  assert.equal(linkParaMac("", "celular", STAGING), "https://site-staging.agentesgrok.com/?utm_source=celular");
+  assert.equal(linkParaMac(anuncio, "windows", STAGING), "https://site-staging.agentesgrok.com/?utm_source=google&utm_medium=cpc&utm_campaign=grok-mac-teste&utm_content=empresario-windows");
+  assert.equal(linkParaMac("", "celular", "http://localhost:8787"), "http://localhost:8787/?utm_source=celular", "o Worker rodando local");
+  // Sem a origem, ou com algo que não é uma origem http, cai na produção (nunca num link quebrado).
+  for (const o of [undefined, null, "", "null", "file://", "javascript:alert(1)", "https://x.com/caminho", "https://x.com?a=1"]) assert.equal(linkParaMac("", "celular", o), "https://agentesgrok.com/?utm_source=celular", String(o));
+  // E o site.js passa a origem da página.
+  assert.match(readFileSync(new URL("../public/site/site.js", import.meta.url), "utf8"), /cel\.linkParaMac\(location\.search, [^;]+, location\.origin\)/);
 
   assert.equal(refDoAnuncio(anuncio), "empresario");
   assert.equal(refDoAnuncio("?utm_source=google&utm_campaign=grok-mac-teste"), "grok-mac-teste");
@@ -176,8 +185,12 @@ test("teste grátis: os dias escritos no site, no login e no app são os do TRIA
 });
 
 test("promoção: a página só sai com a promoção ligada, também pelo caminho do arquivo; as outras não mudam", () => {
-  assert.equal(paginaDaPromoDesligada("/site/promocao.html", false), true);
-  assert.equal(paginaDaPromoDesligada("/site/promocao.html", true), false);
+  // Desligada, não sai por nenhuma forma do caminho do arquivo (os static assets resolvem as três para o mesmo arquivo).
+  for (const c of ["/site/promocao.html", "/site/promocao", "/site/promocao/"]) {
+    assert.equal(paginaDaPromoDesligada(c, false), true, c);
+    assert.equal(paginaDaPromoDesligada(c, true), false, c);
+  }
+  assert.equal(paginaDaPromoDesligada("/site/promocao.css", false), false);
   assert.equal(paginaDaPromoDesligada("/site/perguntas.html", false), false);
   // Desligada, /promocao não está no mapa de páginas: o caminho segue cru, não é um arquivo e cai na 404 do site.
   assert.equal(paginaDaPromoDesligada("/promocao", false), false);
@@ -237,8 +250,8 @@ const siteDosDoisCanais = async () => {
   const worker = (await import("../dist/index.js")).default;
   const vars = varsDoWrangler(readFileSync(new URL("../wrangler.toml", import.meta.url), "utf8"));
   const ASSETS = { fetch: async (r) => { try { return new Response(readFileSync(new URL(`../public${new URL(r.url).pathname}`, import.meta.url)), { headers: { "content-type": "text/html; charset=utf-8" } }); } catch { return new Response(null, { status: 404 }); } } };
-  const pedir = async (canal, caminho) => {
-    const env = { ...vars[canal], ASSETS };
+  const pedir = async (canal, caminho, mais = {}) => {
+    const env = { ...vars[canal], ASSETS, ...mais };
     const r = await worker.fetch(new Request(env.SITE_ORIGIN + caminho), env, { waitUntil() {} });
     return { status: r.status, corpo: await r.text(), cabecalhos: Object.fromEntries(r.headers) };
   };
@@ -265,5 +278,19 @@ test("site: o rascunho /suporte responde a 404 do site nos dois canais, também 
   for (const canal of ["producao", "staging"]) for (const caminho of ["/suporte", "/site/suporte.html", "/site/suporte"]) {
     const r = await pedir(canal, caminho);
     assert.deepEqual([r.status, r.corpo === pagina404], [404, true], `${canal} ${caminho}`);
+  }
+});
+
+test("site: com a promoção desligada, a página dela responde a 404 do site por todos os caminhos; ligada, /promocao sai", async () => {
+  const { pedir } = await siteDosDoisCanais();
+  const pagina404 = readFileSync(new URL("../public/site/404.html", import.meta.url), "utf8");
+  for (const canal of ["producao", "staging"]) {
+    for (const caminho of ["/promocao", "/site/promocao.html", "/site/promocao"]) {
+      const r = await pedir(canal, caminho, { PROMO_CUPOM: "" });
+      assert.deepEqual([r.status, r.corpo === pagina404], [404, true], `${canal} ${caminho}`);
+    }
+    const ligada = await pedir(canal, "/promocao", { PROMO_CUPOM: "PRIMEIROMES", ABACATEPAY_KEY: "abc_dev_x", ABACATEPAY_WEBHOOK_SECRET: "s".repeat(40) });
+    assert.equal(ligada.status, 200, `${canal}: ligada, a página sai`);
+    assert.equal(ligada.corpo, readFileSync(new URL("../public/site/promocao.html", import.meta.url), "utf8"));
   }
 });

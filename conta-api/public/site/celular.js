@@ -2,20 +2,23 @@
 // site.js. O celular não instala o app, então vira conversa no WhatsApp, e o link que a pessoa manda para o próprio Mac
 // leva a campanha do anúncio, para o download de lá contar para o anúncio de cá.
 (() => {
-  const SITE = "https://agentesgrok.com/";
+  /** O site de produção: só entra quando a origem da página não veio (ou não é um endereço http). */
+  const PRODUCAO = "https://agentesgrok.com";
   /** Celular ou tablet. O Safari do iPad se apresenta como Mac: Mac com tela de toque é iPad. */
   const ehCelular = (ua, toques) => /Android|iPhone|iPad|iPod|Windows Phone/i.test(ua) || (/Macintosh/i.test(ua) && Number(toques) > 1);
   const limpo = (v) => (typeof v === "string" && /^[A-Za-z0-9._-]{1,60}$/.test(v) ? v : null);
   /**
    * O link do site para abrir em outro aparelho. Com campanha na visita, ela segue e o utm_content ganha o sufixo
    * ("empresario" vira "empresario-celular"); sem campanha, a origem é o sufixo. O código do clique (gclid e afins) não
-   * vai junto: ele é do clique neste aparelho.
+   * vai junto: ele é do clique neste aparelho. `origem` é a do site em que a pessoa está (`location.origin`, que o
+   * site.js passa): quem está no staging manda para si o link do staging, não o da produção.
    */
-  const linkParaMac = (busca, sufixo) => {
+  const linkParaMac = (busca, sufixo, origem) => {
+    const SITE = `${typeof origem === "string" && /^https?:\/\/[^/?#]+$/.test(origem) ? origem : PRODUCAO}/`;
     const de = new URLSearchParams(busca || ""), para = new URLSearchParams();
-    const origem = limpo(de.get("utm_source")), campanha = limpo(de.get("utm_campaign"));
-    if (!origem || !campanha) { para.set("utm_source", sufixo); return `${SITE}?${para}`; }
-    para.set("utm_source", origem);
+    const fonte = limpo(de.get("utm_source")), campanha = limpo(de.get("utm_campaign"));
+    if (!fonte || !campanha) { para.set("utm_source", sufixo); return `${SITE}?${para}`; }
+    para.set("utm_source", fonte);
     const meio = limpo(de.get("utm_medium")); if (meio) para.set("utm_medium", meio);
     para.set("utm_campaign", campanha);
     const conteudo = limpo(de.get("utm_content"));

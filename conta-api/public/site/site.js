@@ -30,7 +30,7 @@
       // O link que a pessoa manda para si leva a campanha da visita; a conversa leva de qual anúncio ela veio.
       const ref = cel.refDoAnuncio(location.search);
       for (const a of document.querySelectorAll('a[data-ev="link_celular"]')) {
-        const link = cel.linkParaMac(location.search, a.closest(".win") ? "windows" : "celular");
+        const link = cel.linkParaMac(location.search, a.closest(".win") ? "windows" : "celular", location.origin);
         a.href = a.dataset.via === "email" ? `mailto:?subject=${encodeURIComponent("meu-bot para Mac")}&body=${encodeURIComponent(`Baixar no Mac: ${link}`)}` : `https://wa.me/?text=${encodeURIComponent(`Baixar o meu-bot no Mac: ${link}`)}`;
       }
       for (const a of document.querySelectorAll('a[data-ev="falar_whatsapp"]')) a.href = cel.zapComRef(a.href, ref);

@@ -1,5 +1,5 @@
 import { avisoDepoisDo404, pedeReleitura, visaoVelha } from "./admin-core.js";
-import { INFINITO, SEM_LIMITE, SEM_PRAZO, TODOS_ADDONS, contagemRegressiva, estadoAssinaturaPro, fase, pedidoAssinar, podeAdicionarMaquina, promoNaTela, reaisCurto, semPrazo, vagasDeMaquina } from "./plano-core.js";
+import { INFINITO, SEM_LIMITE, SEM_PRAZO, TODOS_ADDONS, avisoAddonPago, contagemRegressiva, estadoAssinaturaPro, fase, pedidoAssinar, podeAdicionarMaquina, promoNaTela, reaisCurto, semPrazo, vagasDeMaquina } from "./plano-core.js";
 // Console da conta meu-bot (console.agentesgrok.com/account/* e /organizations/<slug>/members|settings, molde Rambox). Entra pela mesma página de
 // login do app (auth.agentesgrok.com) com esquema=web: o console gera state + PKCE, a página devolve #code&state, e
 // POST /token {grant:"web"} vira um token de acesso de 1 h guardado neste navegador (localStorage: outra aba, inclusive
@@ -1070,17 +1070,22 @@ async function assinar(produto = null, btn = $("pl-assinar-btn"), aviso = $("pl-
   if (pedido.promo === true && r.corpo && r.corpo.promoAcabou === true) { const c2 = await lerConta().catch(() => null); if (c2) pintarPlano(c2); }
   aviso.textContent = erroDe(r);
 }
-/** Um painel "Assinar" por app à venda que a conta ainda não tem; quem voltou do pagamento vê o aviso no painel do app. */
-function pintarAddons(l, voltouDe) {
+/**
+ * Um painel "Assinar" por app à venda que a conta ainda não tem. O que ela já tem ganha o painel dos dois passos
+ * (pago na conta; liberado ou não na máquina) na volta do pagamento e enquanto o pedido de liberação está aberto
+ * (`avisoAddonPago`, plano-core.js).
+ */
+function pintarAddons(l, voltouDe, liberacoes) {
   const caixa = $("pl-addons"); caixa.replaceChildren();
   if (cfg.pagamentos !== "1") return;
   for (const a of ADDONS) {
     const tem = l.produtos.includes(a.nome);
-    if (tem && voltouDe !== a.nome) continue;
+    const pago = tem ? avisoAddonPago(a.rotulo, a.nome, liberacoes, voltouDe === a.nome) : null;
+    if (tem && pago === null) continue;
     const painel = el("div", "painel"); const aviso = el("p", "sub"); aviso.setAttribute("role", "status");
     painel.append(el("h2", "", tem ? a.rotulo : `Assinar o ${a.rotulo}`));
-    if (tem) { aviso.textContent = `Pagamento confirmado: o ${a.rotulo} está ativo nesta conta.`; painel.append(aviso); caixa.append(painel); continue; }
-    painel.append(el("p", "", `${reais(a.centavos)} por mês, à parte do Pro. O pagamento é feito na página segura da AbacatePay, e o ${a.rotulo} entra nesta conta assim que o pagamento é confirmado. Você cancela quando quiser e o acesso continua até o fim do mês pago.`));
+    if (pago !== null) { aviso.textContent = pago.texto; painel.append(aviso); caixa.append(painel); continue; }
+    painel.append(el("p", "", `${reais(a.centavos)} por mês, à parte do Pro. O pagamento é feito na página segura da AbacatePay, e o ${a.rotulo} entra nesta conta assim que o pagamento é confirmado; para ele aparecer no app, o suporte ainda o libera na sua máquina. Você cancela quando quiser e o acesso continua até o fim do mês pago.`));
     if (voltouDe === a.nome) aviso.textContent = `Recebemos você de volta. Assim que a AbacatePay confirmar o pagamento, o ${a.rotulo} aparece aqui (costuma levar alguns segundos).`;
     const p = el("p"); const b = el("button", "btn btn-primary", `Assinar por ${reais(a.centavos)}/mês`); b.type = "button"; b.addEventListener("click", () => { void assinar(a.nome, b, aviso); }); p.append(b);
     painel.append(aviso, p); caixa.append(painel);
@@ -1171,7 +1176,7 @@ function pintarPlano(c) {
   const voltou = qs.get("assinatura") === "paga" && voltouDe === null;
   if (voltou) $("pl-assinar-aviso").textContent = pagoAtivo ? "Pagamento confirmado: o Pro está ativo." : "Recebemos você de volta. Assim que a AbacatePay confirmar o pagamento, o Pro aparece aqui (costuma levar alguns segundos).";
   pintarExtras(c, voltouDe);
-  pintarAddons(l, voltouDe);
+  pintarAddons(l, voltouDe, c.liberacoes);
   pintarAssinaturas(c);
   const esperando = (voltou && !pagoAtivo) || (voltouDe !== null && !l.produtos.includes(voltouDe));
   if (esperando && esperasPagamento < 10) { esperasPagamento++; setTimeout(() => { void lerConta().then((c2) => { if (c2) pintarPlano(c2); }).catch(() => undefined); }, 3000); }

@@ -18,7 +18,7 @@ import { addonsPagos, auditar, contaPorId, contarLimite, jaPagouPro, licencaDaCo
 import { agoraIso, janelaMinuto, uuid } from "../sessao-core.js";
 import { json, lerJson, type Autenticado } from "../http.js";
 import { gaIds } from "../analytics-core.js";
-import { assinaturaIdValido, clientIdDeReserva, clientIdValido, compraGa4, decidir, lerAddons, lerEvento, lerExtras, lerPromo, metodosSemPix, pedidoDoCheckout, precoDaCobranca, refValida, resultadoCancelamento, sessionIdValido, validoAte, webhookConfere, tipoDoExtra, type Decisao, type OfertaAddon, type OfertaExtra, type Promo } from "../pagamento-core.js";
+import { assinaturaIdValido, clientIdDeReserva, clientIdValido, compraGa4, decidir, detalheLiberar, lerAddons, lerEvento, lerExtras, lerPromo, metodosSemPix, pedidoDoCheckout, precoDaCobranca, refValida, resultadoCancelamento, sessionIdValido, validoAte, webhookConfere, tipoDoExtra, type Decisao, type OfertaAddon, type OfertaExtra, type Promo } from "../pagamento-core.js";
 import { MAQUINA_LIMITE_MAX } from "../licenca-core.js";
 
 const API = "https://api.abacatepay.com/v2";
@@ -262,7 +262,7 @@ async function aplicar(env: Env, d: Decisao, devMode: boolean, agora: string, es
   // A primeira cobrança avisa o admin (console › Suporte); o pedido fecha sozinho se a pessoa aplicar a licença na
   // máquina pelo app (rotas/maquinas.ts). A máquina extra não avisa: ela só abre uma vaga, que a própria conta usa, e
   // não há o que o admin liberar.
-  if (d.primeira && tipoDoExtra(ck.produto) === null) await env.DB.prepare("INSERT INTO pedidos (id, conta_id, tipo, detalhe, maquina_id, criado_em) VALUES (?1, ?2, 'pagamento.liberar', ?3, NULL, ?4)").bind(uuid(), ck.conta_id, `liberar na máquina: ${ck.produto ?? "Pro"}`, agora).run();
+  if (d.primeira && tipoDoExtra(ck.produto) === null) await env.DB.prepare("INSERT INTO pedidos (id, conta_id, tipo, detalhe, maquina_id, criado_em) VALUES (?1, ?2, 'pagamento.liberar', ?3, NULL, ?4)").bind(uuid(), ck.conta_id, detalheLiberar(ck.produto), agora).run();
   if (ck.produto !== null) return tipoDoExtra(ck.produto) !== null ? liberarExtra(env, ck, ck.produto, d, quem, agora, espera) : liberarAddon(env, ck, ck.produto, d, quem, agora, espera);
   // Base gravada, não a em vigor: os add-ons pagos têm tabela própria e não entram em licencas.produtos.
   const atual = await licencaGravada(env.DB, conta);

@@ -1,7 +1,7 @@
 // Painel "Assinar o Pro" do console (public/console/plano-core.js): quando some e quando avisa do prazo atual.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { contagemRegressiva, diasAteOFim, estadoAssinaturaPro, fase, pedidoAssinar, promoNaTela, reaisCurto, semPrazo, podeAdicionarMaquina, vagasDeMaquina } from "../public/console/plano-core.js";
+import { avisoAddonPago, contagemRegressiva, diasAteOFim, estadoAssinaturaPro, fase, pedidoAssinar, promoNaTela, reaisCurto, semPrazo, podeAdicionarMaquina, vagasDeMaquina } from "../public/console/plano-core.js";
 
 const pro = { plan: "pro", status: "active" };
 const ativa = { status: "ACTIVE", produto: null };
@@ -132,4 +132,27 @@ test("super admin: na lista do admin a fase é \"Pro · ∞\" e conta como Pro a
 
 test("super admin: o painel \"Assinar o Pro\" some, sem aviso de prazo, com ou sem assinatura", () => {
   for (const ass of [[], [ativa], undefined]) assert.deepEqual(estadoAssinaturaPro(doSuper, ass), { pagoAtivo: false, proSemAssinatura: false, semPrazo: true });
+});
+
+test("add-on pago: a tela diz os dois passos (ativo na conta; liberado ou não na máquina) pelo estado do pedido de liberação", () => {
+  const PAGO = "Pagamento confirmado: o Finanças está ativo nesta conta.";
+  const aberta = [{ produto: "meu-bot-finance", aberta: true }], fechada = [{ produto: "meu-bot-finance", aberta: false }];
+  const falta = { estado: "falta-maquina", texto: `${PAGO} Falta um passo para ele aparecer no app: a liberação na sua máquina. O pedido já está com o suporte, e você será avisado quando estiver liberado.` };
+  // Pedido aberto: aparece na volta do pagamento e continua aparecendo depois, enquanto o admin não atende.
+  assert.deepEqual(avisoAddonPago("Finanças", "meu-bot-finance", aberta, true), falta);
+  assert.deepEqual(avisoAddonPago("Finanças", "meu-bot-finance", aberta, false), falta);
+  // Pedido atendido: na volta do pagamento diz que já está na máquina; fora dela, o painel some.
+  assert.deepEqual(avisoAddonPago("Finanças", "meu-bot-finance", fechada, true), { estado: "liberado", texto: `${PAGO} Ele já foi liberado na sua máquina.` });
+  assert.equal(avisoAddonPago("Finanças", "meu-bot-finance", fechada, false), null);
+  // Sem pedido conhecido (API antiga sem o campo, add-on concedido pelo admin): não afirma em que pé está a máquina.
+  const semPedido = { estado: "sem-pedido", texto: `${PAGO} Ele aparece no app depois de liberado na sua máquina; se não aparecer, fale com o suporte.` };
+  for (const l of [undefined, null, [], "lixo", [null], [{ produto: "meu-bot-diego", aberta: true }]]) {
+    assert.deepEqual(avisoAddonPago("Finanças", "meu-bot-finance", l, true), semPedido);
+    assert.equal(avisoAddonPago("Finanças", "meu-bot-finance", l, false), null);
+  }
+  // O pedido de um add-on não fala pelo outro, e `aberta` fora da forma não vira "falta" nem "liberado".
+  assert.equal(avisoAddonPago("Módulos do Diego", "meu-bot-diego", aberta, false), null);
+  assert.equal(avisoAddonPago("Finanças", "meu-bot-finance", [{ produto: "meu-bot-finance", aberta: "sim" }], true).estado, "sem-pedido");
+  // Nenhum texto promete prazo nem diz que é automático.
+  for (const l of [aberta, fechada, []]) assert.doesNotMatch(avisoAddonPago("Finanças", "meu-bot-finance", l, true).texto, /automátic|minuto|hora|segundo|em breve|na hora|\bdia/i);
 });

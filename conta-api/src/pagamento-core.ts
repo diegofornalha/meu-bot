@@ -375,3 +375,31 @@ export function licencaComAddons<L extends LicencaBase>(l: L, pagos: readonly { 
 export function licencaEmVigor<L extends LicencaBase & { trialEnd: string | null }>(gravada: L, pagos: readonly { produto: string; expiresAt: string }[], papel: Papel, catalogo: readonly string[], agora: string): L & { semPrazo?: true } {
   return licencaComAddons<L & { semPrazo?: true }>(papel === "super" ? licencaDoSuper(gravada, catalogo) : gravada, pagos, agora);
 }
+
+// ---- O pedido "Liberar na máquina" (pedidos.tipo = 'pagamento.liberar'): o pagamento vale para a conta na hora, mas o
+// módulo só aparece no app quando a licença é gravada na máquina. O produto do pedido vai no `detalhe`; quem escreve e
+// quem lê usam este par, para o texto ter um dono só.
+const DETALHE_LIBERAR = "liberar na máquina: ", LIBERAR_PRO = "Pro";
+/** O `detalhe` do pedido de liberação: o nome do add-on, ou "Pro" (`produto` null). */
+export const detalheLiberar = (produto: string | null): string => `${DETALHE_LIBERAR}${produto ?? LIBERAR_PRO}`;
+/** O add-on de um `detalhe` de liberação; null quando é o do Pro ou o texto não é de liberação. */
+export function addonDoDetalheLiberar(detalhe: string | null): string | null {
+  if (detalhe === null || !detalhe.startsWith(DETALHE_LIBERAR)) return null;
+  const produto = detalhe.slice(DETALHE_LIBERAR.length);
+  return produto === "" || produto === LIBERAR_PRO ? null : produto;
+}
+/** `GET /conta` › `liberacoes`: um add-on que teve pedido "Liberar na máquina"; `aberta` enquanto algum deles espera. */
+export interface Liberacao { produto: string; aberta: boolean }
+/**
+ * Os pedidos de liberação da conta resumidos por add-on: `aberta: true` se algum pedido dele ainda não foi atendido,
+ * `false` quando todos foram (pelo admin, ou sozinhos quando a pessoa aplicou a licença na máquina pelo app). Add-on
+ * que nunca teve pedido não entra: a tela não afirma o que não sabe. O pedido do Pro fica de fora.
+ */
+export function liberacoesPorAddon(pedidos: readonly { detalhe: string | null; atendido_em: string | null }[]): Liberacao[] {
+  const por = new Map<string, boolean>();
+  for (const p of pedidos) {
+    const produto = addonDoDetalheLiberar(p.detalhe);
+    if (produto !== null) por.set(produto, (por.get(produto) ?? false) || p.atendido_em === null);
+  }
+  return [...por].map(([produto, aberta]) => ({ produto, aberta }));
+}
