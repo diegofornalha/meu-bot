@@ -212,8 +212,9 @@ async function aplicar(env: Env, d: Decisao, devMode: boolean, agora: string, es
   const conta = await contaPorId(env.DB, ck.conta_id);
   if (conta === null) { await auditar(env.DB, quem, "pagamento.sem-conta", ck.conta_id, d.pagamentoId); return "conta apagada"; }
   // A primeira cobrança avisa o admin (console › Suporte); o pedido fecha sozinho se a pessoa aplicar a licença na
-  // máquina pelo app (rotas/maquinas.ts).
-  if (d.primeira) await env.DB.prepare("INSERT INTO pedidos (id, conta_id, tipo, detalhe, maquina_id, criado_em) VALUES (?1, ?2, 'pagamento.liberar', ?3, NULL, ?4)").bind(uuid(), ck.conta_id, `liberar na máquina: ${ck.produto ?? "Pro"}`, agora).run();
+  // máquina pelo app (rotas/maquinas.ts). A máquina extra não avisa: ela só abre uma vaga, que a própria conta usa, e
+  // não há o que o admin liberar.
+  if (d.primeira && tipoDoExtra(ck.produto) === null) await env.DB.prepare("INSERT INTO pedidos (id, conta_id, tipo, detalhe, maquina_id, criado_em) VALUES (?1, ?2, 'pagamento.liberar', ?3, NULL, ?4)").bind(uuid(), ck.conta_id, `liberar na máquina: ${ck.produto ?? "Pro"}`, agora).run();
   if (ck.produto !== null) return tipoDoExtra(ck.produto) !== null ? liberarExtra(env, ck, ck.produto, d, quem, agora, espera) : liberarAddon(env, ck, ck.produto, d, quem, agora, espera);
   // Base gravada, não a em vigor: os add-ons pagos têm tabela própria e não entram em licencas.produtos.
   const atual = await licencaGravada(env.DB, conta);
