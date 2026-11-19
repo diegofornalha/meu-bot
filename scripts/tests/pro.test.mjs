@@ -135,6 +135,10 @@ test("pagamento padrão: sem nada gravado pelo admin, o aviso manda assinar pelo
   const { pagamentoPadrao, CAMINHO_ASSINATURA } = await import("../../dist/renderer/lib/pro.js");
   assert.equal(CAMINHO_ASSINATURA, "/account/plan");
   assert.match(CAMINHO_ASSINATURA, /^\/[A-Za-z0-9/_-]{0,80}$/, "o main (abrirConsole) só aceita caminho neste formato");
+  // O Marketplace do console: a vitrine e a página de um item passam na mesma validação do main.
+  const { CAMINHO_MARKETPLACE } = await import("../../dist/renderer/lib/pro.js");
+  assert.equal(CAMINHO_MARKETPLACE, "/account/marketplace");
+  for (const c of [CAMINHO_MARKETPLACE, `${CAMINHO_MARKETPLACE}/financas`, `${CAMINHO_MARKETPLACE}/maquina-extra`]) assert.match(c, /^\/[A-Za-z0-9/_-]{0,80}$/, c);
   const p = pagamentoDoBloqueio("free", lic({}));
   assert.deepEqual(p, pagamentoPadrao());
   assert.equal(p.padrao, true); assert.equal(p.link, null); assert.match(p.instrucoes, /Assine pelo site/);

@@ -433,7 +433,8 @@ export function mountModulosPage(deps: ModulosPageDeps): { open: () => void; rep
     // O que mais dá para contratar fica no console da conta (abre logado, no navegador).
     const mk = el("button", "btn btn-ghost btn-small", "Ver o Marketplace"); mk.type = "button";
     mk.title = "Abre no site o que dá para somar à sua conta: apps, máquinas e Macs a mais";
-    mk.addEventListener("click", () => { void deps.api.contaAbrirConsole(CAMINHO_MARKETPLACE).catch(() => undefined); });
+    // Falha ao abrir (sem navegador padrão, IPC fora): o motivo aparece ao lado do botão, em vez de o clique não fazer nada.
+    mk.addEventListener("click", () => { mk.nextElementSibling?.classList.contains("mk-erro") && mk.nextElementSibling.remove(); void deps.api.contaAbrirConsole(CAMINHO_MARKETPLACE).catch((e: unknown) => { mk.after(el("p", "hint bad-hint mk-erro", `Não consegui abrir o Marketplace: ${ipcErrorText(e)}`)); }); });
     head.append(body);
     panel.append(head);
     if (!temProdutos) body.append(mk);
