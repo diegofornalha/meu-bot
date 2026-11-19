@@ -87,3 +87,10 @@ h2 { font-size: 20px; margin: 0 0 12px; }
 .lista-aviso.ok { color: #12824a; }
 .lista-aviso.ruim { color: #b3261e; }
 #hash-windows { word-break: break-all; font-size: 13px; }
+
+/* Marketplace: um cartão por item à venda e a linha do preço. */
+.marketplace .mk-item { border: 1px solid var(--borda, rgba(127,127,127,.25)); border-radius: 16px; padding: 4px 22px 14px; margin: 18px 0; }
+.marketplace .mk-item h2 { margin-top: 6px; }
+.marketplace .mk-tipo { color: var(--sub); font-size: 13px; letter-spacing: .06em; text-transform: uppercase; margin: 16px 0 0; }
+.marketplace .mk-preco { font-size: 20px; }
+.marketplace .mk-preco s { opacity: .6; }

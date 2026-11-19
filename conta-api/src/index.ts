@@ -30,6 +30,8 @@ import { postListaEspera } from "./rotas/lista.js";
 import { postLeadRef, rotaLeads } from "./rotas/leads.js";
 import { deleteMaquina, deleteMaquinaVista, postMaquina, postMaquinaVista, postRenovarLicenca } from "./rotas/maquinas.js";
 import { marketplaceDoEnv, addonsAVenda, extrasAVenda, pagamentosLigados, deleteAdminAssinatura, postAssinatura, postCancelarAssinatura, postWebhookAbacate, promoLigada } from "./rotas/pagamentos.js";
+import { itemPorSlug } from "./marketplace-core.js";
+import { REVISAO_MARKETPLACE, llmsDoMarketplace, paginaDoMarketplace } from "./marketplace-pagina.js";
 import { deleteMembro, deleteOrg, getOrg, getOrgPublico, getOrgs, patchAdminOrg, patchMembro, patchOrg, postMembro, postOrg } from "./rotas/orgs.js";
 
 const SEGURANCA: Record<string, string> = {
@@ -243,17 +245,28 @@ async function sitePagina(req: Request, env: Env, url: URL): Promise<Response> {
   // /sitemap.xml é montado aqui: a home, /baixar e /novidades levam a data da release mais nova; as outras, a de REVISAO_PAGINAS.
   if (url.pathname === "/sitemap.xml") {
     const d = await downloadMac();
-    return comCabecalhos(new Response(sitemapXml(env.SITE_ORIGIN, d?.publicadoEm ?? null), { headers: { "content-type": "application/xml; charset=utf-8", "cache-control": "public, max-age=3600" } }), {});
+    return comCabecalhos(new Response(sitemapXml(env.SITE_ORIGIN, d?.publicadoEm ?? null, undefined, { slugs: marketplaceDoEnv(env).map((i) => i.slug), revisao: REVISAO_MARKETPLACE }), { headers: { "content-type": "application/xml; charset=utf-8", "cache-control": "public, max-age=3600" } }), {});
   }
   // /novidades: as releases estáveis do GitHub (cache de 10 min no edge) dentro de public/site/novidades.html.
   if (url.pathname === "/novidades") {
     const [modelo, releases] = await Promise.all([env.ASSETS.fetch(new Request(new URL("/site/novidades.html", url.origin).toString())).then((r) => r.text()), listarReleases()]);
     return comCabecalhos(new Response(modelo.replace("<!--RELEASES-->", novidadesHtml(releases)), { headers: { "content-type": "text/html; charset=utf-8" } }), { "content-security-policy": cspDoSite(env), "cache-control": "no-store" });
   }
+  // Marketplace público: a lista e uma página por item à venda neste ambiente, montadas de public/site/marketplace.html
+  // e das fichas (marketplace-pagina.ts). Sem nada à venda, ou slug fora do catálogo: segue para a 404 do site.
+  const mk = /^\/marketplace(?:\/([a-z0-9-]{1,60}))?$/.exec(url.pathname);
+  if (mk !== null) {
+    const itens = marketplaceDoEnv(env);
+    const item = mk[1] === undefined ? null : itemPorSlug(itens, mk[1]);
+    if (itens.length > 0 && (mk[1] === undefined || item !== null)) {
+      const modelo = await env.ASSETS.fetch(new Request(new URL("/site/marketplace.html", url.origin).toString())).then((r) => r.text());
+      return comCabecalhos(new Response(paginaDoMarketplace(modelo, itens, item), { headers: { "content-type": "text/html; charset=utf-8" } }), { "content-security-policy": cspDoSite(env), "cache-control": "no-cache", ...(env.CANAL === "staging" ? { "x-robots-tag": "noindex, nofollow" } : {}) });
+    }
+  }
   // llms.txt: as linhas da assinatura só saem com os pagamentos ligados (llmsPorPagamentos).
   if (url.pathname === "/llms.txt") {
     const t = await env.ASSETS.fetch(new Request(new URL("/site/llms.txt", url.origin).toString())).then((r) => r.text());
-    return comCabecalhos(new Response(llmsPorPagamentos(t, pagamentosLigados(env)), { headers: { "content-type": "text/plain; charset=utf-8" } }), { "cache-control": "no-cache" });
+    return comCabecalhos(new Response(llmsPorPagamentos(t, pagamentosLigados(env)) + llmsDoMarketplace(marketplaceDoEnv(env)), { headers: { "content-type": "text/plain; charset=utf-8" } }), { "cache-control": "no-cache" });
   }
   // robots.txt e llms.txt vivem em public/site/ e saem na raiz do host; privacidade e termos também.
   const raiz: Record<string, string> = { "/robots.txt": "/site/robots.txt", "/llms.txt": "/site/llms.txt", "/privacidade": "/site/privacidade.html", "/termos": "/site/termos.html", "/grok-no-whatsapp": "/site/grok-no-whatsapp.html", "/parceria-xai": "/site/parceria-xai.html", "/baixar": "/site/baixar.html", "/perguntas": "/site/perguntas.html", "/grok-bot-e-meu-bot": "/site/grok-bot-e-meu-bot.html", "/guias": "/site/guias/index.html" };

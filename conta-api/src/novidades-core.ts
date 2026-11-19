@@ -89,8 +89,11 @@ export const REVISAO_PAGINAS: Readonly<Record<string, string>> = {
   "/termos": "2026-11-18",
 };
 
-/** Sitemap com lastmod por URL: a home, /baixar e /novidades mudam a cada release; as outras têm a data de `revisoes`. */
-export function sitemapXml(origem: string, ultimaRelease: string | null, revisoes: Readonly<Record<string, string>> = REVISAO_PAGINAS): string {
+/**
+ * Sitemap com lastmod por URL: a home, /baixar e /novidades mudam a cada release; as outras têm a data de `revisoes`.
+ * `marketplace`: os itens à venda no ambiente (a lista e uma página por slug); null ou vazio = sem Marketplace.
+ */
+export function sitemapXml(origem: string, ultimaRelease: string | null, revisoes: Readonly<Record<string, string>> = REVISAO_PAGINAS, marketplace: { slugs: readonly string[]; revisao: string } | null = null): string {
   const data = (iso: string | null | undefined): string => { const t = iso == null ? NaN : Date.parse(iso); return Number.isNaN(t) ? "" : `\n    <lastmod>${new Date(t).toISOString().slice(0, 10)}</lastmod>`; };
   const url = (caminho: string, lastmod: string | null | undefined): string => `  <url>
     <loc>${origem}${caminho}</loc>${data(lastmod)}
@@ -107,7 +110,7 @@ ${pagina("/perguntas")}
 ${pagina("/grok-bot-e-meu-bot")}
 ${pagina("/guias")}
 ${GUIAS.map((g) => pagina(`/guias/${g}`)).join("\n")}
-${pagina("/privacidade")}
+${marketplace === null || marketplace.slugs.length === 0 ? "" : `${[url("/marketplace", marketplace.revisao), ...marketplace.slugs.map((x) => url(`/marketplace/${x}`, marketplace.revisao))].join("\n")}\n`}${pagina("/privacidade")}
 ${pagina("/termos")}
 </urlset>
 `;

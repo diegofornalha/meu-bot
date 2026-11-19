@@ -113,6 +113,14 @@ nesta versão: o rodapé do site diz que medimos visitas sem anúncios e sem dad
 Campanha: o `page_location` leva só as chaves de `CHAVES_CAMPANHA` (`src/analytics-core.ts`: `utm_*`, `gclid`, `gbraid`,
 `wbraid`); o resto da query e o fragmento nunca vão. Assim o clique de um anúncio chega ao GA4 com a campanha.
 
+**Marketplace.** O que se contrata além do teste: o Pro, os apps (add-ons) e as unidades extras. O texto de cada item
+é a ficha em `src/marketplace-core.ts` (um dono só); o preço e o que está à venda vêm do catálogo do ambiente
+(`ABACATEPAY_PRODUTO`, `ABACATEPAY_ADDONS`, `ABACATEPAY_EXTRAS`), então item sem produto no ambiente não aparece. No
+console é a seção `/account/marketplace`; no site, `/marketplace` e `/marketplace/<slug>`, montadas no Worker a partir
+de `public/site/marketplace.html` (`src/marketplace-pagina.ts`), com `Product` e `Offer` nos dados estruturados, e
+presentes no `sitemap.xml` e no `llms.txt`. Item novo: produto na AbacatePay (Modo Teste e produção), entrada no
+catálogo dos dois ambientes e ficha; o teste `marketplace-core.test.mjs` recusa item de catálogo sem ficha.
+
 **Código por visita (lead do WhatsApp).** Na home, todo botão de WhatsApp para o nosso número leva no fim da mensagem
 pronta um código de seis símbolos ("cód: ABC234"), um por aba. No clique, o site grava o código por `POST /lead-ref`
 (host do site, sem login, limite por IP; `src/rotas/leads.ts`, regras em `src/lead-core.ts`, tabela `lead_ref`,
