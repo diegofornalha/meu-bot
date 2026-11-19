@@ -33,10 +33,10 @@ export async function postSessao(req: Request, env: Env): Promise<Response> {
     await auditar(env.DB, conta.email, "login.org", conta.id, org.slug, agora);
   }
   // Primeira entrada: trial do Pro (TRIAL_DIAS), como no Rambox; o admin muda depois pelo console.
-  const dias = Number.parseInt(env.TRIAL_DIAS ?? "14", 10);
+  const dias = Number.parseInt(env.TRIAL_DIAS ?? "3", 10);
   // Quem apagou a conta e voltou com o mesmo e-mail não ganha outro trial.
   if (conta.criada_em === agora && await houveContaApagada(env.DB, conta.email)) await auditar(env.DB, conta.email, "licenca.trial-negado", conta.id, "conta apagada antes com este e-mail", agora);
-  else if (await iniciarTrialSeNovo(env.DB, conta, Number.isFinite(dias) ? dias : 14, agora)) await auditar(env.DB, conta.email, "licenca.trial", conta.id, `${dias} dias`, agora);
+  else if (await iniciarTrialSeNovo(env.DB, conta, Number.isFinite(dias) ? dias : 3, agora)) await auditar(env.DB, conta.email, "licenca.trial", conta.id, `${dias} dias`, agora);
   const code = segredo(32);
   await criarCodigo(env.DB, { code, conta_id: conta.id, state: pedido.state, challenge: pedido.challenge, esquema: pedido.esquema, app: pedido.app, versao_app: pedido.versao, criado_em: agora, expira_em: maisSegundos(CODE_TTL_S) });
   await auditar(env.DB, conta.email, "login.codigo", conta.id, `${pedido.esquema}${pedido.app === null ? "" : ` · ${pedido.app} ${pedido.versao ?? ""}`}`.trim(), agora);

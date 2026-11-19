@@ -1,7 +1,7 @@
 // http → https: o Worker atende os dois esquemas, então o redirecionamento é dele (e o HSTS, em SEGURANCA).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import vm from "node:vm";
 import { llmsPorPagamentos, caminhoCanonico, ehAliasDoSite, paraHttps, redirecionamentoInicial, semBarraFinal, rascunhoForaDoCanal } from "../dist/site-core.js";
 
@@ -133,4 +133,22 @@ test("home: no celular a conversa no WhatsApp vem antes de mandar o link, e o ce
   assert.ok(home.indexOf('id="cta-cel-zap"') > 0 && home.indexOf('id="cta-cel-zap"') < home.indexOf('id="cta-cel-wa"'));
   assert.match(home, /id="cta-cel-zap"[^>]*data-ev="falar_whatsapp"[^>]*data-origem="celular"[^>]*href="https:\/\/wa\.me\/5521923670743\?/);
   assert.ok(home.indexOf("/site/celular.js") > 0 && home.indexOf("/site/celular.js") < home.indexOf("/site/site.js"));
+});
+
+test("teste grátis: os dias escritos no site, no login e no app são os do TRIAL_DIAS dos dois ambientes", () => {
+  const toml = readFileSync(new URL("../wrangler.toml", import.meta.url), "utf8");
+  const dias = [...toml.matchAll(/^TRIAL_DIAS = "(\d+)"$/gm)].map((m) => m[1]);
+  assert.equal(dias.length, 2, "TRIAL_DIAS em produção e no staging");
+  assert.equal(dias[0], dias[1], "produção e staging com o mesmo teste");
+  const pub = new URL("../public/", import.meta.url);
+  const arquivos = readdirSync(pub, { recursive: true }).filter((f) => /\.(html|txt)$/.test(String(f))).map((f) => new URL(String(f), pub));
+  arquivos.push(new URL("../../src/renderer/picker.html", import.meta.url));
+  // Frases que falam do teste grátis: "N dias grátis", "grátis por N dias", "teste de N dias", "N dias de teste", "fim dos N dias", "testa N dias", "por N dias".
+  const frases = [/(\d+) dias grátis/g, /grátis (?:por|de) (\d+) dias/g, /teste (?:de|por) (\d+) dias/g, /(\d+) dias de teste/g, /fim dos (\d+) dias/g, /testa (\d+) dias/g, /teste (?:o [^.<]{0,40} )?por (\d+) dias/g, /<small>por (\d+) dias<\/small>/g];
+  let achados = 0;
+  for (const u of arquivos) {
+    const t = readFileSync(u, "utf8");
+    for (const re of frases) for (const m of t.matchAll(re)) { achados++; assert.equal(m[1], dias[0], `${u.pathname.split("/conta-api/").pop()}: "${m[0]}" não bate com TRIAL_DIAS=${dias[0]}`); }
+  }
+  assert.ok(achados >= 40, `esperava dezenas de menções ao teste grátis, achei ${achados}`);
 });
