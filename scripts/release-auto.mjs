@@ -6,8 +6,11 @@
 //   promover    → staging no ar há 24 h e confirmado no meu-bot-staging deste Mac (release-saude.mjs): npm run release
 //   subir-base  → depois da estável: PR "Versão: base sobe" (package.json + CHANGELOG datado), mergeado sozinho
 //   aguardar    → nada; se o staging ainda não foi confirmado, abre o meu-bot-staging escondido para ele se atualizar
-// Antes disso, toda rodada vê se saiu estável nova (por este agente ou à mão) com conta-api/ diferente: aí publica o
-// site sozinha (scripts/site-publicar.mjs: staging, conferência, produção, conferência; desfaz se a conferência falhar).
+// Antes disso, toda rodada cuida do site (Worker conta-api), na ordem main → staging → produção:
+//   staging do site  → acompanha a main: conta-api/ mudou entre o commit que está no staging (o /health dele) e o
+//                      origin/main → scripts/site-publicar.mjs --so-staging (desfaz se a conferência falhar)
+//   produção do site → NUNCA sai daqui. Quando sai estável nova com conta-api/ diferente, o agente só avisa que há o
+//                      que aprovar no staging; quem publica é o dono (site-publicar.mjs --aprovar <sha>, depois --producao)
 // Tudo roda no worktree fixo ../meu-bot-release (detached no commit da vez); o log fica em
 // ~/Library/Logs/meu-bot-release.log e o Mac avisa por notificação.
 //
@@ -24,13 +27,13 @@ import { createHash } from "node:crypto";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { dataPorExtenso, decideRodada, decideSite, estavelMaisNova, fecharChangelog, plistDoAgente, proximaBase, stagingMaisNovo, travaOrfa } from "./release-core.mjs";
+import { commitNoAr, dataPorExtenso, decideRodada, decideSite, decideSiteStaging, dirDoEstado, estavelMaisNova, fecharChangelog, plistDoAgente, proximaBase, SITE_NO_AR, stagingMaisNovo, travaOrfa } from "./release-core.mjs";
 import { bundleDoStaging, saudeDesteMac } from "./release-saude.mjs";
 import { arquivosDeFragmento, lerFragmentos } from "./changelog-fragmentos.mjs";
 
 const AQUI = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const HOME = homedir();
-const ESTADO = process.env.MEU_BOT_RELEASE_DIR ?? join(HOME, "Library", "Application Support", "meu-bot-release");
+const ESTADO = dirDoEstado({ env: process.env, home: HOME });
 /** Trava da promoção (ex.: esperando o certificado Developer ID para a estável sair notarizada): o arquivo guarda o motivo. */
 const SEGURAR = join(ESTADO, "segurar-estavel");
 const motivoSegurar = () => { try { return readFileSync(SEGURAR, "utf8").trim() || "sem motivo escrito"; } catch { return null; } };
@@ -152,31 +155,57 @@ function tentarMerge(branch, nova) {
   return `PR ${branch} aberto, mas não consegui mergear`;
 }
 
-/** O site acompanha a estável: saiu uma nova (por este agente ou à mão) e conta-api mudou → publica, sem esperar ninguém. */
+/** O /health de um ambiente do site, lido agora: o corpo JSON, ou null se não respondeu. */
+function healthDoSite(canal) {
+  const t = shOu("curl", ["-s", "-m", "15", `${SITE_NO_AR[canal].conta}/health`]);
+  try { const h = JSON.parse(t ?? ""); return h !== null && typeof h === "object" ? h : null; } catch { return null; }
+}
+/** O commit no staging do site: o /health dele é a verdade quando responde; sem resposta, vale o que o agente anotou. */
+function commitDoStaging() {
+  const h = healthDoSite("staging");
+  return h !== null ? commitNoAr(h) : (lerEstado().siteStagingDe ?? null);
+}
+
+/** O staging do site acompanha a main: conta-api mudou desde o commit que está lá → publica o staging (só ele). */
+function siteStagingAcompanhaMain(sha) {
+  const e = lerEstado();
+  const stagingDe = commitDoStaging();
+  let mudouSite = null;
+  if (stagingDe !== null && stagingDe !== sha) { const diff = shOu("git", ["diff", "--name-only", `${stagingDe}..${sha}`, "--", "conta-api"]); mudouSite = diff === null ? null : diff !== ""; }
+  const d = decideSiteStaging({ main: sha, stagingDe, mudouSite, falhouEm: e.siteFalhouEm ?? null, agora: Date.now(), esperaMs: ESPERA_FALHA_MS });
+  if (d.acao === "nada") { if (stagingDe !== null && e.siteStagingDe !== stagingDe) gravarEstado({ ...e, siteStagingDe: stagingDe }); return; }
+  log(`=== site staging (${d.motivo}) no origin/main ${sha.slice(0, 12)}`);
+  if (rodar("node", ["scripts/site-publicar.mjs", "--so-staging"], WT)) {
+    log("=== site staging ok");
+    gravarEstado({ ...lerEstado(), siteStagingDe: sha, siteFalhouEm: null });
+    avisar("site no staging", `site-staging.agentesgrok.com está no commit ${sha.slice(0, 12)}. A produção espera a aprovação.`);
+  } else {
+    log("=== site staging FALHOU");
+    gravarEstado({ ...lerEstado(), siteFalhouEm: Date.now() });
+    avisar("site não publicado no staging", "Os testes, a conferência ou o deploy falharam; o staging ficou como estava. Tento de novo em 1 h (log: ~/Library/Logs/meu-bot-release.log)");
+  }
+}
+
+/** Saiu estável nova (por este agente ou à mão) e conta-api mudou: avisa, uma vez, que há o que aprovar. Não publica. */
 function siteAcompanhaEstavel(sha) {
   const e = lerEstado();
   const ultimaEstavel = estavelMaisNova(sh("git", ["tag", "-l", "v*"]).split("\n"));
   const siteDe = e.siteDe ?? null;
   let mudouSite = false;
   if (siteDe !== null && ultimaEstavel !== null && ultimaEstavel !== siteDe) {
-    // Não consegui comparar (tag fora deste clone?): não sei se o site mudou, então não publico às cegas.
+    // Não consegui comparar (tag fora deste clone?): não sei se o site mudou, então não aviso às cegas.
     const diff = shOu("git", ["diff", "--name-only", `${siteDe}..${sha}`, "--", "conta-api"]);
-    if (diff === null) { const aviso = `site: não consegui comparar conta-api com a ${siteDe}; nada publicado`; if (e.siteAviso !== aviso) { log(aviso); gravarEstado({ ...e, siteAviso: aviso }); } return; }
+    if (diff === null) { const aviso = `site: não consegui comparar conta-api com a ${siteDe}; nada avisado`; if (e.siteAviso !== aviso) { log(aviso); gravarEstado({ ...e, siteAviso: aviso }); } return; }
     mudouSite = diff !== "";
   }
-  const d = decideSite({ ultimaEstavel, siteDe, mudouSite, falhouEm: e.siteFalhouEm ?? null, agora: Date.now(), esperaMs: ESPERA_FALHA_MS });
+  const d = decideSite({ ultimaEstavel, siteDe, mudouSite });
   if (d.acao === "nada") return;
-  if (d.acao === "marcar") { log(`site: ${d.motivo}`); gravarEstado({ ...e, siteDe: ultimaEstavel, siteFalhouEm: null, siteAviso: null }); return; }
-  log(`=== site (${d.motivo}) no origin/main ${sha.slice(0, 12)}`);
-  if (rodar("node", ["scripts/site-publicar.mjs"], WT)) {
-    log("=== site ok");
-    gravarEstado({ ...lerEstado(), siteDe: ultimaEstavel, siteFalhouEm: null });
-    avisar("site publicado", `agentesgrok.com acompanha a ${ultimaEstavel}.`);
-  } else {
-    log("=== site FALHOU");
-    gravarEstado({ ...lerEstado(), siteFalhouEm: Date.now() });
-    avisar("site não publicado", "A conferência ou o deploy falhou; o site ficou como estava. Tento de novo em 1 h (log: ~/Library/Logs/meu-bot-release.log)");
-  }
+  if (d.acao === "avisar") {
+    const noStaging = commitDoStaging() ?? sha;
+    log(`site pronto para aprovar no staging (commit ${noStaging}): ${d.motivo}. Produção só com: node scripts/site-publicar.mjs --aprovar ${noStaging} && node scripts/site-publicar.mjs --producao`);
+    avisar("site pronto para aprovar", `site pronto para aprovar no staging (commit ${noStaging.slice(0, 12)}). A produção só sai com --aprovar e --producao.`);
+  } else log(`site: ${d.motivo}`);
+  gravarEstado({ ...lerEstado(), siteDe: ultimaEstavel, siteAviso: null });
 }
 
 const aberto = (app) => spawnSync("pgrep", ["-f", `/${app}.app/Contents/MacOS/`]).status === 0;
@@ -204,7 +233,8 @@ function rodada() {
     const { sha, base, tag, decisao } = olhar();
     // O agente roda deste worktree: mantê-lo no origin/main é o que atualiza o próprio agente na rodada seguinte.
     if (existsSync(join(WT, ".git")) && shOu("git", ["rev-parse", "HEAD"], WT) !== sha) rodar("git", ["checkout", "-q", "--detach", "-f", sha], WT);
-    if (existsSync(join(WT, "scripts", "site-publicar.mjs"))) siteAcompanhaEstavel(sha);
+    // O staging antes do aviso: quando a estável sai, o aviso já diz o commit que está lá para conferir.
+    if (existsSync(join(WT, "scripts", "site-publicar.mjs"))) { siteStagingAcompanhaMain(sha); siteAcompanhaEstavel(sha); }
     const estado = lerEstado();
     const chave = `${decisao.acao}@${sha}`;
     if (decisao.acao === "aguardar") {
@@ -296,7 +326,7 @@ else if (modo === "--check") {
   console.log(`origin/main ${sha.slice(0, 12)} · base ${base} · staging no HEAD: ${tag ?? "nenhum"}`);
   console.log(`decisão: ${decisao.acao} — ${decisao.motivo}`);
   if (motivoSegurar() !== null) console.log(`estável segurada: ${motivoSegurar()} (solte com --soltar)`);
-  console.log(`site: ${e.siteDe ? `acompanhou a ${e.siteDe}` : "ainda não anotou a estável"}${e.siteFalhouEm ? ` · última publicação falhou em ${new Date(e.siteFalhouEm).toLocaleString("pt-BR")}` : ""}`);
+  console.log(`site: staging no commit ${e.siteStagingDe ?? "ainda não anotado"} (acompanha a main)${e.siteFalhouEm ? ` · última publicação do staging falhou em ${new Date(e.siteFalhouEm).toLocaleString("pt-BR")}` : ""} · produção só com aprovação (site-publicar.mjs --aprovar <sha>, depois --producao; --conferir mostra os dois) · ${e.siteDe ? `última estável anotada: ${e.siteDe}` : "ainda não anotou a estável"}`);
   if (e.falhou) console.log(`última falha: ${e.falhou.chave} em ${new Date(e.falhou.em).toLocaleString("pt-BR")}: ${e.falhou.erro}`);
   console.log(`agente: ${existsSync(PLIST) ? "instalado" : "não instalado"} · worktree: ${WT}${existsSync(WT) ? "" : " (ainda não criado)"} · log: ${LOG}`);
 } else { console.error("uso: node scripts/release-auto.mjs --check | --run | --instalar | --religar | --desinstalar | --segurar \"motivo\" | --soltar"); process.exit(64); }

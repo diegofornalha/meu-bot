@@ -10,8 +10,8 @@
     "dev": "wrangler dev --env staging",
     "migrar:staging": "wrangler d1 migrations apply conta-staging --env staging --remote",
     "migrar": "wrangler d1 migrations apply conta --remote",
-    "deploy:staging": "wrangler deploy --env staging",
-    "deploy": "wrangler deploy"
+    "deploy:staging": "echo 'O deploy sai pelo portão (leva o commit para o /health): node ../scripts/site-publicar.mjs --so-staging' && exit 1",
+    "deploy": "echo 'A produção só sai pelo portão, com o commit aprovado no staging: node ../scripts/site-publicar.mjs --aprovar <sha> e depois --producao' && exit 1"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20261106.1",

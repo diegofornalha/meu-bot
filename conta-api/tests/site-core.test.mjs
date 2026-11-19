@@ -3,6 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import vm from "node:vm";
+import { varsDoWrangler } from "../../scripts/release-core.mjs";
 import { llmsPorPagamentos, paginaDaPromoDesligada, caminhoCanonico, ehAliasDoSite, paraHttps, redirecionamentoInicial, semBarraFinal, rascunhoForaDoCanal } from "../dist/site-core.js";
 
 test("paraHttps: http vira https com caminho e query; https e lixo ficam null", () => {
@@ -68,19 +69,15 @@ test("rascunhoForaDoCanal: o rascunho dos planos só sai no staging, também pel
 });
 
 test("home: o preço do Finanças escrito na página é o do catálogo de produção (wrangler.toml)", () => {
-  const toml = readFileSync(new URL("../wrangler.toml", import.meta.url), "utf8");
-  const producao = toml.slice(0, toml.indexOf("[env.staging]"));
-  const m = /ABACATEPAY_ADDONS = '([^']+)'/.exec(producao);
-  assert.ok(m, "catálogo de produção no wrangler.toml");
-  const centavos = JSON.parse(m[1])["meu-bot-finance"].centavos;
+  const { producao } = varsDoWrangler(readFileSync(new URL("../wrangler.toml", import.meta.url), "utf8"));
+  assert.ok(producao.ABACATEPAY_ADDONS, "catálogo de produção no wrangler.toml");
+  const centavos = JSON.parse(producao.ABACATEPAY_ADDONS)["meu-bot-finance"].centavos;
   const home = readFileSync(new URL("../public/site/index.html", import.meta.url), "utf8");
   assert.ok(home.includes(`R$ ${(centavos / 100).toLocaleString("pt-BR")} por mês, à parte do plano do agente.`), `a home deve mostrar R$ ${centavos / 100}`);
 });
 
 test("home: o preço por dia é o do plano de R$ 97 dividido por 30", () => {
-  const toml = readFileSync(new URL("../wrangler.toml", import.meta.url), "utf8");
-  const producao = toml.slice(0, toml.indexOf("[env.staging]"));
-  const centavos = Number(/ABACATEPAY_PRECO_CENTAVOS = "(\d+)"/.exec(producao)?.[1]);
+  const centavos = Number(varsDoWrangler(readFileSync(new URL("../wrangler.toml", import.meta.url), "utf8")).producao.ABACATEPAY_PRECO_CENTAVOS);
   assert.ok(centavos > 0, "preço do plano no wrangler.toml");
   const porDia = (centavos / 100 / 30).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const home = readFileSync(new URL("../public/site/index.html", import.meta.url), "utf8");
@@ -136,10 +133,9 @@ test("home: no celular a conversa no WhatsApp vem antes de mandar o link, e o ce
 });
 
 test("teste grátis: os dias escritos no site, no login e no app são os do TRIAL_DIAS dos dois ambientes", () => {
-  const toml = readFileSync(new URL("../wrangler.toml", import.meta.url), "utf8");
-  const dias = [...toml.matchAll(/^TRIAL_DIAS = "(\d+)"$/gm)].map((m) => m[1]);
-  assert.equal(dias.length, 2, "TRIAL_DIAS em produção e no staging");
-  assert.equal(dias[0], dias[1], "produção e staging com o mesmo teste");
+  // Que os dois ambientes têm o mesmo TRIAL_DIAS é regra da paridade (tests/paridade-ambientes.test.mjs); aqui só os textos.
+  const dias = [varsDoWrangler(readFileSync(new URL("../wrangler.toml", import.meta.url), "utf8")).producao.TRIAL_DIAS];
+  assert.match(dias[0] ?? "", /^\d+$/, "TRIAL_DIAS de produção no wrangler.toml");
   const pub = new URL("../public/", import.meta.url);
   const arquivos = readdirSync(pub, { recursive: true }).filter((f) => /\.(html|txt)$/.test(String(f))).map((f) => new URL(String(f), pub));
   arquivos.push(new URL("../../src/renderer/picker.html", import.meta.url), new URL("../../README.md", import.meta.url));

@@ -4,6 +4,11 @@ export interface Env {
   DB: D1Database;
   ASSETS: Fetcher;
   CANAL: "producao" | "staging";
+  /**
+   * O commit publicado (sha completo), que o /health devolve. Não fica no wrangler.toml: entra no deploy pelo
+   * scripts/site-publicar.mjs (`wrangler deploy --var COMMIT:<sha>`). Ausente = deploy antigo ou à mão.
+   */
+  COMMIT?: string;
   /** Origem da página de login e do console (CORS da API) e da API (as páginas chamam esta). */
   AUTH_ORIGIN: string;
   API_ORIGIN: string;

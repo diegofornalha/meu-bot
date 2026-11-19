@@ -1,7 +1,8 @@
 // Regras da release automática (scripts/release-auto.mjs): o que cada rodada do agente decide fazer.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { dataPorExtenso, decideRodada, decideSite, desfazDeploy, estavelMaisNova, faltasDoSite, fecharChangelog, plistDoAgente, proximaBase, QUIETUDE_MS, saudeStaging, SOAK_MS, stagingMaisNovo } from "../release-core.mjs";
+import { readFileSync } from "node:fs";
+import { commitNoAr, dataPorExtenso, decideRodada, decideSite, decideSiteStaging, desfazDeploy, dirDoEstado, estavelMaisNova, faltasDeConteudo, faltasDoSite, fecharChangelog, lerConfigJs, ordemDosAmbientes, plistDoAgente, podeAprovar, podePublicarProducao, proximaBase, QUIETUDE_MS, saudeStaging, SOAK_MS, stagingMaisNovo, varsDoWrangler } from "../release-core.mjs";
 
 const AGORA = Date.parse("2026-11-10T15:00:00Z");
 const ok = { ok: true, motivo: "ok" };
@@ -83,15 +84,117 @@ test("site: a estável mais nova ignora staging e ordena por número, não por t
   assert.equal(estavelMaisNova(["v0.84.0-staging.1"]), null);
 });
 
-test("site: publica quando sai estável nova com conta-api diferente; a primeira rodada só anota", () => {
-  const b = { ultimaEstavel: "v0.84.0", siteDe: "v0.83.0", mudouSite: true, falhouEm: null, agora: 10_000_000, esperaMs: 3_600_000 };
-  assert.equal(decideSite(b).acao, "publicar");
-  assert.equal(decideSite({ ...b, siteDe: "v0.84.0" }).acao, "nada", "site já acompanhou esta estável");
-  assert.equal(decideSite({ ...b, siteDe: null }).acao, "marcar", "agente recém-instalado não publica o que não viu sair");
+test("site: estável nova com conta-api diferente só avisa (a produção não sai sozinha); a primeira rodada só anota", () => {
+  const b = { ultimaEstavel: "v0.84.0", siteDe: "v0.83.0", mudouSite: true };
+  assert.equal(decideSite(b).acao, "avisar");
+  assert.equal(decideSite({ ...b, siteDe: "v0.84.0" }).acao, "nada", "esta estável já foi anotada: o aviso não se repete");
+  assert.equal(decideSite({ ...b, siteDe: null }).acao, "marcar", "agente recém-instalado não avisa do que não viu sair");
   assert.equal(decideSite({ ...b, mudouSite: false }).acao, "marcar", "conta-api igual: só anota a estável");
-  assert.equal(decideSite({ ...b, falhouEm: b.agora - 60_000 }).acao, "nada", "falhou há 1 min: espera");
-  assert.equal(decideSite({ ...b, falhouEm: b.agora - 3_600_000 }).acao, "publicar", "passou a espera: tenta de novo");
   assert.equal(decideSite({ ...b, ultimaEstavel: null }).acao, "nada");
+  for (const caso of [b, { ...b, siteDe: null }, { ...b, mudouSite: false }]) assert.notEqual(decideSite(caso).acao, "publicar", "nenhum caminho publica a produção");
+});
+
+const A = "a".repeat(40), B = "b".repeat(40), C = "c".repeat(40);
+
+test("site: o staging acompanha a main quando conta-api mudou desde o commit que está lá", () => {
+  const b = { main: B, stagingDe: A, mudouSite: true, falhouEm: null, agora: 10_000_000, esperaMs: 3_600_000 };
+  assert.equal(decideSiteStaging(b).acao, "publicar");
+  assert.equal(decideSiteStaging({ ...b, stagingDe: B }).acao, "nada", "staging já está na main");
+  assert.equal(decideSiteStaging({ ...b, mudouSite: false }).acao, "nada", "a main andou sem mexer em conta-api");
+  assert.equal(decideSiteStaging({ ...b, stagingDe: null, mudouSite: null }).acao, "publicar", "commit desconhecido (deploy antigo ou à mão): publica a main");
+  assert.equal(decideSiteStaging({ ...b, mudouSite: null }).acao, "publicar", "não deu para comparar: não há prova de que o staging tem a main");
+  assert.equal(decideSiteStaging({ ...b, falhouEm: b.agora - 60_000 }).acao, "nada", "falhou há 1 min: espera");
+  assert.equal(decideSiteStaging({ ...b, stagingDe: null, falhouEm: b.agora - 60_000 }).acao, "nada", "a espera vale também com o commit desconhecido");
+  assert.equal(decideSiteStaging({ ...b, falhouEm: b.agora - 3_600_000 }).acao, "publicar", "passou a espera: tenta de novo");
+});
+
+test("site: o commit no ar vem do /health; sem sha completo é desconhecido, não erro", () => {
+  assert.equal(commitNoAr({ ok: true, canal: "staging", commit: A }), A);
+  assert.equal(commitNoAr({ ok: true, canal: "producao", commit: null }), null, "deploy antigo ou à mão");
+  assert.equal(commitNoAr({ ok: true, canal: "producao" }), null, "Worker de antes do portão");
+  assert.equal(commitNoAr({ commit: "abc123" }), null, "sha curto não identifica o commit");
+  assert.equal(commitNoAr(null), null, "sem resposta");
+});
+
+test("site: só se aprova o commit que está no staging", () => {
+  assert.deepEqual(podeAprovar({ sha: A, commitStaging: A }), { ok: true });
+  assert.match(podeAprovar({ sha: A, commitStaging: B }).erro, new RegExp(`staging está no commit ${B}`), "diz qual está lá");
+  assert.match(podeAprovar({ sha: A, commitStaging: null }).erro, /não diz qual commit/);
+  assert.match(podeAprovar({ sha: A.slice(0, 12), commitStaging: A }).erro, /commit inteiro/);
+  assert.match(podeAprovar({ sha: null, commitStaging: A }).erro, /commit inteiro/);
+});
+
+test("site: a produção só recebe o commit aprovado, que é o do staging e o do worktree", () => {
+  const b = { aprovado: A, head: A, commitStaging: A, limpo: true, naMain: true };
+  assert.deepEqual(podePublicarProducao(b), { ok: true });
+  assert.match(podePublicarProducao({ ...b, aprovado: null }).erro, /não há aprovação/);
+  assert.match(podePublicarProducao({ ...b, aprovado: "lixo" }).erro, /não há aprovação/, "aprovação ilegível não vale");
+  assert.match(podePublicarProducao({ ...b, head: B }).erro, new RegExp(`aprovado é ${A}, e este worktree está em ${B}`));
+  assert.match(podePublicarProducao({ ...b, head: null }).erro, /este worktree está em/);
+  assert.match(podePublicarProducao({ ...b, commitStaging: C }).erro, new RegExp(`staging andou: está no commit ${C}`));
+  assert.match(podePublicarProducao({ ...b, commitStaging: null }).erro, /não diz qual commit/, "staging desconhecido não prova nada");
+  assert.match(podePublicarProducao({ ...b, limpo: false }).erro, /mudanças fora do commit/);
+  assert.match(podePublicarProducao({ ...b, naMain: false }).erro, /não está no origin\/main/);
+  for (const caso of [{ ...b, aprovado: null }, { ...b, head: B }, { ...b, commitStaging: C }, { ...b, commitStaging: null }, { ...b, limpo: false }, { ...b, naMain: false }]) assert.equal(podePublicarProducao(caso).ok, undefined);
+});
+
+test("site: a produção tem de ser um ancestral do staging; commit desconhecido não é erro", () => {
+  assert.equal(ordemDosAmbientes({ staging: B, producao: A, ancestral: true }).ok, true);
+  assert.equal(ordemDosAmbientes({ staging: A, producao: A }).ok, true, "mesmo commit");
+  const fora = ordemDosAmbientes({ staging: B, producao: A, ancestral: false });
+  assert.equal(fora.ok, false); assert.match(fora.texto, /NÃO é um ancestral/);
+  assert.equal(ordemDosAmbientes({ staging: B, producao: null }).ok, null, "produção de antes do portão");
+  assert.equal(ordemDosAmbientes({ staging: null, producao: A }).ok, null);
+  assert.equal(ordemDosAmbientes({ staging: B, producao: A, ancestral: null }).ok, null, "o git não conhece um dos commits");
+});
+
+test("site: a pasta de estado é uma só para o agente e para a aprovação", () => {
+  assert.equal(dirDoEstado({ env: {}, home: "/Users/a" }), "/Users/a/Library/Application Support/meu-bot-release");
+  assert.equal(dirDoEstado({ env: { MEU_BOT_RELEASE_DIR: "/tmp/x" }, home: "/Users/a" }), "/tmp/x");
+});
+
+test("site: as vars de cada ambiente saem do wrangler.toml (produção em [vars], staging em [env.staging.vars])", () => {
+  const v = varsDoWrangler('name = "x"\n[vars]\nCANAL = "producao"\n# comentário\nJ = \'{"a":{"b":1}}\'\nN = 3 # resto\n[[routes]]\npattern = "p"\n[env.staging]\nname = "y"\n[env.staging.vars]\nCANAL = "staging"\nASPAS = "a \\"b\\" # c"\n');
+  assert.deepEqual(v, { producao: { CANAL: "producao", J: '{"a":{"b":1}}', N: "3" }, staging: { CANAL: "staging", ASPAS: 'a "b" # c' } });
+  const real = varsDoWrangler(readFileSync(new URL("../../conta-api/wrangler.toml", import.meta.url), "utf8"));
+  assert.equal(real.producao.CANAL, "producao"); assert.equal(real.staging.CANAL, "staging");
+  assert.equal(real.producao.COMMIT, undefined, "o commit entra no deploy, não fica no wrangler.toml");
+  assert.equal(real.staging.COMMIT, undefined);
+});
+
+test("site: conferência de conteúdo (teste grátis, canal e medição do ambiente, commit do deploy)", () => {
+  const home = { status: 200, texto: "<p>3 dias grátis, sem cartão</p><p>teste: 3 dias grátis</p>" };
+  const cfg = (o) => ({ status: 200, texto: `window.MEU_BOT_CONTA = ${JSON.stringify(o)};\n` });
+  const b = { canal: "staging", home, configJs: cfg({ console: "https://c", canal: "staging", ga: "G-STAGING01" }), health: { ok: true, canal: "staging", commit: A }, esperado: { trialDias: "3", ga: "G-STAGING01", commit: A } };
+  assert.deepEqual(faltasDeConteudo(b), { faltas: [], desfazer: false });
+  const dias = faltasDeConteudo({ ...b, home: { status: 200, texto: "14 dias grátis" } });
+  assert.match(dias.faltas[0], /diz 14 dias grátis; o TRIAL_DIAS deste ambiente é 3/); assert.equal(dias.desfazer, true);
+  assert.match(faltasDeConteudo({ ...b, home: { status: 200, texto: "sem menção" } }).faltas[0], /não cita o teste grátis/);
+  assert.deepEqual(faltasDeConteudo({ ...b, home: { status: 0, texto: "" } }), { faltas: [], desfazer: false }, "home sem resposta já é falta do básico (faltasDoSite)");
+  const canal = faltasDeConteudo({ ...b, configJs: cfg({ canal: "producao", ga: "G-STAGING01" }) });
+  assert.match(canal.faltas[0], /canal "producao", esperado "staging"/); assert.equal(canal.desfazer, true);
+  const ga = faltasDeConteudo({ ...b, configJs: cfg({ canal: "staging", ga: "G-PRODUCAO01" }) });
+  assert.match(ga.faltas[0], /medição "G-PRODUCAO01", esperado "G-STAGING01"/); assert.equal(ga.desfazer, true);
+  assert.deepEqual(faltasDeConteudo({ ...b, configJs: cfg({ canal: "staging", ga: "" }), esperado: { ...b.esperado, ga: "" } }).faltas, [], "ambiente sem medição");
+  assert.deepEqual(faltasDeConteudo({ ...b, configJs: { status: 0, texto: "" } }), { faltas: ["/config.js do site respondeu nada"], desfazer: false }, "sem rede não desfaz");
+  assert.equal(faltasDeConteudo({ ...b, configJs: { status: 500, texto: "" } }).desfazer, true);
+  assert.equal(faltasDeConteudo({ ...b, configJs: { status: 200, texto: "<html>" } }).desfazer, true);
+  const semCommit = faltasDeConteudo({ ...b, health: { ok: true, canal: "staging", commit: null } });
+  assert.match(semCommit.faltas[0], new RegExp(`commit desconhecido, esperado ${A}`)); assert.equal(semCommit.desfazer, false, "só o commit faltando não desfaz o deploy");
+  assert.match(faltasDeConteudo({ ...b, health: { ok: true, canal: "staging", commit: B } }).faltas[0], new RegExp(`commit ${B}, esperado ${A}`));
+  // --conferir avulso: sem commit esperado, a produção de antes do portão (commit null) não é falta.
+  assert.deepEqual(faltasDeConteudo({ ...b, health: { ok: true, canal: "staging" }, esperado: { trialDias: "3", ga: "G-STAGING01" } }).faltas, []);
+  assert.equal(lerConfigJs("window.MEU_BOT_CONTA = {\"canal\":\"staging\"};\n").canal, "staging");
+  assert.equal(lerConfigJs("alert(1)"), null);
+});
+
+test("site: a home deste commit passa na conferência de conteúdo com o TRIAL_DIAS dos dois ambientes", () => {
+  const vars = varsDoWrangler(readFileSync(new URL("../../conta-api/wrangler.toml", import.meta.url), "utf8"));
+  const home = { status: 200, texto: readFileSync(new URL("../../conta-api/public/site/index.html", import.meta.url), "utf8") };
+  for (const canal of ["staging", "producao"]) {
+    const r = faltasDeConteudo({ canal, home, configJs: { status: 200, texto: `window.MEU_BOT_CONTA = ${JSON.stringify({ canal, ga: vars[canal].GA_ID })};` }, health: null, esperado: { trialDias: vars[canal].TRIAL_DIAS, ga: vars[canal].GA_ID } });
+    assert.deepEqual(r.faltas, [], canal);
+  }
 });
 
 test("site: conferência no ar por canal", () => {

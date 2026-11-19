@@ -92,9 +92,10 @@ pode sair do commit …. Nada foi publicado.` Um `✗` para tudo: mostre a linha
 
 **Antecipar a estável** (antes das 24 h): só com o **"aprovado"** explícito do usuário, fase 1 com saúde ✓ e fase 2
 ✓. Pause o agente antes (`launchctl bootout`, como em "Antecipar o staging"), aí `npm run release` no mesmo worktree,
-religue o agente (`bootstrap`) e apague o worktree. O agente vê a `v<base>` publicada e, sozinho: publica o site se
-`conta-api/` mudou desde a estável anterior (`=== site ok` no log; não espera "pode") e abre e mergeia a PR "Versão:
-base sobe" (`=== subir-base ok`); se o `main` já tinha merges depois da `<tag>`, ele solta em seguida a
+religue o agente (`bootstrap`) e apague o worktree. O agente vê a `v<base>` publicada e, sozinho: avisa "site pronto
+para aprovar no staging (commit X)" se `conta-api/` mudou desde a estável anterior (ele **não** publica a produção do
+site; isso é `--aprovar <sha>` e `--producao`, skill `publicar-site`) e abre e mergeia a PR "Versão: base sobe"
+(`=== subir-base ok`); se o `main` já tinha merges depois da `<tag>`, ele solta em seguida a
 `-staging.1` da base nova com eles.
 
 **Quando o usuário pergunta "quando posso dizer aprovado?":** quando (1) a staging candidata está publicada, (2) o
@@ -112,6 +113,10 @@ lá, responda com o estado da fase 1 ("saudável, vira estável em X h" / "ainda
   atualização › **Atualizar agora**; no log dele, `[atualização] <base> confirmada` e nenhum
   `não passou das primeiras aberturas` (a volta automática).
 - **Máquinas:** repita a conferência de `VERSION` da fase 1 depois da abertura seguinte do seletor.
+- **Site, se `conta-api/` mudou:** a produção do site não acompanha a estável sozinha. `node scripts/site-publicar.mjs
+  --conferir` mostra o commit de cada ambiente; com o "aprovado" do usuário para o commit que está no staging:
+  `--aprovar <sha>` e `--producao` (skill `publicar-site`).
 - **Base:** a PR "Versão: base sobe" existe (o agente abre e mergeia; no caminho manual, você).
 
-Depende do usuário: nada, só avisar se alguém reclamar.
+Depende do usuário: o "aprovado" do site (o commit que está no staging), quando `conta-api/` mudou; fora isso, só
+avisar se alguém reclamar.
