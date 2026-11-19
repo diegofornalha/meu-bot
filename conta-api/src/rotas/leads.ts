@@ -62,20 +62,26 @@ export async function rotaLeads(rota: string, req: Request, env: Env): Promise<R
 
 /**
  * Manda `qualify_lead` ao GA4 uma vez por código; devolve o que aconteceu, para quem chamou não achar que contou quando
- * não contou. `ga_enviado_em` é reservado antes do envio (duas chamadas ao mesmo tempo: só uma envia) e devolvido se o
- * GA4 recusar ou estiver fora, para a próxima chamada tentar de novo.
+ * não contou. `ga_enviado_em` é reservado antes do envio (duas chamadas ao mesmo tempo: só uma envia; a outra recebe
+ * "em-andamento", porque ainda não se sabe o resultado) e devolvido se o GA4 recusar ou estiver fora, para a próxima
+ * chamada tentar de novo.
  */
-async function enviarQualificado(env: Env, l: LeadLinha): Promise<"enviado" | "sem-visita" | "desligado" | "recusado"> {
+async function enviarQualificado(env: Env, l: LeadLinha): Promise<"enviado" | "em-andamento" | "sem-visita" | "desligado" | "recusado"> {
   if (l.ga_client_id === null) return "sem-visita";
+  if (l.ga_enviado_em !== null) return "enviado";
   const id = gaIds(env.GA_ID)[0];
   if (id === undefined || !env.GA_MP_SECRET) return "desligado";
   const reservou = await env.DB.prepare("UPDATE lead_ref SET ga_enviado_em = ?2 WHERE codigo = ?1 AND ga_enviado_em IS NULL").bind(l.codigo, agoraIso()).run();
-  if ((reservou.meta.changes ?? 0) === 0) return "enviado";
-  const soltar = async (): Promise<"recusado"> => { await env.DB.prepare("UPDATE lead_ref SET ga_enviado_em = NULL WHERE codigo = ?1").bind(l.codigo).run(); return "recusado"; };
+  if ((reservou.meta.changes ?? 0) === 0) return "em-andamento";
   const body = qualificaGa4({ clientId: l.ga_client_id, sessionId: l.ga_session_id, codigo: l.codigo, ambiente: env.CANAL === "staging" ? "staging" : "producao" });
+  let ok = false;
   try {
     const r = await fetch(`https://www.google-analytics.com/mp/collect?measurement_id=${encodeURIComponent(id)}&api_secret=${encodeURIComponent(env.GA_MP_SECRET)}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-    if (!r.ok) { console.log(`[lead] GA4 recusou o lead ${l.codigo}: HTTP ${r.status}`); return await soltar(); }
-    return "enviado";
-  } catch (e) { console.log(`[lead] GA4 fora: ${e instanceof Error ? e.message : String(e)}`); return await soltar(); }
+    ok = r.ok;
+    if (!ok) console.log(`[lead] GA4 recusou o lead ${l.codigo}: HTTP ${r.status}`);
+  } catch (e) { console.log(`[lead] GA4 fora: ${e instanceof Error ? e.message : String(e)}`); }
+  if (ok) return "enviado";
+  try { await env.DB.prepare("UPDATE lead_ref SET ga_enviado_em = NULL WHERE codigo = ?1").bind(l.codigo).run(); }
+  catch (e) { console.log(`[lead] não consegui soltar a reserva do lead ${l.codigo} (fica como enviado sem ter sido): ${e instanceof Error ? e.message : String(e)}`); }
+  return "recusado";
 }
