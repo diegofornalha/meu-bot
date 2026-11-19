@@ -113,3 +113,8 @@ test("renovação no limite: com mais máquinas vinculadas do que o plano cobre,
   assert.equal(cabeNoLimite(comTirada, "a", 2), false, "desvinculada não renova");
   assert.equal(cabeNoLimite(tres, "z", 3), false, "máquina que não é da conta");
 });
+
+test("todo plano inclui 2 devices", async () => {
+  const { DEVICES_INCLUSOS } = await import("../dist/licenca-core.js");
+  assert.equal(DEVICES_INCLUSOS, 2);
+});

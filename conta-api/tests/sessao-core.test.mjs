@@ -72,11 +72,12 @@ test("validaDevice e validaPedidoToken: uuid ou alias, campos livres sem control
   assert.match(validaPedidoToken({ grant: "senha" }).erro, /grant/);
 });
 
-test("admitirDevice: conhecido mantém o status; novo cabe até o limite", () => {
+test("admitirDevice: ativo continua ativo; novo e pendente entram quando cabem no limite", () => {
   assert.equal(admitirDevice(null, 0, 1), "active");
   assert.equal(admitirDevice(null, 1, 1), "pending");
   assert.equal(admitirDevice(null, 1, 2), "active");
-  assert.equal(admitirDevice({ status: "pending" }, 0, 5), "pending", "pendente continua até o admin liberar");
+  assert.equal(admitirDevice({ status: "pending" }, 1, 2), "active", "pendente entra sozinho quando o limite passa a caber");
+  assert.equal(admitirDevice({ status: "pending" }, 2, 2), "pending", "sem vaga, continua pendente");
   assert.equal(admitirDevice({ status: "active" }, 9, 1), "active", "ativo não vira pendente ao reaparecer");
 });
 
