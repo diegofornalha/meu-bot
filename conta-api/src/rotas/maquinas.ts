@@ -2,7 +2,8 @@
  * A licença da conta numa máquina (VM por SSH), pedida pelo app da própria pessoa:
  * - `POST /conta/maquinas {id, apelido}`: vincula a máquina à conta (ou só renova, se já é dela) e devolve o
  *   `licenca-conta.json` assinado para o app gravar lá. Sem vaga responde 409 com `noLimite` e as máquinas ocupadas;
- * - `POST /conta/maquinas/:id/licenca`: emite de novo para uma máquina já vinculada (a renovação do app);
+ * - `POST /conta/maquinas/:id/licenca`: emite de novo para uma máquina já vinculada (a renovação do app). Se as
+ *   vinculadas passam do limite em vigor (uma máquina extra venceu), só as mais antigas renovam: 409 com `semExtra`;
  * - `DELETE /conta/maquinas/:id {apagada}`: tira a licença. `apagada: true` (o app já apagou o arquivo da máquina)
  *   abre a vaga na hora, até TROCAS_NA_HORA vezes em 30 dias; senão a vaga abre quando a última emissão vencer.
  * `id` é o uuid do `maquina.json` da máquina. Liga só com o secret LICENCA_PRIVATE_KEY; sem ele as rotas respondem 503.
@@ -11,13 +12,16 @@ import type { Env, MaquinaLinha } from "../tipos.js";
 import { auditar, contarLimite, desvincularMaquina, devicesDaConta, fecharPedidosDeLiberar, licencaDaConta, limiteDeMaquinas, maquinaApi, maquinaPorId, maquinasDaConta, trocasDeMaquina, vincularMaquina } from "../db.js";
 import { UUID_RE, agoraIso, janelaMinuto } from "../sessao-core.js";
 import { json, lerJson, type Autenticado } from "../http.js";
-import { LICENCA_VALIDADE_MS, abreVagaNaHora, admitirMaquina, assinarLicenca, licencaJsonV2, montarPayload, ocupaVaga, validaApelido, type Vinculo } from "../licenca-core.js";
+import { LICENCA_VALIDADE_MS, abreVagaNaHora, admitirMaquina, assinarLicenca, cabeNoLimite, licencaJsonV2, montarPayload, ocupaVaga, validaApelido, type Vinculo } from "../licenca-core.js";
 
 export const licencaLigada = (env: Env): boolean => typeof env.LICENCA_PRIVATE_KEY === "string" && env.LICENCA_PRIVATE_KEY.trim() !== "";
 const DESLIGADA = "a licença da conta na máquina ainda não está ligada; fale com o suporte";
 /** Emissões e trocas por conta por minuto. */
 const LIMITE_POR_MIN = 10;
 const vinculo = (m: MaquinaLinha): Vinculo => ({ id: m.id, ultimaEmissaoEm: m.ultima_emissao_em, desvinculadaEm: m.desvinculada_em });
+const posicao = (m: MaquinaLinha): { id: string; criadaEm: string; desvinculadaEm: string | null } => ({ id: m.id, criadaEm: m.criada_em, desvinculadaEm: m.desvinculada_em });
+/** O que a máquina além do limite ouve ao renovar (cabeNoLimite): o que aconteceu e as duas saídas. */
+const semExtra = (limite: number): string => `a sua conta usa a licença em mais máquinas do que o plano cobre agora (${limite}): a máquina extra venceu. Adicione uma máquina no console, em Plano, ou tire a licença de outra máquina`;
 
 /**
  * Assina a licença em vigor da conta para a máquina e devolve o arquivo; null se a chave do Worker não presta. Vem
@@ -43,6 +47,8 @@ export async function postMaquina(auth: Autenticado, env: Env, req: Request): Pr
   if (existente !== null && existente.conta_id !== null && existente.conta_id !== auth.conta.id && ocupaVaga(vinculo(existente), agoraMs)) return json({ erro: "esta máquina já usa a licença de outra conta; tire por lá antes de usar a sua" }, 409);
   const d = admitirMaquina(daConta.map(vinculo), id, limite, agoraMs);
   if ("erro" in d) return json({ erro: d.erro, noLimite: true, ocupadas: daConta.filter((m) => d.ocupadas.includes(m.id)).map(maquinaApi) }, 409);
+  // Já vinculada só renova, e a renovação respeita o limite em vigor (o mesmo de postRenovarLicenca).
+  if (d.acao === "renovar" && !cabeNoLimite(daConta.map(posicao), id, limite)) return json({ erro: semExtra(limite), semExtra: true, limite }, 409);
   const arquivo = await assinar(auth, env, id, agoraMs);
   if (arquivo === null) return json({ erro: DESLIGADA }, 503);
   // A conferência da vaga e esta gravação não são uma transação: dois pedidos no mesmo instante, com máquinas
@@ -62,6 +68,9 @@ export async function postRenovarLicenca(auth: Autenticado, env: Env, id: string
   const m = await maquinaPorId(env.DB, id);
   if (m === null || m.conta_id !== auth.conta.id || m.desvinculada_em !== null) return json({ erro: "esta máquina não usa a licença da sua conta" }, 404);
   const agoraMs = Date.now();
+  // O limite pode ter caído depois do vínculo (máquina extra vencida ou cancelada): as mais novas além dele não renovam.
+  const [daConta, limite] = await Promise.all([maquinasDaConta(env.DB, auth.conta.id), limiteDeMaquinas(env.DB, auth.conta.id, agoraMs)]);
+  if (!cabeNoLimite(daConta.map(posicao), id, limite)) return json({ erro: semExtra(limite), semExtra: true, limite }, 409);
   const arquivo = await assinar(auth, env, id, agoraMs);
   if (arquivo === null) return json({ erro: DESLIGADA }, 503);
   await vincularMaquina(env.DB, auth.conta.id, id, null, agoraIso(agoraMs));

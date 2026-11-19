@@ -109,7 +109,8 @@ test("paridade: exceção temporária vale até a data e falha depois, dizendo o
   const depois = divergencias(vars, "2026-12-16").join("\n");
   assert.match(depois, /add-on meu-bot-diego só em staging: a exceção temporária venceu em 2026-12-15/);
   assert.match(depois, /Decida: crie o produto de produção/);
-  assert.match(depois, /PROMO_CUPOM preenchida só em staging: a exceção temporária venceu em 2026-12-15/);
+  // PROMO_CUPOM saiu daqui: a promoção foi ligada em produção (#374) e a chave ficou igual nos dois ambientes; a regra
+  // dela continua provada, com valores montados à parte, no teste seguinte.
 });
 
 test("paridade: PROMO_CUPOM só vale preenchido no staging e vazio em produção, até a data", () => {

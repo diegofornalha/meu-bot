@@ -64,3 +64,23 @@ export function pedidoAssinar(produto, promoMostrada, semPromo = false) {
   if (promoMostrada === null || promoMostrada === undefined) return {};
   return semPromo ? { semPromo: true } : { promo: true };
 }
+
+/**
+ * As vagas de máquina da conta, para a tela explicar a conta: `limite` é o total em vigor e `extras` quantas delas
+ * são máquinas extras pagas; o resto é o que o plano inclui. Valores fora da forma (API antiga) viram 1 e 0.
+ */
+export function vagasDeMaquina(limite, extras) {
+  const total = Number.isInteger(limite) && limite >= 1 ? limite : 1;
+  const pagas = Number.isInteger(extras) && extras >= 0 ? Math.min(extras, total - 1) : 0;
+  const inclusas = total - pagas;
+  const detalhe = pagas === 0 ? "" : `${inclusas} inclusa${inclusas === 1 ? "" : "s"} + ${pagas} extra${pagas === 1 ? "" : "s"}`;
+  return { total, inclusas, extras: pagas, detalhe };
+}
+
+/** A máquina extra vale junto com o Pro: só quem tem o Pro valendo (pago ou em teste, sem ter vencido) pode adicionar. */
+export function podeAdicionarMaquina(licenca, agoraMs = Date.now()) {
+  if (licenca?.plan !== "pro" || (licenca.status !== "active" && licenca.status !== "trialing")) return false;
+  const fim = fimDoPlano(licenca);
+  return fim === null || fim > agoraMs;
+}
+
