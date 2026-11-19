@@ -627,14 +627,17 @@ function pintarAdminContas(v) {
 function addonsDaConta(c) {
   const l = c.licenca;
   // Add-ons: os pagos com o prazo (vencido fica marcado) e os concedidos pelo admin, que valem junto com a licença.
-  const bloco = el("p", "sub"); bloco.append(el("strong", "", "Add-ons: ")); const pagosC = c.addonsPagos ?? [];
+  // Super admin tem tudo pela regra: o que venceu ou foi encerrado não diz nada sobre o acesso dele e não aparece; o
+  // que ainda está pago em dia aparece, porque é cobrança que se pode encerrar.
+  const vale = (x) => !semPrazo(l) || Date.parse(x.expiresAt) > Date.now();
+  const bloco = el("p", "sub"); bloco.append(el("strong", "", "Add-ons: ")); const pagosC = (c.addonsPagos ?? []).filter(vale);
   for (const a of pagosC) {
     const emDia = Date.parse(a.expiresAt) > Date.now();
     bloco.append(selo(`${rotuloProduto(a.produto)} · ${emDia ? "pago até" : "venceu em"} ${data(a.expiresAt)}`, emDia ? "ok" : "mau"), document.createTextNode(" "));
     if (emDia) { const b = el("button", "btn btn-ghost", "Encerrar"); b.type = "button"; b.title = "Encerra agora o acesso a este add-on pago (reembolso ou disputa). A assinatura na AbacatePay é cancelada à parte."; b.addEventListener("click", () => { void encerrarPago(c, `addons/${encodeURIComponent(a.produto)}`, b); }); bloco.append(b, document.createTextNode(" ")); }
   }
   // Máquinas extras pagas: uma por assinatura, cada uma com o seu prazo e o seu Encerrar.
-  const extrasC = c.extrasPagos ?? [];
+  const extrasC = (c.extrasPagos ?? []).filter(vale);
   for (const x of extrasC) {
     const emDia = Date.parse(x.expiresAt) > Date.now();
     bloco.append(selo(`${ROTULO_EXTRA[x.tipo] ?? x.tipo} · ${emDia ? "paga até" : "venceu em"} ${data(x.expiresAt)}`, emDia ? "ok" : "mau"), document.createTextNode(" "));
