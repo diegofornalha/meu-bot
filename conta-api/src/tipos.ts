@@ -40,6 +40,8 @@ export interface Env {
   ABACATEPAY_PRECO_CENTAVOS?: string;
   /** Apps vendidos à parte, cada um com produto mensal e preço próprios (JSON; a forma está em lerAddons, pagamento-core.ts). */
   ABACATEPAY_ADDONS?: string;
+  /** Unidades extras vendidas à parte (lerExtras): `{"maquina":{"produto":"prod_...","centavos":9700,"rotulo":"Máquina extra"}}`. Vazio = nada à venda. */
+  ABACATEPAY_EXTRAS?: string;
   /** Formas de pagamento da assinatura: "CARD" ou "CARD,PIX" (Pix Automático precisa estar liberado na conta). */
   ABACATEPAY_METODOS?: string;
   /** Código do cupom da promoção do primeiro mês do Pro na AbacatePay; vazio ou ausente = promoção desligada. */
@@ -115,7 +117,7 @@ export interface DeviceApi {
 /** Uma máquina da conta. `desvinculadaEm` preenchido = a pessoa tirou a licença pelo console e a vaga abre em `proAte`. */
 export interface MaquinaApi { id: string; apelido: string | null; vinculadaPor: string; proAte: string | null; desvinculadaEm: string | null }
 /** O que `GET /conta` e `POST /token` devolvem: a conta como o app a mostra. */
-/** Uma assinatura paga da conta, como o console › Plano a mostra: `produto` null é o Pro. */
+/** Uma assinatura paga da conta, como o console › Plano a mostra: `produto` null é o Pro; "extra-maquina" é uma máquina extra (uma por assinatura). */
 export interface ContaAssinatura { id: string; produto: string | null; status: "ACTIVE" | "CANCELLED"; valorCentavos: number | null; valeAte: string | null }
 /** A promoção do primeiro mês a que a conta tem direito agora (console › Plano): o preço, até quando e o código do cupom. */
 export interface PromoApi { precoCentavos: number; ate: string; cupom: string }
@@ -137,8 +139,10 @@ export interface ContaApi {
   devices: DeviceApi[];
   /** As máquinas (VMs por SSH) que usam a licença desta conta; `proAte` é até quando a última emissão vale lá. */
   maquinas: MaquinaApi[];
-  /** Em quantas máquinas a conta pode usar a licença ao mesmo tempo (licencas.maquina_limit). */
+  /** Em quantas máquinas a conta pode usar a licença ao mesmo tempo: o que o admin gravou (licencas.maquina_limit) mais as máquinas extras pagas em dia. */
   maquinaLimite: number;
+  /** Quantas das vagas de `maquinaLimite` vêm de máquina extra paga (extras_pagos em dia); o resto é o que o plano inclui. */
+  maquinaExtras: number;
   /** Pedidos abertos desta conta (Pro, add-on, device). */
   pedidos: number;
   /** As assinaturas pagas da conta (Pro e add-ons), a mais nova primeiro. */

@@ -85,6 +85,29 @@ export function admitirMaquina(daConta: readonly Vinculo[], id: string, limite: 
   return { erro: limite === 1 ? "a sua conta já usa a licença em outra máquina; tire de lá para usar aqui" : `a sua conta já usa a licença em ${ocupadas.length} de ${limite} máquinas; tire de uma para usar aqui`, noLimite: true, ocupadas: ocupadas.map((m) => m.id) };
 }
 
+/**
+ * O limite de máquinas em vigor: o que o admin gravou (`base`) mais uma vaga por máquina extra paga que ainda não
+ * venceu, até MAQUINA_LIMITE_MAX. `extras` diz quantas das vagas são pagas (a tela explica a conta com ele).
+ */
+export function limiteComExtras(base: number, pagos: readonly { expiresAt: string }[], agoraMs: number): { limite: number; extras: number } {
+  const b = Number.isInteger(base) && base >= 1 ? base : 1;
+  const emDia = pagos.filter((p) => Date.parse(p.expiresAt) > agoraMs).length;
+  const limite = Math.min(b + emDia, Math.max(b, MAQUINA_LIMITE_MAX));
+  return { limite, extras: limite - b };
+}
+
+/**
+ * A máquina `id`, já vinculada, ainda cabe no limite para renovar? Cabe sempre que as vinculadas não passam do limite.
+ * Quando passam (uma máquina extra venceu ou foi cancelada), renovam as que entraram na conta há mais tempo e as mais
+ * novas ficam de fora: sem isso, bastaria pagar um mês de máquina extra e cancelar para ficar com a vaga para sempre.
+ * A licença já emitida continua valendo até vencer (LICENCA_VALIDADE_MS), que é a carência.
+ */
+export function cabeNoLimite(daConta: readonly { id: string; criadaEm: string; desvinculadaEm: string | null }[], id: string, limite: number): boolean {
+  const vinculadas = daConta.filter((m) => m.desvinculadaEm === null).sort((a, b) => a.criadaEm.localeCompare(b.criadaEm) || a.id.localeCompare(b.id));
+  const posicao = vinculadas.findIndex((m) => m.id === id);
+  return posicao !== -1 && posicao < limite;
+}
+
 /** Tirar a licença de uma máquina: o app apagou o arquivo de lá e a conta ainda tem trocas → a vaga abre na hora. */
 export const abreVagaNaHora = (apagada: boolean, trocasNoPeriodo: number): boolean => apagada && trocasNoPeriodo < TROCAS_NA_HORA;
 

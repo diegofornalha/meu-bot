@@ -2,8 +2,8 @@
 import type { AdminAssinatura, AdminContaResumo, AdminListaEspera, ContaAssinatura, AdminOrg, MaquinaApi, AdminPagamento, AdminVendas, AdminPedido, AdminPerfil, AdminVisao, CodigoLinha, ContaApi, ContaLinha, DeviceApi, DeviceLinha, License, LicencaLinha, MaquinaLinha, MembroApi, MembroLinha, OrgApi, OrgLinha, OrgResumo, PapelOrg, PerfilApi, PromoApi, SessaoLinha } from "./tipos.js";
 import { agoraIso, ehAdminInicial, nomeExibicao, parseProvedores, provedoresDoLogin, unirProvedores, uuid, type MetodoLogin, type PatchLicenca, type PatchOrg, type PatchPerfil } from "./sessao-core.js";
 import type { UsuarioFirebase } from "./firebase.js";
-import { direitoPromo, licencaDoSuper, licencaEmVigor, umaPorContaEProduto, type Papel, type Promo } from "./pagamento-core.js";
-import { valeAte } from "./licenca-core.js";
+import { direitoPromo, licencaDoSuper, licencaEmVigor, tipoDoExtra, umaPorContaEProduto, type Papel, type Promo } from "./pagamento-core.js";
+import { limiteComExtras, valeAte } from "./licenca-core.js";
 
 export async function contaPorUid(db: D1Database, uid: string): Promise<ContaLinha | null> {
   return (await db.prepare("SELECT * FROM contas WHERE firebase_uid = ?1 AND apagada_em IS NULL").bind(uid).first<ContaLinha>()) ?? null;
@@ -178,9 +178,21 @@ export async function maquinaPorId(db: D1Database, id: string): Promise<MaquinaL
   return (await db.prepare("SELECT * FROM maquinas WHERE id = ?1").bind(id).first<MaquinaLinha>()) ?? null;
 }
 const limiteValido = (n: unknown): number => (typeof n === "number" && Number.isInteger(n) && n >= 1 ? n : 1);
-/** Em quantas máquinas a conta pode usar a licença (licencas.maquina_limit); sem linha de licença, 1. */
-export async function limiteDeMaquinas(db: D1Database, contaId: string): Promise<number> {
-  return limiteValido((await db.prepare("SELECT maquina_limit FROM licencas WHERE conta_id = ?1").bind(contaId).first<{ maquina_limit: number }>())?.maquina_limit);
+/** As unidades extras pagas da conta (extras_pagos), vencidas ou não; `tipo` filtra (ex.: "maquina"). */
+export async function extrasPagos(db: D1Database, contaId: string, tipo?: string): Promise<{ assinaturaId: string; tipo: string; expiresAt: string }[]> {
+  const r = await db.prepare("SELECT assinatura_id, tipo, expires_at FROM extras_pagos WHERE conta_id = ?1").bind(contaId).all<{ assinatura_id: string; tipo: string; expires_at: string }>();
+  return r.results.filter((x) => tipo === undefined || x.tipo === tipo).map((x) => ({ assinaturaId: x.assinatura_id, tipo: x.tipo, expiresAt: x.expires_at }));
+}
+/**
+ * Em quantas máquinas a conta pode usar a licença agora: o que o admin gravou (licencas.maquina_limit; sem linha, 1)
+ * mais as máquinas extras pagas em dia (limiteComExtras). `extras` é quantas vagas são pagas.
+ */
+export async function limiteDeMaquinasComExtras(db: D1Database, contaId: string, agoraMs = Date.now()): Promise<{ limite: number; extras: number }> {
+  const [base, pagos] = await Promise.all([db.prepare("SELECT maquina_limit FROM licencas WHERE conta_id = ?1").bind(contaId).first<{ maquina_limit: number }>(), extrasPagos(db, contaId, "maquina")]);
+  return limiteComExtras(limiteValido(base?.maquina_limit), pagos, agoraMs);
+}
+export async function limiteDeMaquinas(db: D1Database, contaId: string, agoraMs = Date.now()): Promise<number> {
+  return (await limiteDeMaquinasComExtras(db, contaId, agoraMs)).limite;
 }
 /** Vincula a máquina à conta (ou a traz de volta) e carimba a emissão de agora. */
 export async function vincularMaquina(db: D1Database, contaId: string, id: string, apelido: string | null, agora = agoraIso()): Promise<void> {
@@ -259,16 +271,16 @@ export async function promoDaConta(db: D1Database, conta: ContaLinha, promo: Pro
 }
 /** A conta como o app a vê: licença, devices (com "este"), máquinas, pedidos e o papel de admin. `promo`: a configuração da promoção do primeiro mês no ambiente; só o console (`GET|PATCH /conta`) a passa. */
 export async function montarContaApi(db: D1Database, conta: ContaLinha, admin: Papel, deviceAtual: string | null, promo: Promo | null = null): Promise<ContaApi> {
-  const [gravada, pagos, devices, maquinas, pedidos, orgs, maquinaLimite, ass] = await Promise.all([licencaGravada(db, conta), addonsPagos(db, conta.id), devicesDaConta(db, conta.id), maquinasDaConta(db, conta.id), pedidosAbertos(db, conta.id), orgsDaConta(db, conta.id), limiteDeMaquinas(db, conta.id),
+  const [gravada, pagos, devices, maquinas, pedidos, orgs, limiteMaq, extras, ass] = await Promise.all([licencaGravada(db, conta), addonsPagos(db, conta.id), devicesDaConta(db, conta.id), maquinasDaConta(db, conta.id), pedidosAbertos(db, conta.id), orgsDaConta(db, conta.id), limiteDeMaquinasComExtras(db, conta.id), extrasPagos(db, conta.id),
     db.prepare("SELECT id, produto, status, valor_centavos FROM assinaturas WHERE conta_id = ?1 ORDER BY criada_em DESC LIMIT 50").bind(conta.id).all<{ id: string; produto: string | null; status: string; valor_centavos: number | null }>()]);
   const licenca = licencaEmVigor(gravada, pagos, admin, agoraIso());
-  const assinaturas: ContaAssinatura[] = ass.results.map((a) => ({ id: a.id, produto: a.produto, status: a.status === "CANCELLED" ? "CANCELLED" : "ACTIVE", valorCentavos: a.valor_centavos, valeAte: a.produto === null ? gravada.expiresAt : pagos.find((p) => p.produto === a.produto)?.expiresAt ?? null }));
+  const assinaturas: ContaAssinatura[] = ass.results.map((a) => ({ id: a.id, produto: a.produto, status: a.status === "CANCELLED" ? "CANCELLED" : "ACTIVE", valorCentavos: a.valor_centavos, valeAte: a.produto === null ? gravada.expiresAt : tipoDoExtra(a.produto) !== null ? extras.find((x) => x.assinaturaId === a.id)?.expiresAt ?? null : pagos.find((p) => p.produto === a.produto)?.expiresAt ?? null }));
   const ds: DeviceApi[] = devices.map((d) => {
     let apps: DeviceApi["apps"] = {};
     try { const a: unknown = JSON.parse(d.apps); if (a !== null && typeof a === "object") apps = a as DeviceApi["apps"]; } catch { apps = {}; }
     return { id: d.id, alias: d.alias_legado, name: d.name ?? "", user: d.user ?? "", platform: d.platform ?? "", status: d.status === "pending" ? "pending" : "active", requestedAt: d.requested_at, firstSeen: d.first_seen, lastSeen: d.last_seen, apps, este: deviceAtual !== null && (d.id === deviceAtual || d.alias_legado === deviceAtual) };
   });
-  return { id: conta.id, email: conta.email, nome: nomeExibicao(conta), nomeLogin: conta.nome, foto: conta.foto, perfil: perfilDaLinha(conta), provedores: parseProvedores(conta.provedores), dadosUso: conta.dados_uso !== 0, admin, licenca, devices: ds, maquinas: maquinas.map(maquinaApi), maquinaLimite, pedidos, assinaturas, orgs, promo: await promoDaConta(db, conta, promo, admin, Date.now(), gravada) };
+  return { id: conta.id, email: conta.email, nome: nomeExibicao(conta), nomeLogin: conta.nome, foto: conta.foto, perfil: perfilDaLinha(conta), provedores: parseProvedores(conta.provedores), dadosUso: conta.dados_uso !== 0, admin, licenca, devices: ds, maquinas: maquinas.map(maquinaApi), maquinaLimite: limiteMaq.limite, maquinaExtras: limiteMaq.extras, pedidos, assinaturas, orgs, promo: await promoDaConta(db, conta, promo, admin, Date.now(), gravada) };
 }
 
 // ---- Admin: a visão de todas as contas. `busca` filtra por e-mail ou nome (LIKE, escapado); até 500 contas.
@@ -328,9 +340,11 @@ async function vendasAdmin(db: D1Database, lic: Map<string, LicencaLinha>, pagos
     db.prepare("SELECT a.id, a.conta_id, a.produto, a.status, a.valor_centavos, a.criada_em, a.atualizada_em, c.email, c.nome, (SELECT MAX(p.pago_em) FROM pagamentos p WHERE p.assinatura_id = a.id) AS ultimo FROM assinaturas a JOIN contas c ON c.id = a.conta_id ORDER BY a.criada_em DESC LIMIT 500").all<{ id: string; conta_id: string; produto: string | null; status: string; valor_centavos: number | null; criada_em: string; atualizada_em: string; email: string; nome: string | null; ultimo: string | null }>(),
     db.prepare("SELECT p.id, p.conta_id, p.produto, p.valor_centavos, p.evento, p.pago_em, p.ga_enviado_em, c.email, c.nome FROM pagamentos p JOIN contas c ON c.id = p.conta_id ORDER BY p.pago_em DESC LIMIT 100").all<{ id: string; conta_id: string; produto: string | null; valor_centavos: number; evento: string; pago_em: string; ga_enviado_em: string | null; email: string; nome: string | null }>(),
   ]);
+  // Os extras (máquina extra) têm o prazo por assinatura, não por conta e produto.
+  const extras = new Map((await db.prepare("SELECT assinatura_id, expires_at FROM extras_pagos").all<{ assinatura_id: string; expires_at: string }>()).results.map((x) => [x.assinatura_id, x.expires_at]));
   const assinaturas: AdminAssinatura[] = ass.results.map((a) => ({
     id: a.id, produto: a.produto, status: a.status === "CANCELLED" ? "CANCELLED" : "ACTIVE", valorCentavos: a.valor_centavos, criadaEm: a.criada_em, atualizadaEm: a.atualizada_em,
-    valeAte: a.produto === null ? lic.get(a.conta_id)?.expires_at ?? null : pagos.get(a.conta_id)?.find((p) => p.produto === a.produto)?.expiresAt ?? null,
+    valeAte: a.produto === null ? lic.get(a.conta_id)?.expires_at ?? null : tipoDoExtra(a.produto) !== null ? extras.get(a.id) ?? null : pagos.get(a.conta_id)?.find((p) => p.produto === a.produto)?.expiresAt ?? null,
     ultimoPagamentoEm: a.ultimo, conta: { id: a.conta_id, email: a.email, nome: a.nome },
   }));
   // Em dia = ativa e com prazo no futuro: assinatura que parou de renovar sem avisar não conta como receita.

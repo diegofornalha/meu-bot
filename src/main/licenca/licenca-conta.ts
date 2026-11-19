@@ -113,7 +113,9 @@ export async function renovarSePreciso(host: string, now: number = Date.now()): 
       return true;
     }
     log(`[licenca] ${host}: não renovei agora (${r.status}: ${r.erro})`);
-    renovadaEm.delete(host);
+    // 409: a conta usa a licença em mais máquinas do que o plano cobre (uma máquina extra venceu) e esta ficou de fora.
+    // Tentar de novo a cada leitura só gastaria o limite de emissões por minuto: a próxima conferência é no intervalo normal.
+    if (r.status !== 409) renovadaEm.delete(host);
     return false;
   } catch (e) { log(`[licenca] ${host}: renovação falhou (${e instanceof Error ? e.message : String(e)})`); renovadaEm.delete(host); return false; }
 }

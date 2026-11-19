@@ -3,7 +3,8 @@
  * - `POST /conta/assinatura` (logado): cria o checkout de assinatura e devolve a `url` da página de pagamento; com
  *   `{produto: "meu-bot-finance"}` no corpo o checkout é do add-on, sem ele é do Pro; conta com direito à promoção do
  *   primeiro mês (PROMO_CUPOM, direitoPromo) recebe o checkout do Pro só no cartão e com o cupom, a não ser que peça
- *   `{semPromo: true}` (quem prefere o Pix: preço cheio, métodos normais, sem cupom);
+ *   `{semPromo: true}` (quem prefere o Pix: preço cheio, métodos normais, sem cupom); com `{produto: "extra-maquina"}`
+ *   o checkout é de UMA máquina extra (ABACATEPAY_EXTRAS): exige o Pro valendo e pode ser pedido mais de uma vez;
  * - `POST /conta/assinatura/cancelar` (logado, `{id: "subs_…"}`): cancela na AbacatePay a assinatura da própria conta;
  *   o acesso continua até o fim do período já pago;
  * - `POST /pagamentos/abacatepay` (webhook, sem login): confere secret e assinatura, grava o evento uma vez só, libera o
@@ -11,17 +12,20 @@
  * Liga só com ABACATEPAY_KEY, ABACATEPAY_WEBHOOK_SECRET e ABACATEPAY_PRODUTO; sem eles, as duas rotas respondem 503.
  */
 import type { Env } from "../tipos.js";
-import { addonsPagos, auditar, contaPorId, contarLimite, jaPagouPro, licencaDaConta, licencaGravada, papelAdmin, promoDaConta } from "../db.js";
+import { addonsPagos, auditar, contaPorId, contarLimite, jaPagouPro, licencaDaConta, licencaGravada, limiteDeMaquinas, papelAdmin, promoDaConta } from "../db.js";
 import { agoraIso, janelaMinuto, uuid } from "../sessao-core.js";
 import { json, lerJson, type Autenticado } from "../http.js";
 import { gaIds } from "../analytics-core.js";
-import { assinaturaIdValido, clientIdDeReserva, clientIdValido, compraGa4, decidir, lerAddons, lerEvento, lerPromo, metodosSemPix, pedidoDoCheckout, precoDaCobranca, refValida, resultadoCancelamento, sessionIdValido, validoAte, webhookConfere, type Decisao, type OfertaAddon, type Promo } from "../pagamento-core.js";
+import { assinaturaIdValido, clientIdDeReserva, clientIdValido, compraGa4, decidir, lerAddons, lerEvento, lerExtras, lerPromo, metodosSemPix, pedidoDoCheckout, precoDaCobranca, refValida, resultadoCancelamento, sessionIdValido, validoAte, webhookConfere, tipoDoExtra, type Decisao, type OfertaAddon, type OfertaExtra, type Promo } from "../pagamento-core.js";
+import { MAQUINA_LIMITE_MAX } from "../licenca-core.js";
 
 const API = "https://api.abacatepay.com/v2";
 export const pagamentosLigados = (env: Env): boolean => Boolean(env.ABACATEPAY_KEY && env.ABACATEPAY_WEBHOOK_SECRET && env.ABACATEPAY_PRODUTO);
 const preco = (env: Env): number => { const n = Number(env.ABACATEPAY_PRECO_CENTAVOS ?? "9700"); return Number.isInteger(n) && n > 0 ? n : 9700; };
 /** Os add-ons à venda neste ambiente; vazio com os pagamentos desligados. */
 export const addonsAVenda = (env: Env): OfertaAddon[] => (pagamentosLigados(env) ? lerAddons(env.ABACATEPAY_ADDONS) : []);
+/** As unidades extras à venda neste ambiente (máquina extra); vazio com os pagamentos desligados ou sem ABACATEPAY_EXTRAS. */
+export const extrasAVenda = (env: Env): OfertaExtra[] => (pagamentosLigados(env) ? lerExtras(env.ABACATEPAY_EXTRAS) : []);
 /** A promoção do primeiro mês do Pro neste ambiente; null sem cupom (PROMO_CUPOM vazio) ou com os pagamentos desligados. */
 export const promoLigada = (env: Env): Promo | null => (pagamentosLigados(env) ? lerPromo(env.PROMO_CUPOM, env.PROMO_PRECO_CENTAVOS, env.PROMO_DIAS, preco(env)) : null);
 const metodos = (env: Env): string[] => { const m = (env.ABACATEPAY_METODOS ?? "CARD").split(",").map((x) => x.trim().toUpperCase()).filter((x) => x === "CARD" || x === "PIX"); return m.length > 0 ? m : ["CARD"]; };
@@ -33,14 +37,25 @@ export async function postAssinatura(auth: Autenticado, env: Env, req: Request):
   if (!pagamentosLigados(env)) return json({ erro: "a assinatura pelo site ainda não está ligada; fale com o suporte" }, 503);
   if (await contarLimite(env.DB, `assinar:${auth.conta.id}`, janelaMinuto()) > LIMITE_POR_MIN) return json({ erro: "muitas tentativas; espere um minuto" }, 429);
   const corpo = (await lerJson(req)) as Record<string, unknown> | null;
-  // Sem `produto` é o Pro; com ele, um add-on do catálogo deste ambiente.
+  // Sem `produto` é o Pro; com ele, um add-on ou uma unidade extra (máquina extra) do catálogo deste ambiente.
   const pedido = corpo?.produto;
-  const addon = pedido === undefined || pedido === null ? null : addonsAVenda(env).find((a) => a.nome === pedido) ?? undefined;
+  const extra = extrasAVenda(env).find((x) => x.nome === pedido) ?? null;
+  const addon = extra !== null || pedido === undefined || pedido === null ? null : addonsAVenda(env).find((a) => a.nome === pedido) ?? undefined;
   if (addon === undefined) return json({ erro: "este produto não está à venda aqui" }, 400);
+  // O que vai no checkout além do Pro: o add-on ou o extra (null = Pro).
+  const item = extra ?? addon;
   const agoraMs = Date.now();
-  // O papel só pesa no Pro (add-on o super admin assina como qualquer conta); lido da tabela, não do token de 1 h.
+  // O papel só pesa no Pro e na máquina extra, que vale junto com ele (add-on o super admin assina como qualquer
+  // conta); lido da tabela, não do token de 1 h.
   const papel = addon === null ? await papelAdmin(env.DB, auth.conta.email, env.ADMIN_BOOTSTRAP_EMAIL) : null;
-  if (addon === null) {
+  if (extra !== null) {
+    // Máquina extra só serve a quem tem o Pro valendo (a licença que a máquina recebe é a do Pro). Não há "já tem":
+    // cada assinatura é uma máquina a mais, até o teto.
+    const l = await licencaDaConta(env.DB, auth.conta, papel);
+    const valendo = l.plan === "pro" && (l.status === "active" || l.status === "trialing") && (l.expiresAt === null || Date.parse(l.expiresAt) > agoraMs);
+    if (!valendo) return json({ erro: "a máquina extra vale junto com o Pro; assine o Pro primeiro" }, 409);
+    if (await limiteDeMaquinas(env.DB, auth.conta.id, agoraMs) >= MAQUINA_LIMITE_MAX) return json({ erro: `a conta já está no máximo de ${MAQUINA_LIMITE_MAX} máquinas; fale com o suporte` }, 409);
+  } else if (addon === null) {
     if (papel === "super") return json({ erro: "sua conta de super admin já tem o Pro sem prazo" }, 409);
     const l = await licencaDaConta(env.DB, auth.conta, papel);
     const ativa = await env.DB.prepare("SELECT id FROM assinaturas WHERE conta_id = ?1 AND status = 'ACTIVE' AND produto IS NULL LIMIT 1").bind(auth.conta.id).first<{ id: string }>();
@@ -55,12 +70,12 @@ export async function postAssinatura(auth: Autenticado, env: Env, req: Request):
   // checkout não abre pelo preço cheio sem a pessoa saber.
   // `semPromo: true`: a pessoa abriu mão do desconto para pagar por Pix (o cupom só vale no cartão). O checkout sai sem
   // a marca da promoção, então o webhook exige o preço cheio.
-  const promo = addon === null && corpo?.semPromo !== true ? await promoDaConta(env.DB, auth.conta, promoLigada(env), papel, agoraMs) : null;
-  if (addon === null && corpo?.promo === true && promo === null) return json({ erro: "o primeiro mês com desconto não vale mais para esta conta; o Pro sai pelo preço normal. Toque em Assinar de novo para continuar", promoAcabou: true }, 409);
+  const promo = item === null && corpo?.semPromo !== true ? await promoDaConta(env.DB, auth.conta, promoLigada(env), papel, agoraMs) : null;
+  if (item === null && corpo?.promo === true && promo === null) return json({ erro: "o primeiro mês com desconto não vale mais para esta conta; o Pro sai pelo preço normal. Toque em Assinar de novo para continuar", promoAcabou: true }, 409);
   const ref = `mb_${uuid()}`;
   const agora = agoraIso();
   await env.DB.prepare("INSERT INTO pagamento_checkouts (ref, conta_id, checkout_id, ga_client_id, ga_session_id, criado_em, produto, promo) VALUES (?1, ?2, NULL, ?3, ?4, ?5, ?6, ?7)")
-    .bind(ref, auth.conta.id, clientIdValido(corpo?.gaClientId), sessionIdValido(corpo?.gaSessionId), agora, addon?.nome ?? null, promo === null ? 0 : 1).run();
+    .bind(ref, auth.conta.id, clientIdValido(corpo?.gaClientId), sessionIdValido(corpo?.gaSessionId), agora, item?.nome ?? null, promo === null ? 0 : 1).run();
   const envio = pedidoDoCheckout(promo, metodos(env));
   // Uma tentativa por lista de métodos: com Pix pedido e o Pix Automático ainda não liberado na loja, a AbacatePay
   // recusa a assinatura inteira; aí vale tentar de novo só com cartão, em vez de deixar o "Assinar" quebrado.
@@ -68,12 +83,12 @@ export async function postAssinatura(auth: Autenticado, env: Env, req: Request):
     method: "POST",
     headers: { authorization: `Bearer ${env.ABACATEPAY_KEY}`, "content-type": "application/json" },
     body: JSON.stringify({
-      items: [{ id: addon?.produto ?? env.ABACATEPAY_PRODUTO, quantity: 1 }],
+      items: [{ id: item?.produto ?? env.ABACATEPAY_PRODUTO, quantity: 1 }],
       methods,
       externalId: ref,
-      completionUrl: `${env.CONSOLE_ORIGIN}/account/plan?assinatura=paga${addon === null ? "" : `&produto=${addon.nome}`}`,
+      completionUrl: `${env.CONSOLE_ORIGIN}/account/plan?assinatura=paga${item === null ? "" : `&produto=${item.nome}`}`,
       returnUrl: `${env.CONSOLE_ORIGIN}/account/plan`,
-      metadata: { conta: auth.conta.id, produto: addon?.nome ?? "pro" },
+      metadata: { conta: auth.conta.id, produto: item?.nome ?? "pro" },
       // Com a promoção: o cupom (o desconto vale na primeira cobrança; as renovações cobram o preço cheio).
       ...(envio.coupons === undefined ? {} : { coupons: envio.coupons }),
     }),
@@ -99,7 +114,7 @@ export async function postAssinatura(auth: Autenticado, env: Env, req: Request):
     return json({ erro: promo === null ? "não deu para abrir o pagamento agora; tente de novo" : "a promoção não pôde ser aplicada agora; tente de novo ou fale com a gente" }, 502);
   }
   await env.DB.prepare("UPDATE pagamento_checkouts SET checkout_id = ?1 WHERE ref = ?2").bind(bill, ref).run();
-  await auditar(env.DB, auth.conta.email, "assinatura.checkout", auth.conta.id, addon === null ? `${bill ?? "-"}${promo === null ? "" : " · promoção do primeiro mês"}` : `${addon.nome} · ${bill ?? "-"}`);
+  await auditar(env.DB, auth.conta.email, "assinatura.checkout", auth.conta.id, item === null ? `${bill ?? "-"}${promo === null ? "" : " · promoção do primeiro mês"}` : `${item.nome} · ${bill ?? "-"}`);
   return json({ url, promo: promo !== null });
 }
 
@@ -153,7 +168,7 @@ export async function postWebhookAbacate(req: Request, env: Env, url: URL, esper
   // renovações e todo o resto, o preço cheio (precoDaCobranca). A consulta de "já pagou" só roda nesse caso.
   const daPromo = doEvento !== null && doEvento.promo === 1 && doEvento.produto === null && e.evento === "subscription.completed";
   const pagouAntes = daPromo ? await jaPagouPro(env.DB, doEvento.conta_id, { pagamentoId: e.pagamento?.id ?? "", assinaturaId: e.assinatura?.id ?? "" }) : false;
-  const exigido = precoDaCobranca({ evento: e.evento, checkout: doEvento === null ? null : { produto: doEvento.produto, promo: doEvento.promo === 1 }, precoPro: preco(env), addons: lerAddons(env.ABACATEPAY_ADDONS), promoCentavos: promoLigada(env)?.precoCentavos ?? null, jaPagouPro: pagouAntes });
+  const exigido = precoDaCobranca({ evento: e.evento, checkout: doEvento === null ? null : { produto: doEvento.produto, promo: doEvento.promo === 1 }, precoPro: preco(env), addons: lerAddons(env.ABACATEPAY_ADDONS), extras: lerExtras(env.ABACATEPAY_EXTRAS), promoCentavos: promoLigada(env)?.precoCentavos ?? null, jaPagouPro: pagouAntes });
   const d = decidir(e, env.CANAL === "staging" ? "staging" : "producao", exigido);
   // Se aplicar falhar no meio, o registro do evento sai: assim a nova tentativa da AbacatePay é processada, em vez
   // de cair em "repetido" e o pagamento nunca ser aplicado.
@@ -201,9 +216,10 @@ async function aplicar(env: Env, d: Decisao, devMode: boolean, agora: string, es
   const conta = await contaPorId(env.DB, ck.conta_id);
   if (conta === null) { await auditar(env.DB, quem, "pagamento.sem-conta", ck.conta_id, d.pagamentoId); return "conta apagada"; }
   // A primeira cobrança avisa o admin (console › Suporte); o pedido fecha sozinho se a pessoa aplicar a licença na
-  // máquina pelo app (rotas/maquinas.ts).
-  if (d.primeira) await env.DB.prepare("INSERT INTO pedidos (id, conta_id, tipo, detalhe, maquina_id, criado_em) VALUES (?1, ?2, 'pagamento.liberar', ?3, NULL, ?4)").bind(uuid(), ck.conta_id, `liberar na máquina: ${ck.produto ?? "Pro"}`, agora).run();
-  if (ck.produto !== null) return liberarAddon(env, ck, ck.produto, d, quem, agora, espera);
+  // máquina pelo app (rotas/maquinas.ts). A máquina extra não avisa: ela só abre uma vaga, que a própria conta usa, e
+  // não há o que o admin liberar.
+  if (d.primeira && tipoDoExtra(ck.produto) === null) await env.DB.prepare("INSERT INTO pedidos (id, conta_id, tipo, detalhe, maquina_id, criado_em) VALUES (?1, ?2, 'pagamento.liberar', ?3, NULL, ?4)").bind(uuid(), ck.conta_id, `liberar na máquina: ${ck.produto ?? "Pro"}`, agora).run();
+  if (ck.produto !== null) return tipoDoExtra(ck.produto) !== null ? liberarExtra(env, ck, ck.produto, d, quem, agora, espera) : liberarAddon(env, ck, ck.produto, d, quem, agora, espera);
   // Base gravada, não a em vigor: os add-ons pagos têm tabela própria e não entram em licencas.produtos.
   const atual = await licencaGravada(env.DB, conta);
   const ate = validoAte(agora, atual.plan === "pro" && atual.status === "active" ? atual.expiresAt : null);
@@ -239,6 +255,32 @@ async function liberarAddon(env: Env, ck: CheckoutLinha, produto: string, d: Ext
     .bind(d.assinaturaId, ck.conta_id, ck.ref, d.valor, agora, produto, d.metodo).run();
   await auditar(env.DB, quem, d.primeira ? "addon.pago" : "addon.renovado", ck.conta_id, `${produto} · ${d.pagamentoId} · ${d.valor} centavos · até ${ate}`);
   const rotulo = lerAddons(env.ABACATEPAY_ADDONS).find((a) => a.nome === produto)?.rotulo ?? produto;
+  espera(enviarCompraGa(env, ck, d.pagamentoId, d.valor, d.primeira, { id: `${produto}-mensal`, nome: `${rotulo} mensal` }));
+  return `${produto} liberado até ${ate}`;
+}
+
+/**
+ * Cobrança paga de uma unidade extra (máquina extra): a assinatura vira, ou renova, UMA linha de extras_pagos, que soma
+ * 1 ao limite da conta enquanto vale (limiteComExtras). Não toca no plano nem em licencas.maquina_limit, que é do admin.
+ */
+async function liberarExtra(env: Env, ck: CheckoutLinha, produto: string, d: Extract<Decisao, { acao: "liberar" }>, quem: string, agora: string, espera: (p: Promise<unknown>) => void): Promise<string> {
+  const tipo = tipoDoExtra(produto);
+  if (tipo === null) return `ignorado: ${produto} não é um extra`;
+  const atual = await env.DB.prepare("SELECT expires_at, encerrado_em FROM extras_pagos WHERE assinatura_id = ?1").bind(d.assinaturaId).first<{ expires_at: string; encerrado_em: string | null }>();
+  // Extra encerrado pelo admin (reembolso ou disputa): a renovação não o devolve sozinha, como nos add-ons.
+  if (atual !== null && atual.encerrado_em !== null) {
+    const motivo = `cobrança de ${produto} encerrado pelo admin em ${atual.encerrado_em.slice(0, 10)}: ${d.valor} centavos`;
+    await env.DB.prepare("INSERT INTO pedidos (id, conta_id, tipo, detalhe, maquina_id, criado_em) VALUES (?1, ?2, 'pagamento.revisar', ?3, NULL, ?4)").bind(uuid(), ck.conta_id, motivo.slice(0, 200), agora).run();
+    await auditar(env.DB, quem, "pagamento.revisar", ck.conta_id, motivo);
+    return `revisar: ${motivo}`;
+  }
+  const ate = validoAte(agora, atual !== null && Date.parse(atual.expires_at) > Date.parse(agora) ? atual.expires_at : null);
+  await env.DB.prepare("INSERT INTO extras_pagos (assinatura_id, conta_id, tipo, expires_at, atualizado_em) VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT(assinatura_id) DO UPDATE SET expires_at = excluded.expires_at, atualizado_em = excluded.atualizado_em")
+    .bind(d.assinaturaId, ck.conta_id, tipo, ate, agora).run();
+  await env.DB.prepare("INSERT INTO assinaturas (id, conta_id, ref, status, metodo, valor_centavos, criada_em, atualizada_em, produto) VALUES (?1, ?2, ?3, 'ACTIVE', ?7, ?4, ?5, ?5, ?6) ON CONFLICT(id) DO UPDATE SET status = 'ACTIVE', metodo = COALESCE(excluded.metodo, assinaturas.metodo), atualizada_em = excluded.atualizada_em")
+    .bind(d.assinaturaId, ck.conta_id, ck.ref, d.valor, agora, produto, d.metodo).run();
+  await auditar(env.DB, quem, d.primeira ? "extra.pago" : "extra.renovado", ck.conta_id, `${produto} · ${d.assinaturaId} · ${d.pagamentoId} · ${d.valor} centavos · até ${ate}`);
+  const rotulo = lerExtras(env.ABACATEPAY_EXTRAS).find((x) => x.nome === produto)?.rotulo ?? produto;
   espera(enviarCompraGa(env, ck, d.pagamentoId, d.valor, d.primeira, { id: `${produto}-mensal`, nome: `${rotulo} mensal` }));
   return `${produto} liberado até ${ate}`;
 }

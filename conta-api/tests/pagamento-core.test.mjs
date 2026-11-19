@@ -1,7 +1,7 @@
 // Assinatura do Pro pela AbacatePay: conferência do webhook, leitura do evento, decisão, prazo e a compra do GA4.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { assinaturaIdValido, resultadoCancelamento, CHAVE_HMAC_ABACATEPAY, clientIdDeReserva, clientIdValido, compraGa4, decidir, hmacBase64, iguais, lerAddons, lerEvento, licencaComAddons, licencaDoSuper, licencaEmVigor, metodosSemPix, precoExigido, precoDaCobranca, pedidoDoCheckout, direitoPromo, lerPromo, refValida, sessionIdValido, validoAte, webhookConfere, umaPorContaEProduto } from "../dist/pagamento-core.js";
+import { assinaturaIdValido, resultadoCancelamento, CHAVE_HMAC_ABACATEPAY, clientIdDeReserva, clientIdValido, compraGa4, decidir, hmacBase64, iguais, lerAddons, lerEvento, licencaComAddons, licencaDoSuper, licencaEmVigor, metodosSemPix, precoExigido, precoDaCobranca, pedidoDoCheckout, direitoPromo, lerPromo, refValida, sessionIdValido, validoAte, webhookConfere, umaPorContaEProduto, lerExtras, tipoDoExtra } from "../dist/pagamento-core.js";
 
 const SECRET = "s".repeat(40);
 const REF = "mb_123e4567-e89b-12d3-a456-426614174000";
@@ -320,6 +320,42 @@ test("checkout: com o teste EM VIGOR não há promoção (preço cheio, métodos
   // Quem assina durante o teste paga o preço cheio: o checkout nasce sem a marca e R$ 1 não libera.
   assert.equal(cobranca("subscription.completed", 100, false).acao, "revisar");
   assert.equal(cobranca("subscription.completed", 9700, false).acao, "liberar");
+});
+
+test("lerExtras: só a máquina extra na forma certa entra; vazio, tipo desconhecido e campo fora da forma não vendem nada", () => {
+  const ok = '{"maquina":{"produto":"prod_abc12345","centavos":9700,"rotulo":"Máquina extra"}}';
+  assert.deepEqual(lerExtras(ok), [{ tipo: "maquina", nome: "extra-maquina", produto: "prod_abc12345", centavos: 9700, rotulo: "Máquina extra" }]);
+  assert.deepEqual(lerExtras(""), []);
+  assert.deepEqual(lerExtras(undefined), []);
+  assert.deepEqual(lerExtras("lixo"), []);
+  assert.deepEqual(lerExtras('{"device":{"produto":"prod_abc12345","centavos":4700,"rotulo":"Device extra"}}'), [], "device ainda não é vendido: o limite dele não bloqueia nada");
+  assert.deepEqual(lerExtras('{"maquina":{"produto":"errado","centavos":9700,"rotulo":"Máquina extra"}}'), []);
+  assert.deepEqual(lerExtras('{"maquina":{"produto":"prod_abc12345","centavos":0,"rotulo":"Máquina extra"}}'), []);
+  assert.equal(tipoDoExtra("extra-maquina"), "maquina");
+  assert.equal(tipoDoExtra("meu-bot-finance"), null);
+  assert.equal(tipoDoExtra(null), null);
+});
+
+test("preço do extra: a máquina extra exige o preço do catálogo; fora do catálogo não libera; a promoção não vale para ela", () => {
+  const extras = lerExtras('{"maquina":{"produto":"prod_abc12345","centavos":9700,"rotulo":"Máquina extra"}}');
+  assert.equal(precoExigido("extra-maquina", 9700, [], extras), 9700);
+  assert.equal(precoExigido("extra-maquina", 9700, [], []), Number.MAX_SAFE_INTEGER, "catálogo vazio: vai para a revisão do admin");
+  assert.equal(precoExigido(null, 9700, [], extras), 9700);
+  const base = { evento: "subscription.completed", precoPro: 9700, addons: [], extras, promoCentavos: 100, jaPagouPro: false };
+  assert.equal(precoDaCobranca({ ...base, checkout: { produto: "extra-maquina", promo: true } }), 9700);
+  assert.equal(decidir(lerEvento(evento()), "producao", precoDaCobranca({ ...base, checkout: { produto: "extra-maquina", promo: false } })).acao, "liberar");
+  assert.equal(decidir(lerEvento(evento()), "producao", precoExigido("extra-maquina", 9700, [], [])).acao, "revisar", "extra fora do catálogo não libera sozinho");
+});
+
+test("umaPorContaEProduto: cada assinatura de máquina extra é uma unidade e todas contam", () => {
+  const c = { id: "c1" };
+  const lista = [
+    { id: "subs_m1", produto: "extra-maquina", criadaEm: "2026-11-01T00:00:00Z", conta: c },
+    { id: "subs_m2", produto: "extra-maquina", criadaEm: "2026-11-02T00:00:00Z", conta: c },
+    { id: "subs_p1", produto: null, criadaEm: "2026-11-01T00:00:00Z", conta: c },
+    { id: "subs_p2", produto: null, criadaEm: "2026-11-03T00:00:00Z", conta: c },
+  ];
+  assert.deepEqual(umaPorContaEProduto(lista).map((x) => x.id).sort(), ["subs_m1", "subs_m2", "subs_p2"]);
 });
 
 test("licencaDoSuper: Pro ativo sem prazo, seja o que for que esteja gravado; limites e o resto não mudam", () => {
