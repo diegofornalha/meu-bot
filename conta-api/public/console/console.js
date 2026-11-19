@@ -885,8 +885,10 @@ async function assinar(produto = null, btn = $("pl-assinar-btn"), aviso = $("pl-
   const s = sessaoGuardada();
   if (s === null) { void entrar(); return; }
   const pedido = pedidoAssinar(produto, promoMostrada, semPromo);
+  // Desabilita ANTES de copiar: a cópia pode demorar (o navegador pede permissão) e um segundo clique abriria outro checkout.
+  btn.disabled = true;
   const copiou = pedido.promo === true ? await copiarCupom(promoMostrada.cupom) : false;
-  btn.disabled = true; aviso.textContent = copiou ? "Cupom copiado. Abrindo a página de pagamento…" : "Abrindo a página de pagamento…";
+  aviso.textContent = copiou ? "Cupom copiado. Abrindo a página de pagamento…" : "Abrindo a página de pagamento…";
   const v = typeof ga.visita === "function" ? await ga.visita() : { clientId: null, sessionId: null };
   const r = await api("POST", "/conta/assinatura", { gaClientId: v.clientId, gaSessionId: v.sessionId, ...pedido }, s.acesso);
   if (r.status === 200 && r.corpo && typeof r.corpo.url === "string") { ga.evento("checkout_iniciado", { plano: produto ?? "chip-coflow", ...(r.corpo.promo === true ? { promo: "primeiro-mes" } : {}) }); location.assign(r.corpo.url); return; }
