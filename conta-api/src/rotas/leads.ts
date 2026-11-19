@@ -48,25 +48,40 @@ export async function rotaLeads(rota: string, req: Request, env: Env): Promise<R
   const l = codigo === null ? null : await env.DB.prepare("SELECT * FROM lead_ref WHERE codigo = ?1").bind(codigo).first<LeadLinha>();
   if (l === null) return json({ erro: "código desconhecido" }, 404);
   if (m[1] === "GET") return json(leadApi(l));
-  if (l.qualificado_em !== null) return json({ ...leadApi(l), repetido: true, analytics: l.ga_enviado_em !== null ? "enviado" : "nao-enviado" });
-  const agora = agoraIso();
-  // Só quem marca primeiro manda o evento: duas chamadas ao mesmo tempo não contam o lead duas vezes.
-  const marcou = await env.DB.prepare("UPDATE lead_ref SET qualificado_em = ?2 WHERE codigo = ?1 AND qualificado_em IS NULL").bind(l.codigo, agora).run();
-  if ((marcou.meta.changes ?? 0) === 0) return json({ ...leadApi({ ...l, qualificado_em: agora }), repetido: true, analytics: "nao-enviado" });
-  const analytics = await enviarQualificado(env, l);
-  return json({ ...leadApi({ ...l, qualificado_em: agora }), repetido: false, analytics });
+  // A data é de quem marcou primeiro. O envio ao GA4 pode ser tentado de novo enquanto não tiver dado certo: chamar
+  // outra vez depois de um "recusado" reenvia, e depois de um "enviado" não conta duas vezes.
+  const repetido = l.qualificado_em !== null;
+  let quando = l.qualificado_em;
+  if (quando === null) {
+    quando = agoraIso();
+    const marcou = await env.DB.prepare("UPDATE lead_ref SET qualificado_em = ?2 WHERE codigo = ?1 AND qualificado_em IS NULL").bind(l.codigo, quando).run();
+    if ((marcou.meta.changes ?? 0) === 0) quando = (await env.DB.prepare("SELECT qualificado_em FROM lead_ref WHERE codigo = ?1").bind(l.codigo).first<{ qualificado_em: string | null }>())?.qualificado_em ?? quando;
+  }
+  return json({ ...leadApi({ ...l, qualificado_em: quando }), repetido, analytics: await enviarQualificado(env, l) });
 }
 
-/** Manda `qualify_lead` ao GA4; devolve o que aconteceu, para quem chamou não achar que contou quando não contou. */
-async function enviarQualificado(env: Env, l: LeadLinha): Promise<"enviado" | "sem-visita" | "desligado" | "recusado"> {
+/**
+ * Manda `qualify_lead` ao GA4 uma vez por código; devolve o que aconteceu, para quem chamou não achar que contou quando
+ * não contou. `ga_enviado_em` é reservado antes do envio (duas chamadas ao mesmo tempo: só uma envia; a outra recebe
+ * "em-andamento", porque ainda não se sabe o resultado) e devolvido se o GA4 recusar ou estiver fora, para a próxima
+ * chamada tentar de novo.
+ */
+async function enviarQualificado(env: Env, l: LeadLinha): Promise<"enviado" | "em-andamento" | "sem-visita" | "desligado" | "recusado"> {
   if (l.ga_client_id === null) return "sem-visita";
+  if (l.ga_enviado_em !== null) return "enviado";
   const id = gaIds(env.GA_ID)[0];
   if (id === undefined || !env.GA_MP_SECRET) return "desligado";
+  const reservou = await env.DB.prepare("UPDATE lead_ref SET ga_enviado_em = ?2 WHERE codigo = ?1 AND ga_enviado_em IS NULL").bind(l.codigo, agoraIso()).run();
+  if ((reservou.meta.changes ?? 0) === 0) return "em-andamento";
   const body = qualificaGa4({ clientId: l.ga_client_id, sessionId: l.ga_session_id, codigo: l.codigo, ambiente: env.CANAL === "staging" ? "staging" : "producao" });
+  let ok = false;
   try {
     const r = await fetch(`https://www.google-analytics.com/mp/collect?measurement_id=${encodeURIComponent(id)}&api_secret=${encodeURIComponent(env.GA_MP_SECRET)}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-    if (!r.ok) { console.log(`[lead] GA4 recusou o lead ${l.codigo}: HTTP ${r.status}`); return "recusado"; }
-    await env.DB.prepare("UPDATE lead_ref SET ga_enviado_em = ?2 WHERE codigo = ?1").bind(l.codigo, agoraIso()).run();
-    return "enviado";
-  } catch (e) { console.log(`[lead] GA4 fora: ${e instanceof Error ? e.message : String(e)}`); return "recusado"; }
+    ok = r.ok;
+    if (!ok) console.log(`[lead] GA4 recusou o lead ${l.codigo}: HTTP ${r.status}`);
+  } catch (e) { console.log(`[lead] GA4 fora: ${e instanceof Error ? e.message : String(e)}`); }
+  if (ok) return "enviado";
+  try { await env.DB.prepare("UPDATE lead_ref SET ga_enviado_em = NULL WHERE codigo = ?1").bind(l.codigo).run(); }
+  catch (e) { console.log(`[lead] não consegui soltar a reserva do lead ${l.codigo} (fica como enviado sem ter sido): ${e instanceof Error ? e.message : String(e)}`); }
+  return "recusado";
 }

@@ -80,5 +80,22 @@ test("leads: o site grava o código no clique, quem atende lê a campanha e qual
     await site({ codigo: "DEF567", gaClientId: "123.1700000000", gaSessionId: "1700000001" });
     const q3 = await (await leads("POST", "/leads/DEF567/qualificar")).json();
     assert.equal(q3.analytics, "desligado"); assert.equal(q3.temVisita, true);
+    // GA4 recusa (500) e depois aceita: a segunda chamada reenvia, a terceira não conta de novo.
+    const real = globalThis.fetch; const idas = []; let status = 500;
+    globalThis.fetch = async (u, o) => { idas.push([String(u), JSON.parse(o.body)]); return new Response(null, { status }); };
+    try {
+      const ga = { ...env, GA_ID: "G-TESTE12345", GA_MP_SECRET: "segredo-mp" };
+      await site({ codigo: "GHJ234", gaClientId: "123.1700000000", gaSessionId: "1700000001" });
+      const r1 = await (await leads("POST", "/leads/GHJ234/qualificar", TOKEN, ga)).json();
+      assert.deepEqual([r1.repetido, r1.analytics], [false, "recusado"]);
+      status = 204;
+      const r2 = await (await leads("POST", "/leads/GHJ234/qualificar", TOKEN, ga)).json();
+      assert.deepEqual([r2.repetido, r2.analytics, r2.qualificadoEm], [true, "enviado", r1.qualificadoEm]);
+      const r3 = await (await leads("POST", "/leads/GHJ234/qualificar", TOKEN, ga)).json();
+      assert.equal(r3.analytics, "enviado");
+      assert.equal(idas.length, 2, "uma recusada e uma aceita; a terceira chamada não envia");
+      assert.match(idas[1][0], /measurement_id=G-TESTE12345&api_secret=segredo-mp$/);
+      assert.equal(idas[1][1].events[0].name, "qualify_lead"); assert.equal(idas[1][1].client_id, "123.1700000000");
+    } finally { globalThis.fetch = real; }
   } finally { await px.dispose(); rmSync(persist, { recursive: true, force: true }); }
 });
