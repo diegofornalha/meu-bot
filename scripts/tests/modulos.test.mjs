@@ -157,6 +157,50 @@ test("ficha do módulo (renderer): selo, tempo e passos pelo estado", async () =
   assert.equal(passoFeito({ id: "m", conclui: "manual" }, base, ["m"]), true);
 });
 
+test("cartão do CRM em Já incluído (renderer): situação, plano, Este Mac e números", async () => {
+  const { cartaoCrm, CRM_SO_SSH } = await import("../../dist/renderer/modulos/modulos-crm.js");
+  const info = { available: true, installed: true, configured: false, streakKey: false, motor: null, pipelineKey: null, pipelineName: null, silencioMin: 10, criarSemPerguntar: false, savedAt: null };
+  const base = { remoto: true, acesso: "ok", produto: "meu-bot", info, local: null, erroConsulta: null, instalando: false, log: [], erroInstalacao: null };
+  // Este Mac: só o aviso, sem selo e sem botão, mesmo que sobre estado de outra consulta.
+  assert.deepEqual(cartaoCrm({ ...base, remoto: false }), { selo: null, linhas: [], aviso: { texto: CRM_SO_SSH, ruim: false }, acoes: [], log: [] });
+  assert.equal(CRM_SO_SSH, "O CRM funciona nas máquinas por SSH.");
+  // Não instalado: oferece instalar, e só isso.
+  const fora = cartaoCrm({ ...base, info: { ...info, installed: false } });
+  assert.equal(fora.selo.texto, "Não instalado");
+  assert.deepEqual(fora.acoes, ["instalar"]);
+  assert.equal(fora.aviso, null);
+  const falhou = cartaoCrm({ ...base, info: { ...info, installed: false }, erroInstalacao: "sem espaço em disco" });
+  assert.deepEqual(falhou.aviso, { texto: "A instalação falhou: sem espaço em disco", ruim: true });
+  assert.deepEqual(falhou.acoes, ["instalar"], "dá para tentar de novo");
+  // Instalando: o progresso do instalador, sem botão.
+  const inst = cartaoCrm({ ...base, info: { ...info, installed: false }, instalando: true, log: ["copiando", "instalando a skill"] });
+  assert.equal(inst.selo.texto, "Instalando…");
+  assert.deepEqual(inst.log, ["copiando", "instalando a skill"]);
+  assert.deepEqual(inst.acoes, []);
+  // Sem o plano: diz por quê e não oferece instalar (nem com o CRM fora da máquina).
+  for (const [acesso, re] of [["free", /plano Pro/], ["expired", /venceu/], ["unknown", /ler o plano/], ["assinatura", /assinatura do meu-bot/]]) {
+    const v = cartaoCrm({ ...base, acesso, info: { ...info, installed: false } });
+    assert.match(v.aviso.texto, re, acesso);
+    assert.deepEqual(v.acoes, [], acesso);
+    assert.equal(v.selo.texto, "Não instalado", acesso);
+  }
+  // Licença ou máquina ainda não responderam: nada de botão; a consulta que falhou aparece.
+  assert.deepEqual(cartaoCrm({ ...base, acesso: null }).acoes, []);
+  assert.equal(cartaoCrm({ ...base, info: null }).selo.texto, "Verificando…");
+  assert.deepEqual(cartaoCrm({ ...base, info: null, erroConsulta: "ssh caiu" }).aviso, { texto: "Não deu para consultar a máquina: ssh caiu", ruim: true });
+  // Instalado: abrir e configurar; os números só quando existem.
+  const ok = cartaoCrm(base);
+  assert.equal(ok.selo.texto, "Instalado");
+  assert.equal(ok.selo.classe, "pill-on");
+  assert.deepEqual(ok.acoes, ["gmail", "configurar"]);
+  assert.deepEqual(ok.linhas, [], "sem pipelines lidos, sem números inventados");
+  assert.deepEqual(cartaoCrm({ ...base, info: { ...info, pipelineName: "Vendas" } }).linhas, ["Pipeline padrão: Vendas"], "Streak: só o nome gravado");
+  const local = { padrao: "p1", pipelines: [{ key: "p1", name: "Leads do site", boxes: 1 }, { key: "p2", name: "Parceiros", boxes: 6 }] };
+  assert.deepEqual(cartaoCrm({ ...base, local }).linhas, ["Pipeline padrão: Leads do site", "2 pipelines · 7 caixas"]);
+  assert.deepEqual(cartaoCrm({ ...base, local: { padrao: null, pipelines: [local.pipelines[0]] } }).linhas, ["Nenhum pipeline padrão: escolha um em Configurar.", "1 pipeline · 1 caixa"]);
+  assert.deepEqual(cartaoCrm({ ...base, local: { padrao: null, pipelines: [] } }).linhas, ["Nenhum pipeline ainda: crie o primeiro em Configurar."]);
+});
+
 test("módulos sem licença: o meu-bot-diego vale sem o add-on (a trava é o repositório privado); o Financeiro continua pedindo", () => {
   const lic = require("../../backend-colima/licenca.js");
   const vazia = { plan: "free", status: "free", produtos: [] };

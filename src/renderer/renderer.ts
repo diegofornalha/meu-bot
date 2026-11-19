@@ -69,7 +69,7 @@ import { ligarDigitandoGuia } from "./whatsapp/digitando-guia.js";
 import { ligarEntradaRapidaGuia } from "./configuracoes/entrada-rapida-guia.js";
 import { ligarObjetivoGuia, objectiveBusy, objectiveDo, objectiveDraft, objectiveMsg, objectiveState, refreshObjective, setObjectiveDraft, setObjectiveMsg, setObjectiveState } from "./agente/objetivo-guia.js";
 import { ligarCatalogo, setTutNext, tutNext, tutoriaisPage } from "./tutoriais/catalogo.js";
-import { crmAfterAgentKey, crmLocalState, crmState, ligarCrmGuia, refreshCrm } from "./crm/crm-guia.js";
+import { aoMudarCrm, crmAfterAgentKey, crmLocalState, crmSituacao, crmState, instalarCrm, ligarCrmGuia, refreshCrm } from "./crm/crm-guia.js";
 import { crmProprio, license, motorCrm, navLicenseAsked, refreshLicense, setPlanBadge } from "./licenca/licenca.js";
 import { ligarFinanceiroGuia, paintFinanceLine } from "./finance/financeiro-guia.js";
 import { NAV_TUTORIAL, disposeNav, ligarNavegador, navAccess, navCurrent, navCurrentHost, navDonoView, navEstavaAberto, navExtensions, navFavsShown, navMarcarAberto, navPage, navPartition, navServicosCount, navTabs, navReavaliar, navZoomStep, openNavTab, origemNome, paintNav, toggleFavsBar } from "./navegador/navegador.js";
@@ -2009,7 +2009,19 @@ void (async () => {
   // Módulos de produto: o fixo do app (caps.modulos, como no meu-bot-diego-staging) e os add-ons com módulos na licença
   // da máquina. A página só é montada no app que pode ter módulos; o botão segue a licença (paintModulosLine).
   if (caps.modulos !== null || caps.addons.some((a) => a.modulos)) {
-    modulosPage = mountModulosPage({ panelsEl, definePage, openPage, armConfirm, api: window.meuBot, host: () => windowHost, goToChat: goToChatFromGuide });
+    modulosPage = mountModulosPage({
+      panelsEl, definePage, openPage, armConfirm, api: window.meuBot, host: () => windowHost, goToChat: goToChatFromGuide,
+      // Cartão do CRM ("Já incluído"): o estado e a instalação são os do guia do CRM (crm-guia.ts), um caminho só.
+      // "Configurar" abre o guia direto (o tutorial segue fora da lista): o do Gmail no CRM próprio, o do Streak no outro.
+      crm: !caps.install ? null : {
+        estado: () => ({ remoto: ehRemoto(), acesso: navLicenseAsked ? browserAccess(license, windowHost, caps.planoExigido, caps.produto) : null, produto: caps.produto, info: crmState, local: crmLocalState, ...crmSituacao() }),
+        atualizar: async () => { await refreshLicense(); await refreshCrm(); },
+        instalar: instalarCrm,
+        abrirNoGmail: () => { void openNavTab("https://mail.google.com/"); },
+        configurar: () => { const id = crmProprio() && motorCrm() === "proprio" ? "crm-gmail" : "crm-whatsapp"; const t = TUTORIAIS.find((x) => x.id === id); if (t !== undefined) openGuide(t); },
+      },
+    });
+    aoMudarCrm(() => modulosPage?.repintarLista());
     $<HTMLButtonElement>("modulos-line").addEventListener("click", () => modulosPage?.open());
     // A página de um módulo pediu para levar um texto ao chat: só preenche; quem envia é a pessoa.
     // Planilha: só um cartão de confirmação acima da página do módulo (nada é lido sem a pessoa clicar).

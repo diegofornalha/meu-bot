@@ -1,7 +1,8 @@
 /**
  * Página "Módulos": o produto fixo do app (caps.modulos, como no meu-bot-diego-staging) e os add-ons com módulos na
  * licença da máquina. Duas vistas:
- * - a lista: um bloco por produto, com de onde os módulos vieram (o repositório dele, baixado com git) e um cartão por módulo;
+ * - a lista: o bloco "Já incluído" (o que é do próprio meu-bot, hoje o CRM: um cartão com instalar, abrir e configurar,
+ *   que não é um módulo) e um bloco por produto, com de onde os módulos vieram (o repositório dele, baixado com git) e um cartão por módulo;
  * - a ficha de um módulo: cabeçalho com o estado e "Testar conexão", "O que dá para pedir" (vai ao chat), as abas
  *   Visão geral (configurar, ligar, conexão e o guia em resumo), Ferramentas (do último teste), Guia e Primeiros
  *   passos, e a coluna Detalhes.
@@ -14,6 +15,7 @@ import { carregando } from "../lib/carregando.js";
 import type { PageTab } from "../lib/pages-types.js";
 import { ipcErrorText } from "../lib/ipc-error.js";
 import { passoFeito, situacao, tempoDesde } from "./modulos-ficha.js";
+import { cartaoCrm, type CrmCartaoEstado } from "./modulos-crm.js";
 
 export interface ModulosPageDeps {
   panelsEl: HTMLElement;
@@ -25,12 +27,17 @@ export interface ModulosPageDeps {
   goToChat(message: string, hint: string): Promise<void>;
   /** Máquina desta janela (as marcações dos primeiros passos são por máquina); lida na hora, não na montagem. */
   host(): string;
+  /**
+   * O CRM do meu-bot, para o cartão do bloco "Já incluído": o estado é o do guia do CRM (crm-guia.ts), montado no
+   * renderer; instalar, abrir e configurar são os mesmos caminhos do guia. null = app sem máquina para instalar.
+   */
+  crm: { estado(): CrmCartaoEstado; atualizar(): Promise<void>; instalar(): Promise<void>; abrirNoGmail(): void; configurar(): void } | null;
 }
 
 type Aba = "geral" | "ferramentas" | "guia" | "passos";
 const MSG_LICENCA = (rotulo: string): string => `Os módulos ainda não estão liberados nesta máquina: peça ao admin para incluir o add-on "${rotulo}" na licença dela (no meu-bot-admin, Suporte › Conta e licença).`;
 
-export function mountModulosPage(deps: ModulosPageDeps): { open: () => void; pedirPlanilha: (a: { id: string; rotulo: string; link: string; aba: string; tipo: string }) => void } {
+export function mountModulosPage(deps: ModulosPageDeps): { open: () => void; repintarLista: () => void; pedirPlanilha: (a: { id: string; rotulo: string; link: string; aba: string; tipo: string }) => void } {
   const panel = el("section", "acervo-panel modulos-panel"); panel.hidden = true;
   deps.panelsEl.append(panel);
   let page: PageTab | null = null;
@@ -74,6 +81,7 @@ export function mountModulosPage(deps: ModulosPageDeps): { open: () => void; ped
   async function atualizar(): Promise<void> {
     if (baixando) return;
     baixando = true; erro = null; render();
+    void deps.crm?.atualizar().then(repintarLista, repintarLista);
     try { listas = await deps.api.modulosAtualizarFonte(); } catch (e) { erro = ipcErrorText(e); }
     baixando = false; render();
   }
@@ -174,6 +182,35 @@ export function mountModulosPage(deps: ModulosPageDeps): { open: () => void; ped
     if (m.descricao) c.append(el("p", "hint modulo-cartao-desc", m.descricao));
     c.addEventListener("click", () => { aberto = m.id; aba = "geral"; render(); });
     return c;
+  }
+
+  /**
+   * "Já incluído": o que é do próprio meu-bot e não de um produto de módulos. Hoje só o CRM. O cartão não abre ficha:
+   * mostra a situação na máquina e leva a instalar, ao Gmail e ao guia do CRM.
+   */
+  function blocoIncluido(crm: NonNullable<ModulosPageDeps["crm"]>): HTMLElement {
+    const v = cartaoCrm(crm.estado());
+    const box = el("div", "auditoria-detalhe modulos-produto");
+    box.append(el("h3", "", "Já incluído"), el("p", "hint modulos-origem", "Vem com o meu-bot: sem licença à parte e sem repositório para baixar."));
+    const c = el("div", "modulo-cartao modulo-cartao-fixo");
+    const topo = el("div", "modulo-cartao-topo"); topo.append(el("span", "modulo-avatar", "C"));
+    if (v.selo !== null) topo.append(el("span", `pill modulo-selo ${v.selo.classe}`, v.selo.texto));
+    c.append(topo, el("strong", "", "CRM"), el("span", "hint", "Vendas e atendimento"), el("p", "hint modulo-cartao-desc", "Pipelines e caixas dentro do Gmail; o agente anota as conversas do WhatsApp."));
+    for (const l of v.linhas) c.append(el("span", "", l));
+    if (v.aviso !== null) c.append(el("p", `hint ${v.aviso.ruim ? "bad-hint" : "guide-pair-note"}`, v.aviso.texto));
+    if (v.log.length > 0) { const pre = el("pre", "modulo-log hint"); pre.textContent = v.log.join("\n"); c.append(pre); }
+    if (v.acoes.length > 0) {
+      const a = el("div", "admin-actions");
+      for (const x of v.acoes) {
+        if (x === "instalar") a.append(btn("Instalar", "btn-primary", () => { void crm.instalar(); }));
+        else if (x === "gmail") a.append(btn("Abrir o CRM no Gmail", "btn-primary", () => crm.abrirNoGmail()));
+        else a.append(btn("Configurar", "btn-ghost", () => crm.configurar()));
+      }
+      c.append(a);
+    }
+    const grade = el("div", "modulo-cartoes"); grade.append(c);
+    box.append(grade);
+    return box;
   }
 
   /* ---------- Visão geral ---------- */
@@ -352,9 +389,9 @@ export function mountModulosPage(deps: ModulosPageDeps): { open: () => void; ped
   }
 
   /** O bloco de um produto: de onde vieram os módulos, os avisos (fonte, licença, manifesto) e um cartão por módulo. */
-  function blocoDoProduto(l: ModulosLista, sozinho: boolean): HTMLElement {
+  function blocoDoProduto(l: ModulosLista): HTMLElement {
     const box = el("div", "auditoria-detalhe modulos-produto");
-    if (!sozinho) box.append(el("h3", "", l.rotulo));
+    box.append(el("h3", "", l.rotulo));
     // Origem: de qual repositório os módulos vieram, em que commit e há quanto tempo (o app não leva módulo nenhum dentro).
     box.append(el("p", "hint modulos-origem", l.fonte.linha));
     // Aviso da fonte: sem acesso (o bloco fica só nisso), sem rede ou sem git (com os já baixados embaixo), erro do git.
@@ -383,8 +420,8 @@ export function mountModulosPage(deps: ModulosPageDeps): { open: () => void; ped
     aberto = null;
     const head = el("div", "guide-head");
     const body = el("div", "tut-body");
-    const sozinho = listas !== null && listas.length === 1 ? listas[0] : undefined;
-    body.append(el("span", "tut-badge", sozinho === undefined ? "módulos" : `módulos · ${sozinho.rotulo}`), el("h2", "", "Módulos"), el("p", "", "Cada módulo é uma peça à parte: ligue só o que for usar. As chaves ficam na máquina, só com você."));
+    // O selo é só "módulos": a página junta o que já vem no meu-bot e os produtos, e cada bloco leva o seu nome.
+    body.append(el("span", "tut-badge", "módulos"), el("h2", "", "Módulos"), el("p", "", "Cada módulo é uma peça à parte: ligue só o que for usar. As chaves ficam na máquina, só com você."));
     const b = el("button", "btn btn-ghost btn-small", "Atualizar módulos"); b.type = "button";
     b.disabled = baixando || lendo || ocupado !== null;
     b.title = "Confere o repositório de cada produto de módulos (git pull) e relê o estado na máquina";
@@ -394,15 +431,19 @@ export function mountModulosPage(deps: ModulosPageDeps): { open: () => void; ped
     panel.append(head);
     if (baixando) panel.append(carregando("Conferindo os repositórios dos módulos…"));
     if (erro !== null) panel.append(el("p", "hint bad-hint", erro));
+    if (deps.crm !== null) panel.append(blocoIncluido(deps.crm));
     if (listas === null) { if (lendo) panel.append(carregando("Lendo os módulos da máquina…")); return; }
     // O SSH é um só para todos os produtos: o erro da máquina aparece uma vez, em cima.
     const erroMaquina = listas.find((x) => x.erroMaquina !== null)?.erroMaquina ?? null;
     if (erroMaquina !== null) panel.append(el("p", "hint bad-hint", erroMaquina));
-    for (const x of listas) panel.append(blocoDoProduto(x, sozinho !== undefined));
+    for (const x of listas) panel.append(blocoDoProduto(x));
   }
+  /** O estado do CRM mudou (consulta, instalação, progresso): repinta a lista se ela está na tela; a ficha não mostra o CRM. */
+  function repintarLista(): void { if (!panel.hidden && aberto === null) render(); }
 
   return {
     pedirPlanilha,
+    repintarLista,
     open: () => {
       if (page === null) { page = deps.definePage("modulos", "Módulos", panel, render); void atualizar(); }
       deps.openPage(page);
