@@ -561,9 +561,13 @@ export async function montarOrgApi(db: D1Database, org: OrgLinha, meuEmail: stri
   const lista: MembroApi[] = membros.results.map((m) => ({ email: m.email, nome: m.conta_id === null ? null : nomeExibicao(m), foto: m.foto, papel: papelOrg(m.papel), status: m.status === "ativo" ? "ativo" : "convidado", convidadoPor: m.convidado_por, convidadoEm: m.convidado_em, entrouEm: m.entrou_em, eu: m.email === meuEmail }));
   return { id: org.id, slug: org.slug, nome: org.nome, dominioEmail: org.dominio_email, assentos: org.assentos, ocupados: lista.length, criadaEm: org.criada_em, dona: { email: dona?.email ?? "", nome: dona ? nomeExibicao(dona) : null }, meuPapel, membros: lista, url: `${consoleOrigin}/organizations/${org.slug}/members` };
 }
+/** A conta pelo e-mail exato (já normalizado: minúsculo, sem espaços). */
+export async function contaPorEmail(db: D1Database, email: string): Promise<ContaLinha | null> {
+  return (await db.prepare("SELECT * FROM contas WHERE email = ?1 AND apagada_em IS NULL").bind(email).first<ContaLinha>()) ?? null;
+}
 /** Convida (linha sem conta) ou já ativa, se o e-mail tem conta. */
 export async function gravarConvite(db: D1Database, org: OrgLinha, email: string, papel: "admin" | "membro", quem: string, agora = agoraIso()): Promise<"convidado" | "ativo"> {
-  const conta = (await db.prepare("SELECT id FROM contas WHERE email = ?1 AND apagada_em IS NULL").bind(email).first<{ id: string }>()) ?? null;
+  const conta = await contaPorEmail(db, email);
   const status = conta === null ? "convidado" : "ativo";
   await db.prepare("INSERT INTO membros (org_id, email, conta_id, papel, status, convidado_por, convidado_em, entrou_em) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)").bind(org.id, email, conta?.id ?? null, papel, status, quem, agora, conta === null ? null : agora).run();
   return status;

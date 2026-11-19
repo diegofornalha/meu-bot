@@ -1,6 +1,7 @@
 /** Contrato IPC · Suporte e meu-bot-admin: saúde, espelho, auditoria, produtos, backup. Só tipos (nada é emitido); reexportado por src/shared/ipc.ts. */
 import type { ClaudeAuthInfo } from "./agente";
 import type { LicenseView, PlanName } from "./licenca";
+import type { ContaInfo } from "./conta";
 import type { HostProbe } from "./maquina";
 import type { WhatsappStatus } from "./whatsapp";
 
@@ -80,7 +81,20 @@ export interface BotChat {
 }
 export interface BotMessage { role: "person" | "agent" | "tool"; text: string; at: string; /** Quem respondeu (só no diário). */ provider?: string }
 /** Saúde da máquina da pessoa; `whatsapp` e `progress` vêm null quando ela não compartilha (ver `share`). */
-export interface AdminHealth { probe: HostProbe; whatsapp: WhatsappStatus | null; progress: SupportProgress | null; share: SupportShare; /** Conta da xAI na máquina; null = Grok não preparado (sem o hermes-agent do proxy). */ xai: ClaudeAuthInfo | null; /** Licença e devices da conta; null = máquina fora do ar ou backend antigo sem a rota. */ license: LicenseView | null; /** Aberturas recentes do app nesta máquina (aberturas.jsonl, mais nova primeiro); null = sem registro (backend antigo ou ninguém abriu ainda). */ aberturas?: Abertura[] | null; /** Só no "este Mac": o backend de cada app meu-bot deste Mac (cada um sobe o seu ao abrir), no lugar do backend de VM. */ appsDoMac?: { nome: string; porta: number; noAr: boolean }[] }
+export interface AdminHealth { probe: HostProbe; whatsapp: WhatsappStatus | null; progress: SupportProgress | null; share: SupportShare; /** Conta da xAI na máquina; null = Grok não preparado (sem o hermes-agent do proxy). */ xai: ClaudeAuthInfo | null; /** Licença e devices da conta; null = máquina fora do ar ou backend antigo sem a rota. */ license: LicenseView | null; /** Aberturas recentes do app nesta máquina (aberturas.jsonl, mais nova primeiro); null = sem registro (backend antigo ou ninguém abriu ainda). */ aberturas?: Abertura[] | null; /** Só no "este Mac": o backend de cada app meu-bot deste Mac (cada um sobe o seu ao abrir), no lugar do backend de VM. */ appsDoMac?: { nome: string; porta: number; noAr: boolean }[]; /** A conta meu-bot da pessoa, lida da API como o console a mostra (GET /admin/conta); ausente em main antigo. */ conta?: ContaDaPessoa }
+/** Add-on pago da conta e até quando vale (das assinaturas em andamento). */
+export interface ContaAddonPago { produto: string; valeAte: string | null }
+/**
+ * A conta da pessoa para a página Suporte. `achadaPor` é a pista que ligou a máquina à conta, da mais forte para a
+ * mais fraca: "maquina" (a API conhece o uuid do maquina.json), "id" (a licença assinada pela API guardada na
+ * máquina), "email" (só o que o app da pessoa declarou ao abrir: conta provável, não certa). Sem pista nenhuma:
+ * "sem-ligacao". Com pista e sem conta na API: "nao-achada". API fora ou sessão sem valer: "sem-resposta".
+ */
+export type ContaDaPessoa =
+  | { estado: "ok"; conta: ContaInfo; maquinaExtras: number; addonsPagos: ContaAddonPago[]; achadaPor: "maquina" | "id" | "email"; lidaEm: string }
+  | { estado: "sem-ligacao" }
+  | { estado: "nao-achada" }
+  | { estado: "sem-resposta"; motivo: string };
 /** Uma abertura do app na máquina: quando, qual app (meu-bot = produção, meu-bot-staging = staging), versão e Mac. */
 export interface Abertura { em: string; produto: string; versao: string; mac: string; user: string; /** Conta meu-bot logada no app (e-mail); "" em registro antigo. */ conta: string }
 /** Progresso da pessoa nos tutoriais (o meu-bot dela grava na máquina com o suporte ligado). */

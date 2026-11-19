@@ -9,7 +9,7 @@
 import { app, safeStorage, shell } from "electron";
 import fs from "node:fs";
 import path from "node:path";
-import type { ContaView } from "../../shared/ipc";
+import type { ContaDaPessoa, ContaView } from "../../shared/ipc";
 import { marcar } from "../app/depuracao";
 import { broadcast } from "../app/windows";
 import { caps, produto } from "../app/variant";
@@ -19,7 +19,7 @@ import { log } from "../maquina/tunnel";
 import { refreshPickerIfOpen, sendToPicker } from "../maquina/picker";
 import { parseRetornoAuth } from "./deep-link-core";
 import { deviceIdentidade, devicePedido } from "./device";
-import { FOTO_MAX, URLS, deveRenovar, erroDaApi, novoLogin, parseContaInfo, parseLoginPendente, parsePrefs, parseSessao, retornoConfere, sessaoAcabou, urlDeLogin, type ContaPrefs, type LoginPendente, type SessaoGuardada, acessoGestao } from "./conta-core";
+import { FOTO_MAX, URLS, deveRenovar, erroDaApi, novoLogin, parseContaInfo, parseLoginPendente, parsePrefs, parseSessao, retornoConfere, sessaoAcabou, urlDeLogin, type ContaPrefs, type LoginPendente, type SessaoGuardada, acessoGestao, parseContaDoAdmin, rotaDaContaAdmin, type PistasDaConta } from "./conta-core";
 
 const ARQ = (): string => path.join(app.getPath("userData"), "conta.bin");
 const ARQ_LOGIN = (): string => path.join(app.getPath("userData"), "conta-login.json");
@@ -134,6 +134,20 @@ export async function enviarResumoSuporte(corpo: unknown): Promise<boolean> {
   const r = await api("POST", "/admin/suporte", corpo, token);
   if (r.status !== 200) log(`[suporte] resumo não foi para o console: HTTP ${r.status}`);
   return r.status === 200;
+}
+
+/**
+ * meu-bot-admin-gestao: a conta de uma pessoa como o console a mostra (GET /admin/conta), achada pelas pistas que a
+ * máquina dela dá. Só com conta de admin. Nunca lança: o que deu errado vai no `estado`.
+ */
+export async function lerContaDoAdmin(pistas: PistasDaConta): Promise<ContaDaPessoa> {
+  const rota = rotaDaContaAdmin(pistas);
+  if (rota === null) return { estado: "sem-ligacao" };
+  if (lerSessao()?.conta.admin == null) return { estado: "sem-resposta", motivo: "entre com a conta de admin" };
+  const token = await tokenDeAcesso();
+  if (token === null) return { estado: "sem-resposta", motivo: "a sessão do admin não vale mais: entre de novo" };
+  const r = await api("GET", rota, null, token);
+  return parseContaDoAdmin(r.status, r.corpo);
 }
 
 /** "Entrar": abre a página de login no navegador do sistema e fica esperando o deep link. */

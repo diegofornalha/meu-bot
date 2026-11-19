@@ -7,7 +7,7 @@
  *   no GitHub; www. redireciona para ela;
  * - conta.agentesgrok.com: a API (POST /sessao, POST /token, POST /sessao/sair, GET|PATCH|DELETE /conta, POST /conta/senha,
  *   GET /health; organizações GET|POST /orgs, GET /orgs/:slug/publico (sem login), GET|PATCH|DELETE /orgs/:slug, POST /orgs/:slug/membros, PATCH|DELETE /orgs/:slug/membros/:email;
- *   para admins GET /admin/visao, POST /admin/suporte (o admin-gestao envia o resumo de uma janela de suporte), GET /admin/suporte (só super: console /support-window), GET /admin/auditoria (só super: contas apagadas, vendas ocultadas e o registro de ações), POST /admin/vendas/(assinaturas|pagamentos)/:id/(ocultar|mostrar) (só super: tira da tela Assinaturas ou traz de volta), PATCH /admin/contas/:id/licenca, DELETE /admin/contas/:id (só super: apaga a conta), POST /admin/contas/:id/devices/:device/liberar, DELETE /admin/contas/:id/devices/:device, POST|PUT /admin/contas/:id/senha, POST /admin/pedidos/:id/atender, PUT|DELETE /admin/perfis/:email, PATCH /admin/orgs/:slug).
+ *   para admins GET /admin/visao, GET /admin/conta (uma conta, pela máquina, id ou e-mail: a página Suporte do admin-gestao), POST /admin/suporte (o admin-gestao envia o resumo de uma janela de suporte), GET /admin/suporte (só super: console /support-window), GET /admin/auditoria (só super: contas apagadas, vendas ocultadas e o registro de ações), POST /admin/vendas/(assinaturas|pagamentos)/:id/(ocultar|mostrar) (só super: tira da tela Assinaturas ou traz de volta), PATCH /admin/contas/:id/licenca, DELETE /admin/contas/:id (só super: apaga a conta), POST /admin/contas/:id/devices/:device/liberar, DELETE /admin/contas/:id/devices/:device, POST|PUT /admin/contas/:id/senha, POST /admin/pedidos/:id/atender, PUT|DELETE /admin/perfis/:email, PATCH /admin/orgs/:slug).
  * Código por visita (rotas/leads.ts): POST /lead-ref no host do site (sem login) e, na API, GET /leads/:codigo e
  * POST /leads/:codigo/qualificar (Bearer LEADS_TOKEN, sem login de conta).
  * Assinatura do Pro pela AbacatePay: POST /conta/assinatura (logado, devolve a url do pagamento), POST
@@ -21,7 +21,7 @@ import { postSair, postSessao, postSessaoConsole } from "./rotas/sessao.js";
 import { postToken } from "./rotas/token.js";
 import { deleteConta, getConta, patchConta, postSenha } from "./rotas/conta.js";
 import { getSuporteResumos, postSuporteResumo } from "./rotas/suporte.js";
-import { deleteAdminConta, deleteDevice, deletePerfil, getAdminAuditoria, postVendaOculta, postZerarAuditoria, getAdminFirebase, getAdminVisao, patchLicenca, postAdminSenha, postAtenderPedido, postEncerrarAddon, postEncerrarExtra, postLiberarDevice, putAdminSenha, putPerfil } from "./rotas/admin.js";
+import { deleteAdminConta, deleteDevice, deletePerfil, getAdminAuditoria, postVendaOculta, postZerarAuditoria, getAdminConta, getAdminFirebase, getAdminVisao, patchLicenca, postAdminSenha, postAtenderPedido, postEncerrarAddon, postEncerrarExtra, postLiberarDevice, putAdminSenha, putPerfil } from "./rotas/admin.js";
 import { downloadMac, downloadWindows, REPO } from "./release-github.js";
 import { GUIAS, lerReleases, novidadesHtml, sitemapXml } from "./novidades-core.js";
 import { CSP_ADS, CSP_GA, gaIds } from "./analytics-core.js";
@@ -165,6 +165,7 @@ async function api(req: Request, env: Env, url: URL, espera: (p: Promise<unknown
     else if (rota === "POST /sessao/sair") res = await postSair(auth, env);
     else if (rota === "POST /sessao/console") res = await postSessaoConsole(auth, env, req);
     else if (rota === "GET /admin/visao") res = await getAdminVisao(auth, env, url);
+    else if (rota === "GET /admin/conta") res = await getAdminConta(auth, env, url);
     else if (rota === "POST /admin/suporte") res = await postSuporteResumo(auth, env, req);
     else if (removerVenda !== null) res = await deleteAdminAssinatura(auth, env, removerVenda[1]!);
     else if (vendaOculta !== null) res = await postVendaOculta(auth, env, vendaOculta[1] === "assinaturas" ? "assinaturas" : "pagamentos", vendaOculta[2]!, vendaOculta[3] === "ocultar");

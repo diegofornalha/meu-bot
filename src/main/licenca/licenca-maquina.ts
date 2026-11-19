@@ -7,7 +7,7 @@
 import type { LicenseView, PlanName } from "../../shared/ipc";
 import { fetchLicense } from "../maquina/backend";
 import { buildLicenseView, type LicencaDaMaquina } from "./licenca";
-import { licencaEmVigor } from "../conta/licenca-assinada-core";
+import { licencaEmVigor, verificaLicencaAssinada } from "../conta/licenca-assinada-core";
 import { LICENCA_CONTA_PATH, MAQUINA_PATH, idDaMaquinaDe, jsonCru } from "./licenca-conta-core";
 import { LOCAL_HOST } from "../maquina/localBackend";
 import { isValidHost } from "../app/settings";
@@ -25,11 +25,24 @@ const LER_LICENCA = `cat "${LICENSE_PATH}" 2>/dev/null; echo "<<<REA-SEP>>>"; ca
  * backend da máquina faz; aqui serve às máquinas sem ele (Hermes) ou com ele fora do ar. null se ela não responde.
  */
 export async function readLicenseViewSsh(host: string, timeoutMs: number = 20_000): Promise<LicenseView | null> {
+  return (await readLicencaComPistasSsh(host, timeoutMs))?.view ?? null;
+}
+/** O que os arquivos da máquina dizem sobre a conta da pessoa: o uuid da máquina e a conta da licença assinada. */
+export interface PistasDaMaquina { maquina: string | null; contaId: string | null }
+/**
+ * A mesma leitura de `readLicenseViewSsh`, mais as pistas que ligam a máquina a uma conta (o admin-gestao as leva à
+ * API): o uuid do `maquina.json` e o id da conta de dentro do `licenca-conta.json`, este só com a assinatura da API
+ * conferida para esta máquina (arquivo mexido, vencido ou de outra máquina não vale como pista).
+ */
+export async function readLicencaComPistasSsh(host: string, timeoutMs: number = 20_000): Promise<{ view: LicenseView; pistas: PistasDaMaquina } | null> {
   const r = await runSsh(host, LER_LICENCA, timeoutMs).catch(() => null);
   if (r === null || r.code !== 0) return null;
   const [licPart, maqPart, contaPart, idPart] = r.stdout.split("<<<REA-SEP>>>");
-  const vigor = licencaEmVigor(jsonCru(licPart), jsonCru(contaPart), idDaMaquinaDe(jsonCru(idPart)));
-  return { ...buildLicenseView(vigor.license, jsonCru(maqPart)), origem: vigor.origem };
+  const maquina = idDaMaquinaDe(jsonCru(idPart));
+  const rawConta = jsonCru(contaPart);
+  const vigor = licencaEmVigor(jsonCru(licPart), rawConta, maquina);
+  const assinada = maquina === null ? null : verificaLicencaAssinada(rawConta, { maquina });
+  return { view: { ...buildLicenseView(vigor.license, jsonCru(maqPart)), origem: vigor.origem }, pistas: { maquina, contaId: assinada !== null && assinada.ok ? assinada.payload.conta.id : null } };
 }
 /**
  * Só o plano em vigor, para o selo "PRO" dos seletores (o do app e o do admin). Lia o `licenca.json` sozinho, e o Pro

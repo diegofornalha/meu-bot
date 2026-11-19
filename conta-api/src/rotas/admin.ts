@@ -5,7 +5,7 @@
  * (rotas/maquinas.ts). Tudo fica na auditoria.
  */
 import type { Env, TipoVenda } from "../tipos.js";
-import { apagarConta, assinaturasOcultas, ativarDevice, atenderPedido, auditoriaAdmin, zerarAuditoria, marcarVendaOculta, papelAdmin, encerrarAddonPago, encerrarExtraPago, auditar, contaPorId, contarSupers, devicesDaConta, gravarLicenca, licencaGravada, removerDevice, gravarPerfil, gravarProvedor, removerPerfil, revogarSessoesDaConta, visaoAdmin } from "../db.js";
+import { apagarConta, contaPorEmail, maquinaPorId, montarContaApi, assinaturasOcultas, ativarDevice, atenderPedido, auditoriaAdmin, zerarAuditoria, marcarVendaOculta, papelAdmin, encerrarAddonPago, encerrarExtraPago, auditar, contaPorId, contarSupers, devicesDaConta, gravarLicenca, licencaGravada, removerDevice, gravarPerfil, gravarProvedor, removerPerfil, revogarSessoesDaConta, visaoAdmin } from "../db.js";
 import { consultarFirebase, definirSenhaFirebase } from "../firebase-admin.js";
 import { DEVICE_ID_RE, UUID_RE, decidirLiberarDevice, ehAdminInicial, validaBusca, validaEmail, validaPapel, validaPatchLicenca, validaSenhaNova } from "../sessao-core.js";
 import { json, lerJson, type Autenticado } from "../http.js";
@@ -17,6 +17,32 @@ import { limiteDoPapel } from "../pagamento-core.js";
 export async function getAdminVisao(auth: Autenticado, env: Env, url: URL): Promise<Response> {
   if (auth.claims.adm === null) return json({ erro: "só admin" }, 403);
   return json(await visaoAdmin(env.DB, validaBusca(url.searchParams.get("busca")), env.ADMIN_BOOTSTRAP_EMAIL, catalogoAddons(env), auth.claims.adm === "super"));
+}
+/**
+ * `GET /admin/conta?maquina=<uuid>&id=<conta>&email=<e-mail>`: UMA conta, como o console a mostra à própria pessoa
+ * (`montarContaApi`: licença em vigor, devices, máquinas, limites com extras, pedidos). É o que o meu-bot-admin-gestao
+ * lê para a página Suporte de uma pessoa. As pistas valem nesta ordem de confiança, e `achadaPor` diz qual achou:
+ * a máquina vinculada (o uuid do maquina.json dela), o id da conta, o e-mail exato. Pista fora do formato é ignorada;
+ * sem nenhuma válida, 400; nenhuma achou, 404 com `semConta` (para o app não confundir com a rota ainda não publicada).
+ */
+export async function getAdminConta(auth: Autenticado, env: Env, url: URL): Promise<Response> {
+  if (auth.claims.adm === null) return json({ erro: "só admin" }, 403);
+  const p = url.searchParams;
+  const maquina = UUID_RE.test(p.get("maquina") ?? "") ? p.get("maquina")! : null;
+  const id = UUID_RE.test(p.get("id") ?? "") ? p.get("id")! : null;
+  const email = validaEmail(p.get("email"));
+  if (maquina === null && id === null && email === null) return json({ erro: "informe maquina, id ou email" }, 400);
+  let achada: { conta: NonNullable<Awaited<ReturnType<typeof contaPorId>>>; por: "maquina" | "id" | "email" } | null = null;
+  if (maquina !== null) {
+    const m = await maquinaPorId(env.DB, maquina);
+    const c = m === null || m.conta_id === null ? null : await contaPorId(env.DB, m.conta_id);
+    if (c !== null) achada = { conta: c, por: "maquina" };
+  }
+  if (achada === null && id !== null) { const c = await contaPorId(env.DB, id); if (c !== null) achada = { conta: c, por: "id" }; }
+  if (achada === null && email !== null) { const c = await contaPorEmail(env.DB, email); if (c !== null) achada = { conta: c, por: "email" }; }
+  if (achada === null) return json({ erro: "nenhuma conta com essas pistas", semConta: true }, 404);
+  const papel = await papelAdmin(env.DB, achada.conta.email, env.ADMIN_BOOTSTRAP_EMAIL);
+  return json({ achadaPor: achada.por, conta: await montarContaApi(env.DB, achada.conta, papel, catalogoAddons(env), null) });
 }
 export async function postAtenderPedido(auth: Autenticado, env: Env, id: string): Promise<Response> {
   if (auth.claims.adm === null) return json({ erro: "só admin" }, 403);

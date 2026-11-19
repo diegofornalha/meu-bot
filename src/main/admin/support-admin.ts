@@ -12,7 +12,7 @@ import path from "node:path";
 import { app } from "electron";
 import type { Abertura, AdminAction, AdminHealth, BotChat, BotMessage, LicensePatch, LicenseView, SupportPerson, SupportProgress, SupportShare, PlanName } from "../../shared/ipc";
 import { applyLicensePatch, parseLicense } from "../licenca/licenca";
-import { LICENSE_PATH, MACHINES_PATH, readLicenseViewSsh as readLicenseView, readPlanoEmVigorSsh } from "../licenca/licenca-maquina";
+import { LICENSE_PATH, MACHINES_PATH, readLicencaComPistasSsh, readLicenseViewSsh as readLicenseView, readPlanoEmVigorSsh } from "../licenca/licenca-maquina";
 import { BACKEND_DIR_SH } from "../maquina/backend-dir-core";
 import { WA_MOTOR_SH } from "../whatsapp/whatsapp-capacidades";
 import { HERMES_RESTART_SH } from "../whatsapp/whatsapp-hermes-core";
@@ -35,7 +35,7 @@ import net from "node:net";
 import { PRODUTOS } from "../app/variant-core";
 import { ABERTURAS_ARQUIVO_SH, ZERAR_ABERTURAS_SH, parseAberturas } from "./aberturas-core";
 import { resumoDaSaude } from "./suporte-resumo-core";
-import { enviarResumoSuporte, gestaoLiberada } from "../conta/conta";
+import { enviarResumoSuporte, gestaoLiberada, lerContaDoAdmin } from "../conta/conta";
 
 /** `superAdmin`: este app lê a central de auditoria (página Auditoria). `backupDestinatario`: chave age pública do super admin (backups). */
 interface AdminConfig { admin: string; superAdmin: boolean; backupDestinatario: string; inbox: { alias: string } }
@@ -442,16 +442,20 @@ export async function readShare(host: string): Promise<SupportShare> {
 /** Saúde da máquina da pessoa: a sondagem do seletor + (se ela deixa) o WhatsApp e o progresso nos tutoriais. */
 export async function adminHealth(host: string): Promise<AdminHealth> {
   const share = await readShare(host);
-  const [probe, wa, progress, xai, license, aberturas] = await Promise.all([
+  const [probe, wa, progress, xai, lida, aberturas] = await Promise.all([
     probeHost(host, getBackendPort(host)),
     share.whatsapp ? whatsappStatus(host).catch(() => null) : Promise.resolve(null),
     share.progress ? readProgress(host) : Promise.resolve(null),
     xaiAuthInfo(host).catch(() => null),
-    readLicenseView(host).catch(() => null),
+    readLicencaComPistasSsh(host).catch(() => null),
     readAberturas(host),
   ]);
+  const license = lida?.view ?? null;
+  // A conta como o console a mostra. Pistas da mais forte para a mais fraca; o e-mail é só o que o app dela declarou
+  // na abertura mais recente (aberturas vêm da mais nova para a mais antiga).
+  const conta = await lerContaDoAdmin({ maquina: lida?.pistas.maquina ?? null, id: lida?.pistas.contaId ?? null, email: (aberturas ?? []).find((a) => a.conta !== "")?.conta ?? null });
   if (license !== null) rememberPlan(host, license.license.plan);
-  const h: AdminHealth = { probe, whatsapp: wa, progress, share, xai, license, aberturas, ...(host === aliasDoEsteMac() ? { appsDoMac: await appsDoMac() } : {}) };
+  const h: AdminHealth = { probe, whatsapp: wa, progress, share, xai, license, aberturas, conta, ...(host === aliasDoEsteMac() ? { appsDoMac: await appsDoMac() } : {}) };
   void enviarResumo(host, h);
   return h;
 }

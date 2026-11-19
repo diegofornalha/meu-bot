@@ -5,7 +5,7 @@
  */
 import { createHash, randomBytes } from "node:crypto";
 import type { Canal } from "../app/variant-core";
-import type { ContaDevice, ContaInfo, ContaMaquina, ContaOrg, ContaPerfil } from "../../shared/ipc";
+import type { ContaAddonPago, ContaDaPessoa, ContaDevice, ContaInfo, ContaMaquina, ContaOrg, ContaPerfil } from "../../shared/ipc";
 import { DEVICE_ID_RE, parseLicense, UUID_RE } from "../licenca/licenca";
 
 /** Página de login e API, por canal: o staging nunca fala com a produção (conta e D1 separados). */
@@ -132,6 +132,36 @@ export function erroDaApi(status: number, corpo: unknown): string {
   const e = corpo !== null && typeof corpo === "object" ? (corpo as Record<string, unknown>).erro : undefined;
   if (typeof e === "string" && e.trim() !== "") return e.trim().slice(0, 200);
   return status === 429 ? "muitas tentativas; espere um minuto" : status >= 500 ? `a API da conta respondeu ${status}` : `pedido recusado (${status})`;
+}
+/** O que liga a máquina de uma pessoa à conta dela (meu-bot-admin-gestao); cada pista pode faltar. */
+export interface PistasDaConta { maquina: string | null; id: string | null; email: string | null }
+/** `GET /admin/conta?…` com as pistas que valem; null sem nenhuma (não há o que perguntar à API). */
+export function rotaDaContaAdmin(p: PistasDaConta): string | null {
+  const q = new URLSearchParams();
+  if (p.maquina !== null && UUID_RE.test(p.maquina)) q.set("maquina", p.maquina);
+  if (p.id !== null && UUID_RE.test(p.id)) q.set("id", p.id);
+  if (p.email !== null && /^[^\s@]{1,100}@[^\s@]{1,100}\.[^\s@]{1,50}$/.test(p.email.trim())) q.set("email", p.email.trim().toLowerCase());
+  const s = q.toString();
+  return s === "" ? null : `/admin/conta?${s}`;
+}
+/** A resposta de `GET /admin/conta` para a tela. Vem da API: passa pelo mesmo parse da conta do próprio app. */
+export function parseContaDoAdmin(status: number, corpo: unknown, now: number = Date.now()): ContaDaPessoa {
+  const r = corpo !== null && typeof corpo === "object" ? (corpo as Record<string, unknown>) : null;
+  // 404 sem `semConta` é a própria rota que não existe (API publicada antes dela), não uma conta que falta.
+  if (status === 404) return r?.semConta === true ? { estado: "nao-achada" } : { estado: "sem-resposta", motivo: "a API da conta ainda não tem esta leitura (aguarda publicação)" };
+  const conta = status === 200 && r !== null ? parseContaInfo(r.conta, now) : null;
+  const por = r?.achadaPor;
+  if (conta === null || (por !== "maquina" && por !== "id" && por !== "email")) return { estado: "sem-resposta", motivo: status === 200 ? "a API da conta respondeu fora do formato" : erroDaApi(status, corpo) };
+  const c = r!.conta as Record<string, unknown>;
+  const extras = c.maquinaExtras;
+  const addonsPagos: ContaAddonPago[] = (Array.isArray(c.assinaturas) ? c.assinaturas : []).flatMap((a: unknown): ContaAddonPago[] => {
+    if (a === null || typeof a !== "object") return [];
+    const x = a as Record<string, unknown>;
+    // Só add-on em andamento: o Pro (produto null) já está na licença e a máquina extra na contagem de máquinas.
+    if (x.status !== "ACTIVE" || typeof x.produto !== "string" || !/^meu-bot-[a-z0-9-]{1,40}$/.test(x.produto)) return [];
+    return [{ produto: x.produto, valeAte: iso(x.valeAte) }];
+  });
+  return { estado: "ok", conta, maquinaExtras: typeof extras === "number" && Number.isInteger(extras) && extras >= 0 ? extras : 0, addonsPagos, achadaPor: por, lidaEm: new Date(now).toISOString() };
 }
 /** 401 da API: a sessão não vale mais (vencida, revogada, conta apagada): o app sai sozinho e pede para entrar de novo. */
 export const sessaoAcabou = (status: number): boolean => status === 401;
