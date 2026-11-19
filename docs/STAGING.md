@@ -76,9 +76,9 @@ No celular de verdade ou no modo de dispositivo do navegador (o site decide pelo
 | Tocar em "Testar grátis por 3 dias" | home, Mac | Vai para `/obrigado` e, em menos de 1 segundo, o download começa sozinho. A linha da versão mostra a release de **staging** (na produção, a estável). |
 | Abrir a home no celular | home | O botão de baixar some. Aparece o cartão "Você está no celular" com "Falar com a gente no WhatsApp", "Mandar o link para o meu Mac" e "Mandar por e-mail". O botão fixo do rodapé vira "Falar no WhatsApp". O botão flutuante do WhatsApp some. |
 | Abrir a home no Windows | home | Cartão da lista de espera: "Avise-me quando sair para Windows", campo de e-mail ou WhatsApp, e "Tenho um Mac: mandar o link para mim". Nenhum botão de baixar o app do Mac. |
-| Chegar de um anúncio, no celular | `site-staging.agentesgrok.com/?utm_source=google&utm_medium=cpc&utm_campaign=teste&utm_content=empresario&gclid=abc` | "Mandar o link para o meu Mac" abre o WhatsApp com "Baixar o meu-bot no Mac: https://agentesgrok.com/?utm_source=google&utm_medium=cpc&utm_campaign=teste&utm_content=empresario-celular": a campanha segue, o `utm_content` ganha "-celular" e o `gclid` não vai. |
+| Chegar de um anúncio, no celular | `site-staging.agentesgrok.com/?utm_source=google&utm_medium=cpc&utm_campaign=teste&utm_content=empresario&gclid=abc` | "Mandar o link para o meu Mac" abre o WhatsApp com "Baixar o meu-bot no Mac: https://site-staging.agentesgrok.com/?utm_source=google&utm_medium=cpc&utm_campaign=teste&utm_content=empresario-celular": a campanha segue, o `utm_content` ganha "-celular" e o `gclid` não vai. |
 | Mesma visita, tocar em "Falar com a gente no WhatsApp" | home, celular | A mensagem pronta termina com "(ref: empresario)". Sem `utm_content`, a referência é a campanha: "(ref: teste)". |
-| Sem campanha, no celular | home sem query | O link para o Mac é `https://agentesgrok.com/?utm_source=celular`, e a mensagem do WhatsApp não tem "(ref: …)". |
+| Sem campanha, no celular | home sem query | O link para o Mac é `https://site-staging.agentesgrok.com/?utm_source=celular` (a origem do site em que você está; na produção, `https://agentesgrok.com/…`), e a mensagem do WhatsApp não tem "(ref: …)". |
 | Abrir `/promocao` | site | Página "Primeiro mês do Pro por R$ 1" com as regras (existe porque a promoção está ligada). Fora do menu e do sitemap. |
 | Ver um ramo antes do merge | neste Mac, não no staging | O staging é sempre a `origin/main`: `node scripts/site-publicar.mjs --so-staging` recusa qualquer outro commit (saída 1, sem deploy) e diz o caminho (abrir a PR, mesclar, o staging recebe sozinho). O ramo se vê no Worker local, de dentro de `conta-api` no worktree do ramo, com o comando abaixo da tabela; abre em `http://localhost:8787`. Serve para página, texto, estilo e rota; não para login, pagamento nem dados (banco local vazio, sem secrets). |
 
@@ -91,9 +91,10 @@ npx wrangler dev --env staging --host site-staging.agentesgrok.com --upstream-pr
 # abre em http://localhost:8787 (outra porta: --port <n>)
 ```
 
-Dois cuidados: o link "para o meu Mac" aponta sempre para `https://agentesgrok.com/` (está fixo em `celular.js`),
-então abrir esse link leva à **produção**; e os botões do WhatsApp abrem a conversa com o número real da Coflow: confira
-a mensagem pronta e não envie.
+Dois cuidados: o link "para o meu Mac" usa a origem do site em que você está (`location.origin`, que o `site.js` passa
+ao `celular.js`): no staging é `https://site-staging.agentesgrok.com/`, no Worker local `http://localhost:8787/`. Só os
+links estáticos do HTML, que valem para quem está sem JavaScript, continuam apontando para a **produção**. E os botões
+do WhatsApp abrem a conversa com o número real da Coflow: confira a mensagem pronta e não envie.
 
 ## 2. Cadastro e teste grátis
 
@@ -137,7 +138,8 @@ ignorado pela produção.
 | "Prefiro pagar com Pix" | conta `teste-vencido` › o link do aviso | Abre o pagamento normal: R$ 97,00, sem cupom, com as formas de pagamento do ambiente (cartão e Pix; se a loja não tiver o Pix Automático liberado, só cartão). |
 | Promoção vencida | conta `promo-vencida` › Plano | Sem aviso; "Assinar por R$ 97/mês" abre o preço cheio. |
 | Prazo acaba com a tela aberta | deixar a tela da promoção aberta até passar o "Vale até" e tocar em Assinar | Não abre o pagamento: "o primeiro mês com desconto não vale mais para esta conta; o Pro sai pelo preço normal. Toque em Assinar de novo para continuar". **Ainda não verificado na tela** (a regra tem teste). |
-| Add-on | qualquer conta › Plano › "Assinar o Finanças" › "Assinar por R$ 997,00/mês" | Pago, volta com "Pagamento confirmado: o Finanças está ativo nesta conta." e o cartão Add-ons mostra "Finanças". O plano da conta não muda. No staging existe também "Módulos do Diego" (seção 7). |
+| Add-on | qualquer conta › Plano › "Assinar o Finanças" › "Assinar por R$ 997,00/mês" | Pago, volta com "Pagamento confirmado: o Finanças está ativo nesta conta. Falta um passo para ele aparecer no app: a liberação na sua máquina. O pedido já está com o suporte. Quando for liberado, ele aparece na página Módulos do app." e o cartão Add-ons mostra "Finanças". O plano da conta não muda. No staging existe também "Módulos do Diego" (seção 7). |
+| Add-on: a mensagem de pós-compra nos três estados | mesma conta › Plano, depois de pagar o add-on | **Pedido aberto** (o admin ainda não atendeu): o painel "Finanças" com a mensagem da linha acima continua na página Plano mesmo recarregando sem o `?assinatura=paga`. **Pedido atendido** (admin › Suporte › "Atender", seção 5): recarregando sem a query o painel some; abrindo `/account/plan?assinatura=paga&produto=meu-bot-finance` ele diz "Pagamento confirmado: o Finanças está ativo nesta conta. O suporte já marcou a liberação na sua máquina como feita: ele deve aparecer na página Módulos do app. Se não aparecer, fale com o suporte.". **Sem pedido** (add-on concedido pelo admin em Editar › Add-ons, sem compra), no mesmo endereço com a query: "Pagamento confirmado: o Finanças está ativo nesta conta. Ele aparece no app depois de liberado na sua máquina; se não aparecer, fale com o suporte.". **Ainda não verificado na tela** (os três textos e a leitura do pedido têm teste). |
 | Já tem assinatura | conta com assinatura do Pro em dia | O painel "Assinar o Pro" não aparece. |
 | Máquina extra | Plano | O painel "Máquinas" **não** aparece: `ABACATEPAY_EXTRAS` está vazio nos dois ambientes. |
 | Aviso ao admin | console do admin › Suporte | Cada primeira cobrança paga abre um pedido "Liberar na máquina" (detalhe "liberar na máquina: Pro" ou o nome do add-on). |
@@ -227,6 +229,7 @@ tem a sua regra.
 - O aviso "o primeiro mês com desconto não vale mais" com a tela aberta (seção 4).
 - Repetir a promoção na mesma conta depois de remover a assinatura e zerar a Auditoria ("Contas de teste").
 - Se o staging tem o `GA_MP_SECRET`, sem o qual o `purchase` não sai (seção 6).
+- A mensagem de pós-compra de add-on nos três estados: pedido aberto, atendido e sem pedido (seção 4).
 - O pedido "Liberar na máquina" fechar sozinho quando a pessoa aplica a licença pelo app (seção 5).
 - `scripts/staging-contas.mjs --listar` e `--aplicar` contra o staging de verdade: quando este arquivo foi escrito, só
   a parte pura tinha teste. Tire este item depois da primeira rodada.

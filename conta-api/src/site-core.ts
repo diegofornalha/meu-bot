@@ -61,8 +61,13 @@ export function llmsPorPagamentos(texto: string, ligados: boolean): string {
  * A página não é divulgada: noindex, fora do sitemap e do llms.txt, e só o console (Plano) a linka.
  */
 export const SO_COM_PROMO: readonly string[] = ["/site/promocao.html"];
-/** O arquivo pedido é da promoção e ela está desligada? Vale para /promocao e para o caminho direto do arquivo. */
-export const paginaDaPromoDesligada = (arquivo: string, promoLigada: boolean): boolean => !promoLigada && SO_COM_PROMO.includes(arquivo);
+/**
+ * O caminho pedido é o de um destes arquivos? Vale para o arquivo e para as formas sem ".html" e com barra final, que
+ * os static assets também resolvem para o mesmo arquivo. É a conta única de `paginaDaPromoDesligada` e `paginaForaDoAr`.
+ */
+const ehUmDosArquivos = (arquivos: readonly string[], caminho: string): boolean => arquivos.some((a) => { const base = a.replace(/\.html$/, ""); return caminho === a || caminho === base || caminho === `${base}/`; });
+/** O caminho pedido é o da página da promoção e ela está desligada? Vale para /promocao e para todas as formas do caminho do arquivo. */
+export const paginaDaPromoDesligada = (caminho: string, promoLigada: boolean): boolean => !promoLigada && ehUmDosArquivos(SO_COM_PROMO, caminho);
 
 /**
  * Arquivos de public/site/ que ficam no repositório mas nenhum ambiente serve (rascunhos); respondem a 404 do site.
@@ -70,8 +75,5 @@ export const paginaDaPromoDesligada = (arquivo: string, promoLigada: boolean): b
  * dois ou em nenhum.
  */
 export const PAGINAS_FORA_DO_AR: readonly string[] = ["/site/suporte.html"];
-/**
- * O caminho pedido é de uma página fora do ar? Vale para o arquivo e para as formas sem ".html" e com barra final,
- * que os static assets também resolvem para o mesmo arquivo.
- */
-export const paginaForaDoAr = (caminho: string): boolean => PAGINAS_FORA_DO_AR.some((a) => { const base = a.replace(/\.html$/, ""); return caminho === a || caminho === base || caminho === `${base}/`; });
+/** O caminho pedido é de uma página fora do ar? Vale para todas as formas do caminho do arquivo (`ehUmDosArquivos`). */
+export const paginaForaDoAr = (caminho: string): boolean => ehUmDosArquivos(PAGINAS_FORA_DO_AR, caminho);

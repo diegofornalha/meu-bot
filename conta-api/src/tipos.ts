@@ -145,6 +145,11 @@ export interface ContaApi {
   maquinaExtras: number;
   /** Pedidos abertos desta conta (Pro, add-on, device). */
   pedidos: number;
+  /**
+   * Add-ons pagos que tiveram pedido "Liberar na máquina": `aberta` enquanto o admin não atendeu (o add-on já vale na
+   * conta, mas ainda não foi gravado na máquina). Add-on sem pedido não entra.
+   */
+  liberacoes: import("./pagamento-core.js").Liberacao[];
   /** As assinaturas pagas da conta (Pro e add-ons), a mais nova primeiro. */
   assinaturas: ContaAssinatura[];
   /** Organizações de que a conta é membro (dona, admin ou membro). */
