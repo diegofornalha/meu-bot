@@ -28,6 +28,7 @@ import { CSP_ADS, CSP_GA, gaIds } from "./analytics-core.js";
 import { caminhoCanonico, llmsPorPagamentos, paginaDaPromoDesligada, redirecionamentoInicial, paginaForaDoAr } from "./site-core.js";
 import { postListaEspera } from "./rotas/lista.js";
 import { postLeadRef, rotaLeads } from "./rotas/leads.js";
+import { deleteDeviceDaConta } from "./rotas/devices.js";
 import { deleteMaquina, deleteMaquinaVista, postMaquina, postMaquinaVista, postRenovarLicenca } from "./rotas/maquinas.js";
 import { marketplaceDoEnv, addonsAVenda, extrasAVenda, pagamentosLigados, deleteAdminAssinatura, postAssinatura, postCancelarAssinatura, postWebhookAbacate, promoLigada } from "./rotas/pagamentos.js";
 import { itemPorSlug } from "./marketplace-core.js";
@@ -128,7 +129,7 @@ async function api(req: Request, env: Env, url: URL, espera: (p: Promise<unknown
   else if (rota.startsWith("GET /leads/") || rota.startsWith("POST /leads/")) return comCabecalhos((await rotaLeads(rota, req, env)) ?? json({ erro: "rota desconhecida" }, 404), {});
   // Webhook da AbacatePay: sem login (prova a origem pelo secret e o corpo pela assinatura) e sem CORS.
   else if (rota === "POST /pagamentos/abacatepay") return comCabecalhos(await postWebhookAbacate(req, env, url, espera), {});
-  else if (rota === "POST /sessao/sair" || rota === "POST /sessao/console" || rota === "GET /conta" || rota === "PATCH /conta" || rota === "DELETE /conta" || rota === "POST /conta/senha" || rota === "POST /conta/assinatura" || rota === "POST /conta/assinatura/cancelar" || /^(POST|DELETE) \/conta\/maquinas(\/|$)/.test(rota) || /^(GET|POST|PATCH|DELETE) \/orgs(\/|$)/.test(rota) || rota.startsWith("GET /admin/") || rota.startsWith("POST /admin/") || rota.startsWith("PATCH /admin/") || rota.startsWith("PUT /admin/") || rota.startsWith("DELETE /admin/")) {
+  else if (rota === "POST /sessao/sair" || rota === "POST /sessao/console" || rota === "GET /conta" || rota === "PATCH /conta" || rota === "DELETE /conta" || rota === "POST /conta/senha" || rota === "POST /conta/assinatura" || rota === "POST /conta/assinatura/cancelar" || /^(POST|DELETE) \/conta\/maquinas(\/|$)/.test(rota) || /^DELETE \/conta\/devices\//.test(rota) || /^(GET|POST|PATCH|DELETE) \/orgs(\/|$)/.test(rota) || rota.startsWith("GET /admin/") || rota.startsWith("POST /admin/") || rota.startsWith("PATCH /admin/") || rota.startsWith("PUT /admin/") || rota.startsWith("DELETE /admin/")) {
     const auth = await autenticar(req, env);
     const atender = /^POST \/admin\/pedidos\/([A-Za-z0-9-]{1,40})\/atender$/.exec(rota);
     const licenca = /^PATCH \/admin\/contas\/([A-Za-z0-9-]{1,40})\/licenca$/.exec(rota);
@@ -143,6 +144,7 @@ async function api(req: Request, env: Env, url: URL, espera: (p: Promise<unknown
     const firebaseAdmin = /^GET \/admin\/contas\/([A-Za-z0-9-]{1,40})\/firebase$/.exec(rota);
     const renovarLicenca = /^POST \/conta\/maquinas\/([a-f0-9-]{36})\/licenca$/.exec(rota);
     const tirarMaquina = /^DELETE \/conta\/maquinas\/([a-f0-9-]{36})$/.exec(rota);
+    const tirarDevice = /^DELETE \/conta\/devices\/([a-f0-9-]{12,36})$/.exec(rota);
     const atribuirMaquina = /^(POST|DELETE) \/admin\/maquinas\/([a-f0-9-]{36})\/conta$/.exec(rota);
     const maquinaVista = /^(POST|DELETE) \/conta\/maquinas\/([a-f0-9-]{36})\/visto$/.exec(rota);
     const perfil = /^(PUT|DELETE) \/admin\/perfis\/([^/]{3,200})$/.exec(rota);
@@ -166,6 +168,7 @@ async function api(req: Request, env: Env, url: URL, espera: (p: Promise<unknown
     else if (rota === "POST /conta/maquinas") res = await postMaquina(auth, env, req);
     else if (renovarLicenca !== null) res = await postRenovarLicenca(auth, env, renovarLicenca[1]!);
     else if (tirarMaquina !== null) res = await deleteMaquina(auth, env, tirarMaquina[1]!, req);
+    else if (tirarDevice !== null) res = await deleteDeviceDaConta(auth, env, tirarDevice[1]!);
     else if (maquinaVista !== null) res = maquinaVista[1] === "POST" ? await postMaquinaVista(auth, env, maquinaVista[2]!, req) : await deleteMaquinaVista(auth, env, maquinaVista[2]!);
     else if (rota === "POST /sessao/sair") res = await postSair(auth, env);
     else if (rota === "POST /sessao/console") res = await postSessaoConsole(auth, env, req);

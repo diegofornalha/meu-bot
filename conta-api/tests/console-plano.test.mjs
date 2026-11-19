@@ -1,7 +1,7 @@
 // Painel "Assinar o Pro" do console (public/console/plano-core.js): quando some e quando avisa do prazo atual.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addonsNaVisaoGeral, assinaturasDoItem, estadoDoItem, itemGa, assinaturasAtivasDe, oQueAContaTem, pagoChegou, deParaDoExtra, avisoAddonPago, contagemRegressiva, diasAteOFim, cupomDigitado, estadoAssinaturaPro, fase, linhasDeMaquinas, ofertaDoProAparece, pedidoAssinar, promoNaTela, reaisCurto, semPrazo, podeAdicionarMaquina, vagaDoAssinar, vagasDeDevice, vagasDeMaquina } from "../public/console/plano-core.js";
+import { addonsNaVisaoGeral, assinaturasDoItem, estadoDoItem, itemGa, resumoDeUso, semDevices, assinaturasAtivasDe, oQueAContaTem, pagoChegou, deParaDoExtra, avisoAddonPago, contagemRegressiva, diasAteOFim, cupomDigitado, estadoAssinaturaPro, fase, linhasDeMaquinas, ofertaDoProAparece, pedidoAssinar, promoNaTela, reaisCurto, semPrazo, podeAdicionarMaquina, vagaDoAssinar, vagasDeDevice, vagasDeMaquina } from "../public/console/plano-core.js";
 
 const pro = { plan: "pro", status: "active" };
 const ativa = { status: "ACTIVE", produto: null };
@@ -322,4 +322,25 @@ test("Marketplace: o item do Analytics tem o mesmo item_id que o servidor manda 
   assert.ok(fonte, "site.js define mkItem");
   const mkItem = new Function(`return ${fonte[1]}`)();
   for (const [id, produto] of [["pro", null], ["meu-bot-finance", "meu-bot-finance"]]) assert.equal(mkItem({ dataset: { item: id } }).item_id, itemIdGa(produto), `site: ${id}`);
+});
+
+test("Devices: o aviso da lista vazia diz o app do ambiente; a Visão geral resume onde a conta é usada", async () => {
+  assert.match(semDevices("staging"), /meu-bot-staging/); assert.match(semDevices("staging"), /produção/);
+  assert.doesNotMatch(semDevices("producao"), /staging/); assert.match(semDevices("producao"), /app meu-bot/);
+  assert.equal(resumoDeUso([], []), null);
+  assert.equal(resumoDeUso([{ id: "a1b2c3d4e5f6", name: "cursor", status: "active" }, { id: "b1b2c3d4e5f6", name: "", status: "pending" }], [{ nome: "meu-box-2" }]), "Macs com o app: cursor, b1b2c3d4 (pendente). Máquinas do agente: meu-box-2.");
+  assert.equal(resumoDeUso([], [{ nome: "meu-box-2" }]), "Nenhum Mac com o app. Máquinas do agente: meu-box-2.");
+  const { readFile } = await import("node:fs/promises");
+  const html = await readFile(new URL("../public/console/index.html", import.meta.url), "utf8");
+  for (const id of ["dv-grade", "dv-aviso", "dv-maquinas-grade", "dv-maquinas", "ov-uso"]) assert.equal(html.split(`id="${id}"`).length, 2, id);
+  const js = await readFile(new URL("../public/console/console.js", import.meta.url), "utf8");
+  assert.match(js, /api\("DELETE", `\/conta\/devices\//, "o console chama a rota de remover o Mac");
+});
+
+test("os scripts do console e do site passam na checagem de sintaxe do Node", async () => {
+  const { execFileSync } = await import("node:child_process");
+  const { fileURLToPath } = await import("node:url");
+  for (const f of ["../public/console/console.js", "../public/console/plano-core.js", "../public/site/site.js", "../public/site/celular.js", "../public/analytics.js"]) {
+    assert.doesNotThrow(() => execFileSync(process.execPath, ["--check", fileURLToPath(new URL(f, import.meta.url))], { stdio: "pipe" }), f);
+  }
 });

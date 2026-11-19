@@ -119,6 +119,26 @@ export function vagasDeDevice(limite, extras) {
 }
 
 /**
+ * O aviso da lista de Macs vazia: como um Mac entra na conta e que cada ambiente tem a sua lista. O console de staging
+ * só conhece quem entrou pelo app de teste; o de produção, quem entrou pelo app meu-bot.
+ */
+export function semDevices(canal) {
+  return canal === "staging"
+    ? "Nenhum Mac ainda neste ambiente de teste. Um Mac aparece aqui quando você entra com esta conta no app meu-bot-staging. Quem entrou só pelo app meu-bot (produção) aparece no console de produção, não aqui."
+    : "Nenhum Mac ainda. Um Mac aparece aqui quando você entra com esta conta no app meu-bot desse Mac. Se o app está aberto e nada aparece, saia da conta no app e entre de novo.";
+}
+/**
+ * "Macs: cursor, notebook. Máquinas: meu-box-2." para a Visão geral; null quando a conta não é usada em lugar nenhum.
+ * `linhas` são as de `linhasDeMaquinas`; Mac pendente entra com "(pendente)".
+ */
+export function resumoDeUso(devices, linhas) {
+  const macs = (Array.isArray(devices) ? devices : []).map((d) => `${d.name || String(d.id).slice(0, 8)}${d.status === "pending" ? " (pendente)" : ""}`);
+  const maqs = (Array.isArray(linhas) ? linhas : []).map((l) => l.nome);
+  if (macs.length === 0 && maqs.length === 0) return null;
+  return [macs.length > 0 ? `Macs com o app: ${macs.join(", ")}.` : "Nenhum Mac com o app.", maqs.length > 0 ? `Máquinas do agente: ${maqs.join(", ")}.` : "Nenhuma máquina do agente."].join(" ");
+}
+
+/**
  * As linhas da lista "Máquinas que você usa" (Devices): primeiro as que usam a licença da conta (`maquinas`), depois as
  * que a pessoa abre pelo app e rodam com a licença do admin (`maquinasVistas`). Só as primeiras ocupam vaga; `ocupadas`
  * é a conta de vagas, igual à do servidor (tirada segura a vaga até a última emissão vencer).

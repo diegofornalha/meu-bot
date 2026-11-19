@@ -1,5 +1,5 @@
 import { avisoDepoisDo404, pedeReleitura, visaoVelha } from "./admin-core.js";
-import { INFINITO, SEM_LIMITE, SEM_PRAZO, TODOS_ADDONS, avisoAddonPago, contagemRegressiva, addonsNaVisaoGeral, cupomDigitado, estadoAssinaturaPro, fase, linhasDeMaquinas, deParaDoExtra, assinaturasDoItem, estadoDoItem, itemGa, ofertaDoProAparece, oQueAContaTem, pagoChegou, assinaturasAtivasDe, pedidoAssinar, podeAdicionarMaquina, promoNaTela, reaisCurto, semPrazo, vagaDoAssinar, vagasDeDevice, vagasDeMaquina } from "./plano-core.js";
+import { INFINITO, SEM_LIMITE, SEM_PRAZO, TODOS_ADDONS, avisoAddonPago, contagemRegressiva, cupomDigitado, addonsNaVisaoGeral, estadoAssinaturaPro, fase, linhasDeMaquinas, deParaDoExtra, assinaturasDoItem, estadoDoItem, itemGa, ofertaDoProAparece, resumoDeUso, semDevices, oQueAContaTem, pagoChegou, assinaturasAtivasDe, pedidoAssinar, podeAdicionarMaquina, promoNaTela, reaisCurto, semPrazo, vagaDoAssinar, vagasDeDevice, vagasDeMaquina } from "./plano-core.js";
 // Console da conta meu-bot (console.agentesgrok.com/account/* e /organizations/<slug>/members|settings, molde Rambox). Entra pela mesma página de
 // login do app (auth.agentesgrok.com) com esquema=web: o console gera state + PKCE, a página devolve #code&state, e
 // POST /token {grant:"web"} vira um token de acesso de 1 h guardado neste navegador (localStorage: outra aba, inclusive
@@ -167,6 +167,7 @@ async function orgCarregar(slug) {
 function mostrarErro(texto) { $("erro").hidden = texto === null; $("erro").textContent = texto ?? ""; }
 function mostrarEntrada(erro) {
   $("console").hidden = true; $("entrada").hidden = false;
+  if (secaoAtual() === "marketplace") $("entrada-texto").textContent = "Entre com a sua conta meu-bot para contratar. Depois do login você volta para esta mesma página.";
   ultimoCaminhoMedido = null; ga.pagina(caminhoAnonimo(location.pathname), { secao: "entrada" });
   $("entrada-erro").hidden = erro === null; $("entrada-erro").textContent = erro ?? "";
 }
@@ -892,6 +893,10 @@ function pintarOverview(c) {
     painel.append(el("h2", "", "Some mais à sua conta"), el("p", "", `Disponível para você: ${faltam.map((x) => FICHAS[x.nome]?.nome ?? x.rotulo).join(", ")}.`), p);
     $("ov-addons").append(painel);
   }
+  // Onde a conta é usada, pelos nomes: os Macs com o app e as máquinas do agente, com o caminho para organizar.
+  const uso = resumoDeUso(c.devices, linhasDeMaquinas(c.maquinas, c.maquinasVistas).linhas);
+  $("ov-uso").hidden = uso === null;
+  if (uso !== null) { const a = el("a", "", "Ver e organizar"); a.href = "/account/devices"; const p = el("p"); p.append(a); $("ov-uso").replaceChildren(el("h2", "", "Onde a sua conta é usada"), el("p", "", uso), p); }
   const l = c.licenca, ativos = c.devices.filter((d) => d.status !== "pending").length, pendentes = c.devices.length - ativos;
   $("ov-cartoes").replaceChildren(
     cartao("⬢", "Plano", selo(PLANO[l.plan] ?? l.plan, l.plan === "pro" ? "ok" : "")),
@@ -982,23 +987,46 @@ function pintarDevices(c) {
   $("dv-resumo").textContent = `${c.devices.length} device${c.devices.length === 1 ? "" : "s"} · ${ativos} ativo${ativos === 1 ? "" : "s"}${semPrazo(l) ? `, sem limite (${INFINITO})` : ` de ${l.deviceLimit} do plano${vagasDv.detalhe === "" ? "" : ` (${vagasDv.detalhe})`}`}.`;
   // Mac esperando vaga e o device extra à venda: o caminho para liberá-lo fica ao lado da conta.
   if (pendentes > 0 && EXTRA_DEVICE !== null && cfg.pagamentos === "1" && podeAdicionarMaquina(l)) { const a = el("a", "", `Adicionar um Mac por ${reais(EXTRA_DEVICE.centavos)}/mês`); a.href = "/account/marketplace"; $("dv-resumo").append(document.createTextNode(` ${pendentes === 1 ? "O Mac pendente entra" : "Os Macs pendentes entram"} quando houver vaga. `), a); }
-  const tb = $("dv-tabela").querySelector("tbody"); tb.replaceChildren();
-  if (c.devices.length === 0) { const tr = el("tr"); const td = el("td", "", "Nenhum device ainda: entre com a conta no app meu-bot de um Mac."); td.colSpan = 5; tr.append(td); tb.append(tr); }
-  for (const d of c.devices) {
-    const tr = el("tr");
-    const apps = Object.entries(d.apps ?? {}).map(([a, v]) => `${a} ${v.version}`).join(", ") || "-";
-    tr.append(el("td", "", `${d.name || d.id.slice(0, 8)}${d.platform ? ` · ${d.platform}` : ""}`), el("td", "", d.user || "-"), el("td", "", apps));
-    const st = el("td"); st.append(selo(d.status === "pending" ? "Pendente" : "Ativo", d.status === "pending" ? "mau" : "ok")); tr.append(st);
-    tr.append(el("td", "", dataHora(d.lastSeen)));
-    tb.append(tr);
-  }
+  // Um cartão por Mac, no desenho do Marketplace: a letra, o selo, o nome, quem usa, os apps e quando foi visto.
+  $("dv-grade").replaceChildren(...c.devices.map((d) => {
+    const nome = d.name || d.id.slice(0, 8), cartaoDv = el("div", "mk-cartao"), topo = el("div", "mk-topo");
+    topo.append(el("div", "mk-avatar", nome.slice(0, 1).toUpperCase()), selo(d.status === "pending" ? "Pendente" : "Ativo", d.status === "pending" ? "mau" : "ok"));
+    const apps = Object.entries(d.apps ?? {}).map(([a, v]) => `${a} ${v.version}`).join(", ") || "sem app registrado";
+    const b = el("button", "btn btn-ghost btn-small", "Remover este Mac"); b.type = "button"; b.addEventListener("click", () => { void removerMeuMac(d, b); });
+    cartaoDv.append(topo, el("h3", "", nome), el("p", "mk-tipo", [d.platform === "darwin" ? "Mac" : d.platform, d.user].filter(Boolean).join(" · ") || "Mac"), el("p", "mk-resumo", apps), el("p", "mk-preco", `Visto em ${dataHora(d.lastSeen)}`), b);
+    return cartaoDv;
+  }));
+  // Lista vazia: diz como um Mac entra aqui e que cada ambiente tem a sua lista (o Mac do app de teste não aparece na produção, e vice-versa).
+  $("dv-aviso").textContent = c.devices.length > 0 ? "" : semDevices(cfg.canal);
   pintarMaquinas(c);
+}
+/**
+ * "Remover este Mac": dois cliques (o segundo confirma, em até 5 s). Tira o Mac da conta e abre a vaga na hora; a
+ * sessão dele cai, então o app daquele Mac pede o login de novo. Se havia um Mac esperando vaga, ele entra.
+ */
+async function removerMeuMac(d, botao) {
+  const nome = d.name || d.id.slice(0, 8);
+  if (botao.dataset.confirma !== "1") {
+    botao.dataset.confirma = "1"; botao.textContent = "Confirmar";
+    $("dv-aviso").textContent = `Remover "${nome}": a vaga abre na hora e o app desse Mac vai pedir o login de novo.`;
+    setTimeout(() => { if (botao.isConnected && !botao.disabled) { delete botao.dataset.confirma; botao.textContent = "Remover este Mac"; } }, 5000);
+    return;
+  }
+  const s = sessaoGuardada(); if (s === null) { void entrar(); return; }
+  botao.disabled = true;
+  let r;
+  try { r = await api("DELETE", `/conta/devices/${encodeURIComponent(d.id)}`, undefined, s.acesso); }
+  catch { r = { status: 0, corpo: { erro: "sem conexão; tente de novo" } }; }
+  if (r.status !== 200) { botao.disabled = false; delete botao.dataset.confirma; botao.textContent = "Remover este Mac"; $("dv-aviso").textContent = `Não removeu: ${erroDe(r)}.`; return; }
+  ga.evento("device_removido", {});
+  const c2 = await lerConta().catch(() => null);
+  if (c2) pintarDevices(c2);
+  $("dv-aviso").textContent = `"${nome}" saiu da conta.${r.corpo && r.corpo.promovidos > 0 ? " O Mac que esperava vaga entrou." : ""}`;
 }
 /** A máquina ainda ocupa uma vaga: vinculada, ou tirada por aqui com a última licença ainda valendo lá. */
 const ocupaVaga = (m) => !m.desvinculadaEm || (m.proAte && Date.parse(m.proAte) > Date.now());
 /** As máquinas (VMs) que usam a licença da conta, com até quando ela vale lá e o botão de tirar. */
 function pintarMaquinas(c) {
-  const tb = $("dv-maquinas-tabela").querySelector("tbody"); tb.replaceChildren();
   const maquinas = c.maquinas ?? [], limite = c.maquinaLimite ?? 1;
   const { linhas, ocupadas, semVaga } = linhasDeMaquinas(maquinas, c.maquinasVistas);
   const vagas = vagasDeMaquina(limite, c.maquinaExtras);
@@ -1006,15 +1034,15 @@ function pintarMaquinas(c) {
   if (semVaga > 0 && !semPrazo(c.licenca)) $("dv-maquinas").append(document.createTextNode(" Máquina com licença do admin não ocupa vaga."));
   // No limite e com a máquina extra à venda: o caminho para ter mais uma fica ao lado da conta.
   if (ocupadas >= limite && EXTRA_MAQUINA !== null && cfg.pagamentos === "1" && podeAdicionarMaquina(c.licenca)) { const a = el("a", "", `Adicionar uma máquina por ${reais(EXTRA_MAQUINA.centavos)}/mês`); a.href = "/account/marketplace"; $("dv-maquinas").append(document.createTextNode(" "), a); }
-  if (linhas.length === 0) { const tr = el("tr"); const td = el("td", "", "Nenhuma máquina em uso ainda. Abra a janela de uma máquina no app, com a conta logada, e ela aparece aqui."); td.colSpan = 4; tr.append(td); tb.append(tr); return; }
+  const grade = $("dv-maquinas-grade"); grade.replaceChildren();
+  if (linhas.length === 0) { grade.append(el("p", "sub", "Nenhuma máquina em uso ainda. Abra a janela de uma máquina no app, com a conta logada, e ela aparece aqui.")); return; }
   for (const l of linhas) {
-    const tr = el("tr");
-    const st = el("td"); st.append(selo(l.selo, l.tom));
-    const acao = el("td");
-    if (l.acao === "tirar-licenca") { const m = maquinas.find((x) => x.id === l.id); const b = el("button", "btn btn-ghost", "Tirar a licença"); b.type = "button"; b.addEventListener("click", () => { void tirarMaquina(m, b); }); acao.append(b); }
-    else if (l.acao === "tirar-da-lista") { const b = el("button", "btn btn-ghost", "Tirar da lista"); b.type = "button"; b.title = "Só tira daqui; a máquina e a licença dela não mudam. Ela volta se você a abrir de novo pelo app."; b.addEventListener("click", () => { void esquecerMaquina(l.id, b); }); acao.append(b); }
-    tr.append(el("td", "", l.nome), st, el("td", "", l.valeAte ? data(l.valeAte) : "-"), acao);
-    tb.append(tr);
+    const cartaoMq = el("div", "mk-cartao"), topo = el("div", "mk-topo");
+    topo.append(el("div", "mk-avatar", l.nome.replace(/^máquina /, "").slice(0, 1).toUpperCase()), selo(l.selo, l.tom));
+    cartaoMq.append(topo, el("h3", "", l.nome), el("p", "mk-tipo", "Máquina do agente"), el("p", "mk-preco", l.valeAte ? `Vale até ${data(l.valeAte)}` : "Sem prazo marcado"));
+    if (l.acao === "tirar-licenca") { const m = maquinas.find((x) => x.id === l.id); const b = el("button", "btn btn-ghost btn-small", "Tirar a licença"); b.type = "button"; b.addEventListener("click", () => { void tirarMaquina(m, b); }); cartaoMq.append(b); }
+    else if (l.acao === "tirar-da-lista") { const b = el("button", "btn btn-ghost btn-small", "Tirar da lista"); b.type = "button"; b.title = "Só tira daqui; a máquina e a licença dela não mudam. Ela volta se você a abrir de novo pelo app."; b.addEventListener("click", () => { void esquecerMaquina(l.id, b); }); cartaoMq.append(b); }
+    grade.append(cartaoMq);
   }
 }
 /** "Tirar da lista" uma máquina que só aparece porque o app a viu (licença do admin): não mexe na máquina nem em vaga. */
