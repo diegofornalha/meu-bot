@@ -20,6 +20,7 @@ import { json, lerJson, type Autenticado } from "../http.js";
 import { gaIds } from "../analytics-core.js";
 import { assinaturaIdValido, clientIdDeReserva, clientIdValido, compraGa4, decidir, detalheLiberar, lerAddons, lerEvento, lerExtras, lerPromo, metodosSemPix, pedidoDoCheckout, precoDaCobranca, refValida, resultadoCancelamento, sessionIdValido, validoAte, webhookConfere, tipoDoExtra, type Decisao, type OfertaAddon, type OfertaExtra, type Promo } from "../pagamento-core.js";
 import { MAQUINA_LIMITE_MAX } from "../licenca-core.js";
+import { itensDoMarketplace, type ItemMarketplace } from "../marketplace-core.js";
 
 const API = "https://api.abacatepay.com/v2";
 export const pagamentosLigados = (env: Env): boolean => Boolean(env.ABACATEPAY_KEY && env.ABACATEPAY_WEBHOOK_SECRET && env.ABACATEPAY_PRODUTO);
@@ -30,6 +31,8 @@ export const catalogoAddons = (env: Env): string[] => lerAddons(env.ABACATEPAY_A
 export const addonsAVenda = (env: Env): OfertaAddon[] => (pagamentosLigados(env) ? lerAddons(env.ABACATEPAY_ADDONS) : []);
 /** As unidades extras à venda neste ambiente (máquina extra); vazio com os pagamentos desligados ou sem ABACATEPAY_EXTRAS. */
 export const extrasAVenda = (env: Env): OfertaExtra[] => (pagamentosLigados(env) ? lerExtras(env.ABACATEPAY_EXTRAS) : []);
+/** O Marketplace deste ambiente (marketplace-core.ts): o Pro e o que mais está à venda; vazio com os pagamentos desligados. */
+export const marketplaceDoEnv = (env: Env): ItemMarketplace[] => itensDoMarketplace({ precoPro: pagamentosLigados(env) ? preco(env) : null, addons: addonsAVenda(env), extras: extrasAVenda(env) });
 /** A promoção do primeiro mês do Pro neste ambiente; null sem cupom (PROMO_CUPOM vazio) ou com os pagamentos desligados. */
 export const promoLigada = (env: Env): Promo | null => (pagamentosLigados(env) ? lerPromo(env.PROMO_CUPOM, env.PROMO_PRECO_CENTAVOS, env.PROMO_DIAS, preco(env)) : null);
 const metodos = (env: Env): string[] => { const m = (env.ABACATEPAY_METODOS ?? "CARD").split(",").map((x) => x.trim().toUpperCase()).filter((x) => x === "CARD" || x === "PIX"); return m.length > 0 ? m : ["CARD"]; };
