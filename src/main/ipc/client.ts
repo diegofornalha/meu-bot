@@ -11,7 +11,7 @@ import type { CrmPipelineExtras, AudioSetup, ClaudeLoginEvent, LicenseView, Clau
 import { conversationToMarkdown, conversationTitle, slugify } from "../conversa/export";
 import { atualizarContaClaude, conferirContaClaude, criarContaClaude, deleteBackendSession, fetchAccountStatus, fetchAlertPrefs, fetchBackendSession, fetchContasClaude, limiaresContasClaude, log, reapresentarMachine, removerContaClaude, reordenarContasClaude, runBackendTurn, saveAlertPrefs, usarAgoraContaClaude } from "../maquina/backend";
 import { lerLicenca, lerLicencaDaMaquina } from "../licenca/licenca-maquina";
-import { avisoDaRenovacao, renovarSePreciso, tirarProDaConta, usarProDaConta } from "../licenca/licenca-conta";
+import { avisarMaquinaVista, avisoDaRenovacao, renovarSePreciso, tirarProDaConta, usarProDaConta } from "../licenca/licenca-conta";
 import { assertAcesso, assertFinance } from "../licenca/acesso";
 import { telaAcordar, telaStatus, telaUrl } from "../maquina/tela";
 import { abrirInspector } from "../inspector/inspector";
@@ -362,7 +362,7 @@ export function registerClientIpc(): void {
   // Inspector: só no produto que tem a capacidade (meu-bot-inspector-staging); nos outros o canal recusa.
   handleClient("inspector:abrir", exigeCap("controleRemoto", async () => { if (!caps().inspector) throw new Error("o Inspector só existe no meu-bot-inspector-staging"); return abrirInspector(); }));
   // A própria pessoa leva a licença da conta dela (Pro e add-ons pagos) à máquina desta janela, e tira.
-  const relerLicenca = (host: string) => async (): Promise<LicenseView | null> => { const lic = await lerLicencaDaMaquina(host); void browserSincronizarCrm(host, lic); return lic.view; };
+  const relerLicenca = (host: string) => async (): Promise<LicenseView | null> => { const lic = await lerLicencaDaMaquina(host); void browserSincronizarCrm(host, lic); void avisarMaquinaVista(host, lic.view?.origem); return lic.view; };
   handleClient("plano:usar-da-conta", async (event) => { const h = ctxOf(event); const r = await usarProDaConta(h.host, relerLicenca(h.host)); void registrar(h.host, "plano.conta", "usou a licença da conta nesta máquina", r.ok ? "ok" : r.erro); return r; });
   // Aviso de device no chat, "Já adicionei: conferir": reemite a licença da conta nesta máquina (o limite novo) e
   // apresenta este Mac de novo; o backend diz se ele entrou.
@@ -774,6 +774,8 @@ export function registerClientIpc(): void {
     void browserSincronizarCrm(h.host, lic); // a extensão do CRM acompanha a licença relida (admin liberou o Pro com o app aberto)
     // A licença da conta nesta máquina vale 30 dias: renova em segundo plano; se o arquivo mudou, a janela relê.
     void renovarSePreciso(h.host).then((mudou) => { if (mudou && !h.win.isDestroyed()) h.win.webContents.send("license:changed", {}); });
+    // A conta fica sabendo que a pessoa usa esta máquina (o console a lista, mesmo com a licença do admin).
+    void avisarMaquinaVista(h.host, lic.view?.origem);
     // A conta recusou renovar a licença daqui (máquina fora do limite): a tela da conta mostra o motivo.
     const aviso = avisoDaRenovacao(h.host);
     return lic.view === null || aviso === null ? lic.view : { ...lic.view, avisoRenovacao: aviso };

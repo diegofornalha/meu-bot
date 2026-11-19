@@ -118,6 +118,8 @@ export interface DeviceApi {
 }
 /** Uma máquina da conta. `desvinculadaEm` preenchido = a pessoa tirou a licença pelo console e a vaga abre em `proAte`. */
 export interface MaquinaApi { id: string; apelido: string | null; vinculadaPor: string; proAte: string | null; desvinculadaEm: string | null }
+/** Máquina que a pessoa usa pelo app com a licença que o admin gravou nela: aparece no console, sem ocupar vaga. */
+export interface MaquinaVistaApi { id: string; apelido: string | null; origem: "admin" | "conta"; vistaEm: string }
 /** O que `GET /conta` e `POST /token` devolvem: a conta como o app a mostra. */
 /** Uma assinatura paga da conta, como o console › Plano a mostra: `produto` null é o Pro; "extra-maquina" é uma máquina extra (uma por assinatura). */
 export interface ContaAssinatura { id: string; produto: string | null; status: "ACTIVE" | "CANCELLED"; valorCentavos: number | null; valeAte: string | null }
@@ -141,6 +143,8 @@ export interface ContaApi {
   devices: DeviceApi[];
   /** As máquinas (VMs por SSH) que usam a licença desta conta; `proAte` é até quando a última emissão vale lá. */
   maquinas: MaquinaApi[];
+  /** As máquinas em uso que não estão em `maquinas` (licença do admin), vistas pelo app nos últimos 30 dias. */
+  maquinasVistas: MaquinaVistaApi[];
   /** Em quantas máquinas a conta pode usar a licença ao mesmo tempo: o que o admin gravou (licencas.maquina_limit) mais as máquinas extras pagas em dia. */
   maquinaLimite: number;
   /** Quantas das vagas de `maquinaLimite` vêm de máquina extra paga (extras_pagos em dia); o resto é o que o plano inclui. */

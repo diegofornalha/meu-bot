@@ -6,10 +6,13 @@
  *   vinculadas passam do limite em vigor (uma máquina extra venceu), só as mais antigas renovam: 409 com `semExtra`;
  * - `DELETE /conta/maquinas/:id {apagada}`: tira a licença. `apagada: true` (o app já apagou o arquivo da máquina)
  *   abre a vaga na hora, até TROCAS_NA_HORA vezes em 30 dias; senão a vaga abre quando a última emissão vencer.
+ * - `POST /conta/maquinas/:id/visto {apelido, origem}`: o app avisa que a pessoa usa esta máquina e de onde vem o plano
+ *   em vigor nela ("admin" ou "conta"). É só para o console listar as máquinas em uso: não emite, não ocupa vaga e não
+ *   depende da chave de assinatura. `DELETE /conta/maquinas/:id/visto` tira a máquina dessa lista.
  * `id` é o uuid do `maquina.json` da máquina. Liga só com o secret LICENCA_PRIVATE_KEY; sem ele as rotas respondem 503.
  */
 import type { Env, MaquinaLinha } from "../tipos.js";
-import { auditar, contarLimite, desvincularMaquina, devicesDaConta, fecharPedidosDeLiberar, licencaDaConta, limiteDeMaquinas, maquinaApi, maquinaPorId, maquinasDaConta, papelAdmin, trocasDeMaquina, vincularMaquina } from "../db.js";
+import { auditar, contarLimite, desvincularMaquina, esquecerMaquinaVista, marcarMaquinaVista, devicesDaConta, fecharPedidosDeLiberar, licencaDaConta, limiteDeMaquinas, maquinaApi, maquinaPorId, maquinasDaConta, papelAdmin, trocasDeMaquina, vincularMaquina } from "../db.js";
 import { UUID_RE, agoraIso, janelaMinuto } from "../sessao-core.js";
 import { json, lerJson, type Autenticado } from "../http.js";
 import { catalogoAddons, extrasAVenda } from "./pagamentos.js";
@@ -101,4 +104,21 @@ export async function deleteMaquina(auth: Autenticado, env: Env, id: string, req
   if (!(await desvincularMaquina(env.DB, auth.conta.id, id, naHora, agora)) && !naHora) return json({ ok: true, naHora: false, maquinas: (await maquinasDaConta(env.DB, auth.conta.id)).map(maquinaApi) });
   await auditar(env.DB, auth.conta.email, "maquina.desvinculada", auth.conta.id, `${naHora ? "na hora" : "a vaga abre quando a emissão vencer"} · ${id}`, agora);
   return json({ ok: true, naHora, maquinas: (await maquinasDaConta(env.DB, auth.conta.id)).map(maquinaApi) });
+}
+
+/** Avisos de "máquina em uso" por conta por minuto: o app manda um por máquina a cada poucas horas. */
+const VISTOS_POR_MIN = 30;
+export async function postMaquinaVista(auth: Autenticado, env: Env, id: string, req: Request): Promise<Response> {
+  if (!UUID_RE.test(id)) return json({ erro: "id da máquina fora do formato" }, 400);
+  if (await contarLimite(env.DB, `maquina-vista:${auth.conta.id}`, janelaMinuto()) > VISTOS_POR_MIN) return json({ erro: "muitas tentativas; espere um minuto" }, 429);
+  const corpo = (await lerJson(req)) as Record<string, unknown> | null;
+  const origem = corpo?.origem;
+  if (origem !== "admin" && origem !== "conta") return json({ erro: "origem: admin ou conta" }, 400);
+  await marcarMaquinaVista(env.DB, auth.conta.id, id, validaApelido(corpo?.apelido), origem);
+  return json({ ok: true });
+}
+export async function deleteMaquinaVista(auth: Autenticado, env: Env, id: string): Promise<Response> {
+  if (!UUID_RE.test(id)) return json({ erro: "id da máquina fora do formato" }, 400);
+  if (!(await esquecerMaquinaVista(env.DB, auth.conta.id, id))) return json({ erro: "esta máquina não está na sua lista" }, 404);
+  return json({ ok: true });
 }

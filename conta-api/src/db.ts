@@ -1,9 +1,9 @@
 /** Acesso ao D1: consultas tipadas, uma função por intenção. O que sai do banco é dado; quem decide é a rota. */
-import type { AdminAssinatura, AdminAuditoria, AdminContaResumo, AdminVendaOculta, TipoVenda, AdminListaEspera, ContaAssinatura, AdminOrg, MaquinaApi, AdminPagamento, AdminVendas, AdminPedido, AdminPerfil, AdminVisao, CodigoLinha, ContaApi, ContaLinha, DeviceApi, DeviceLinha, License, LicencaLinha, MaquinaLinha, MembroApi, MembroLinha, OrgApi, OrgLinha, OrgResumo, PapelOrg, PerfilApi, PromoApi, SessaoLinha } from "./tipos.js";
+import type { AdminAssinatura, AdminAuditoria, AdminContaResumo, AdminVendaOculta, TipoVenda, AdminListaEspera, ContaAssinatura, AdminOrg, MaquinaApi, MaquinaVistaApi, AdminPagamento, AdminVendas, AdminPedido, AdminPerfil, AdminVisao, CodigoLinha, ContaApi, ContaLinha, DeviceApi, DeviceLinha, License, LicencaLinha, MaquinaLinha, MembroApi, MembroLinha, OrgApi, OrgLinha, OrgResumo, PapelOrg, PerfilApi, PromoApi, SessaoLinha } from "./tipos.js";
 import { DEVICE_LIMITE_MAX, agoraIso, ehAdminInicial, nomeExibicao, parseProvedores, provedoresDoLogin, unirProvedores, uuid, type MetodoLogin, type PatchLicenca, type PatchOrg, type PatchPerfil } from "./sessao-core.js";
 import type { UsuarioFirebase } from "./firebase.js";
 import { direitoPromo, liberacoesPorAddon, licencaDoSuper, licencaEmVigor, tipoDoExtra, umaPorContaEProduto, type Liberacao, type Papel, type Promo } from "./pagamento-core.js";
-import { DEVICES_INCLUSOS, limiteComExtras, valeAte } from "./licenca-core.js";
+import { DEVICES_INCLUSOS, LICENCA_VALIDADE_MS, limiteComExtras, valeAte } from "./licenca-core.js";
 
 export async function contaPorUid(db: D1Database, uid: string): Promise<ContaLinha | null> {
   return (await db.prepare("SELECT * FROM contas WHERE firebase_uid = ?1 AND apagada_em IS NULL").bind(uid).first<ContaLinha>()) ?? null;
@@ -104,7 +104,7 @@ export async function marcarVendaOculta(db: D1Database, tipo: TipoVenda, id: str
   return r === null ? null : { contaId: r.conta_id };
 }
 /** Tabelas com linhas de uma conta, fora assinaturas e pagamentos, na ordem em que saem antes da linha de `contas`. */
-const TABELAS_DA_CONTA = ["sessoes", "codigos_login", "pagamento_checkouts", "addons_pagos", "extras_pagos", "pedidos", "devices", "maquinas", "membros", "licencas"] as const;
+const TABELAS_DA_CONTA = ["sessoes", "codigos_login", "pagamento_checkouts", "addons_pagos", "extras_pagos", "pedidos", "devices", "maquinas", "maquinas_vistas", "membros", "licencas"] as const;
 /** As assinaturas que a tela Auditoria mostra como ocultas: o que `zerarAuditoria` tem de cancelar antes de apagar. */
 export async function assinaturasOcultas(db: D1Database): Promise<{ id: string; status: string }[]> {
   return (await db.prepare("SELECT id, status FROM assinaturas WHERE oculta_em IS NOT NULL").all<{ id: string; status: string }>()).results;
@@ -280,6 +280,21 @@ export const maquinaApi = (m: MaquinaLinha): MaquinaApi => ({ id: m.id, apelido:
 export async function maquinaPorId(db: D1Database, id: string): Promise<MaquinaLinha | null> {
   return (await db.prepare("SELECT * FROM maquinas WHERE id = ?1").bind(id).first<MaquinaLinha>()) ?? null;
 }
+/** O app avisou que a pessoa usa esta máquina (`origem`: de onde vem o plano em vigor nela). Só exibição: não mexe em vaga. */
+export async function marcarMaquinaVista(db: D1Database, contaId: string, id: string, apelido: string | null, origem: "admin" | "conta", agora = agoraIso()): Promise<void> {
+  await db.batch([
+    db.prepare("INSERT INTO maquinas_vistas (conta_id, id, apelido, origem, vista_em) VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT(conta_id, id) DO UPDATE SET apelido = COALESCE(excluded.apelido, maquinas_vistas.apelido), origem = excluded.origem, vista_em = excluded.vista_em").bind(contaId, id, apelido, origem, agora),
+    db.prepare("UPDATE maquinas SET ultimo_hello_em = ?3 WHERE id = ?1 AND conta_id = ?2").bind(id, contaId, agora),
+  ]);
+}
+export async function esquecerMaquinaVista(db: D1Database, contaId: string, id: string): Promise<boolean> {
+  return ((await db.prepare("DELETE FROM maquinas_vistas WHERE conta_id = ?1 AND id = ?2").bind(contaId, id).run()).meta.changes ?? 0) > 0;
+}
+/** As máquinas vistas desde `desde` que não estão em `maquinas` desta conta (essas já saem em `maquinasDaConta`). */
+export async function maquinasVistasDaConta(db: D1Database, contaId: string, desde: string): Promise<MaquinaVistaApi[]> {
+  const r = await db.prepare("SELECT v.id, v.apelido, v.origem, v.vista_em FROM maquinas_vistas v WHERE v.conta_id = ?1 AND v.vista_em > ?2 AND NOT EXISTS (SELECT 1 FROM maquinas m WHERE m.id = v.id AND m.conta_id = v.conta_id) ORDER BY v.vista_em DESC LIMIT 50").bind(contaId, desde).all<{ id: string; apelido: string | null; origem: string; vista_em: string }>();
+  return r.results.map((x) => ({ id: x.id, apelido: x.apelido, origem: x.origem === "conta" ? "conta" : "admin", vistaEm: x.vista_em }));
+}
 const limiteValido = (n: unknown): number => (typeof n === "number" && Number.isInteger(n) && n >= 1 ? n : 1);
 /** As unidades extras pagas da conta (extras_pagos), vencidas ou não; `tipo` filtra (ex.: "maquina"). */
 export async function extrasPagos(db: D1Database, contaId: string, tipo?: string): Promise<{ assinaturaId: string; tipo: string; expiresAt: string }[]> {
@@ -379,7 +394,7 @@ export async function promoDaConta(db: D1Database, conta: ContaLinha, promo: Pro
 }
 /** A conta como o app a vê: licença, devices (com "este"), máquinas, pedidos e o papel de admin. `promo`: a configuração da promoção do primeiro mês no ambiente; só o console (`GET|PATCH /conta`) a passa. */
 export async function montarContaApi(db: D1Database, conta: ContaLinha, admin: Papel, catalogo: readonly string[], deviceAtual: string | null, promo: Promo | null = null): Promise<ContaApi> {
-  const [gravada, pagos, devices, maquinas, pedidos, liberacoes, orgs, limiteMaq, extras, ass] = await Promise.all([licencaGravada(db, conta), addonsPagos(db, conta.id), devicesDaConta(db, conta.id), maquinasDaConta(db, conta.id), pedidosAbertos(db, conta.id), liberacoesDaConta(db, conta.id), orgsDaConta(db, conta.id), limiteDeMaquinasComExtras(db, conta.id), extrasPagos(db, conta.id),
+  const [gravada, pagos, devices, maquinas, vistas, pedidos, liberacoes, orgs, limiteMaq, extras, ass] = await Promise.all([licencaGravada(db, conta), addonsPagos(db, conta.id), devicesDaConta(db, conta.id), maquinasDaConta(db, conta.id), maquinasVistasDaConta(db, conta.id, agoraIso(Date.now() - LICENCA_VALIDADE_MS)), pedidosAbertos(db, conta.id), liberacoesDaConta(db, conta.id), orgsDaConta(db, conta.id), limiteDeMaquinasComExtras(db, conta.id), extrasPagos(db, conta.id),
     db.prepare("SELECT id, produto, status, valor_centavos FROM assinaturas WHERE conta_id = ?1 ORDER BY criada_em DESC LIMIT 50").bind(conta.id).all<{ id: string; produto: string | null; status: string; valor_centavos: number | null }>()]);
   const limiteDev = limiteComExtras(gravada.deviceLimit, extras.filter((x) => x.tipo === "device"), Date.now(), DEVICE_LIMITE_MAX);
   const licenca = { ...licencaEmVigor(gravada, pagos, admin, catalogo, agoraIso()), deviceLimit: limiteDev.limite };
@@ -389,7 +404,7 @@ export async function montarContaApi(db: D1Database, conta: ContaLinha, admin: P
     try { const a: unknown = JSON.parse(d.apps); if (a !== null && typeof a === "object") apps = a as DeviceApi["apps"]; } catch { apps = {}; }
     return { id: d.id, alias: d.alias_legado, name: d.name ?? "", user: d.user ?? "", platform: d.platform ?? "", status: d.status === "pending" ? "pending" : "active", requestedAt: d.requested_at, firstSeen: d.first_seen, lastSeen: d.last_seen, apps, este: deviceAtual !== null && (d.id === deviceAtual || d.alias_legado === deviceAtual) };
   });
-  return { id: conta.id, email: conta.email, nome: nomeExibicao(conta), nomeLogin: conta.nome, foto: conta.foto, perfil: perfilDaLinha(conta), provedores: parseProvedores(conta.provedores), dadosUso: conta.dados_uso !== 0, admin, licenca, devices: ds, maquinas: maquinas.map(maquinaApi), maquinaLimite: limiteMaq.limite, maquinaExtras: limiteMaq.extras, deviceExtras: limiteDev.extras, pedidos, liberacoes, assinaturas, orgs, promo: await promoDaConta(db, conta, promo, admin, Date.now(), gravada) };
+  return { id: conta.id, email: conta.email, nome: nomeExibicao(conta), nomeLogin: conta.nome, foto: conta.foto, perfil: perfilDaLinha(conta), provedores: parseProvedores(conta.provedores), dadosUso: conta.dados_uso !== 0, admin, licenca, devices: ds, maquinas: maquinas.map(maquinaApi), maquinasVistas: vistas, maquinaLimite: limiteMaq.limite, maquinaExtras: limiteMaq.extras, deviceExtras: limiteDev.extras, pedidos, liberacoes, assinaturas, orgs, promo: await promoDaConta(db, conta, promo, admin, Date.now(), gravada) };
 }
 
 // ---- Admin: a visão de todas as contas. `busca` filtra por e-mail ou nome (LIKE, escapado); até 500 contas.

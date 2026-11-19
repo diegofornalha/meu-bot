@@ -1,5 +1,5 @@
 import { avisoDepoisDo404, pedeReleitura, visaoVelha } from "./admin-core.js";
-import { INFINITO, SEM_LIMITE, SEM_PRAZO, TODOS_ADDONS, avisoAddonPago, contagemRegressiva, addonsNaVisaoGeral, estadoAssinaturaPro, fase, deParaDoExtra, ofertaDoProAparece, pedidoAssinar, podeAdicionarMaquina, promoNaTela, reaisCurto, semPrazo, vagaDoAssinar, vagasDeDevice, vagasDeMaquina } from "./plano-core.js";
+import { INFINITO, SEM_LIMITE, SEM_PRAZO, TODOS_ADDONS, avisoAddonPago, contagemRegressiva, addonsNaVisaoGeral, estadoAssinaturaPro, fase, linhasDeMaquinas, deParaDoExtra, ofertaDoProAparece, pedidoAssinar, podeAdicionarMaquina, promoNaTela, reaisCurto, semPrazo, vagaDoAssinar, vagasDeDevice, vagasDeMaquina } from "./plano-core.js";
 // Console da conta meu-bot (console.agentesgrok.com/account/* e /organizations/<slug>/members|settings, molde Rambox). Entra pela mesma página de
 // login do app (auth.agentesgrok.com) com esquema=web: o console gera state + PKCE, a página devolve #code&state, e
 // POST /token {grant:"web"} vira um token de acesso de 1 h guardado neste navegador (localStorage: outra aba, inclusive
@@ -886,7 +886,7 @@ function pintarOverview(c) {
     ...(semPrazo(l) ? [cartao("▦", "Vale até", infinito())] : []),
     cartao("↻", "Ciclo de cobrança", document.createTextNode(l.interval ? CICLO[l.interval] : "-")),
     cartao("▭", "Devices", ...(semPrazo(l) ? [document.createTextNode(`${ativos} de `), infinito(SEM_LIMITE)] : [document.createTextNode(`${ativos} de ${l.deviceLimit}`)]), ...(pendentes > 0 ? [selo(`${pendentes} pendente${pendentes === 1 ? "" : "s"}`, "mau")] : [])),
-    cartao("⌂", "Máquinas", document.createTextNode(String(c.maquinas.length))),
+    cartao("⌂", "Máquinas", document.createTextNode(String(linhasDeMaquinas(c.maquinas, c.maquinasVistas).linhas.filter((l) => l.selo.startsWith("Em uso")).length))),
     ...(semPrazo(l) ? [cartao("+", "Add-ons", infinito(TODOS_ADDONS))] : l.produtos.length > 0 ? [cartao("+", "Add-ons", ...l.produtos.map((p) => selo(rotuloProduto(p))))] : []),
     ...(c.pedidos > 0 ? [cartao("✉", "Pedidos abertos", document.createTextNode(String(c.pedidos)))] : []),
   );
@@ -985,24 +985,31 @@ const ocupaVaga = (m) => !m.desvinculadaEm || (m.proAte && Date.parse(m.proAte) 
 function pintarMaquinas(c) {
   const tb = $("dv-maquinas-tabela").querySelector("tbody"); tb.replaceChildren();
   const maquinas = c.maquinas ?? [], limite = c.maquinaLimite ?? 1;
-  const ocupadas = maquinas.filter(ocupaVaga).length;
+  const { linhas, ocupadas, semVaga } = linhasDeMaquinas(maquinas, c.maquinasVistas);
   const vagas = vagasDeMaquina(limite, c.maquinaExtras);
   $("dv-maquinas").textContent = semPrazo(c.licenca) ? `${ocupadas} máquina${ocupadas === 1 ? "" : "s"} em uso, sem limite (${INFINITO}).` : `${ocupadas} de ${limite} máquina${limite === 1 ? "" : "s"} em uso${vagas.detalhe === "" ? "" : ` (${vagas.detalhe})`}.`;
+  if (semVaga > 0 && !semPrazo(c.licenca)) $("dv-maquinas").append(document.createTextNode(" Máquina com licença do admin não ocupa vaga."));
   // No limite e com a máquina extra à venda: o caminho para ter mais uma fica ao lado da conta.
   if (ocupadas >= limite && EXTRA_MAQUINA !== null && cfg.pagamentos === "1" && podeAdicionarMaquina(c.licenca)) { const a = el("a", "", `Adicionar uma máquina por ${reais(EXTRA_MAQUINA.centavos)}/mês`); a.href = "/account/plan"; $("dv-maquinas").append(document.createTextNode(" "), a); }
-  if (maquinas.length === 0) { const tr = el("tr"); const td = el("td", "", "Nenhuma máquina usa a licença da conta ainda."); td.colSpan = 4; tr.append(td); tb.append(tr); return; }
-  for (const m of maquinas) {
+  if (linhas.length === 0) { const tr = el("tr"); const td = el("td", "", "Nenhuma máquina em uso ainda. Abra a janela de uma máquina no app, com a conta logada, e ela aparece aqui."); td.colSpan = 4; tr.append(td); tb.append(tr); return; }
+  for (const l of linhas) {
     const tr = el("tr");
-    tr.append(el("td", "", m.apelido ?? `máquina ${m.id.slice(0, 8)}`));
-    const st = el("td");
-    if (!m.desvinculadaEm) st.append(selo("Em uso", "ok"));
-    else st.append(selo(ocupaVaga(m) ? "Tirada · vaga presa" : "Tirada"));
-    tr.append(st, el("td", "", m.proAte ? data(m.proAte) : "-"));
+    const st = el("td"); st.append(selo(l.selo, l.tom));
     const acao = el("td");
-    if (!m.desvinculadaEm) { const b = el("button", "btn btn-ghost", "Tirar a licença"); b.type = "button"; b.addEventListener("click", () => { void tirarMaquina(m, b); }); acao.append(b); }
-    tr.append(acao);
+    if (l.acao === "tirar-licenca") { const m = maquinas.find((x) => x.id === l.id); const b = el("button", "btn btn-ghost", "Tirar a licença"); b.type = "button"; b.addEventListener("click", () => { void tirarMaquina(m, b); }); acao.append(b); }
+    else if (l.acao === "tirar-da-lista") { const b = el("button", "btn btn-ghost", "Tirar da lista"); b.type = "button"; b.title = "Só tira daqui; a máquina e a licença dela não mudam. Ela volta se você a abrir de novo pelo app."; b.addEventListener("click", () => { void esquecerMaquina(l.id, b); }); acao.append(b); }
+    tr.append(el("td", "", l.nome), st, el("td", "", l.valeAte ? data(l.valeAte) : "-"), acao);
     tb.append(tr);
   }
+}
+/** "Tirar da lista" uma máquina que só aparece porque o app a viu (licença do admin): não mexe na máquina nem em vaga. */
+async function esquecerMaquina(id, botao) {
+  const s = sessaoGuardada(); if (s === null) { void entrar(); return; }
+  botao.disabled = true;
+  const r = await api("DELETE", `/conta/maquinas/${encodeURIComponent(id)}/visto`, undefined, s.acesso);
+  if (r.status !== 200 && r.status !== 404) { botao.disabled = false; $("dv-maquinas").textContent = erroDe(r); return; }
+  const c2 = await lerConta().catch(() => null);
+  if (c2) pintarDevices(c2);
 }
 /**
  * "Tirar a licença" de uma máquina: dois cliques (o segundo confirma, em até 5 s). Daqui ninguém apaga o arquivo da

@@ -30,3 +30,17 @@ export function deveRenovarLicenca(v: VerificacaoLicenca, contaId: string, now: 
 /** O app confere a licença de uma máquina no máximo uma vez a cada tanto; `agora` (pedido da pessoa) não espera. */
 export const ENTRE_CONFERENCIAS_MS = 6 * 60 * 60 * 1000;
 export const conferidaHaPouco = (ultima: number | undefined, now: number, agora = false): boolean => !agora && ultima !== undefined && now - ultima < ENTRE_CONFERENCIAS_MS;
+
+/** De quanto em quanto tempo o app repete à conta que a pessoa usa esta máquina (o console some com ela em 30 dias sem aviso). */
+export const AVISAR_VISTA_APOS_MS = 6 * 60 * 60 * 1000;
+/**
+ * Avisa a conta que a máquina está em uso na primeira leitura da sessão, quando a origem do plano em vigor mudou
+ * (a pessoa aplicou ou tirou a licença da conta: o console troca o selo na hora) e, fora isso, a cada 6 h.
+ */
+export function deveAvisarVista(ultimo: { em: number; origem: string } | undefined, origem: string, now: number = Date.now()): boolean {
+  return ultimo === undefined || ultimo.origem !== origem || now - ultimo.em >= AVISAR_VISTA_APOS_MS;
+}
+/** Depois de um aviso que falhou (sem rede, máquina fora do ar), a próxima tentativa só daqui a 5 min, não a cada releitura da licença. */
+export const AVISAR_VISTA_RECUO_MS = 5 * 60 * 1000;
+/** O registro que `deveAvisarVista` lê depois de uma falha: como se o último aviso tivesse sido há (6 h - 5 min). */
+export const vistaDepoisDaFalha = (origem: string, now: number = Date.now()): { em: number; origem: string } => ({ em: now - AVISAR_VISTA_APOS_MS + AVISAR_VISTA_RECUO_MS, origem });

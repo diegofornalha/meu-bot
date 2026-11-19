@@ -228,6 +228,14 @@ async function pedirLicenca(rota: string, corpo: unknown): Promise<LicencaDaApi>
 export const licencaParaMaquina = (id: string, apelido: string | null): Promise<LicencaDaApi> => pedirLicenca("/conta/maquinas", { id, apelido });
 /** `POST /conta/maquinas/:id/licenca`: emite de novo para uma máquina já vinculada (404 = não é mais desta conta). */
 export const renovarLicencaDaMaquina = (id: string): Promise<LicencaDaApi> => pedirLicenca(`/conta/maquinas/${id}/licenca`, {});
+/** `POST /conta/maquinas/:id/visto`: a pessoa usa esta máquina, e de onde vem o plano em vigor nela. Só para o console listar; não emite nem ocupa vaga. */
+export async function avisarMaquinaEmUso(id: string, apelido: string | null, origem: "admin" | "conta"): Promise<boolean> {
+  const tok = await tokenDeAcesso();
+  if (tok === null) return false;
+  const r = await api("POST", `/conta/maquinas/${id}/visto`, { apelido, origem }, tok);
+  if (r.status !== 200) log(`[conta] aviso de máquina em uso não foi (${r.status}): ${erroDaApi(r.status, r.corpo)}`);
+  return r.status === 200;
+}
 /** `DELETE /conta/maquinas/:id`: `apagada` = o app já apagou o arquivo da máquina, então a vaga abre na hora. */
 export async function tirarLicencaDaMaquina(id: string, apagada: boolean): Promise<{ ok: boolean; erro: string }> {
   const tok = await tokenDeAcesso();

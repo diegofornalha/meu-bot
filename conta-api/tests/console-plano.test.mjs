@@ -1,7 +1,7 @@
 // Painel "Assinar o Pro" do console (public/console/plano-core.js): quando some e quando avisa do prazo atual.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addonsNaVisaoGeral, deParaDoExtra, avisoAddonPago, contagemRegressiva, diasAteOFim, estadoAssinaturaPro, fase, ofertaDoProAparece, pedidoAssinar, promoNaTela, reaisCurto, semPrazo, podeAdicionarMaquina, vagaDoAssinar, vagasDeDevice, vagasDeMaquina } from "../public/console/plano-core.js";
+import { addonsNaVisaoGeral, deParaDoExtra, avisoAddonPago, contagemRegressiva, diasAteOFim, estadoAssinaturaPro, fase, linhasDeMaquinas, ofertaDoProAparece, pedidoAssinar, promoNaTela, reaisCurto, semPrazo, podeAdicionarMaquina, vagaDoAssinar, vagasDeDevice, vagasDeMaquina } from "../public/console/plano-core.js";
 
 const pro = { plan: "pro", status: "active" };
 const ativa = { status: "ACTIVE", produto: null };
@@ -208,4 +208,23 @@ test("unidade extra: o preço de tabela só aparece riscado quando é maior que 
   assert.equal(deParaDoExtra({ centavos: 9700, deCentavos: 9700 }), null);
   assert.equal(deParaDoExtra({ centavos: 9700, deCentavos: 4700 }), null);
   assert.equal(deParaDoExtra(null), null);
+});
+
+test("máquinas que você usa: as da conta ocupam vaga, as do admin aparecem sem ocupar e sem duplicar", () => {
+  const agora = Date.parse("2026-11-19T12:00:00Z");
+  const emUso = { id: "aaaaaaaa-1", apelido: "Karen", proAte: "2026-12-18T00:00:00Z", desvinculadaEm: null };
+  const presa = { id: "bbbbbbbb-2", apelido: null, proAte: "2026-12-01T00:00:00Z", desvinculadaEm: "2026-11-18T00:00:00Z" };
+  const solta = { id: "cccccccc-3", apelido: "Velha", proAte: "2026-11-01T00:00:00Z", desvinculadaEm: "2026-10-20T00:00:00Z" };
+  const vistas = [{ id: "dddddddd-4", apelido: "Diego", origem: "admin", vistaEm: "2026-11-19T11:00:00Z" }, { id: "aaaaaaaa-1", apelido: "Karen", origem: "conta", vistaEm: "2026-11-19T11:00:00Z" }];
+  const r = linhasDeMaquinas([emUso, presa, solta], vistas, agora);
+  assert.deepEqual(r.linhas.map((l) => [l.nome, l.selo, l.acao, l.ocupaVaga]), [
+    ["Karen", "Em uso", "tirar-licenca", true],
+    ["máquina bbbbbbbb", "Tirada · vaga presa", null, true],
+    ["Velha", "Tirada", null, false],
+    ["Diego", "Em uso · licença do admin", "tirar-da-lista", false],
+  ]);
+  assert.equal(r.ocupadas, 2);
+  assert.equal(r.semVaga, 1);
+  assert.equal(r.linhas[3].valeAte, null);
+  assert.deepEqual(linhasDeMaquinas(undefined, undefined), { linhas: [], ocupadas: 0, semVaga: 0 }, "API antiga, sem os campos");
 });
