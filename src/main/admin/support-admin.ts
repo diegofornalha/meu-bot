@@ -479,7 +479,6 @@ async function fetchJson(host: string, remotePath: string): Promise<Record<strin
 /** Grava um JSON na máquina da pessoa de forma atômica (maquina/json-remoto.ts). */
 const writeJson = gravarJsonRemoto;
 
-/** meu-bot-admin: muda a licença da pessoa (plano, status, validade, limite). Grava licenca.json por SSH. */
 /**
  * Atribui a máquina à conta desse e-mail (ou desfaz): ela passa a aparecer no console da pessoa como "Em uso · licença
  * do admin". Não mexe na licença gravada na máquina nem em vaga. A máquina ganha o `maquina.json` se ainda não tem.
@@ -489,11 +488,13 @@ export async function atribuirMaquina(host: string, emailCru: unknown, desfazer:
   if (email === null) return { ok: false, erro: "informe o e-mail da conta" };
   let id: string;
   try { id = await idDaMaquina(host); } catch (e) { return { ok: false, erro: e instanceof Error ? e.message : String(e) }; }
-  const r = await atribuirMaquinaNaConta(id, email, getHostNames()[host] ?? host, desfazer);
-  if (r.ok) await registrar(host, desfazer ? "maquina.desatribuir" : "maquina.atribuir", email, id);
+  const r = await atribuirMaquinaNaConta(id, email, getHostNames()[host] ?? null, desfazer);
+  // A API já gravou: a auditoria da máquina é melhor esforço e não transforma o que deu certo em erro na tela.
+  if (r.ok) await registrar(host, desfazer ? "maquina.desatribuir" : "maquina.atribuir", email, id).catch((e: unknown) => { log(`[suporte] ${host}: atribuição gravada, mas não entrou na auditoria da máquina (${e instanceof Error ? e.message : String(e)})`); });
   return r;
 }
 
+/** meu-bot-admin: muda a licença da pessoa (plano, status, validade, limite). Grava licenca.json por SSH. */
 export async function setLicense(host: string, patch: LicensePatch): Promise<LicenseView> {
   const current = await fetchJson(host, LICENSE_PATH);
   const next = applyLicensePatch(Object.keys(current).length ? current : null, patch);
