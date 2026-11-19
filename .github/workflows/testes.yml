@@ -33,6 +33,12 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+      # Os testes do Worker (conta-api) têm pacote próprio. Sem este passo eles só rodavam antes de cada publicação
+      # do site, e uma PR podia ser mesclada com eles quebrados (aconteceu em 19 nov 2026, #374).
+      - run: npm ci
+        working-directory: conta-api
+      - run: npm test
+        working-directory: conta-api
       # O que faria a release automática recusar: componente da máquina mudou sem subir a versão.
       - run: node scripts/release-checar.mjs
 
