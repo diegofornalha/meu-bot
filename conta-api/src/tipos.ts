@@ -145,6 +145,8 @@ export interface ContaApi {
   maquinas: MaquinaApi[];
   /** As máquinas em uso que não estão em `maquinas` (licença do admin), vistas pelo app nos últimos 30 dias. */
   maquinasVistas: MaquinaVistaApi[];
+  /** O Pro desta conta vem de uma organização em que ela é usuário coberto (e não do próprio plano): qual, e até quando; null quando o Pro é dela ou não há. */
+  proPelaOrg: { slug: string; nome: string; ate: string | null } | null;
   /** Criar organização: quantas a conta pode ter como dona (`limite`), quantas já tem (`donaDe`) e por que não pode criar outra agora (`motivo`; null = pode). */
   orgCriar: { limite: number; donaDe: number; motivo: "sem-pro" | "no-limite" | null };
   /** Em quantas máquinas a conta pode usar a licença ao mesmo tempo: o que o admin gravou (licencas.maquina_limit) mais as máquinas extras pagas em dia. */
