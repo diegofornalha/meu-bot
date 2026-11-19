@@ -270,7 +270,7 @@ test("instaladores: nenhum install-*.sh instala skill fora da biblioteca, e todo
   }
   // O hostProbe.ts não manda nenhum desses instaladores solto: só pelas listas.
   const probe = readFileSync(join(BACKEND, "..", "src", "main", "maquina", "hostProbe.ts"), "utf8");
-  for (const s of usam) assert.doesNotMatch(probe, new RegExp(`backendBundleDir\\(\\), "${s.replace(/\./g, "\\.")}"\\)`), `${s} é enviado sem a biblioteca`);
+  for (const s of usam) assert.ok(!probe.includes(`backendBundleDir(), "${s}")`), `${s} é enviado sem a biblioteca`);
   for (const l of ["CRM_FILES", "FINANCE_FILES", "GUARDA_FILES", "TELA_FILES", "NAVEGADOR_FILES", "VOZ_FILES"]) assert.match(probe, new RegExp(`\\b${l}\\b[^\\n]*\\.map\\(`), `o hostProbe.ts envia a ${l}`);
 });
 
