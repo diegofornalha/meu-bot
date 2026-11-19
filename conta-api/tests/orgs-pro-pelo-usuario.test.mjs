@@ -33,6 +33,17 @@ test("licencaComProDaOrg: o usuário coberto recebe o Pro até o prazo da dona; 
   assert.equal(melhorCobertura([org(em(30)), { ...org(null), slug: "sem-prazo" }]).slug, "sem-prazo");
 });
 
+test("filaDaOrg: a dona primeiro, depois a ordem de entrada (não a do e-mail); empate em ordem binária", async () => {
+  const { filaDaOrg } = await import("../dist/db.js");
+  const m = (email, conta_id, entrou_em, convidado_em = "2026-11-01T00:00:00.000Z") => ({ email, conta_id, entrou_em, convidado_em });
+  const lista = [m("ana@x.com", "A", "2026-11-10T00:00:00.000Z"), m("zeca@x.com", "Z", "2026-11-05T00:00:00.000Z"), m("dona@x.com", "D", "2026-11-20T00:00:00.000Z"), m("convidada@x.com", null, null, "2026-11-07T00:00:00.000Z")];
+  assert.deepEqual(filaDaOrg(lista, "D").map((x) => x.email), ["dona@x.com", "zeca@x.com", "convidada@x.com", "ana@x.com"], "quem entrou antes vem antes, mesmo com o e-mail depois no alfabeto");
+  // Mesma data: desempate binário (o "." vem antes do "_" e das letras), igual em qualquer máquina.
+  const iguais = ["b_c@x.com", "b.c@x.com", "bc@x.com", "B@x.com"].map((e) => m(e, e, "2026-11-10T00:00:00.000Z"));
+  assert.deepEqual(filaDaOrg(iguais, "nenhuma").map((x) => x.email), ["B@x.com", "b.c@x.com", "b_c@x.com", "bc@x.com"]);
+  assert.equal(lista[0].email, "ana@x.com", "não muda a lista recebida");
+});
+
 test("no Worker: usuário coberto tem o Pro pela organização; sai e perde; a dona sem Pro leva junto; além das vagas não cobre; add-ons não são herdados", async () => {
   const persist = mkdtempSync(join(tmpdir(), "conta-d1-"));
   const { getPlatformProxy } = req("wrangler");

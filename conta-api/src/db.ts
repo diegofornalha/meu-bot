@@ -336,6 +336,15 @@ export async function limiteDeMaquinasComExtras(db: D1Database, contaId: string,
   return limiteComExtras(limiteValido(base?.maquina_limit), pagos, agoraMs);
 }
 /**
+ * A fila de cobertura de uma organização, a regra única de quem recebe o Pro por ela: a dona primeiro, depois quem
+ * entrou (ou foi convidado) antes; empate pelo e-mail. A comparação é binária (não a da localidade), para a mesma
+ * lista dar a mesma ordem em qualquer lugar. Os primeiros até o número de usuários em vigor estão cobertos.
+ */
+export function filaDaOrg<M extends { conta_id: string | null; email: string; entrou_em: string | null; convidado_em: string }>(membros: readonly M[], donaContaId: string): M[] {
+  const cmp = (x: string, y: string): number => (x < y ? -1 : x > y ? 1 : 0);
+  return [...membros].sort((x, y) => Number(y.conta_id === donaContaId) - Number(x.conta_id === donaContaId) || cmp(x.entrou_em ?? x.convidado_em, y.entrou_em ?? y.convidado_em) || cmp(x.email, y.email));
+}
+/**
  * O Pro que a conta recebe pelas organizações em que é usuário (não dona): para cada uma, a dona precisa do Pro valendo
  * (ou ser super admin), e a pessoa precisa estar entre os cobertos. Cobertos são os primeiros da fila até o número de
  * usuários em vigor (`assentosDaOrg`): a dona primeiro, depois quem entrou (ou foi convidado) antes. Assim, quando um
@@ -351,8 +360,8 @@ export async function coberturaDaOrg(db: D1Database, conta: ContaLinha, agoraMs 
     const donaSuper = papelDona === "super";
     if (!donaSuper && !(ld.plan === "pro" && ld.status === "active" && (ld.expiresAt === null || Date.parse(ld.expiresAt) > agoraMs))) return null;
     const [vagas, fila] = await Promise.all([assentosDaOrg(db, org, agoraMs),
-      db.prepare("SELECT conta_id FROM membros WHERE org_id = ?1 ORDER BY CASE WHEN conta_id = ?2 THEN 0 ELSE 1 END, COALESCE(entrou_em, convidado_em), email").bind(org.id, org.dona_conta_id).all<{ conta_id: string | null }>()]);
-    const posicao = fila.results.findIndex((m) => m.conta_id === conta.id);
+      db.prepare("SELECT conta_id, email, entrou_em, convidado_em FROM membros WHERE org_id = ?1").bind(org.id).all<{ conta_id: string | null; email: string; entrou_em: string | null; convidado_em: string }>()]);
+    const posicao = filaDaOrg(fila.results, org.dona_conta_id).findIndex((m) => m.conta_id === conta.id);
     return posicao < 0 || posicao >= vagas.limite ? null : { ate: donaSuper ? null : ld.expiresAt, slug: org.slug, nome: org.nome };
   }));
   return melhorCobertura(coberturas.filter((c): c is CoberturaOrg => c !== null));
@@ -662,9 +671,9 @@ export async function montarOrgApi(db: D1Database, org: OrgLinha, meuEmail: stri
   ]);
   const lista: MembroApi[] = membros.results.map((m) => ({ email: m.email, nome: m.conta_id === null ? null : nomeExibicao(m), foto: m.foto, papel: papelOrg(m.papel), status: m.status === "ativo" ? "ativo" : "convidado", convidadoPor: m.convidado_por, convidadoEm: m.convidado_em, entrouEm: m.entrou_em, eu: m.email === meuEmail, coberto: false }));
   const vagas = await assentosDaOrg(db, org);
-  // Quem está coberto pelo Pro da organização: os primeiros da fila até o número de usuários (a mesma ordem de
-  // coberturaDaOrg: a dona, depois quem entrou ou foi convidado antes). E se o Pro da dona vale, sem o que ninguém é coberto.
-  const fila = [...membros.results].sort((x, y) => Number(y.conta_id === org.dona_conta_id) - Number(x.conta_id === org.dona_conta_id) || (x.entrou_em ?? x.convidado_em).localeCompare(y.entrou_em ?? y.convidado_em) || x.email.localeCompare(y.email));
+  // Quem está coberto pelo Pro da organização: os primeiros da fila até o número de usuários (filaDaOrg, a mesma de
+  // coberturaDaOrg). E se o Pro da dona vale, sem o que ninguém é coberto.
+  const fila = filaDaOrg(membros.results, org.dona_conta_id);
   const cobertos = new Set(fila.slice(0, vagas.limite).map((m) => m.email));
   for (const m of lista) m.coberto = cobertos.has(m.email);
   const contaDona = await contaPorId(db, org.dona_conta_id);
