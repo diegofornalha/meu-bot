@@ -6,7 +6,7 @@
  * e-mail entra, `aceitarConvites` (no POST /sessao) liga a conta. Assentos: ativos + convidados cabem até `assentos`.
  */
 import type { Env, OrgLinha, PapelOrg } from "../tipos.js";
-import { apagarOrg, auditar, contarDonas, contarLimite, contarMembros, criarOrg, licencaGravada, orgsParaCriar, papelAdmin, gravarAssentos, gravarConvite, gravarOrg, membroPor, montarOrgApi, mudarPapel, orgPorSlug, orgsDaConta, removerMembro } from "../db.js";
+import { apagarOrg, assentosDaOrg, auditar, contarDonas, contarLimite, contarMembros, criarOrg, licencaGravada, orgsParaCriar, papelAdmin, gravarAssentos, gravarConvite, gravarOrg, membroPor, montarOrgApi, mudarPapel, orgPorSlug, orgsDaConta, removerMembro } from "../db.js";
 import { assentosLivres, emailNoDominio, janelaMinuto, podeCriarOrg, validaAssentos, validaConvite, validaEmail, validaNovaOrg, validaPapelOrg, validaPatchOrg, validaSlug } from "../sessao-core.js";
 import { json, lerJson, type Autenticado } from "../http.js";
 
@@ -82,7 +82,9 @@ export async function postMembro(auth: Autenticado, env: Env, slug: string, req:
   if ("erro" in c) return json({ erro: c.erro }, 400);
   if (!emailNoDominio(c.email, x.org.dominio_email)) return json({ erro: `esta organização só aceita e-mails @${x.org.dominio_email}` }, 400);
   if (await membroPor(env.DB, x.org.id, c.email) !== null) return json({ erro: "esse e-mail já está na organização" }, 409);
-  if (assentosLivres(x.org.assentos, await contarMembros(env.DB, x.org.id)) === 0) return json({ erro: `sem assentos livres (${x.org.assentos}); peça mais ao suporte` }, 409);
+  // As vagas em vigor: a dona, as cortesias e os usuários pagos em dia (assentosDaOrg). Convite pendente ocupa vaga.
+  const vagas = (await assentosDaOrg(env.DB, x.org)).limite;
+  if (assentosLivres(vagas, await contarMembros(env.DB, x.org.id)) === 0) return json({ erro: `sem usuário livre: a organização tem ${vagas} e todos estão em uso. Adicione um usuário (página Membros) e convide de novo`, semVaga: true }, 409);
   const status = await gravarConvite(env.DB, x.org, c.email, c.papel, auth.conta.email);
   await auditar(env.DB, auth.conta.email, "org.convite", auth.conta.id, `${x.org.slug}: ${c.email} = ${c.papel} (${status})`);
   return json(await montarOrgApi(env.DB, x.org, auth.conta.email, x.papel, env.CONSOLE_ORIGIN));

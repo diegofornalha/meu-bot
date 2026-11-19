@@ -1,6 +1,6 @@
 /** Acesso ao D1: consultas tipadas, uma função por intenção. O que sai do banco é dado; quem decide é a rota. */
 import type { AdminAssinatura, AdminAuditoria, AdminContaResumo, AdminVendaOculta, TipoVenda, AdminListaEspera, ContaAssinatura, AdminOrg, MaquinaApi, MaquinaVistaApi, AdminPagamento, AdminVendas, AdminPedido, AdminPerfil, AdminVisao, CodigoLinha, ContaApi, ContaLinha, DeviceApi, DeviceLinha, License, LicencaLinha, MaquinaLinha, MembroApi, MembroLinha, OrgApi, OrgLinha, OrgResumo, PapelOrg, PerfilApi, PromoApi, SessaoLinha } from "./tipos.js";
-import { podeCriarOrg, DEVICE_LIMITE_MAX, agoraIso, ehAdminInicial, nomeExibicao, parseProvedores, provedoresDoLogin, unirProvedores, uuid, type MetodoLogin, type PatchLicenca, type PatchOrg, type PatchPerfil } from "./sessao-core.js";
+import { ASSENTOS_INCLUSOS, ASSENTOS_MAX, podeCriarOrg, DEVICE_LIMITE_MAX, agoraIso, ehAdminInicial, nomeExibicao, parseProvedores, provedoresDoLogin, unirProvedores, uuid, type MetodoLogin, type PatchLicenca, type PatchOrg, type PatchPerfil } from "./sessao-core.js";
 import type { UsuarioFirebase } from "./firebase.js";
 import { direitoPromo, liberacoesPorAddon, licencaDoSuper, licencaEmVigor, tipoDoExtra, umaPorContaEProduto, type Liberacao, type Papel, type Promo } from "./pagamento-core.js";
 import { DEVICES_INCLUSOS, LICENCA_VALIDADE_MS, limiteComExtras, valeAte } from "./licenca-core.js";
@@ -314,6 +314,14 @@ export async function maquinasVistasDaConta(db: D1Database, contaId: string, des
   return r.results.map((x) => ({ id: x.id, apelido: x.apelido, origem: x.origem === "conta" ? "conta" : "admin", vistaEm: x.vista_em, atribuida: x.atribuida_por !== null }));
 }
 const limiteValido = (n: unknown): number => (typeof n === "number" && Number.isInteger(n) && n >= 1 ? n : 1);
+/**
+ * Quantos usuários a organização tem agora: os inclusos e de cortesia (`organizacoes.assentos`) mais os usuários pagos
+ * em dia (extras_pagos de tipo "assento" com o `org_id` dela). `extras` é quantos são pagos.
+ */
+export async function assentosDaOrg(db: D1Database, org: OrgLinha, agoraMs = Date.now()): Promise<{ limite: number; extras: number }> {
+  const r = await db.prepare("SELECT expires_at FROM extras_pagos WHERE org_id = ?1 AND tipo = 'assento'").bind(org.id).all<{ expires_at: string }>();
+  return limiteComExtras(limiteValido(org.assentos), r.results.map((x) => ({ expiresAt: x.expires_at })), agoraMs, ASSENTOS_MAX);
+}
 /** As unidades extras pagas da conta (extras_pagos), vencidas ou não; `tipo` filtra (ex.: "maquina"). */
 export async function extrasPagos(db: D1Database, contaId: string, tipo?: string): Promise<{ assinaturaId: string; tipo: string; expiresAt: string }[]> {
   const r = await db.prepare("SELECT assinatura_id, tipo, expires_at FROM extras_pagos WHERE conta_id = ?1").bind(contaId).all<{ assinatura_id: string; tipo: string; expires_at: string }>();
@@ -596,7 +604,7 @@ export async function criarOrg(db: D1Database, conta: ContaLinha, nova: { nome: 
   const id = uuid();
   try {
     await db.batch([
-      db.prepare("INSERT INTO organizacoes (id, slug, nome, dona_conta_id, dominio_email, assentos, criada_em, atualizada_em) VALUES (?1, ?2, ?3, ?4, NULL, 5, ?5, ?5)").bind(id, nova.slug, nova.nome, conta.id, agora),
+      db.prepare("INSERT INTO organizacoes (id, slug, nome, dona_conta_id, dominio_email, assentos, criada_em, atualizada_em) VALUES (?1, ?2, ?3, ?4, NULL, ?6, ?5, ?5)").bind(id, nova.slug, nova.nome, conta.id, agora, ASSENTOS_INCLUSOS),
       db.prepare("INSERT INTO membros (org_id, email, conta_id, papel, status, convidado_por, convidado_em, entrou_em) VALUES (?1, ?2, ?3, 'dona', 'ativo', NULL, ?4, ?4)").bind(id, conta.email, conta.id, agora),
     ]);
   } catch (e) {
@@ -626,7 +634,8 @@ export async function montarOrgApi(db: D1Database, org: OrgLinha, meuEmail: stri
     db.prepare("SELECT email, nome, nome_proprio, sobrenome FROM contas WHERE id = ?1").bind(org.dona_conta_id).first<{ email: string; nome: string | null; nome_proprio: string | null; sobrenome: string | null }>(),
   ]);
   const lista: MembroApi[] = membros.results.map((m) => ({ email: m.email, nome: m.conta_id === null ? null : nomeExibicao(m), foto: m.foto, papel: papelOrg(m.papel), status: m.status === "ativo" ? "ativo" : "convidado", convidadoPor: m.convidado_por, convidadoEm: m.convidado_em, entrouEm: m.entrou_em, eu: m.email === meuEmail }));
-  return { id: org.id, slug: org.slug, nome: org.nome, dominioEmail: org.dominio_email, assentos: org.assentos, ocupados: lista.length, criadaEm: org.criada_em, dona: { email: dona?.email ?? "", nome: dona ? nomeExibicao(dona) : null }, meuPapel, membros: lista, url: `${consoleOrigin}/organizations/${org.slug}/members` };
+  const vagas = await assentosDaOrg(db, org);
+  return { id: org.id, slug: org.slug, nome: org.nome, dominioEmail: org.dominio_email, assentos: vagas.limite, assentosInclusos: vagas.limite - vagas.extras, assentosPagos: vagas.extras, ocupados: lista.length, criadaEm: org.criada_em, dona: { email: dona?.email ?? "", nome: dona ? nomeExibicao(dona) : null }, meuPapel, membros: lista, url: `${consoleOrigin}/organizations/${org.slug}/members` };
 }
 /** A conta pelo e-mail exato (já normalizado: minúsculo, sem espaços). */
 export async function contaPorEmail(db: D1Database, email: string): Promise<ContaLinha | null> {
