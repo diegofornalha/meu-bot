@@ -43,7 +43,7 @@ export async function postToken(req: Request, env: Env): Promise<Response> {
       await auditar(env.DB, conta.email, "login.entrou", conta.id, "console web", agora);
       return json({ acesso, expiraEm: maisSegundos(ACESSO_TTL_S), conta: await montarContaApi(env.DB, conta, adm, catalogoAddons(env), null, promoLigada(env)) });
     }
-    // O device deste Mac: conhecido (pelo uuid ou pelo alias antigo) mantém o status; novo cabe até o limite da licença.
+    // O device deste Mac: o ativo (conhecido pelo uuid ou pelo alias antigo) continua ativo; o novo e o pendente entram se cabem no limite da licença.
     const d = pedido.device;
     const atual = await devicePor(env.DB, conta.id, d.id, d.alias);
     const papel = await papelAdmin(env.DB, conta.email, env.ADMIN_BOOTSTRAP_EMAIL);
