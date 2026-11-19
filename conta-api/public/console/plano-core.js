@@ -218,6 +218,15 @@ export function estadoDoItem(conta, item) {
   return lib && lib.aberta === true ? { chave: "falta-liberar", texto: "Falta liberar na máquina", tom: "" } : tem();
 }
 
+/**
+ * As assinaturas da conta para um item do Marketplace: o Pro é a de `produto` nulo; os outros, a do nome técnico. As
+ * ativas primeiro; as canceladas ficam para a pessoa ver até quando o acesso vale.
+ */
+export function assinaturasDoItem(assinaturas, itemId) {
+  const minhas = (Array.isArray(assinaturas) ? assinaturas : []).filter((a) => a && (itemId === "pro" ? a.produto === null || a.produto === undefined : a.produto === itemId));
+  return [...minhas.filter((a) => a.status === "ACTIVE"), ...minhas.filter((a) => a.status !== "ACTIVE")];
+}
+
 /** Quantas assinaturas ativas de um produto a conta tem (cada unidade extra é uma assinatura). */
 export function assinaturasAtivasDe(assinaturas, produto) {
   return (Array.isArray(assinaturas) ? assinaturas : []).filter((a) => a && a.produto === produto && a.status === "ACTIVE").length;

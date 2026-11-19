@@ -1,7 +1,7 @@
 // Painel "Assinar o Pro" do console (public/console/plano-core.js): quando some e quando avisa do prazo atual.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addonsNaVisaoGeral, estadoDoItem, assinaturasAtivasDe, oQueAContaTem, pagoChegou, deParaDoExtra, avisoAddonPago, contagemRegressiva, diasAteOFim, estadoAssinaturaPro, fase, linhasDeMaquinas, ofertaDoProAparece, pedidoAssinar, promoNaTela, reaisCurto, semPrazo, podeAdicionarMaquina, vagaDoAssinar, vagasDeDevice, vagasDeMaquina } from "../public/console/plano-core.js";
+import { addonsNaVisaoGeral, assinaturasDoItem, estadoDoItem, assinaturasAtivasDe, oQueAContaTem, pagoChegou, deParaDoExtra, avisoAddonPago, contagemRegressiva, diasAteOFim, estadoAssinaturaPro, fase, linhasDeMaquinas, ofertaDoProAparece, pedidoAssinar, promoNaTela, reaisCurto, semPrazo, podeAdicionarMaquina, vagaDoAssinar, vagasDeDevice, vagasDeMaquina } from "../public/console/plano-core.js";
 
 const pro = { plan: "pro", status: "active" };
 const ativa = { status: "ACTIVE", produto: null };
@@ -288,4 +288,12 @@ test("Marketplace: a vitrine não vende, leva à página do item; o endereço do
   assert.match(js, /\/account\\\/marketplace\\\/\(\[a-z0-9-\]\{1,60\}\)/, "rota /account/marketplace/<slug>");
   const vitrine = js.slice(js.indexOf('$("mk-grade").replaceChildren'), js.indexOf("const e = estadoDoItem(c, item), ficha"));
   assert.ok(vitrine.length > 100 && !vitrine.includes("assinar("), "nenhum botão de compra na vitrine");
+});
+
+test("Marketplace: as assinaturas de um item (o Pro é a de produto nulo), ativas primeiro", () => {
+  const lista = [{ id: "a", produto: "extra-maquina", status: "CANCELLED" }, { id: "b", produto: null, status: "ACTIVE" }, { id: "c", produto: "extra-maquina", status: "ACTIVE" }, { id: "d", produto: "meu-bot-finance", status: "ACTIVE" }];
+  assert.deepEqual(assinaturasDoItem(lista, "extra-maquina").map((a) => a.id), ["c", "a"]);
+  assert.deepEqual(assinaturasDoItem(lista, "pro").map((a) => a.id), ["b"]);
+  assert.deepEqual(assinaturasDoItem(lista, "meu-bot-diego"), []);
+  assert.deepEqual(assinaturasDoItem(undefined, "pro"), []);
 });

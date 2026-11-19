@@ -1,5 +1,5 @@
 import { avisoDepoisDo404, pedeReleitura, visaoVelha } from "./admin-core.js";
-import { INFINITO, SEM_LIMITE, SEM_PRAZO, TODOS_ADDONS, avisoAddonPago, contagemRegressiva, addonsNaVisaoGeral, estadoAssinaturaPro, fase, linhasDeMaquinas, deParaDoExtra, estadoDoItem, ofertaDoProAparece, oQueAContaTem, pagoChegou, assinaturasAtivasDe, pedidoAssinar, podeAdicionarMaquina, promoNaTela, reaisCurto, semPrazo, vagaDoAssinar, vagasDeDevice, vagasDeMaquina } from "./plano-core.js";
+import { INFINITO, SEM_LIMITE, SEM_PRAZO, TODOS_ADDONS, avisoAddonPago, contagemRegressiva, addonsNaVisaoGeral, estadoAssinaturaPro, fase, linhasDeMaquinas, deParaDoExtra, assinaturasDoItem, estadoDoItem, ofertaDoProAparece, oQueAContaTem, pagoChegou, assinaturasAtivasDe, pedidoAssinar, podeAdicionarMaquina, promoNaTela, reaisCurto, semPrazo, vagaDoAssinar, vagasDeDevice, vagasDeMaquina } from "./plano-core.js";
 // Console da conta meu-bot (console.agentesgrok.com/account/* e /organizations/<slug>/members|settings, molde Rambox). Entra pela mesma página de
 // login do app (auth.agentesgrok.com) com esquema=web: o console gera state + PKCE, a página devolve #code&state, e
 // POST /token {grant:"web"} vira um token de acesso de 1 h guardado neste navegador (localStorage: outra aba, inclusive
@@ -1209,6 +1209,20 @@ function pintarMarketplace(c) {
   if (item.tipo === "unidade" && e.chave === "precisa-pro") painel.append(el("p", "sub", "Esta unidade vale junto com o Pro: assine o Pro primeiro, e ela aparece aqui para contratar."));
   if (item.tipo === "app" && e.chave === "tem") painel.append(el("p", "sub", "A sua conta já tem este app. Ele aparece na página Módulos do app."));
   ficha.append(voltar, painel);
+  // O que a conta paga por este item: a situação, até quando vale e o "Cancelar", como em Plano › Suas assinaturas.
+  const minhas = assinaturasDoItem(c.assinaturas, item.id);
+  if (minhas.length > 0) {
+    const caixa = el("div", "painel"), aviso = el("p", "sub"); aviso.id = "mk-assinatura-aviso"; aviso.setAttribute("role", "status");
+    caixa.append(el("h2", "", minhas.length === 1 ? "Sua assinatura" : "Suas assinaturas"));
+    for (const a of minhas) {
+      const sit = situacaoDe(a), linha = el("p", "mk-assinatura"), acao = el("span");
+      linha.append(el("strong", "", `${reais(a.valorCentavos)}/mês`), " ", selo(sit.texto, sit.tom), ` ${a.valeAte ? `vale até ${data(a.valeAte)}` : ""} `, acao);
+      if (a.status === "ACTIVE" && typeof a.id === "string") { const b = el("button", "btn btn-ghost btn-small", "Cancelar"); b.type = "button"; b.addEventListener("click", () => { pedirCancelamento(a, acao, aviso); }); acao.append(b); }
+      caixa.append(linha);
+    }
+    aviso.textContent = "Você cancela quando quiser. O acesso continua até o fim do mês já pago.";
+    caixa.append(aviso); ficha.append(caixa);
+  }
   if (item.tipo === "unidade") pintarExtras(c, voltouDe, item.id);
   if (item.tipo === "app") pintarAddons(l, voltouDe, c.liberacoes, "pl-addons", ADDONS.filter((a) => a.nome === item.id));
   let antes = null; try { const bruto = voltouDe === null ? null : sessionStorage.getItem(`mb-antes-${voltouDe}`); antes = bruto !== null && Number.isInteger(Number(bruto)) ? Number(bruto) : null; } catch { antes = null; }
@@ -1232,26 +1246,32 @@ function pintarAssinaturas(c) {
     tb.append(tr);
   }
 }
-/** Confirmação na própria linha (sem confirm()): diz até quando vale e só então cancela. */
-function pedirCancelamento(a, td) {
+/** Repinta a página de assinaturas que está aberta: o Plano ou a página de um item do Marketplace. */
+const repintarAssinaturas = (c) => { if (rota()?.secao === "marketplace") pintarMarketplace(c); else pintarPlano(c); };
+/**
+ * Confirmação na própria linha (sem confirm()): diz até quando vale e só então cancela. `aviso` é onde a frase e o
+ * resultado aparecem: o do Plano por padrão; na página de um item do Marketplace, o do painel "Sua assinatura".
+ */
+function pedirCancelamento(a, td, aviso = $("pl-assinaturas-aviso")) {
   const nome = rotuloProduto(a.produto);
-  const aviso = $("pl-assinaturas-aviso");
   aviso.textContent = a.valeAte ? `Cancelar o ${nome}: ele continua até ${data(a.valeAte)} e depois nada mais é cobrado.` : `Cancelar o ${nome}: nada mais é cobrado.`;
   const sim = el("button", "btn btn-primary btn-small", "Confirmar cancelamento"); sim.type = "button";
   const nao = el("button", "btn btn-ghost btn-small", "Manter"); nao.type = "button";
-  nao.addEventListener("click", () => { void lerConta().then((c) => { if (c) pintarPlano(c); }); });
-  sim.addEventListener("click", () => { void cancelarAssinatura(a, sim, nao, aviso); });
+  nao.addEventListener("click", () => { void lerConta().then((c) => { if (c) repintarAssinaturas(c); }); });
+  sim.addEventListener("click", () => { void cancelarAssinatura(a, sim, nao); });
   td.replaceChildren(sim, document.createTextNode(" "), nao);
 }
-async function cancelarAssinatura(a, sim, nao, aviso) {
+async function cancelarAssinatura(a, sim, nao) {
   const s = sessaoGuardada(); if (s === null) { void entrar(); return; }
   sim.disabled = nao.disabled = true; sim.textContent = "Cancelando…";
   let r;
   try { r = await api("POST", "/conta/assinatura/cancelar", { id: a.id }, s.acesso); }
   catch { r = { status: 0, corpo: { erro: "sem conexão; tente de novo" } }; }
   const c = await lerConta().catch(() => null);
-  if (c) pintarPlano(c);
-  $("pl-assinaturas-aviso").textContent = r.status === 200 ? `Assinatura do ${rotuloProduto(a.produto)} cancelada.${a.valeAte ? ` O acesso continua até ${data(a.valeAte)}.` : ""}` : `Não cancelou: ${erroDe(r)}.`;
+  if (c) repintarAssinaturas(c);
+  // Depois de repintar: o aviso da página aberta (o painel do item foi refeito, então pega o elemento novo).
+  const aviso = (rota()?.secao === "marketplace" ? $("mk-assinatura-aviso") : null) ?? $("pl-assinaturas-aviso");
+  aviso.textContent = r.status === 200 ? `Assinatura do ${rotuloProduto(a.produto)} cancelada.${a.valeAte ? ` O acesso continua até ${data(a.valeAte)}.` : ""}` : `Não cancelou: ${erroDe(r)}.`;
 }
 /**
  * O painel "Assinar o Pro" é um só e aparece em duas páginas: no topo da Visão geral (a primeira coisa que a pessoa vê
