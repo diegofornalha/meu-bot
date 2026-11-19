@@ -110,6 +110,7 @@ nesta versão: o rodapé do site diz que medimos visitas sem anúncios e sem dad
 | site, console | `view_item_list`, `select_item`, `view_item` | Marketplace: a vitrine vista (`item_list_id: marketplace`, `items`), o clique num cartão e a página de um item vista (`value`, `currency: BRL`). `items[].item_id` é `<id>-mensal` (`pro-mensal`, `meu-bot-finance-mensal`, `extra-maquina-mensal`), o mesmo do `purchase` |
 | site | `marketplace_contratar` | clique em "Contratar pelo console" na página pública de um item (`items`) |
 | console | `checkout_iniciado` | `plano`: `chip-coflow` (o Pro), ou o nome técnico do add-on ou da unidade extra (`meu-bot-finance`, `extra-maquina`); `promo: primeiro-mes` na promoção. Clique em "Assinar", antes de ir à AbacatePay |
+| console | `checkout_iniciado` com `plano: extra-assento` | a dona ou um admin tocou em "Adicionar um usuário" na página de membros da organização; o `purchase` sai com `item_id: extra-assento-mensal` |
 | servidor | `purchase`, `assinatura_renovada` | Measurement Protocol, no client_id/session_id do console guardado no checkout: `transaction_id` (id do pagamento), `value`, `currency: BRL`, `items`. `purchase` só na primeira cobrança (é o que o Google Ads importa); renovações vão como `assinatura_renovada` |
 | console | `page_view` | `secao` (`overview`, `plan`, `org`, `entrada`…), caminho anonimizado |
 | console | `console_entrada`, `console_saida` | `via`: `app`, `login`; `admin` |

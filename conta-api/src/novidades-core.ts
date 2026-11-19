@@ -85,8 +85,8 @@ export const REVISAO_PAGINAS: Readonly<Record<string, string>> = {
   "/guias/whatsapp-bloqueia-numero-com-ia": "2026-11-12",
   "/guias/automatizar-whatsapp-com-ia": "2026-11-12",
   "/guias/api-oficial-do-whatsapp-ou-numero-proprio": "2026-11-13",
-  "/privacidade": "2026-11-17",
-  "/termos": "2026-11-18",
+  "/privacidade": "2026-11-20",
+  "/termos": "2026-11-20",
 };
 
 /**
