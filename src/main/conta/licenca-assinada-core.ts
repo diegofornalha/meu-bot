@@ -115,8 +115,9 @@ const vencida = (l: License, now: number): boolean => l.status === "expired" || 
 /**
  * A licença em vigor numa máquina: a que o admin gravou (`licenca.json`) somada à da conta da pessoa
  * (`licenca-conta.json`, assinada pela API para a máquina `maquina`). A máquina tem o Pro se uma das duas der; os
- * add-ons são a união dos que cada licença não vencida traz. Limite de devices e orientação de pagamento seguem os do
- * admin, que são daquela máquina. Arquivo da conta ausente, mexido, de outra máquina ou vencido não conta: vale só a
+ * add-ons são a união dos que cada licença não vencida traz. O limite de devices é o MAIOR entre o do admin e o da
+ * conta não vencida (que já vem somado aos devices extras pagos): a conta só amplia, nunca tira o que o admin deu. A
+ * orientação de pagamento segue a do admin. Arquivo da conta ausente, mexido, de outra máquina ou vencido não conta: vale só a
  * do admin. `exp` é até quando a emissão da conta sustenta isso (null quando ela não entra). Mesma regra de
  * `licencaEmVigor` em backend-colima/licenca.js (o teste licenca-assinada-core compara as duas).
  */
@@ -130,8 +131,9 @@ export function licencaEmVigor(admin: unknown, rawConta: unknown, maquina: strin
   const produtos = [...new Set([...(vencida(base, now) ? [] : base.produtos), ...(vencida(conta, now) ? [] : conta.produtos)])].sort();
   // A da conta entra quando dá o que a do admin não dá: o Pro, ou (sem Pro em nenhuma) add-ons com a do admin vencida.
   const usaConta = proOk(base, now) ? false : proOk(conta, now) || (vencida(base, now) && !vencida(conta, now));
-  if (!usaConta) return { license: { ...base, produtos }, origem: "admin", exp: null };
-  return { license: { ...conta, deviceLimit: base.deviceLimit, pagamento: base.pagamento, produtos }, origem: "conta", exp: v.payload.exp };
+  const deviceLimit = vencida(conta, now) ? base.deviceLimit : Math.max(base.deviceLimit, conta.deviceLimit);
+  if (!usaConta) return { license: { ...base, deviceLimit, produtos }, origem: "admin", exp: null };
+  return { license: { ...conta, deviceLimit, pagamento: base.pagamento, produtos }, origem: "conta", exp: v.payload.exp };
 }
 
 /** A licença mais recente vale (a API carimba `emitidaEm`); empate = não é mais nova. */

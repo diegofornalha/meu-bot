@@ -116,14 +116,15 @@ function activeCount(machines, exceptId = null) {
 }
 
 /**
- * Decide o status de um device ao se apresentar. Device conhecido mantém o status que já tinha (não vira
- * pendente de novo). Device novo entra "active" se ainda cabe no deviceLimit, senão "pending" (mão levantada).
+ * Decide o status de um device ao se apresentar. Device ativo continua ativo (não vira pendente de novo). Device
+ * novo, ou que estava pendente, entra "active" se cabe no deviceLimit, senão "pending" (mão levantada): quando o
+ * limite sobe (o admin subiu, ou a conta ganhou um device extra), o Mac que esperava entra sozinho na próxima abertura.
  */
 function admitDevice(license, machines, id) {
   const lic = parseLicense(license);
   const all = machines && typeof machines === 'object' ? machines : {};
   const known = all[id];
-  if (known) return deviceStatus(known);
+  if (known && deviceStatus(known) === 'active') return 'active';
   return activeCount(all, id) < lic.deviceLimit ? 'active' : 'pending';
 }
 
@@ -264,9 +265,10 @@ const vencida = (l, now) => l.status === 'expired' || (l.expiresAt !== null && D
 /**
  * A licença em vigor nesta máquina: a que o admin gravou (`licenca.json`) somada à da conta da pessoa
  * (`licenca-conta.json`, assinada pela API para a máquina `maquina`). A máquina tem o Pro se uma das duas der; os
- * add-ons são a união dos que cada licença não vencida traz. Limite de devices e orientação de pagamento seguem os do
- * admin, que são desta máquina. Arquivo da conta ausente, mexido, de outra máquina ou vencido não conta: vale só a do
- * admin. Cópia de `licencaEmVigor` em src/main/conta/licenca-assinada-core.ts (o teste compara as duas).
+ * add-ons são a união dos que cada licença não vencida traz. O limite de devices é o MAIOR entre o do admin e o da
+ * conta não vencida (que já vem somado aos devices extras pagos): a conta só amplia, nunca tira o que o admin deu. A
+ * orientação de pagamento segue a do admin. Arquivo da conta ausente, mexido, de outra máquina ou vencido não conta:
+ * vale só a do admin. Cópia de `licencaEmVigor` em src/main/conta/licenca-assinada-core.ts (o teste compara as duas).
  */
 function licencaEmVigor(admin, rawConta, maquina, opts = {}) {
   const now = opts.now === undefined ? Date.now() : opts.now;
@@ -278,8 +280,9 @@ function licencaEmVigor(admin, rawConta, maquina, opts = {}) {
   const produtos = [...new Set([...(vencida(base, now) ? [] : base.produtos), ...(vencida(conta, now) ? [] : conta.produtos)])].sort();
   // A da conta entra quando dá o que a do admin não dá: o Pro, ou (sem Pro em nenhuma) add-ons com a do admin vencida.
   const usaConta = proOk(base, now) ? false : proOk(conta, now) || (vencida(base, now) && !vencida(conta, now));
-  if (!usaConta) return { license: { ...base, produtos }, origem: 'admin', exp: null };
-  return { license: { ...conta, deviceLimit: base.deviceLimit, pagamento: base.pagamento, produtos }, origem: 'conta', exp: v.payload.exp };
+  const deviceLimit = vencida(conta, now) ? base.deviceLimit : Math.max(base.deviceLimit, conta.deviceLimit);
+  if (!usaConta) return { license: { ...base, deviceLimit, produtos }, origem: 'admin', exp: null };
+  return { license: { ...conta, deviceLimit, pagamento: base.pagamento, produtos }, origem: 'conta', exp: v.payload.exp };
 }
 
 module.exports = {

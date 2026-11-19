@@ -41,7 +41,11 @@ test("admitDevice: 1º cabe, 2º levanta a mão, conhecido mantém o status", ()
   const two = { ...free, deviceLimit: 2 };
   assert.equal(be.admitDevice(two, one, DEV(2)), "active", "com limite 2 o 2º entra ativo");
   const withPending = { [DEV(2)]: { status: "pending" } };
-  assert.equal(be.admitDevice(two, withPending, DEV(2)), "pending", "device conhecido mantém o status (não reavalia)");
+  assert.equal(be.admitDevice(free, { ...one, ...withPending }, DEV(2)), "pending", "pendente continua pendente enquanto não cabe");
+  assert.equal(be.admitDevice(two, { ...one, ...withPending }, DEV(2)), "active", "o limite subiu: o Mac que esperava entra sozinho");
+  assert.equal(be.admitDevice(two, withPending, DEV(2)), "active", "pendente sozinho na máquina cabe no limite");
+  const tres = { [DEV(1)]: { status: "active" }, [DEV(2)]: { status: "active" }, [DEV(3)]: { status: "active" } };
+  assert.equal(be.admitDevice(free, tres, DEV(3)), "active", "ativo continua ativo mesmo acima do limite (não vira pendente de novo)");
   const legacy = { [DEV(1)]: { name: "mac" } }; // registro antigo sem status
   assert.equal(be.admitDevice(free, legacy, DEV(2)), "pending", "registro antigo conta como ativo");
 });
