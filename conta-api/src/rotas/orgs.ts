@@ -6,8 +6,8 @@
  * e-mail entra, `aceitarConvites` (no POST /sessao) liga a conta. Assentos: ativos + convidados cabem até `assentos`.
  */
 import type { Env, OrgLinha, PapelOrg } from "../tipos.js";
-import { apagarOrg, auditar, contarDonas, contarMembros, criarOrg, gravarAssentos, gravarConvite, gravarOrg, membroPor, montarOrgApi, mudarPapel, orgPorSlug, orgsDaConta, removerMembro } from "../db.js";
-import { assentosLivres, emailNoDominio, validaAssentos, validaConvite, validaEmail, validaNovaOrg, validaPapelOrg, validaPatchOrg, validaSlug } from "../sessao-core.js";
+import { apagarOrg, auditar, contarDonas, contarLimite, contarMembros, criarOrg, licencaGravada, orgsParaCriar, papelAdmin, gravarAssentos, gravarConvite, gravarOrg, membroPor, montarOrgApi, mudarPapel, orgPorSlug, orgsDaConta, removerMembro } from "../db.js";
+import { assentosLivres, emailNoDominio, janelaMinuto, podeCriarOrg, validaAssentos, validaConvite, validaEmail, validaNovaOrg, validaPapelOrg, validaPatchOrg, validaSlug } from "../sessao-core.js";
 import { json, lerJson, type Autenticado } from "../http.js";
 
 type Papel = PapelOrg | "super";
@@ -35,9 +35,17 @@ const gerencia = (p: Papel): boolean => p === "dona" || p === "admin" || p === "
 export async function getOrgs(auth: Autenticado, env: Env): Promise<Response> {
   return json({ orgs: await orgsDaConta(env.DB, auth.conta.id) });
 }
+/** Quantas criações de organização uma conta tenta por minuto. */
+const CRIAR_POR_MIN = 6;
 export async function postOrg(auth: Autenticado, env: Env, req: Request): Promise<Response> {
+  if (await contarLimite(env.DB, `org:${auth.conta.id}`, janelaMinuto()) > CRIAR_POR_MIN) return json({ erro: "muitas tentativas; espere um minuto" }, 429);
   const nova = validaNovaOrg(await lerJson(req));
   if ("erro" in nova) return json({ erro: nova.erro }, 400);
+  // Criar organização é do Pro assinado e tem limite por conta (podeCriarOrg): quem decide é este servidor.
+  const papel = await papelAdmin(env.DB, auth.conta.email, env.ADMIN_BOOTSTRAP_EMAIL);
+  const [gravada, criar] = await Promise.all([licencaGravada(env.DB, auth.conta), orgsParaCriar(env.DB, auth.conta.id)]);
+  const nao = podeCriarOrg({ licenca: gravada, papel, donaDe: criar.donaDe, limite: criar.limite, agoraMs: Date.now() });
+  if (nao !== null) return json({ erro: nao.erro, motivo: nao.motivo }, 403);
   const org = await criarOrg(env.DB, auth.conta, nova);
   if (org === null) return json({ erro: "esse endereço já está em uso; escolha outro" }, 409);
   await auditar(env.DB, auth.conta.email, "org.criada", auth.conta.id, `${org.slug} · ${org.nome}`);

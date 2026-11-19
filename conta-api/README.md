@@ -49,7 +49,7 @@ O que isso exige de quem mexer aqui:
 
 ## Organizações (molde Rambox Enterprise)
 
-`console.agentesgrok.com/organizations/<slug>/members` e `/settings`. Qualquer conta cria uma organização (`POST /orgs`
+`console.agentesgrok.com/organizations/<slug>/members` e `/settings`. Cria uma organização quem tem o Pro valendo (o teste grátis não cria), uma por conta; o admin sobe esse número no editor de licença (`licencas.org_limit`) e o super admin não tem limite (`podeCriarOrg`, `sessao-core.ts`). `GET /conta` entrega `orgCriar` com o motivo quando não dá. Quem pode, cria uma organização (`POST /orgs`
 `{nome, slug}`) e vira a **dona**; convida por e-mail (`POST /orgs/:slug/membros` `{email, papel: admin|membro}`). Não há
 envio de e-mail: o convite é o e-mail cadastrado, e o console dá o link para a pessoa; quando aquele e-mail entra (Google
 ou link por e-mail), `aceitarConvites` no `POST /sessao` liga a conta e o membro vira ativo. Papéis: dona (tudo, inclusive

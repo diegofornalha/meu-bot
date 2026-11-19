@@ -1,6 +1,6 @@
 /** Acesso ao D1: consultas tipadas, uma função por intenção. O que sai do banco é dado; quem decide é a rota. */
 import type { AdminAssinatura, AdminAuditoria, AdminContaResumo, AdminVendaOculta, TipoVenda, AdminListaEspera, ContaAssinatura, AdminOrg, MaquinaApi, MaquinaVistaApi, AdminPagamento, AdminVendas, AdminPedido, AdminPerfil, AdminVisao, CodigoLinha, ContaApi, ContaLinha, DeviceApi, DeviceLinha, License, LicencaLinha, MaquinaLinha, MembroApi, MembroLinha, OrgApi, OrgLinha, OrgResumo, PapelOrg, PerfilApi, PromoApi, SessaoLinha } from "./tipos.js";
-import { DEVICE_LIMITE_MAX, agoraIso, ehAdminInicial, nomeExibicao, parseProvedores, provedoresDoLogin, unirProvedores, uuid, type MetodoLogin, type PatchLicenca, type PatchOrg, type PatchPerfil } from "./sessao-core.js";
+import { podeCriarOrg, DEVICE_LIMITE_MAX, agoraIso, ehAdminInicial, nomeExibicao, parseProvedores, provedoresDoLogin, unirProvedores, uuid, type MetodoLogin, type PatchLicenca, type PatchOrg, type PatchPerfil } from "./sessao-core.js";
 import type { UsuarioFirebase } from "./firebase.js";
 import { direitoPromo, liberacoesPorAddon, licencaDoSuper, licencaEmVigor, tipoDoExtra, umaPorContaEProduto, type Liberacao, type Papel, type Promo } from "./pagamento-core.js";
 import { DEVICES_INCLUSOS, LICENCA_VALIDADE_MS, limiteComExtras, valeAte } from "./licenca-core.js";
@@ -327,6 +327,14 @@ export async function limiteDeMaquinasComExtras(db: D1Database, contaId: string,
   const [base, pagos] = await Promise.all([db.prepare("SELECT maquina_limit FROM licencas WHERE conta_id = ?1").bind(contaId).first<{ maquina_limit: number }>(), extrasPagos(db, contaId, "maquina")]);
   return limiteComExtras(limiteValido(base?.maquina_limit), pagos, agoraMs);
 }
+/**
+ * Organizações da conta para a regra de criação (podeCriarOrg): `limite` é o que o admin gravou (licencas.org_limit;
+ * sem linha, 1) e `donaDe` quantas organizações ativas ela criou e ainda é a dona.
+ */
+export async function orgsParaCriar(db: D1Database, contaId: string): Promise<{ limite: number; donaDe: number }> {
+  const [base, n] = await Promise.all([db.prepare("SELECT org_limit FROM licencas WHERE conta_id = ?1").bind(contaId).first<{ org_limit: number }>(), db.prepare("SELECT COUNT(*) AS n FROM organizacoes WHERE dona_conta_id = ?1 AND apagada_em IS NULL").bind(contaId).first<{ n: number }>()]);
+  return { limite: limiteValido(base?.org_limit), donaDe: n?.n ?? 0 };
+}
 export async function limiteDeMaquinas(db: D1Database, contaId: string, agoraMs = Date.now()): Promise<number> {
   return (await limiteDeMaquinasComExtras(db, contaId, agoraMs)).limite;
 }
@@ -412,7 +420,7 @@ export async function promoDaConta(db: D1Database, conta: ContaLinha, promo: Pro
 }
 /** A conta como o app a vê: licença, devices (com "este"), máquinas, pedidos e o papel de admin. `promo`: a configuração da promoção do primeiro mês no ambiente; só o console (`GET|PATCH /conta`) a passa. */
 export async function montarContaApi(db: D1Database, conta: ContaLinha, admin: Papel, catalogo: readonly string[], deviceAtual: string | null, promo: Promo | null = null): Promise<ContaApi> {
-  const [gravada, pagos, devices, maquinas, vistas, pedidos, liberacoes, orgs, limiteMaq, extras, ass] = await Promise.all([licencaGravada(db, conta), addonsPagos(db, conta.id), devicesDaConta(db, conta.id), maquinasDaConta(db, conta.id), maquinasVistasDaConta(db, conta.id, agoraIso(Date.now() - LICENCA_VALIDADE_MS)), pedidosAbertos(db, conta.id), liberacoesDaConta(db, conta.id), orgsDaConta(db, conta.id), limiteDeMaquinasComExtras(db, conta.id), extrasPagos(db, conta.id),
+  const [criar, gravada, pagos, devices, maquinas, vistas, pedidos, liberacoes, orgs, limiteMaq, extras, ass] = await Promise.all([orgsParaCriar(db, conta.id), licencaGravada(db, conta), addonsPagos(db, conta.id), devicesDaConta(db, conta.id), maquinasDaConta(db, conta.id), maquinasVistasDaConta(db, conta.id, agoraIso(Date.now() - LICENCA_VALIDADE_MS)), pedidosAbertos(db, conta.id), liberacoesDaConta(db, conta.id), orgsDaConta(db, conta.id), limiteDeMaquinasComExtras(db, conta.id), extrasPagos(db, conta.id),
     db.prepare("SELECT id, produto, status, valor_centavos FROM assinaturas WHERE conta_id = ?1 ORDER BY criada_em DESC LIMIT 50").bind(conta.id).all<{ id: string; produto: string | null; status: string; valor_centavos: number | null }>()]);
   const limiteDev = limiteComExtras(gravada.deviceLimit, extras.filter((x) => x.tipo === "device"), Date.now(), DEVICE_LIMITE_MAX);
   const licenca = { ...licencaEmVigor(gravada, pagos, admin, catalogo, agoraIso()), deviceLimit: limiteDev.limite };
@@ -422,7 +430,7 @@ export async function montarContaApi(db: D1Database, conta: ContaLinha, admin: P
     try { const a: unknown = JSON.parse(d.apps); if (a !== null && typeof a === "object") apps = a as DeviceApi["apps"]; } catch { apps = {}; }
     return { id: d.id, alias: d.alias_legado, name: d.name ?? "", user: d.user ?? "", platform: d.platform ?? "", status: d.status === "pending" ? "pending" : "active", requestedAt: d.requested_at, firstSeen: d.first_seen, lastSeen: d.last_seen, apps, este: deviceAtual !== null && (d.id === deviceAtual || d.alias_legado === deviceAtual) };
   });
-  return { id: conta.id, email: conta.email, nome: nomeExibicao(conta), nomeLogin: conta.nome, foto: conta.foto, perfil: perfilDaLinha(conta), provedores: parseProvedores(conta.provedores), dadosUso: conta.dados_uso !== 0, admin, licenca, devices: ds, maquinas: maquinas.map(maquinaApi), maquinasVistas: vistas, maquinaLimite: limiteMaq.limite, maquinaExtras: limiteMaq.extras, deviceExtras: limiteDev.extras, pedidos, liberacoes, assinaturas, orgs, promo: await promoDaConta(db, conta, promo, admin, Date.now(), gravada) };
+  return { id: conta.id, email: conta.email, nome: nomeExibicao(conta), nomeLogin: conta.nome, foto: conta.foto, perfil: perfilDaLinha(conta), provedores: parseProvedores(conta.provedores), dadosUso: conta.dados_uso !== 0, admin, licenca, devices: ds, maquinas: maquinas.map(maquinaApi), maquinasVistas: vistas, maquinaLimite: limiteMaq.limite, maquinaExtras: limiteMaq.extras, deviceExtras: limiteDev.extras, pedidos, liberacoes, assinaturas, orgs, orgCriar: { limite: criar.limite, donaDe: criar.donaDe, motivo: podeCriarOrg({ licenca: gravada, papel: admin, donaDe: criar.donaDe, limite: criar.limite, agoraMs: Date.now() })?.motivo ?? null }, promo: await promoDaConta(db, conta, promo, admin, Date.now(), gravada) };
 }
 
 // ---- Admin: a visão de todas as contas. `busca` filtra por e-mail ou nome (LIKE, escapado); até 500 contas.
@@ -462,7 +470,7 @@ export async function visaoAdmin(db: D1Database, busca: string, adminInicial: st
     const gravada = licencaDaLinha(lic.get(c.id) ?? null, c.criada_em);
     return adm.get(c.email) === "super" ? { licenca: licencaDoSuper(gravada, catalogo), licencaGravada: gravada } : { licenca: gravada };
   };
-  const resumo: AdminContaResumo[] = contas.map((c) => ({ id: c.id, email: c.email, nome: nomeExibicao(c), foto: c.foto, admin: adm.get(c.email) ?? null, criadaEm: c.criada_em, ...licencasDe(c), addonsPagos: pagos.get(c.id) ?? [], extrasPagos: extrasDe.get(c.id) ?? [], devices: devs.get(c.id) ?? [], maquinas: maq.get(c.id) ?? 0, maquinaLimite: limiteValido(lic.get(c.id)?.maquina_limit), pedidos: ped.get(c.id) ?? 0 }));
+  const resumo: AdminContaResumo[] = contas.map((c) => ({ id: c.id, email: c.email, nome: nomeExibicao(c), foto: c.foto, admin: adm.get(c.email) ?? null, criadaEm: c.criada_em, ...licencasDe(c), addonsPagos: pagos.get(c.id) ?? [], extrasPagos: extrasDe.get(c.id) ?? [], devices: devs.get(c.id) ?? [], maquinas: maq.get(c.id) ?? 0, maquinaLimite: limiteValido(lic.get(c.id)?.maquina_limit), orgLimite: limiteValido(lic.get(c.id)?.org_limit), pedidos: ped.get(c.id) ?? 0 }));
   const todas = busca === "" ? resumo : (await db.prepare("SELECT id, email, criada_em FROM contas WHERE apagada_em IS NULL").all<{ id: string; email: string; criada_em: string }>()).results.map((c) => ({ id: c.id, licenca: licencasDe(c).licenca, devices: devs.get(c.id) ?? [] }));
   const totais = { contas: todas.length, pro: todas.filter((c) => c.licenca.plan === "pro").length, devicesPendentes: devices.results.filter((d) => d.status === "pending").length, pedidosAbertos: pedidos.results.length, orgs: orgs.length };
   const emails = new Set((await db.prepare("SELECT email FROM contas WHERE apagada_em IS NULL").all<{ email: string }>()).results.map((c) => c.email));
@@ -545,7 +553,7 @@ export async function gravarLicenca(db: D1Database, conta: ContaLinha, patch: Pa
   // viraria concessão sem prazo. Só fica na lista o que já era concessão ou não está pago em dia.
   const [atual, pagos] = await Promise.all([licencaGravada(db, conta), addonsPagos(db, conta.id)]);
   const emDia = new Set(pagos.filter((p) => Date.parse(p.expiresAt) > Date.parse(agora)).map((p) => p.produto));
-  const { maquinaLimit, ...daLicenca } = patch;
+  const { maquinaLimit, orgLimit, ...daLicenca } = patch;
   const nova: License = { ...atual, ...daLicenca, updatedAt: agora, updatedBy: "admin" } as License;
   if (patch.produtos !== undefined) nova.produtos = patch.produtos.filter((x) => atual.produtos.includes(x) || !emDia.has(x));
   if (patch.plan === "pro" && patch.status === undefined && atual.status === "free") nova.status = "active";
@@ -554,6 +562,7 @@ export async function gravarLicenca(db: D1Database, conta: ContaLinha, patch: Pa
     .bind(conta.id, nova.plan, nova.status, nova.interval, nova.memberSince, nova.trialEnd, nova.expiresAt, nova.deviceLimit, JSON.stringify(nova.produtos), nova.pagamento === null ? null : JSON.stringify(nova.pagamento), agora).run();
   // Fora de License (o app e o backend não o leem): é só da conta, como quantas máquinas levam a licença dela.
   if (maquinaLimit !== undefined) await db.prepare("UPDATE licencas SET maquina_limit = ?2 WHERE conta_id = ?1").bind(conta.id, maquinaLimit).run();
+  if (orgLimit !== undefined) await db.prepare("UPDATE licencas SET org_limit = ?2 WHERE conta_id = ?1").bind(conta.id, orgLimit).run();
   return nova;
 }
 /** Conta sem linha de licença (acabou de entrar pela primeira vez) ganha o trial do Pro por `dias`; 0 = fica free. */

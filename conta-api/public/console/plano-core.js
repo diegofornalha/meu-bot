@@ -119,6 +119,16 @@ export function vagasDeDevice(limite, extras) {
 }
 
 /**
+ * Por que a conta não pode criar uma organização agora, para a tela "Nova organização": o texto e o caminho (`ir`).
+ * `orgCriar` é o `conta.orgCriar` da API ({limite, donaDe, motivo}); null quando pode criar (ou a API é antiga).
+ */
+export function bloqueioDeOrg(orgCriar) {
+  if (orgCriar?.motivo === "sem-pro") return { texto: "Criar organização faz parte do Pro assinado. O teste grátis não inclui: assine o Pro e crie a sua.", ir: { rotulo: "Ver o Pro", caminho: "/account/plan" } };
+  if (orgCriar?.motivo === "no-limite") return { texto: orgCriar.limite === 1 ? "A sua conta já tem uma organização, e o plano inclui uma. Para criar outra, fale com o suporte." : `A sua conta já tem ${orgCriar.donaDe} organizações, o limite dela. Para criar outra, fale com o suporte.`, ir: { rotulo: "Falar com o suporte", caminho: "/account/support" } };
+  return null;
+}
+
+/**
  * O aviso da lista de Macs vazia: como um Mac entra na conta e que cada ambiente tem a sua lista. O console de staging
  * só conhece quem entrou pelo app de teste; o de produção, quem entrou pelo app meu-bot.
  */

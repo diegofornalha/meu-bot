@@ -343,3 +343,14 @@ test("os scripts do console e do site passam na checagem de sintaxe do Node", as
     assert.doesNotThrow(() => execFileSync(process.execPath, ["--check", fileURLToPath(new URL(f, import.meta.url))], { stdio: "pipe" }), f);
   }
 });
+
+test("Nova organização: a tela diz por que não dá para criar e para onde ir", async () => {
+  const { bloqueioDeOrg } = await import("../public/console/plano-core.js");
+  assert.equal(bloqueioDeOrg({ limite: 1, donaDe: 0, motivo: null }), null);
+  assert.equal(bloqueioDeOrg(undefined), null, "API antiga: o formulário aparece e o servidor decide");
+  const semPro = bloqueioDeOrg({ limite: 1, donaDe: 0, motivo: "sem-pro" });
+  assert.match(semPro.texto, /Pro assinado/); assert.equal(semPro.ir.caminho, "/account/plan");
+  const cheio = bloqueioDeOrg({ limite: 1, donaDe: 1, motivo: "no-limite" });
+  assert.match(cheio.texto, /já tem uma organização/); assert.equal(cheio.ir.caminho, "/account/support");
+  assert.match(bloqueioDeOrg({ limite: 3, donaDe: 3, motivo: "no-limite" }).texto, /3 organizações/);
+});
