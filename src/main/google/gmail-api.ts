@@ -16,7 +16,7 @@ import { sendToHost } from "../app/windows";
 import { assertAcesso } from "../licenca/acesso";
 import { caps } from "../app/variant";
 import { log, onReverseState, onTunnelState, reversePort, setReverseWanted } from "../maquina/tunnel";
-import { DONO_LEGADO, parseDono, type Dono } from "../navegador/nav-donos-core";
+import { DONO_SEM_IDENTIDADE, parseDono, type Dono } from "../navegador/nav-donos-core";
 import type { GmailAgenteState } from "../../shared/ipc";
 import { gmailApagar, gmailLer, gmailListar, gmailRestaurar } from "./apis";
 import { contaStatus } from "./conta-google";
@@ -80,7 +80,7 @@ async function handle(host: string, req: http.IncomingMessage, res: http.ServerR
     const chunks: Buffer[] = []; for await (const c of req) chunks.push(c as Buffer);
     try { body = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}") as Req; } catch { return send(400, { erro: "JSON inválido" }); }
   }
-  const dono = parseDono(req.headers["x-meu-bot-dono"]) ?? DONO_LEGADO;
+  const dono = parseDono(req.headers["x-meu-bot-dono"]) ?? DONO_SEM_IDENTIDADE;
   if (!vistos.has(dono.id)) { vistos.add(dono.id); log(`[gmail ${host}] conversa nova usando o Gmail: ${dono.origem} · ${dono.id} · ${dono.rotulo}`); }
   const t0 = Date.now();
   try {

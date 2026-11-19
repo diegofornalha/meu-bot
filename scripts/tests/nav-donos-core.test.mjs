@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
-const { parseDono, limpar, abasDe, escolherAba, decidirAbrir, tomar, donoTexto, podeFechar, abasParaRecarregar, POSSE_TTL_MS, MAX_ABAS } = createRequire(import.meta.url)("../../dist/main/navegador/nav-donos-core.js");
+import { readFileSync } from "node:fs";
+const { DONO_SEM_IDENTIDADE, parseDono, limpar, abasDe, escolherAba, decidirAbrir, tomar, donoTexto, podeFechar, abasParaRecarregar, POSSE_TTL_MS, MAX_ABAS } = createRequire(import.meta.url)("../../dist/main/navegador/nav-donos-core.js");
 
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64");
 const WA = { id: "agent:main:whatsapp:direct:+5516992294486", rotulo: "WhatsApp", origem: "whatsapp" };
@@ -13,6 +14,15 @@ test("identidade: base64 de {id, rotulo, origem}; inválida vira null (regra ant
   assert.deepEqual(parseDono(b64({ id: "claude-code:mac", origem: "claude-code" })), { id: "claude-code:mac", rotulo: "Claude Code", origem: "claude-code" });
   assert.equal(parseDono(b64({ id: "x:2", origem: "outra" })).origem, "meu-bot");
   for (const ruim of [undefined, "", "@@@", b64({ id: "a b; rm" }), b64({ rotulo: "x" })]) assert.equal(parseDono(ruim), null);
+});
+
+test("sem identificação: quem chega sem cabeçalho vira uma conversa só, com o selo que diz isso e o id que o renderer lê", () => {
+  assert.deepEqual(DONO_SEM_IDENTIDADE, { id: "meu-bot:sem-identificacao", rotulo: "sem identificação", origem: "meu-bot" });
+  // O id tem de passar na mesma regra dos ids identificados (vai e volta pelo cabeçalho sem virar null).
+  assert.deepEqual(parseDono(b64(DONO_SEM_IDENTIDADE)), DONO_SEM_IDENTIDADE);
+  // navDonoView (renderer) reconhece este id pelo texto: se um mudar, o outro tem de mudar junto.
+  const renderer = readFileSync(new URL("../../src/renderer/navegador/navegador.ts", import.meta.url), "utf8");
+  assert.ok(renderer.includes(`d.id === "${DONO_SEM_IDENTIDADE.id}"`));
 });
 
 test("sem aba indicada: a conversa trabalha na aba dela; sem aba própria, mexer usa a da frente (e a toma), ler também", () => {

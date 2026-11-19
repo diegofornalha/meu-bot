@@ -152,7 +152,8 @@ Navegador (`navegador-mcp.mjs` v2) leva `X-Meu-Bot-Dono` (base64 de `{id, rotulo
   `X-Meu-Bot-Browser-Rotulo` que o app manda).
 - **WhatsApp:** a chave da sessão do OpenClaw (`OPENCLAW_TOOLS_MCP_AGENT_SESSION_KEY`) se vier no ambiente; senão, um
   id por processo.
-- **Backend antigo, sem cabeçalho:** conta como uma conversa só, `meu-bot:legado`.
+- **Sem cabeçalho** (servidor antigo do Navegador, ou alguém chamando o canal direto): conta como uma conversa só,
+  `meu-bot:sem-identificacao`, e a aba mostra o selo "❔ sem identificação" (até 19 nov era "🤖 legado").
 
 Regras em `src/main/nav-donos-core.ts` (testadas), aplicadas em `nav-api.ts`:
 - `abrir` sem aba cria ou reaproveita uma aba da própria conversa, nunca a da frente; no máximo 3 por conversa.
