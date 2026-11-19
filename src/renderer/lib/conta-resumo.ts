@@ -2,9 +2,11 @@
 import type { ContaInfo } from "../../shared/ipc";
 const DIA = 24 * 60 * 60 * 1000;
 export interface ResumoPlano { selo: "pro" | "trial" | "free"; rotulo: string; prazo: string | null; vencido: boolean }
-/** Selo e linha de prazo da conta: Pro (ativo), Trial (com dias), Free; trial ou Pro vencidos avisam. */
+/** Selo e linha de prazo da conta: Pro (ativo), Trial (com dias), Free; trial ou Pro vencidos avisam; super admin, "∞ sem prazo". */
 export function resumoPlano(c: Pick<ContaInfo, "licenca">, agora: number = Date.now()): ResumoPlano {
   const l = c.licenca;
+  // Super admin: a API entrega o Pro sem prazo (`semPrazo`); nunca vence e não há data para contar.
+  if (l.semPrazo === true) return { selo: "pro", rotulo: "Pro", prazo: "∞ sem prazo", vencido: false };
   const fim = Date.parse(l.expiresAt ?? l.trialEnd ?? "");
   const dias = Number.isNaN(fim) ? null : Math.ceil((fim - agora) / DIA);
   if (l.status === "trialing") {
