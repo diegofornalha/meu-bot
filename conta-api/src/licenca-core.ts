@@ -12,6 +12,8 @@ import type { License } from "./tipos.js";
 export const LICENCA_VALIDADE_MS = 30 * 24 * 60 * 60 * 1000;
 /** A chave que assina hoje (LICENCA_PUBLIC_KEYS do app e do backend). */
 export const LICENCA_KID = "licenca-2026-11";
+/** Quantos devices (Macs com o app) todo plano inclui; acima disso, o admin sobe o limite ou a pessoa compra o device extra. */
+export const DEVICES_INCLUSOS = 2;
 /** Teto do limite de máquinas de uma conta (validaPatchLicenca). */
 export const MAQUINA_LIMITE_MAX = 50;
 /** Quantas vezes em 30 dias a conta abre a vaga na hora ao tirar a licença pelo app; além disso a vaga espera a emissão vencer. */

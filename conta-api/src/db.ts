@@ -3,7 +3,7 @@ import type { AdminAssinatura, AdminAuditoria, AdminContaResumo, AdminVendaOcult
 import { DEVICE_LIMITE_MAX, agoraIso, ehAdminInicial, nomeExibicao, parseProvedores, provedoresDoLogin, unirProvedores, uuid, type MetodoLogin, type PatchLicenca, type PatchOrg, type PatchPerfil } from "./sessao-core.js";
 import type { UsuarioFirebase } from "./firebase.js";
 import { direitoPromo, liberacoesPorAddon, licencaDoSuper, licencaEmVigor, tipoDoExtra, umaPorContaEProduto, type Liberacao, type Papel, type Promo } from "./pagamento-core.js";
-import { limiteComExtras, valeAte } from "./licenca-core.js";
+import { DEVICES_INCLUSOS, limiteComExtras, valeAte } from "./licenca-core.js";
 
 export async function contaPorUid(db: D1Database, uid: string): Promise<ContaLinha | null> {
   return (await db.prepare("SELECT * FROM contas WHERE firebase_uid = ?1 AND apagada_em IS NULL").bind(uid).first<ContaLinha>()) ?? null;
@@ -183,7 +183,7 @@ export async function usarCodigo(db: D1Database, code: string, agora = agoraIso(
   return (r.meta.changes ?? 0) === 1;
 }
 
-const defaultLicense = (memberSince: string): License => ({ plan: "free", status: "free", interval: null, memberSince, trialEnd: null, expiresAt: null, deviceLimit: 1, produtos: [], pagamento: null, updatedAt: memberSince, updatedBy: "system" });
+const defaultLicense = (memberSince: string): License => ({ plan: "free", status: "free", interval: null, memberSince, trialEnd: null, expiresAt: null, deviceLimit: DEVICES_INCLUSOS, produtos: [], pagamento: null, updatedAt: memberSince, updatedBy: "system" });
 function licencaDaLinha(l: LicencaLinha | null, memberSince: string): License {
   if (l === null) return defaultLicense(memberSince);
   let produtos: string[] = []; let pagamento: License["pagamento"] = null;
@@ -194,7 +194,7 @@ function licencaDaLinha(l: LicencaLinha | null, memberSince: string): License {
     status: l.status === "trialing" || l.status === "active" || l.status === "expired" ? l.status : "free",
     interval: l.interval === "month" || l.interval === "year" ? l.interval : null,
     memberSince: l.member_since, trialEnd: l.trial_end, expiresAt: l.expires_at,
-    deviceLimit: Number.isInteger(l.device_limit) && l.device_limit >= 1 ? l.device_limit : 1,
+    deviceLimit: Number.isInteger(l.device_limit) && l.device_limit >= 1 ? l.device_limit : DEVICES_INCLUSOS,
     produtos, pagamento, updatedAt: l.updated_at, updatedBy: l.updated_by === "admin" ? "admin" : "system",
   };
 }
@@ -529,7 +529,7 @@ export async function iniciarTrialSeNovo(db: D1Database, conta: ContaLinha, dias
   const tem = await db.prepare("SELECT conta_id FROM licencas WHERE conta_id = ?1").bind(conta.id).first();
   if (tem !== null && tem !== undefined) return false;
   const fim = new Date(Date.parse(agora) + dias * 24 * 60 * 60 * 1000).toISOString();
-  await db.prepare("INSERT OR IGNORE INTO licencas (conta_id, plan, status, interval, member_since, trial_end, expires_at, device_limit, produtos, pagamento, updated_at, updated_by) VALUES (?1, 'pro', 'trialing', NULL, ?2, ?3, ?3, 1, '[]', NULL, ?2, 'system')").bind(conta.id, agora, fim).run();
+  await db.prepare("INSERT OR IGNORE INTO licencas (conta_id, plan, status, interval, member_since, trial_end, expires_at, device_limit, produtos, pagamento, updated_at, updated_by) VALUES (?1, 'pro', 'trialing', NULL, ?2, ?3, ?3, ?4, '[]', NULL, ?2, 'system')").bind(conta.id, agora, fim, DEVICES_INCLUSOS).run();
   return true;
 }
 /** Perfis de acesso (só o super admin mexe): grava/atualiza um admin; remove. Regras de "último super" ficam na rota. */
