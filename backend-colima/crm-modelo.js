@@ -13,7 +13,7 @@ const THREAD_RE = /^[0-9a-f]{10,20}$/i;
 const LIMITES = { nome: 200, notes: 20000, comentario: 2000, comentariosPorBox: 500, texto: 2000 };
 
 class ErroCrm extends Error {
-  /** @param {string} code  invalido | nao_encontrado | conflito */
+  /** @param {string} code  invalido | nao_encontrado | conflito | autonomia_requer_dono (403, só no crm-api) */
   constructor(code, message) { super(message); this.code = code; }
 }
 const invalido = (m) => new ErroCrm('invalido', m);

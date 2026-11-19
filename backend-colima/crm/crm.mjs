@@ -16,7 +16,8 @@
  *   telefone-set +N <box>                       (o telefone passa a ser de um contato vinculado ao box)
  *   threads <box> · thread-add <box> <threadGmailId> · thread-remove <box> <threadGmailId>
  *   pipeline-create --name "x" [--stages "A|B|C"] [--autonomo true|false] · pipeline-set <pipeline> --autonomo true|false
- *   (--autonomo: neste pipeline o agente cria caixa, preenche campos e muda etapa sem perguntar ao dono)
+ *   (--autonomo: neste pipeline o agente cria caixa, preenche campos e muda etapa sem perguntar ao dono; quem liga é o
+ *   dono, no app: com a chave do agente o backend responde 403 `autonomia_requer_dono` e registra o pedido)
  *   pipeline-rename <pipeline> "Nome" · pipeline-delete <pipeline>
  *   stage-add <pipeline> "Nome" · stage-rename <pipeline> "Atual" "Novo" · stage-remove <pipeline> "Etapa" [--mover "Outra"]
  *   field-add <pipeline> "Nome" TEXT|NUMBER|DATE|DROPDOWN|TAG|CHECKBOX [--options "a|b"]

@@ -28,8 +28,10 @@ O pipeline padrão fica em `~/.local/share/meu-bot/crm.json`; `--pipeline <key>`
   (uma conversa do Gmail só pode estar em um box; o id é o hexadecimal da conversa)
 - Pipelines, etapas e campos (os mesmos que o menu ⋯ do CRM no Gmail faz) — **só a pedido explícito do dono**:
   - `pipeline-create --name "x" --stages "A|B|C" [--autonomo true|false]` · `pipeline-rename <pipeline> "Nome"` · `pipeline-delete <pipeline>` (só vazio)
-  - `pipeline-set <pipeline> --autonomo true|false` (liga ou desliga a marca `agenteAutonomo`: com ela você mexe nas
-    caixas desse pipeline sem perguntar; quem decide ligar é o dono, nunca você por conta própria)
+  - `pipeline-set <pipeline> --autonomo true|false` (a marca `agenteAutonomo`: com ela você mexe nas caixas desse
+    pipeline sem perguntar). **Quem liga ou desliga é o dono, no app.** Vindo de você, `--autonomo` (aqui ou no
+    `pipeline-create`) volta 403 `autonomia_requer_dono` e deixa o pedido registrado: diga ao dono o que você pediu e
+    não tente contornar.
   - `stage-add <pipeline> "Nome"` · `stage-rename <pipeline> "Atual" "Novo"` · `stage-remove <pipeline> "Etapa" [--mover "Outra"]`
     (etapa com caixas só sai com `--mover`)
   - `field-add <pipeline> "Nome" TIPO [--options "a|b"]` (TIPO: TEXT | NUMBER | DATE | DROPDOWN | TAG | CHECKBOX)
