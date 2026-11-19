@@ -64,7 +64,14 @@ export const SO_COM_PROMO: readonly string[] = ["/site/promocao.html"];
 /** O arquivo pedido é da promoção e ela está desligada? Vale para /promocao e para o caminho direto do arquivo. */
 export const paginaDaPromoDesligada = (arquivo: string, promoLigada: boolean): boolean => !promoLigada && SO_COM_PROMO.includes(arquivo);
 
-/** Arquivos do site que só o staging serve (rascunhos em revisão); em produção respondem a 404 do site. */
-export const SO_NO_STAGING: readonly string[] = ["/site/suporte.html"];
-/** O arquivo pedido é um rascunho que este canal não serve? (produção + rascunho = true) */
-export const rascunhoForaDoCanal = (arquivo: string, canal: string | undefined): boolean => canal !== "staging" && SO_NO_STAGING.includes(arquivo);
+/**
+ * Arquivos de public/site/ que ficam no repositório mas nenhum ambiente serve (rascunhos); respondem a 404 do site.
+ * Não há página só do staging: o staging mostra o que o cliente vai ver na produção, então um rascunho ou sai nos
+ * dois ou em nenhum.
+ */
+export const PAGINAS_FORA_DO_AR: readonly string[] = ["/site/suporte.html"];
+/**
+ * O caminho pedido é de uma página fora do ar? Vale para o arquivo e para as formas sem ".html" e com barra final,
+ * que os static assets também resolvem para o mesmo arquivo.
+ */
+export const paginaForaDoAr = (caminho: string): boolean => PAGINAS_FORA_DO_AR.some((a) => { const base = a.replace(/\.html$/, ""); return caminho === a || caminho === base || caminho === `${base}/`; });
