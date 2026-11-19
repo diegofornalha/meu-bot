@@ -197,6 +197,27 @@ export function vagaDoAssinar(secao) {
   return secao === "plan" ? "pl-assinar-vaga" : secao === "marketplace" ? "mk-assinar-vaga" : "ov-assinar-vaga";
 }
 
+/**
+ * O selo de um item do Marketplace para esta conta: `tem` (já tem), `teste` (o Pro em teste grátis), `falta-liberar`
+ * (app pago que o suporte ainda não liberou na máquina), `precisa-pro` (unidade extra sem o Pro valendo) ou
+ * `disponivel`. `item` é a ficha entregue pelo config.js ({id, tipo}); super admin tem tudo.
+ */
+export function estadoDoItem(conta, item) {
+  const l = conta?.licenca ?? {};
+  const tem = (texto = "Você tem") => ({ chave: "tem", texto, tom: "ok" }), disponivel = { chave: "disponivel", texto: "Disponível", tom: "" };
+  if (semPrazo(l)) return tem();
+  const proValendo = l.plan === "pro" && (l.status === "active" || l.status === "trialing");
+  if (item?.tipo === "plano") return !proValendo ? disponivel : l.status === "trialing" ? { chave: "teste", texto: "Em teste grátis", tom: "ok" } : tem();
+  if (item?.tipo === "unidade") {
+    const n = item.id === "extra-maquina" ? conta?.maquinaExtras : item.id === "extra-device" ? conta?.deviceExtras : 0;
+    if (Number.isInteger(n) && n > 0) return tem(`Você tem ${n}`);
+    return podeAdicionarMaquina(l) ? disponivel : { chave: "precisa-pro", texto: "Precisa do Pro", tom: "" };
+  }
+  if (!(Array.isArray(l.produtos) ? l.produtos : []).includes(item?.id)) return disponivel;
+  const lib = (Array.isArray(conta?.liberacoes) ? conta.liberacoes : []).find((x) => x && x.produto === item.id);
+  return lib && lib.aberta === true ? { chave: "falta-liberar", texto: "Falta liberar na máquina", tom: "" } : tem();
+}
+
 /** Quantas assinaturas ativas de um produto a conta tem (cada unidade extra é uma assinatura). */
 export function assinaturasAtivasDe(assinaturas, produto) {
   return (Array.isArray(assinaturas) ? assinaturas : []).filter((a) => a && a.produto === produto && a.status === "ACTIVE").length;

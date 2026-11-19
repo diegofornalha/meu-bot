@@ -1,5 +1,5 @@
 import { avisoDepoisDo404, pedeReleitura, visaoVelha } from "./admin-core.js";
-import { INFINITO, SEM_LIMITE, SEM_PRAZO, TODOS_ADDONS, avisoAddonPago, contagemRegressiva, addonsNaVisaoGeral, estadoAssinaturaPro, fase, linhasDeMaquinas, deParaDoExtra, ofertaDoProAparece, oQueAContaTem, pagoChegou, assinaturasAtivasDe, pedidoAssinar, podeAdicionarMaquina, promoNaTela, reaisCurto, semPrazo, vagaDoAssinar, vagasDeDevice, vagasDeMaquina } from "./plano-core.js";
+import { INFINITO, SEM_LIMITE, SEM_PRAZO, TODOS_ADDONS, avisoAddonPago, contagemRegressiva, addonsNaVisaoGeral, estadoAssinaturaPro, fase, linhasDeMaquinas, deParaDoExtra, estadoDoItem, ofertaDoProAparece, oQueAContaTem, pagoChegou, assinaturasAtivasDe, pedidoAssinar, podeAdicionarMaquina, promoNaTela, reaisCurto, semPrazo, vagaDoAssinar, vagasDeDevice, vagasDeMaquina } from "./plano-core.js";
 // Console da conta meu-bot (console.agentesgrok.com/account/* e /organizations/<slug>/members|settings, molde Rambox). Entra pela mesma página de
 // login do app (auth.agentesgrok.com) com esquema=web: o console gera state + PKCE, a página devolve #code&state, e
 // POST /token {grant:"web"} vira um token de acesso de 1 h guardado neste navegador (localStorage: outra aba, inclusive
@@ -36,7 +36,9 @@ const EXTRA_DEVICE = EXTRAS.find((x) => x.tipo === "device") ?? null;
 /** O nome de cada tipo de extra na lista do admin (vale mesmo com o catálogo vazio, para extras já pagos). */
 const ROTULO_EXTRA = { maquina: "Máquina extra", device: "Device extra" };
 /** As fichas do Marketplace deste ambiente (config.js; marketplace-core.ts no Worker): o texto de cada item à venda, pelo nome técnico. */
-const FICHAS = (() => { try { const a = JSON.parse(cfg.marketplace ?? "[]"); return Object.fromEntries((Array.isArray(a) ? a : []).filter((x) => x && typeof x.id === "string" && typeof x.nome === "string").map((x) => [x.id, x])); } catch { return {}; } })();
+/** Os itens do Marketplace, na ordem da vitrine (o Pro primeiro). */
+const MKT = (() => { try { const a = JSON.parse(cfg.marketplace ?? "[]"); return (Array.isArray(a) ? a : []).filter((x) => x && typeof x.id === "string" && typeof x.nome === "string" && typeof x.slug === "string"); } catch { return []; } })();
+const FICHAS = Object.fromEntries(MKT.map((x) => [x.id, x]));
 const rotuloProduto = (p) => (p === null || p === undefined ? "Pro" : ADDONS.find((a) => a.nome === p)?.rotulo ?? EXTRAS.find((x) => x.nome === p)?.rotulo ?? p);
 /** Situação de uma assinatura: cancelada; em dia (ativa com prazo no futuro); atrasada (ativa sem renovar). */
 const situacaoDe = (a, agora = Date.now()) => (a.status === "CANCELLED" ? { chave: "cancelada", texto: "Cancelada", tom: "" } : a.valeAte && Date.parse(a.valeAte) > agora ? { chave: "em-dia", texto: "Em dia", tom: "ok" } : { chave: "atrasada", texto: "Atrasada", tom: "mau" });
@@ -142,6 +144,8 @@ async function sair() {
 /** O que o caminho pede: uma seção da conta (/account/plan), a lista do super (/account/organizations → "orgs"),
  *  a criação (/organizations/new) ou uma organização (/organizations/<slug>/members|settings). */
 function rota() {
+  const mk = /^\/account\/marketplace\/([a-z0-9-]{1,60})\/?$/.exec(location.pathname);
+  if (mk !== null) return { secao: "marketplace", slug: mk[1], aba: null };
   const m = /^\/account\/([a-z]+)\/?$/.exec(location.pathname);
   if (m !== null && SECOES.includes(m[1])) return { secao: m[1] === "organizations" ? "orgs" : m[1], slug: null, aba: null };
   if (/^\/organizations\/new\/?$/.test(location.pathname)) return { secao: "org-nova", slug: null, aba: null };
@@ -1125,7 +1129,7 @@ function pintarAddons(l, voltouDe, liberacoes, caixaId = "pl-addons", lista = AD
  * (os extras de ABACATEPAY_EXTRAS). Cada assinatura soma uma unidade; quem não tem o Pro valendo não vê os painéis,
  * porque as duas valem junto com o Pro. Cada painel só aparece se o seu extra está à venda no ambiente.
  */
-function pintarExtras(c, voltouDe) {
+function pintarExtras(c, voltouDe, so = null) {
   const caixa = $("pl-extras"); caixa.replaceChildren();
   // As duas unidades valem junto com o Pro (mesma regra: podeAdicionarMaquina).
   if (cfg.pagamentos !== "1" || !podeAdicionarMaquina(c.licenca)) return;
@@ -1141,34 +1145,73 @@ function pintarExtras(c, voltouDe) {
     painel.append(aviso, p); caixa.append(painel);
   };
   const pagamento = "O pagamento é feito na página segura da AbacatePay, a vaga abre assim que ele é confirmado, e você cancela quando quiser.";
-  if (EXTRA_MAQUINA !== null) {
+  if (EXTRA_MAQUINA !== null && (so === null || so === EXTRA_MAQUINA.nome)) {
     const vagas = vagasDeMaquina(c.maquinaLimite, c.maquinaExtras), preco = reais(EXTRA_MAQUINA.centavos);
     painelDe(EXTRA_MAQUINA, "Mais uma máquina para o agente", `É mais um computador remoto para o agente rodar; não é um Mac a mais com o app. O seu plano cobre ${vagas.total} máquina${vagas.total === 1 ? "" : "s"}${vagas.detalhe === "" ? "" : ` (${vagas.detalhe})`}. Cada máquina a mais custa ${preco} por mês: o agente passa a rodar em mais um computador remoto com a mesma conta. ${pagamento}`, `Adicionar uma máquina por ${preco}/mês`);
   }
-  if (EXTRA_DEVICE !== null) {
+  if (EXTRA_DEVICE !== null && (so === null || so === EXTRA_DEVICE.nome)) {
     const vagas = vagasDeDevice(c.licenca.deviceLimit, c.deviceExtras), preco = reais(EXTRA_DEVICE.centavos);
     const pendentes = c.devices.filter((d) => d.status === "pending").length;
     painelDe(EXTRA_DEVICE, "Mais um Mac com o app", `É um Mac a mais para você entrar com a conta no app; não é a máquina onde o agente roda. O seu plano cobre ${vagas.total} device${vagas.total === 1 ? "" : "s"}${vagas.detalhe === "" ? "" : ` (${vagas.detalhe})`}: cada device é um Mac com o app na sua conta. Cada Mac a mais custa ${preco} por mês.${pendentes > 0 ? ` Você tem ${pendentes} Mac${pendentes === 1 ? "" : "s"} esperando vaga: com o pagamento confirmado, o que pediu primeiro entra sozinho.` : ""} ${pagamento}`, `Adicionar um Mac por ${preco}/mês`);
   }
 }
+/** Navega dentro do console sem recarregar (os cartões e o "voltar" do Marketplace). */
+function irPara(ev, caminho) { ev.preventDefault(); history.pushState(null, "", caminho); if (conta !== null) mostrarConsole(conta); }
+const avatarDe = (item) => el("div", "mk-avatar", item.nome.replace(/^Mais um[a]? /, "").slice(0, 1).toUpperCase());
+const TIPO_ITEM = { plano: "Plano", app: "App", unidade: "Extra" };
+/** A linha do preço de um item: "De R$ 997 por R$ 97 por mês" quando há preço de tabela; senão "R$ 97 por mês". */
+function precoDoItem(item, classe) {
+  const p = el("p", classe), dp = deParaDoExtra(item);
+  if (dp !== null) p.append("De ", el("s", "", dp.de), " por ", el("strong", "", dp.por), " por mês"); else p.append(el("strong", "", reaisCurto(item.centavos)), " por mês");
+  return p;
+}
 /**
- * A página Marketplace: o que a conta tem e o que dá para somar. O Pro é a base (o painel de assinar vem para cá
- * quando a oferta vale: vagaDoAssinar); embaixo, as unidades extras e os apps à venda no ambiente. É para cá que a
- * AbacatePay devolve quem pagou um add-on ou uma unidade (`?assinatura=paga&produto=…`): a tela relê a conta até o
- * que foi pago aparecer (pagoChegou), no máximo 10 vezes.
+ * A página Marketplace. Sem item no caminho é a vitrine: o que a conta tem e um cartão por item à venda no ambiente,
+ * com o selo do estado (estadoDoItem); o cartão não vende, leva à página do item. Com item (/account/marketplace/<slug>)
+ * é a página dele: o que é, o que inclui, o preço e, só ali, o painel de contratar (o do Pro, o do app ou o da
+ * unidade extra). É para a página do item que volta quem pagou (`?assinatura=paga&produto=…`): a tela relê a conta até
+ * o que foi pago aparecer (pagoChegou), no máximo 10 vezes.
  */
 function pintarMarketplace(c) {
-  const l = c.licenca;
-  pintarAssinar(c);
-  const nomes = Object.fromEntries(Object.entries(FICHAS).map(([id, f]) => [id, f.nome]));
-  const tem = semPrazo(l) ? [`Pro ${INFINITO}`, TODOS_ADDONS] : oQueAContaTem(c, nomes);
-  $("mk-tem").textContent = tem.length === 0 ? "Ainda nada além da conta gratuita. Comece pelo Pro." : `${tem.join(" · ")}.`;
-  const qs = new URLSearchParams(location.search);
+  const l = c.licenca, qs = new URLSearchParams(location.search);
   const voltouDe = qs.get("assinatura") === "paga" ? qs.get("produto") : null;
-  pintarExtras(c, voltouDe);
-  pintarAddons(l, voltouDe, c.liberacoes);
-  $("mk-vazio").hidden = cfg.pagamentos !== "1" || !$("pl-assinar").hidden || $("pl-extras").childElementCount + $("pl-addons").childElementCount > 0;
-  let antes = null; try { const n = Number(sessionStorage.getItem(`mb-antes-${voltouDe}`)); antes = voltouDe !== null && sessionStorage.getItem(`mb-antes-${voltouDe}`) !== null && Number.isInteger(n) ? n : null; } catch { antes = null; }
+  // A AbacatePay devolve em /account/marketplace?…&produto=…: o lugar do aviso é a página do item pago.
+  if (!rota()?.slug && voltouDe !== null && FICHAS[voltouDe]) history.replaceState(null, "", `/account/marketplace/${FICHAS[voltouDe].slug}${location.search}`);
+  const slug = rota()?.slug ?? null, item = slug === null ? null : MKT.find((x) => x.slug === slug) ?? null;
+  // Item que o ambiente não vende (ou endereço errado): volta para a vitrine.
+  if (slug !== null && item === null) { history.replaceState(null, "", "/account/marketplace"); }
+  pintarAssinar(c);
+  $("mk-lista").hidden = item !== null; $("mk-ficha").hidden = item === null;
+  $("mk-assinar-vaga").hidden = item === null || item.tipo !== "plano";
+  $("pl-extras").replaceChildren(); $("pl-addons").replaceChildren(); $("mk-ficha").replaceChildren();
+  if (item === null) {
+    const nomes = Object.fromEntries(MKT.map((x) => [x.id, x.nome]));
+    const tem = semPrazo(l) ? [`Pro ${INFINITO}`, TODOS_ADDONS] : oQueAContaTem(c, nomes);
+    $("mk-tem").textContent = tem.length === 0 ? "Ainda nada além da conta gratuita. Comece pelo Pro." : `${tem.join(" · ")}.`;
+    $("mk-grade").replaceChildren(...MKT.map((x) => {
+      const a = el("a", "mk-cartao"), topo = el("div", "mk-topo"), e = estadoDoItem(c, x);
+      a.href = `/account/marketplace/${x.slug}`; a.addEventListener("click", (ev) => irPara(ev, a.getAttribute("href")));
+      topo.append(avatarDe(x), selo(e.texto, e.tom));
+      a.append(topo, el("h3", "", x.nome), el("p", "mk-tipo", TIPO_ITEM[x.tipo] ?? ""), el("p", "mk-resumo", x.resumo ?? ""), precoDoItem(x, "mk-preco"));
+      return a;
+    }));
+    return;
+  }
+  const e = estadoDoItem(c, item), ficha = $("mk-ficha"), painel = el("div", "painel"), cabeca = el("div", "mk-cabeca"), voltar = el("a", "mk-voltar", "← Marketplace");
+  voltar.href = "/account/marketplace"; voltar.addEventListener("click", (ev) => irPara(ev, "/account/marketplace"));
+  cabeca.append(avatarDe(item), el("h2", "", item.nome), selo(e.texto, e.tom));
+  painel.append(cabeca, el("p", "", item.resumo ?? ""), precoDoItem(item, "oferta"));
+  if (item.descricao) painel.append(el("h3", "", "Como funciona"), el("p", "", item.descricao));
+  if (Array.isArray(item.inclui) && item.inclui.length > 0) { const ul = el("ul"); ul.append(...item.inclui.map((x) => el("li", "", x))); painel.append(el("h3", "", "O que você passa a ter"), ul); }
+  if (item.exige) painel.append(el("h3", "", "O que é preciso"), el("p", "", item.exige));
+  // O que fazer agora, por tipo: o Pro usa o painel de assinar (pintarAssinar já o trouxe para cá); sem oferta, diz o que a conta tem.
+  if (item.tipo === "plano" && $("pl-assinar").hidden) painel.append(el("p", "sub", e.chave === "disponivel" ? "A assinatura do Pro não está disponível neste momento." : semPrazo(l) ? "A sua conta já tem o Pro, sem prazo." : `A sua conta já tem o Pro${l.expiresAt ? ` até ${data(l.expiresAt)}` : ""}. A assinatura e o prazo ficam na página Plano.`));
+  if (item.tipo === "unidade" && e.chave === "precisa-pro") painel.append(el("p", "sub", "Esta unidade vale junto com o Pro: assine o Pro primeiro, e ela aparece aqui para contratar."));
+  if (item.tipo === "app" && e.chave === "tem") painel.append(el("p", "sub", "A sua conta já tem este app. Ele aparece na página Módulos do app."));
+  ficha.append(voltar, painel);
+  if (item.tipo === "unidade") pintarExtras(c, voltouDe, item.id);
+  if (item.tipo === "app") pintarAddons(l, voltouDe, c.liberacoes, "pl-addons", ADDONS.filter((a) => a.nome === item.id));
+  let antes = null; try { const bruto = voltouDe === null ? null : sessionStorage.getItem(`mb-antes-${voltouDe}`); antes = bruto !== null && Number.isInteger(Number(bruto)) ? Number(bruto) : null; } catch { antes = null; }
   const esperando = voltouDe !== null && !pagoChegou(c, voltouDe, antes);
   if (esperando && esperasPagamento < 10) { esperasPagamento++; setTimeout(() => { void lerConta().then((c2) => { if (c2 && rota()?.secao === "marketplace") pintarMarketplace(c2); }).catch(() => undefined); }, 3000); }
 }
