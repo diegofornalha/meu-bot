@@ -4,6 +4,8 @@
 
 /** O símbolo que entra no lugar da data e da contagem para quem tem o Pro sem prazo, e o texto que o explica. */
 export const INFINITO = "∞", SEM_PRAZO = "sem prazo (super admin)";
+/** O "∞" nos add-ons do super admin: a API já entrega todos os do catálogo (licencaDoSuper), os de hoje e os que entrarem. */
+export const TODOS_ADDONS = "todos os add-ons, os de hoje e os que vierem (super admin)";
 /** A licença entregue é a de um super admin (`semPrazo: true`, licencaDoSuper na API): Pro que nunca vence. */
 export const semPrazo = (licenca) => licenca?.semPrazo === true;
 

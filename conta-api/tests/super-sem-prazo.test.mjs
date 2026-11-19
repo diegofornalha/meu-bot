@@ -47,16 +47,20 @@ test("super admin com a licença gravada expirada: Pro ativo sem prazo no consol
     const ts = await tok(S, "super"), ta = await tok(A, "admin"), tc = await tok(C);
     const gravadaAntes = await DB.prepare("SELECT * FROM licencas WHERE conta_id = ?1").bind(S).first();
 
-    // GET /conta (console e app): só o super admin tem o Pro sem prazo; os limites e os add-ons não mudam.
+    // GET /conta (console e app): só o super admin tem o Pro sem prazo e todos os add-ons do catálogo do ambiente, além
+    // do que já estava gravado; os limites não mudam.
+    const catalogo = Object.keys(JSON.parse(env.ABACATEPAY_ADDONS));
+    assert.equal(catalogo.length > 0, true, "o ambiente de teste tem add-ons no catálogo");
     let r = await chamar("GET", "/conta", undefined, ts);
     const l = r.corpo.licenca;
     assert.equal(r.status, 200);
     assert.deepEqual([r.corpo.admin, l.plan, l.status, l.trialEnd, l.expiresAt, l.interval, l.semPrazo], ["super", "pro", "active", null, null, null, true]);
-    assert.deepEqual([l.deviceLimit, l.produtos, r.corpo.maquinaLimite], [2, ["meu-bot-fit"], 1], "limites de devices e de máquinas e os add-ons ficam como estão");
+    assert.deepEqual([l.deviceLimit, l.produtos, r.corpo.maquinaLimite], [2, [...catalogo, "meu-bot-fit"].sort(), 1], "limites de devices e de máquinas ficam como estão; os add-ons são o gravado mais o catálogo inteiro");
     assert.equal(r.corpo.promo, null, "super admin não recebe a oferta do primeiro mês");
     for (const [t, papel] of [[ta, "admin"], [tc, null]]) {
       r = await chamar("GET", "/conta", undefined, t);
       assert.deepEqual([r.corpo.admin, r.corpo.licenca.plan, r.corpo.licenca.status, r.corpo.licenca.expiresAt, "semPrazo" in r.corpo.licenca], [papel, "pro", "expired", ontem, false], `papel ${papel}: a licença gravada, expirada`);
+      assert.deepEqual(r.corpo.licenca.produtos, ["meu-bot-fit"], `papel ${papel}: só o add-on gravado, sem o catálogo`);
       assert.equal(r.corpo.promo?.cupom, "PRIMEIROMES1", `papel ${papel}: a promoção continua valendo`);
     }
 
@@ -69,6 +73,11 @@ test("super admin com a licença gravada expirada: Pro ativo sem prazo no consol
       r = await chamar("POST", "/conta/assinatura", corpo, ts);
       assert.deepEqual([r.status, r.corpo.erro], [409, "sua conta de super admin já tem o Pro sem prazo"]);
     }
+    // Assinar um add-on do catálogo: o super admin já tem todos, então também é 409 e nenhum checkout nasce.
+    for (const produto of catalogo) {
+      r = await chamar("POST", "/conta/assinatura", { produto }, ts);
+      assert.equal(r.status, 409); assert.match(r.corpo.erro, /^sua conta de super admin já tem o /);
+    }
     assert.equal((await DB.prepare("SELECT COUNT(*) AS n FROM pagamento_checkouts").first()).n, 0, "nenhum checkout foi criado");
 
     // A licença por máquina: a mesma regra, e o backend da máquina a aceita como Pro em vigor.
@@ -77,6 +86,7 @@ test("super admin com a licença gravada expirada: Pro ativo sem prazo no consol
     const v = be.verificaLicencaAssinada(r.corpo.licenca, { chaves, maquina: M1 });
     assert.equal(r.status, 200); assert.equal(v.ok, true);
     assert.deepEqual([v.payload.licenca.plan, v.payload.licenca.status, v.payload.licenca.expiresAt, v.payload.licenca.trialEnd], ["pro", "active", null, null]);
+    assert.deepEqual(v.payload.licenca.produtos, [...catalogo, "meu-bot-fit"].sort(), "a máquina do super admin libera todos os add-ons");
     r = await chamar("POST", "/conta/maquinas", { id: M2 }, ts);
     assert.deepEqual([r.status, r.corpo.noLimite], [409, true], "o limite de máquinas do super admin não muda");
     r = await chamar("POST", "/conta/maquinas", { id: M3 }, tc);
@@ -86,6 +96,7 @@ test("super admin com a licença gravada expirada: Pro ativo sem prazo no consol
     r = await chamar("GET", "/admin/visao", undefined, ts);
     const [vs, va, vc] = [S, A, C].map((id) => r.corpo.contas.find((c) => c.id === id));
     assert.deepEqual([vs.licenca.plan, vs.licenca.status, vs.licenca.expiresAt, vs.licenca.semPrazo, vs.licenca.deviceLimit], ["pro", "active", null, true, 2]);
+    assert.deepEqual([vs.licenca.produtos, vs.licencaGravada.produtos], [[...catalogo, "meu-bot-fit"].sort(), ["meu-bot-fit"]], "em vigor: todos; gravada: só o que o admin gravou");
     assert.deepEqual([vs.licencaGravada.status, vs.licencaGravada.expiresAt, vs.licencaGravada.trialEnd, "semPrazo" in vs.licencaGravada], ["expired", ontem, ontem, false]);
     for (const x of [va, vc]) assert.deepEqual([x.licenca.status, x.licenca.expiresAt, "semPrazo" in x.licenca, "licencaGravada" in x], ["expired", ontem, false, false]);
 
@@ -101,7 +112,7 @@ test("super admin com a licença gravada expirada: Pro ativo sem prazo no consol
     assert.deepEqual(gravadaDepois, { plan: gravadaAntes.plan, status: gravadaAntes.status, trial_end: gravadaAntes.trial_end, expires_at: gravadaAntes.expires_at, device_limit: gravadaAntes.device_limit, produtos: gravadaAntes.produtos });
     await DB.prepare("UPDATE admins SET papel = 'admin' WHERE email = 'super@exemplo.com'").run();
     r = await chamar("GET", "/conta", undefined, ts);
-    assert.deepEqual([r.corpo.admin, r.corpo.licenca.status, r.corpo.licenca.expiresAt, "semPrazo" in r.corpo.licenca], ["admin", "expired", ontem, false]);
+    assert.deepEqual([r.corpo.admin, r.corpo.licenca.status, r.corpo.licenca.expiresAt, "semPrazo" in r.corpo.licenca, r.corpo.licenca.produtos], ["admin", "expired", ontem, false, ["meu-bot-fit"]]);
     assert.equal(r.corpo.promo?.cupom, "PRIMEIROMES1");
   } finally { await px.dispose(); rmSync(persist, { recursive: true, force: true }); }
 });

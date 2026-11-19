@@ -22,6 +22,8 @@ import { MAQUINA_LIMITE_MAX } from "../licenca-core.js";
 const API = "https://api.abacatepay.com/v2";
 export const pagamentosLigados = (env: Env): boolean => Boolean(env.ABACATEPAY_KEY && env.ABACATEPAY_WEBHOOK_SECRET && env.ABACATEPAY_PRODUTO);
 const preco = (env: Env): number => { const n = Number(env.ABACATEPAY_PRECO_CENTAVOS ?? "9700"); return Number.isInteger(n) && n > 0 ? n : 9700; };
+/** Os nomes dos add-ons do catálogo deste ambiente, à venda ou não: é o que o super admin tem por padrão (`licencaDoSuper`). */
+export const catalogoAddons = (env: Env): string[] => lerAddons(env.ABACATEPAY_ADDONS).map((a) => a.nome);
 /** Os add-ons à venda neste ambiente; vazio com os pagamentos desligados. */
 export const addonsAVenda = (env: Env): OfertaAddon[] => (pagamentosLigados(env) ? lerAddons(env.ABACATEPAY_ADDONS) : []);
 /** As unidades extras à venda neste ambiente (máquina extra); vazio com os pagamentos desligados ou sem ABACATEPAY_EXTRAS. */
@@ -45,22 +47,22 @@ export async function postAssinatura(auth: Autenticado, env: Env, req: Request):
   // O que vai no checkout além do Pro: o add-on ou o extra (null = Pro).
   const item = extra ?? addon;
   const agoraMs = Date.now();
-  // O papel só pesa no Pro e na máquina extra, que vale junto com ele (add-on o super admin assina como qualquer
-  // conta); lido da tabela, não do token de 1 h.
-  const papel = addon === null ? await papelAdmin(env.DB, auth.conta.email, env.ADMIN_BOOTSTRAP_EMAIL) : null;
+  // O super admin já tem o Pro e todos os add-ons; só a máquina extra ele assina. Lido da tabela, não do token de 1 h.
+  const papel = await papelAdmin(env.DB, auth.conta.email, env.ADMIN_BOOTSTRAP_EMAIL);
   if (extra !== null) {
     // Máquina extra só serve a quem tem o Pro valendo (a licença que a máquina recebe é a do Pro). Não há "já tem":
     // cada assinatura é uma máquina a mais, até o teto.
-    const l = await licencaDaConta(env.DB, auth.conta, papel);
+    const l = await licencaDaConta(env.DB, auth.conta, papel, catalogoAddons(env));
     const valendo = l.plan === "pro" && (l.status === "active" || l.status === "trialing") && (l.expiresAt === null || Date.parse(l.expiresAt) > agoraMs);
     if (!valendo) return json({ erro: "a máquina extra vale junto com o Pro; assine o Pro primeiro" }, 409);
     if (await limiteDeMaquinas(env.DB, auth.conta.id, agoraMs) >= MAQUINA_LIMITE_MAX) return json({ erro: `a conta já está no máximo de ${MAQUINA_LIMITE_MAX} máquinas; fale com o suporte` }, 409);
   } else if (addon === null) {
     if (papel === "super") return json({ erro: "sua conta de super admin já tem o Pro sem prazo" }, 409);
-    const l = await licencaDaConta(env.DB, auth.conta, papel);
+    const l = await licencaDaConta(env.DB, auth.conta, papel, catalogoAddons(env));
     const ativa = await env.DB.prepare("SELECT id FROM assinaturas WHERE conta_id = ?1 AND status = 'ACTIVE' AND produto IS NULL LIMIT 1").bind(auth.conta.id).first<{ id: string }>();
     if (ativa !== null && l.plan === "pro" && l.status === "active") return json({ erro: "você já tem uma assinatura ativa" }, 409);
   } else {
+    if (papel === "super") return json({ erro: `sua conta de super admin já tem o ${addon.rotulo}` }, 409);
     const ativa = await env.DB.prepare("SELECT id FROM assinaturas WHERE conta_id = ?1 AND status = 'ACTIVE' AND produto = ?2 LIMIT 1").bind(auth.conta.id, addon.nome).first<{ id: string }>();
     const emDia = (await addonsPagos(env.DB, auth.conta.id)).some((p) => p.produto === addon.nome && Date.parse(p.expiresAt) > agoraMs);
     if (ativa !== null && emDia) return json({ erro: `você já tem uma assinatura ativa do ${addon.rotulo}` }, 409);

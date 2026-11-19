@@ -11,10 +11,11 @@ import { DEVICE_ID_RE, UUID_RE, decidirLiberarDevice, ehAdminInicial, validaBusc
 import { json, lerJson, type Autenticado } from "../http.js";
 import { assinaturaIdValido } from "../pagamento-core.js";
 import { enviarEmailSenha, impedimentosDeApagar } from "./conta.js";
+import { catalogoAddons } from "./pagamentos.js";
 
 export async function getAdminVisao(auth: Autenticado, env: Env, url: URL): Promise<Response> {
   if (auth.claims.adm === null) return json({ erro: "só admin" }, 403);
-  return json(await visaoAdmin(env.DB, validaBusca(url.searchParams.get("busca")), env.ADMIN_BOOTSTRAP_EMAIL, auth.claims.adm === "super"));
+  return json(await visaoAdmin(env.DB, validaBusca(url.searchParams.get("busca")), env.ADMIN_BOOTSTRAP_EMAIL, catalogoAddons(env), auth.claims.adm === "super"));
 }
 export async function postAtenderPedido(auth: Autenticado, env: Env, id: string): Promise<Response> {
   if (auth.claims.adm === null) return json({ erro: "só admin" }, 403);

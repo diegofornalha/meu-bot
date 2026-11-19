@@ -1,5 +1,5 @@
 import { avisoDepoisDo404, pedeReleitura, visaoVelha } from "./admin-core.js";
-import { INFINITO, SEM_PRAZO, contagemRegressiva, estadoAssinaturaPro, fase, pedidoAssinar, podeAdicionarMaquina, promoNaTela, reaisCurto, semPrazo, vagasDeMaquina } from "./plano-core.js";
+import { INFINITO, SEM_PRAZO, TODOS_ADDONS, contagemRegressiva, estadoAssinaturaPro, fase, pedidoAssinar, podeAdicionarMaquina, promoNaTela, reaisCurto, semPrazo, vagasDeMaquina } from "./plano-core.js";
 // Console da conta meu-bot (console.agentesgrok.com/account/* e /organizations/<slug>/members|settings, molde Rambox). Entra pela mesma página de
 // login do app (auth.agentesgrok.com) com esquema=web: o console gera state + PKCE, a página devolve #code&state, e
 // POST /token {grant:"web"} vira um token de acesso de 1 h guardado neste navegador (localStorage: outra aba, inclusive
@@ -530,7 +530,7 @@ async function perfilRemover(email, botao) {
   if (conta !== null) mostrarConsole(conta);
 }
 /** O "∞" no lugar de uma data: o Pro sem prazo do super admin, com o texto para quem passa o mouse ou usa leitor de tela. */
-const infinito = () => { const s = el("span", "", INFINITO); s.title = SEM_PRAZO; s.setAttribute("role", "img"); s.setAttribute("aria-label", SEM_PRAZO); return s; };
+const infinito = (significado = SEM_PRAZO) => { const s = el("span", "", INFINITO); s.title = significado; s.setAttribute("role", "img"); s.setAttribute("aria-label", significado); return s; };
 const contaCelula = (email, nome) => { const td = el("td"); const box = el("div", "conta"); box.append(el("strong", "", nome ?? email)); if (nome) box.append(el("span", "", email)); td.append(box); return td; };
 function pintarAdminTotais(v) {
   const fases = v.contas.map((c) => fase(c.licenca));
@@ -628,7 +628,9 @@ function pintarAdminContas(v) {
       tdAd.append(selo(`${ROTULO_EXTRA[x.tipo] ?? x.tipo} · ${emDia ? "paga até" : "venceu em"} ${data(x.expiresAt)}`, emDia ? "ok" : "mau"), document.createTextNode(" "));
       if (emDia) { const b = el("button", "btn btn-ghost", "Encerrar"); b.type = "button"; b.title = "Encerra agora esta máquina extra paga (reembolso ou disputa): a vaga sai do limite da conta. A assinatura na AbacatePay é cancelada à parte."; b.addEventListener("click", () => { void encerrarPago(c, `extras/${encodeURIComponent(x.assinaturaId)}`, b); }); tdAd.append(b, document.createTextNode(" ")); }
     }
-    for (const p of l.produtos) tdAd.append(selo(`${rotuloProduto(p)} · concedido`), document.createTextNode(" "));
+    // Super admin: tem todos os add-ons pela regra, não por concessão; um "∞" no lugar da lista.
+    if (semPrazo(l)) tdAd.append(infinito(TODOS_ADDONS));
+    else for (const p of l.produtos) tdAd.append(selo(`${rotuloProduto(p)} · concedido`), document.createTextNode(" "));
     if (pagosC.length === 0 && extrasC.length === 0 && l.produtos.length === 0) tdAd.textContent = "-";
     tr.append(tdAd);
     const dv = el("td", "", `${ativos}/${l.deviceLimit}`); if (pend > 0) dv.append(document.createTextNode(" "), selo(`${pend} pendente${pend === 1 ? "" : "s"}`, "mau")); tr.append(dv);
@@ -824,7 +826,7 @@ function pintarOverview(c) {
     cartao("↻", "Ciclo de cobrança", document.createTextNode(l.interval ? CICLO[l.interval] : "-")),
     cartao("▭", "Devices", document.createTextNode(`${ativos} de ${l.deviceLimit}`), ...(pendentes > 0 ? [selo(`${pendentes} pendente${pendentes === 1 ? "" : "s"}`, "mau")] : [])),
     cartao("⌂", "Máquinas", document.createTextNode(String(c.maquinas.length))),
-    ...(l.produtos.length > 0 ? [cartao("+", "Add-ons", ...l.produtos.map((p) => selo(rotuloProduto(p))))] : []),
+    ...(semPrazo(l) ? [cartao("+", "Add-ons", infinito(TODOS_ADDONS))] : l.produtos.length > 0 ? [cartao("+", "Add-ons", ...l.produtos.map((p) => selo(rotuloProduto(p))))] : []),
     ...(c.pedidos > 0 ? [cartao("✉", "Pedidos abertos", document.createTextNode(String(c.pedidos)))] : []),
   );
 }
@@ -1096,7 +1098,7 @@ function pintarPlano(c) {
     cartao("↻", "Ciclo", document.createTextNode(l.interval ? CICLO[l.interval] : "-")),
     cartao("▭", "Limite de devices", document.createTextNode(String(l.deviceLimit))),
     cartao("⌂", "Máquinas com a licença", document.createTextNode(`${(c.maquinas ?? []).filter(ocupaVaga).length} de ${c.maquinaLimite ?? 1}${vagasDeMaquina(c.maquinaLimite, c.maquinaExtras).detalhe === "" ? "" : ` (${vagasDeMaquina(c.maquinaLimite, c.maquinaExtras).detalhe})`}`)),
-    cartao("+", "Add-ons", ...(l.produtos.length > 0 ? l.produtos.map((p) => selo(rotuloProduto(p))) : [document.createTextNode("nenhum")])),
+    cartao("+", "Add-ons", ...(semPrazo(l) ? [infinito(TODOS_ADDONS)] : l.produtos.length > 0 ? l.produtos.map((p) => selo(rotuloProduto(p))) : [document.createTextNode("nenhum")])),
   );
   // Assinar pela AbacatePay: só com os pagamentos ligados no Worker (config.js) e enquanto não há Pro pago ativo.
   // Pro ativo sem assinatura (liberado pelo admin, ou assinatura cancelada com o mês ainda valendo) continua podendo

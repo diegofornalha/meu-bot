@@ -7,11 +7,11 @@ import type { ContaLinha, Env } from "../tipos.js";
 import { apagarConta, auditar, contarLimite, gravarPerfilConta, montarContaApi, orgsDaConta, papelAdmin } from "../db.js";
 import { janelaMinuto, validaPatchPerfil } from "../sessao-core.js";
 import { json, lerJson, type Autenticado } from "../http.js";
-import { promoLigada } from "./pagamentos.js";
+import { catalogoAddons, promoLigada } from "./pagamentos.js";
 
 export async function getConta(auth: Autenticado, env: Env): Promise<Response> {
   const adm = await papelAdmin(env.DB, auth.conta.email, env.ADMIN_BOOTSTRAP_EMAIL);
-  return json(await montarContaApi(env.DB, auth.conta, adm, auth.claims.dev, promoLigada(env)));
+  return json(await montarContaApi(env.DB, auth.conta, adm, catalogoAddons(env), auth.claims.dev, promoLigada(env)));
 }
 
 /** O que a pessoa muda no console › Perfil; devolve a conta inteira para a tela repintar. */
@@ -23,7 +23,7 @@ export async function patchConta(auth: Autenticado, env: Env, req: Request): Pro
   if (Object.keys(perfil).length > 0) await auditar(env.DB, auth.conta.email, "perfil.alterado", auth.conta.id, Object.keys(perfil).join(", "));
   if (dadosUso !== undefined && (auth.conta.dados_uso !== 0) !== dadosUso) await auditar(env.DB, auth.conta.email, "dados-uso.alterado", auth.conta.id, dadosUso ? "ligado" : "desligado");
   const adm = await papelAdmin(env.DB, nova.email, env.ADMIN_BOOTSTRAP_EMAIL);
-  return json(await montarContaApi(env.DB, nova, adm, auth.claims.dev, promoLigada(env)));
+  return json(await montarContaApi(env.DB, nova, adm, catalogoAddons(env), auth.claims.dev, promoLigada(env)));
 }
 
 /**

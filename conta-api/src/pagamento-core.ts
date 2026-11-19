@@ -336,13 +336,13 @@ interface LicencaBase { plan: "free" | "pro"; status: "free" | "trialing" | "act
 export type Papel = "super" | "admin" | null;
 
 /**
- * A licença de um super admin: o Pro sem prazo. Nunca vence, nunca está em teste, nunca fica expirada, seja o que for
- * que esteja gravado. Só os prazos e o plano mudam: limite de devices, add-ons, "membro desde" e o resto ficam como
- * estão. `semPrazo: true` diz às telas para mostrar "∞" no lugar da data. É regra de leitura: nada é gravado, e quem
+ * A licença de um super admin: o Pro sem prazo e todos os add-ons do catálogo deste ambiente (`catalogo`, os nomes de
+ * ABACATEPAY_ADDONS), somados aos que já estiverem gravados. Nunca vence, nunca está em teste, nunca fica expirada,
+ * seja o que for que esteja gravado. Limite de devices, "membro desde" e o resto ficam como estão. `semPrazo: true` diz às telas para mostrar "∞" no lugar da data. É regra de leitura: nada é gravado, e quem
  * deixa de ser super admin volta a ter a licença gravada.
  */
-export function licencaDoSuper<L extends LicencaBase & { trialEnd: string | null }>(l: L): L & { semPrazo: true } {
-  return { ...l, plan: "pro", status: "active", interval: null, trialEnd: null, expiresAt: null, semPrazo: true };
+export function licencaDoSuper<L extends LicencaBase & { trialEnd: string | null }>(l: L, catalogo: readonly string[]): L & { semPrazo: true } {
+  return { ...l, plan: "pro", status: "active", interval: null, trialEnd: null, expiresAt: null, produtos: [...new Set([...l.produtos, ...catalogo])].sort(), semPrazo: true };
 }
 
 /**
@@ -365,6 +365,6 @@ export function licencaComAddons<L extends LicencaBase>(l: L, pagos: readonly { 
  * com a regra do super admin (`licencaDoSuper`) e os add-ons pagos em dia (`licencaComAddons`). A regra do super vem
  * antes: sem prazo, a licença dele nunca é "vencida", então os add-ons concedidos pelo admin continuam valendo.
  */
-export function licencaEmVigor<L extends LicencaBase & { trialEnd: string | null }>(gravada: L, pagos: readonly { produto: string; expiresAt: string }[], papel: Papel, agora: string): L & { semPrazo?: true } {
-  return licencaComAddons<L & { semPrazo?: true }>(papel === "super" ? licencaDoSuper(gravada) : gravada, pagos, agora);
+export function licencaEmVigor<L extends LicencaBase & { trialEnd: string | null }>(gravada: L, pagos: readonly { produto: string; expiresAt: string }[], papel: Papel, catalogo: readonly string[], agora: string): L & { semPrazo?: true } {
+  return licencaComAddons<L & { semPrazo?: true }>(papel === "super" ? licencaDoSuper(gravada, catalogo) : gravada, pagos, agora);
 }
