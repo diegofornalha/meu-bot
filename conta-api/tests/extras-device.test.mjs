@@ -77,6 +77,14 @@ test("device extra: o webhook soma uma vaga, o Mac pendente mais antigo entra, o
   assert.deepEqual(await status(), { primeiro: "active", segundo: "active", terceiro: "pending" });
   assert.equal((await DB.prepare("SELECT COUNT(*) AS n FROM auditoria WHERE acao = 'device.liberado' AND detalhe LIKE 'b1b2c3d4e5f6%subs_d1'").first()).n, 1, "a promoção fica na auditoria");
   assert.equal(c.assinaturas.find((a) => a.id === "subs_d1").produto, "extra-device");
+  // O formulário do admin é preenchido pela visão, que traz o limite GRAVADO (a base), não o somado: salvar a conta sem
+  // mexer no campo "Devices" regrava a mesma base e o extra não conta duas vezes.
+  const naVisao = (await chamar("GET", "/admin/visao", undefined, tadm)).corpo.contas.find((x) => x.id === A);
+  assert.equal(naVisao.licenca.deviceLimit, 1, "a visão do admin mostra a base");
+  assert.deepEqual(naVisao.extrasPagos.map((x) => x.tipo), ["device"]);
+  r = await chamar("PATCH", `/admin/contas/${A}/licenca`, { plan: naVisao.licenca.plan, status: naVisao.licenca.status, deviceLimit: naVisao.licenca.deviceLimit, maquinaLimit: naVisao.maquinaLimite }, tadm);
+  assert.equal(r.status, 200, r.corpo.erro);
+  assert.equal((await conta()).licenca.deviceLimit, 2, "salvar sem alterar não soma o extra de novo");
   // A renovação estende a mesma vaga, não soma outra.
   w = await webhook({ evento: "subscription.renewed", ref: R1, subs: "subs_d1" });
   assert.match(w.resultado, /^extra-device liberado até /);
