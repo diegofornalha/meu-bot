@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import vm from "node:vm";
-import { llmsPorPagamentos, caminhoCanonico, ehAliasDoSite, paraHttps, redirecionamentoInicial, semBarraFinal, rascunhoForaDoCanal } from "../dist/site-core.js";
+import { llmsPorPagamentos, paginaDaPromoDesligada, caminhoCanonico, ehAliasDoSite, paraHttps, redirecionamentoInicial, semBarraFinal, rascunhoForaDoCanal } from "../dist/site-core.js";
 
 test("paraHttps: http vira https com caminho e query; https e lixo ficam null", () => {
   assert.equal(paraHttps("http://agentesgrok.com/"), "https://agentesgrok.com/");
@@ -151,4 +151,60 @@ test("teste grátis: os dias escritos no site, no login e no app são os do TRIA
     for (const re of frases) for (const m of t.matchAll(re)) { achados++; assert.equal(m[1], dias[0], `${u.pathname.split("/conta-api/").pop()}: "${m[0]}" não bate com TRIAL_DIAS=${dias[0]}`); }
   }
   assert.ok(achados >= 40, `esperava dezenas de menções ao teste grátis, achei ${achados}`);
+});
+
+test("promoção: a página só sai com a promoção ligada, também pelo caminho do arquivo; as outras não mudam", () => {
+  assert.equal(paginaDaPromoDesligada("/site/promocao.html", false), true);
+  assert.equal(paginaDaPromoDesligada("/site/promocao.html", true), false);
+  assert.equal(paginaDaPromoDesligada("/site/perguntas.html", false), false);
+  // Desligada, /promocao não está no mapa de páginas: o caminho segue cru, não é um arquivo e cai na 404 do site.
+  assert.equal(paginaDaPromoDesligada("/promocao", false), false);
+});
+
+test("promoção: o prazo e o preço escritos no site são os do PROMO_DIAS e do PROMO_PRECO_CENTAVOS dos dois ambientes", () => {
+  const toml = readFileSync(new URL("../wrangler.toml", import.meta.url), "utf8");
+  const dias = [...toml.matchAll(/^PROMO_DIAS = "(\d+)"$/gm)].map((m) => m[1]);
+  const centavos = [...toml.matchAll(/^PROMO_PRECO_CENTAVOS = "(\d+)"$/gm)].map((m) => Number(m[1]));
+  assert.equal(dias.length, 2, "PROMO_DIAS em produção e no staging");
+  assert.equal(centavos.length, 2, "PROMO_PRECO_CENTAVOS em produção e no staging");
+  assert.equal(dias[0], dias[1]); assert.equal(centavos[0], centavos[1]);
+  assert.equal([...toml.matchAll(/^PROMO_CUPOM = "([^"]*)"$/gm)].length, 2, "PROMO_CUPOM em produção e no staging");
+  const preco = centavos[0] % 100 === 0 ? String(centavos[0] / 100) : (centavos[0] / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 });
+  const pub = new URL("../public/", import.meta.url);
+  const arquivos = readdirSync(pub, { recursive: true }).filter((f) => /\.(html|txt|js)$/.test(String(f))).map((f) => String(f));
+  // O prazo da promoção ("N dias para assinar") é outra frase que não a do teste grátis; o preço vem sempre depois de "primeiro mês".
+  const prazo = /(\d+) dias para assinar/g, valor = /primeiro mês(?: do Pro)?(?: sai)? por R\$ (\d+(?:,\d{2})?)/gi;
+  const achados = {};
+  for (const f of arquivos) {
+    const t = readFileSync(new URL(f, pub), "utf8");
+    let n = 0;
+    for (const m of t.matchAll(prazo)) { n++; assert.equal(m[1], dias[0], `${f}: "${m[0]}" não bate com PROMO_DIAS=${dias[0]}`); }
+    for (const m of t.matchAll(valor)) { n++; assert.equal(m[1], preco, `${f}: "${m[0]}" não bate com PROMO_PRECO_CENTAVOS=${centavos[0]}`); }
+    if (n > 0) achados[f] = n;
+  }
+  assert.ok((achados["site/promocao.html"] ?? 0) >= 5, `a página da promoção diz o prazo e o preço (achei ${achados["site/promocao.html"] ?? 0})`);
+  assert.ok(achados["site/termos.html"] > 0, "os termos citam a promoção");
+});
+
+test("promoção: a página é noindex, para quem já testou, e nada no site a divulga (só o console a linka)", () => {
+  const dir = new URL("../public/site/", import.meta.url);
+  const p = readFileSync(new URL("promocao.html", dir), "utf8");
+  assert.match(p, /<h1>Primeiro mês do Pro por R\$ 1<\/h1>/);
+  assert.match(p, /<meta name="robots" content="noindex">/);
+  assert.doesNotMatch(p, /rel="canonical"/);
+  assert.match(p, /Seu teste grátis acabou\? Você tem \d+ dias para assinar com o primeiro mês por R\$ 1\. Depois, R\$ 97 por mês\./);
+  assert.match(p, /class="btn btn-primary" href="\/console" data-ev="plano_interesse" data-plano="promo-primeiro-mes">Assinar no console</);
+  assert.equal([...p.matchAll(/class="btn/g)].length, 1, "um botão só: o do console");
+  assert.match(p, /href="\/obrigado" data-ev="baixar_mac" data-origem="promocao">Teste grátis por \d+ dias</);
+  assert.match(p, /Quem assina durante o teste paga o preço normal desde o primeiro mês\./);
+  // Nenhuma outra página, o llms.txt ou o robots.txt leva a /promocao; a home e as perguntas nem citam a promoção.
+  for (const f of readdirSync(dir, { recursive: true }).map(String).filter((f) => /\.(html|txt|js)$/.test(f) && f !== "promocao.html")) {
+    const t = readFileSync(new URL(f, dir), "utf8");
+    assert.doesNotMatch(t, /\/promocao/, `${f} não pode linkar a página da promoção`);
+    if (f !== "termos.html") assert.doesNotMatch(t, /primeiro mês(?: do Pro)?(?: sai)? por R\$|dias para assinar|data-promo/i, `${f} não pode citar a promoção`);
+  }
+  const worker = readFileSync(new URL("../src/novidades-core.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(worker, /promocao/, "fora do sitemap");
+  // O console linka as regras a partir do cartão da promoção.
+  assert.match(readFileSync(new URL("../public/console/console.js", import.meta.url), "utf8"), /a\.href = `\$\{cfg\.site\}\/promocao`/);
 });

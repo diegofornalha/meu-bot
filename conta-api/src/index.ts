@@ -23,10 +23,10 @@ import { deleteDevice, deletePerfil, getAdminFirebase, getAdminVisao, patchLicen
 import { downloadMac, downloadWindows, REPO } from "./release-github.js";
 import { GUIAS, lerReleases, novidadesHtml, sitemapXml } from "./novidades-core.js";
 import { CSP_ADS, CSP_GA, gaIds } from "./analytics-core.js";
-import { caminhoCanonico, llmsPorPagamentos, redirecionamentoInicial, rascunhoForaDoCanal } from "./site-core.js";
+import { caminhoCanonico, llmsPorPagamentos, paginaDaPromoDesligada, redirecionamentoInicial, rascunhoForaDoCanal } from "./site-core.js";
 import { postListaEspera } from "./rotas/lista.js";
 import { deleteMaquina, postMaquina, postRenovarLicenca } from "./rotas/maquinas.js";
-import { addonsAVenda, pagamentosLigados, postAssinatura, postCancelarAssinatura, postWebhookAbacate } from "./rotas/pagamentos.js";
+import { addonsAVenda, pagamentosLigados, postAssinatura, postCancelarAssinatura, postWebhookAbacate, promoLigada } from "./rotas/pagamentos.js";
 import { deleteMembro, deleteOrg, getOrg, getOrgPublico, getOrgs, patchAdminOrg, patchMembro, patchOrg, postMembro, postOrg } from "./rotas/orgs.js";
 
 const SEGURANCA: Record<string, string> = {
@@ -241,11 +241,15 @@ async function sitePagina(req: Request, env: Env, url: URL): Promise<Response> {
   if (env.CANAL === "staging") raiz["/suporte"] = "/site/suporte.html";
   // A página do Windows (versão de teste, noindex): nos dois sites, fora do sitemap.
   raiz["/baixar-windows"] = "/site/baixar-windows.html";
+  // A página das regras da promoção do primeiro mês (noindex; só o console a linka, fora do sitemap e do llms.txt):
+  // existe com a promoção ligada (PROMO_CUPOM preenchido e pagamentos ligados); desligada, /promocao cai na 404 do site.
+  const promo = promoLigada(env) !== null;
+  if (promo) raiz["/promocao"] = "/site/promocao.html";
   const guia = /^\/guias\/([a-z0-9-]+)$/.exec(url.pathname)?.[1];
   if (guia && (GUIAS as readonly string[]).includes(guia)) raiz[url.pathname] = `/site/guias/${guia}.html`;
   const caminho = url.pathname === "/" ? "/site/index.html" : url.pathname === "/obrigado" ? "/site/obrigado.html" : raiz[url.pathname] ?? url.pathname;
-  // O rascunho dos planos não sai em produção nem pelo caminho direto do arquivo.
-  const soStaging = rascunhoForaDoCanal(caminho, env.CANAL);
+  // O rascunho dos planos não sai em produção nem pelo caminho direto do arquivo; a página da promoção desligada, idem.
+  const soStaging = rascunhoForaDoCanal(caminho, env.CANAL) || paginaDaPromoDesligada(caminho, promo);
   let res = soStaging ? new Response(null, { status: 404 }) : await env.ASSETS.fetch(new Request(new URL(caminho, url.origin).toString(), { method: "GET", headers: req.headers }));
   // Caminho que não existe: a página 404 do site (com status 404), em vez do corpo vazio dos assets.
   if (res.status === 404 && (soStaging || !url.pathname.startsWith("/site/"))) res = new Response((await env.ASSETS.fetch(new Request(new URL("/site/404.html", url.origin).toString()))).body, { status: 404, headers: { "content-type": "text/html; charset=utf-8" } });

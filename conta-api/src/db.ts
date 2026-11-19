@@ -1,8 +1,8 @@
 /** Acesso ao D1: consultas tipadas, uma função por intenção. O que sai do banco é dado; quem decide é a rota. */
-import type { AdminAssinatura, AdminContaResumo, AdminListaEspera, ContaAssinatura, AdminOrg, MaquinaApi, AdminPagamento, AdminVendas, AdminPedido, AdminPerfil, AdminVisao, CodigoLinha, ContaApi, ContaLinha, DeviceApi, DeviceLinha, License, LicencaLinha, MaquinaLinha, MembroApi, MembroLinha, OrgApi, OrgLinha, OrgResumo, PapelOrg, PerfilApi, SessaoLinha } from "./tipos.js";
+import type { AdminAssinatura, AdminContaResumo, AdminListaEspera, ContaAssinatura, AdminOrg, MaquinaApi, AdminPagamento, AdminVendas, AdminPedido, AdminPerfil, AdminVisao, CodigoLinha, ContaApi, ContaLinha, DeviceApi, DeviceLinha, License, LicencaLinha, MaquinaLinha, MembroApi, MembroLinha, OrgApi, OrgLinha, OrgResumo, PapelOrg, PerfilApi, PromoApi, SessaoLinha } from "./tipos.js";
 import { agoraIso, nomeExibicao, parseProvedores, provedoresDoLogin, unirProvedores, uuid, type MetodoLogin, type PatchLicenca, type PatchOrg, type PatchPerfil } from "./sessao-core.js";
 import type { UsuarioFirebase } from "./firebase.js";
-import { licencaComAddons, umaPorContaEProduto } from "./pagamento-core.js";
+import { direitoPromo, licencaComAddons, umaPorContaEProduto, type Promo } from "./pagamento-core.js";
 import { valeAte } from "./licenca-core.js";
 
 export async function contaPorUid(db: D1Database, uid: string): Promise<ContaLinha | null> {
@@ -230,7 +230,31 @@ export async function auditar(db: D1Database, quem: string, acao: string, contaI
 }
 
 /** A conta como o app a vê: licença, devices (com "este"), máquinas, pedidos e o papel de admin. */
-export async function montarContaApi(db: D1Database, conta: ContaLinha, admin: "super" | "admin" | null, deviceAtual: string | null): Promise<ContaApi> {
+/**
+ * A conta já pagou o Pro alguma vez? Vale qualquer cobrança paga do Pro (`pagamentos`, produto NULL: uma linha por
+ * cobrança que o webhook liberou) ou assinatura do Pro já criada (`assinaturas`, produto NULL). `fora` tira da conta a
+ * cobrança e a assinatura do próprio evento em processamento, para a nova tentativa de um webhook não se contar.
+ * Pro pago por fora da AbacatePay (liberado à mão pelo admin) não deixa registro aqui.
+ */
+export async function jaPagouPro(db: D1Database, contaId: string, fora: { pagamentoId: string; assinaturaId: string } | null = null): Promise<boolean> {
+  const r = await db.prepare("SELECT 1 AS x FROM pagamentos WHERE conta_id = ?1 AND produto IS NULL AND id != ?2 UNION ALL SELECT 1 AS x FROM assinaturas WHERE conta_id = ?1 AND produto IS NULL AND id != ?3 LIMIT 1")
+    .bind(contaId, fora?.pagamentoId ?? "", fora?.assinaturaId ?? "").first<{ x: number }>();
+  return r !== null && r !== undefined;
+}
+/**
+ * A promoção do primeiro mês para esta conta agora (direitoPromo), ou null. `promo` é a configuração do ambiente
+ * (null = desligada). A consulta de "já pagou" só roda para quem passaria nas outras regras.
+ */
+export async function promoDaConta(db: D1Database, conta: ContaLinha, promo: Promo | null, agoraMs = Date.now(), gravada?: License): Promise<PromoApi | null> {
+  if (promo === null) return null;
+  const licenca = gravada ?? await licencaGravada(db, conta);
+  const base = { licenca, agoraMs, promoDias: promo.dias, cupom: promo.cupom };
+  if (direitoPromo({ ...base, jaPagouPro: false }) === null) return null;
+  const d = direitoPromo({ ...base, jaPagouPro: await jaPagouPro(db, conta.id) });
+  return d === null ? null : { precoCentavos: promo.precoCentavos, ate: d.ate, cupom: promo.cupom };
+}
+/** `promo`: a configuração da promoção do primeiro mês no ambiente; só o console (`GET|PATCH /conta`) a passa. */
+export async function montarContaApi(db: D1Database, conta: ContaLinha, admin: "super" | "admin" | null, deviceAtual: string | null, promo: Promo | null = null): Promise<ContaApi> {
   const [gravada, pagos, devices, maquinas, pedidos, orgs, maquinaLimite, ass] = await Promise.all([licencaGravada(db, conta), addonsPagos(db, conta.id), devicesDaConta(db, conta.id), maquinasDaConta(db, conta.id), pedidosAbertos(db, conta.id), orgsDaConta(db, conta.id), limiteDeMaquinas(db, conta.id),
     db.prepare("SELECT id, produto, status, valor_centavos FROM assinaturas WHERE conta_id = ?1 ORDER BY criada_em DESC LIMIT 50").bind(conta.id).all<{ id: string; produto: string | null; status: string; valor_centavos: number | null }>()]);
   const licenca = licencaComAddons(gravada, pagos, agoraIso());
@@ -240,7 +264,7 @@ export async function montarContaApi(db: D1Database, conta: ContaLinha, admin: "
     try { const a: unknown = JSON.parse(d.apps); if (a !== null && typeof a === "object") apps = a as DeviceApi["apps"]; } catch { apps = {}; }
     return { id: d.id, alias: d.alias_legado, name: d.name ?? "", user: d.user ?? "", platform: d.platform ?? "", status: d.status === "pending" ? "pending" : "active", requestedAt: d.requested_at, firstSeen: d.first_seen, lastSeen: d.last_seen, apps, este: deviceAtual !== null && (d.id === deviceAtual || d.alias_legado === deviceAtual) };
   });
-  return { id: conta.id, email: conta.email, nome: nomeExibicao(conta), nomeLogin: conta.nome, foto: conta.foto, perfil: perfilDaLinha(conta), provedores: parseProvedores(conta.provedores), dadosUso: conta.dados_uso !== 0, admin, licenca, devices: ds, maquinas: maquinas.map(maquinaApi), maquinaLimite, pedidos, assinaturas, orgs };
+  return { id: conta.id, email: conta.email, nome: nomeExibicao(conta), nomeLogin: conta.nome, foto: conta.foto, perfil: perfilDaLinha(conta), provedores: parseProvedores(conta.provedores), dadosUso: conta.dados_uso !== 0, admin, licenca, devices: ds, maquinas: maquinas.map(maquinaApi), maquinaLimite, pedidos, assinaturas, orgs, promo: await promoDaConta(db, conta, promo, Date.now(), gravada) };
 }
 
 // ---- Admin: a visão de todas as contas. `busca` filtra por e-mail ou nome (LIKE, escapado); até 500 contas.

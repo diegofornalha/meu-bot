@@ -1,4 +1,4 @@
-import { estadoAssinaturaPro } from "./plano-core.js";
+import { estadoAssinaturaPro, promoNaTela, reaisCurto } from "./plano-core.js";
 // Console da conta meu-bot (console.agentesgrok.com/account/* e /organizations/<slug>/members|settings, molde Rambox). Entra pela mesma página de
 // login do app (auth.agentesgrok.com) com esquema=web: o console gera state + PKCE, a página devolve #code&state, e
 // POST /token {grant:"web"} vira um token de acesso de 1 h guardado neste navegador (localStorage: outra aba, inclusive
@@ -846,15 +846,36 @@ async function tirarMaquina(m, botao) {
   if (c2) pintarDevices(c2);
 }
 let esperasPagamento = 0;
+/** A promoção do primeiro mês que o painel "Assinar o Pro" está mostrando agora (null = preço normal). */
+let promoMostrada = null;
+const ASSINAR_NORMAL = $("pl-assinar-btn").textContent;
+/** O aviso da promoção acima do "Assinar": preço, prazo e o código do cupom, caso a página de pagamento o peça. */
+function pintarPromo(c) {
+  promoMostrada = promoNaTela(c.promo);
+  const caixa = $("pl-promo"); caixa.hidden = promoMostrada === null; caixa.replaceChildren();
+  $("pl-assinar-btn").textContent = promoMostrada === null ? ASSINAR_NORMAL : `Assinar por ${reaisCurto(promoMostrada.precoCentavos)} no primeiro mês`;
+  if (promoMostrada === null) return;
+  // "R$ 97" é o preço do Pro que este painel já escreve no index.html.
+  const regra = el("p"); regra.append(el("strong", "", `Primeiro mês por ${reaisCurto(promoMostrada.precoCentavos)}.`), document.createTextNode(` Depois, R$ 97 por mês. Só no cartão. Vale até ${dataHora(promoMostrada.ate)}.`));
+  const cupom = el("p", "sub"); cupom.append(document.createTextNode("Se a tela de pagamento pedir um cupom, use: "), el("code", "", promoMostrada.cupom));
+  caixa.append(regra, cupom);
+  // As regras ficam numa página do site que só este link abre (noindex, fora do menu).
+  if (typeof cfg.site === "string" && cfg.site !== "") { const a = el("a", "", "Ver as regras"); a.href = `${cfg.site}/promocao`; a.target = "_blank"; a.rel = "noopener"; const p = el("p", "sub"); p.append(a); caixa.append(p); }
+}
 /** "Assinar": pede o checkout à API (com o client_id/session_id do GA4, para a compra ir à mesma visita) e vai para a página da AbacatePay. */
 async function assinar(produto = null, btn = $("pl-assinar-btn"), aviso = $("pl-assinar-aviso")) {
   const s = sessaoGuardada();
   if (s === null) { void entrar(); return; }
   btn.disabled = true; aviso.textContent = "Abrindo a página de pagamento…";
   const v = typeof ga.visita === "function" ? await ga.visita() : { clientId: null, sessionId: null };
-  const r = await api("POST", "/conta/assinatura", { gaClientId: v.clientId, gaSessionId: v.sessionId, ...(produto === null ? {} : { produto }) }, s.acesso);
-  if (r.status === 200 && r.corpo && typeof r.corpo.url === "string") { ga.evento("checkout_iniciado", { plano: produto ?? "chip-coflow" }); location.assign(r.corpo.url); return; }
-  btn.disabled = false; aviso.textContent = erroDe(r);
+  // `promo: true` diz à API que a tela mostrou o primeiro mês com desconto: se o prazo acabou, ela recusa em vez de abrir o preço cheio.
+  const comPromo = produto === null && promoMostrada !== null;
+  const r = await api("POST", "/conta/assinatura", { gaClientId: v.clientId, gaSessionId: v.sessionId, ...(produto === null ? {} : { produto }), ...(comPromo ? { promo: true } : {}) }, s.acesso);
+  if (r.status === 200 && r.corpo && typeof r.corpo.url === "string") { ga.evento("checkout_iniciado", { plano: produto ?? "chip-coflow", ...(r.corpo.promo === true ? { promo: "primeiro-mes" } : {}) }); location.assign(r.corpo.url); return; }
+  btn.disabled = false;
+  // O prazo acabou com a tela aberta: repinta o painel com o preço normal e mantém o aviso da API.
+  if (comPromo && r.corpo && r.corpo.promoAcabou === true) { const c2 = await lerConta().catch(() => null); if (c2) pintarPlano(c2); }
+  aviso.textContent = erroDe(r);
 }
 /** Um painel "Assinar" por app à venda que a conta ainda não tem; quem voltou do pagamento vê o aviso no painel do app. */
 function pintarAddons(l, voltouDe) {
@@ -927,6 +948,7 @@ function pintarPlano(c) {
   const { pagoAtivo, proSemAssinatura } = estadoAssinaturaPro(l, c.assinaturas);
   $("pl-assinar").hidden = cfg.pagamentos !== "1" || pagoAtivo;
   $("pl-assinar-ja").hidden = !proSemAssinatura;
+  pintarPromo(c);
   $("pl-assinar-ja").textContent = proSemAssinatura ? `Você já tem o Pro${l.expiresAt ? ` até ${data(l.expiresAt)}` : ""}, sem assinatura ativa. Assinando, a cobrança passa a ser mensal e o prazo que você já tem não é encurtado.` : "";
   const qs = new URLSearchParams(location.search);
   const voltouDe = qs.get("assinatura") === "paga" ? qs.get("produto") : null;

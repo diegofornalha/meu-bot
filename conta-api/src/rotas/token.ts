@@ -8,6 +8,7 @@ import type { Env, SessaoLinha } from "../tipos.js";
 import { auditar, codigoPor, contaPorId, criarSessao, devicePor, devicesDaConta, gravarDevice, licencaDaConta, montarContaApi, papelAdmin, revogarFamilia, revogarSessao, sessaoPorHash, usarCodigo } from "../db.js";
 import { ACESSO_TTL_S, ESQUEMA_WEB, admitirDevice, agoraIso, assinarJwt, maisSegundos, pkceConfere, refreshTtlS, segredo, sha256Hex, uuid, validaPedidoToken } from "../sessao-core.js";
 import { json, lerJson } from "../http.js";
+import { promoLigada } from "./pagamentos.js";
 
 async function emitir(env: Env, conta: { id: string; email: string }, s: Omit<SessaoLinha, "refresh_hash" | "revogada_em">, refresh: string): Promise<Response> {
   const hash = await sha256Hex(refresh);
@@ -38,7 +39,7 @@ export async function postToken(req: Request, env: Env): Promise<Response> {
       const agoraS = Math.floor(Date.now() / 1000);
       const acesso = await assinarJwt({ sub: conta.id, sid: `web:${uuid()}`, dev: null, adm, iat: agoraS, exp: agoraS + ACESSO_TTL_S }, env.SESSAO_HMAC_KEY);
       await auditar(env.DB, conta.email, "login.entrou", conta.id, "console web", agora);
-      return json({ acesso, expiraEm: maisSegundos(ACESSO_TTL_S), conta: await montarContaApi(env.DB, conta, adm, null) });
+      return json({ acesso, expiraEm: maisSegundos(ACESSO_TTL_S), conta: await montarContaApi(env.DB, conta, adm, null, promoLigada(env)) });
     }
     // O device deste Mac: conhecido (pelo uuid ou pelo alias antigo) mantém o status; novo cabe até o limite da licença.
     const d = pedido.device;
