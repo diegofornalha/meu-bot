@@ -106,7 +106,7 @@ const cspDoConsole = (env: Env): string => ["default-src 'self'", `script-src 's
  */
 async function consolePagina(req: Request, env: Env, url: URL): Promise<Response> {
   if (url.pathname === "/robots.txt") return comCabecalhos(robotsFechado(), {});
-  if (url.pathname === "/config.js") return comCabecalhos(configJs({ api: env.API_ORIGIN, auth: env.AUTH_ORIGIN, console: env.CONSOLE_ORIGIN, site: env.SITE_ORIGIN, canal: env.CANAL, ga: gaDoEnv(env), pagamentos: pagamentosLigados(env) ? "1" : "", addons: JSON.stringify(addonsAVenda(env).map((a) => ({ nome: a.nome, rotulo: a.rotulo, centavos: a.centavos }))), extras: JSON.stringify(extrasAVenda(env).map((x) => ({ tipo: x.tipo, nome: x.nome, rotulo: x.rotulo, centavos: x.centavos }))) }), {});
+  if (url.pathname === "/config.js") return comCabecalhos(configJs({ api: env.API_ORIGIN, auth: env.AUTH_ORIGIN, console: env.CONSOLE_ORIGIN, site: env.SITE_ORIGIN, canal: env.CANAL, ga: gaDoEnv(env), pagamentos: pagamentosLigados(env) ? "1" : "", addons: JSON.stringify(addonsAVenda(env).map((a) => ({ nome: a.nome, rotulo: a.rotulo, centavos: a.centavos }))), extras: JSON.stringify(extrasAVenda(env).map((x) => ({ tipo: x.tipo, nome: x.nome, rotulo: x.rotulo, centavos: x.centavos, ...(x.deCentavos === undefined ? {} : { deCentavos: x.deCentavos }) }))) }), {});
   const caminho = /\.[a-z0-9]{1,8}$/i.test(url.pathname) && !url.pathname.endsWith(".html") ? url.pathname : "/console/index.html";
   const res = await env.ASSETS.fetch(new Request(new URL(caminho, url.origin).toString(), { method: "GET", headers: req.headers }));
   // Tudo sem cache: o console muda junto com a API, e um JS velho de 5 min já mostrou tela errada depois de um deploy.

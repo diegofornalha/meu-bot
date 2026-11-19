@@ -1,5 +1,5 @@
 import { avisoDepoisDo404, pedeReleitura, visaoVelha } from "./admin-core.js";
-import { INFINITO, SEM_LIMITE, SEM_PRAZO, TODOS_ADDONS, avisoAddonPago, contagemRegressiva, addonsNaVisaoGeral, estadoAssinaturaPro, fase, ofertaDoProAparece, pedidoAssinar, podeAdicionarMaquina, promoNaTela, reaisCurto, semPrazo, vagaDoAssinar, vagasDeDevice, vagasDeMaquina } from "./plano-core.js";
+import { INFINITO, SEM_LIMITE, SEM_PRAZO, TODOS_ADDONS, avisoAddonPago, contagemRegressiva, addonsNaVisaoGeral, estadoAssinaturaPro, fase, deParaDoExtra, ofertaDoProAparece, pedidoAssinar, podeAdicionarMaquina, promoNaTela, reaisCurto, semPrazo, vagaDoAssinar, vagasDeDevice, vagasDeMaquina } from "./plano-core.js";
 // Console da conta meu-bot (console.agentesgrok.com/account/* e /organizations/<slug>/members|settings, molde Rambox). Entra pela mesma página de
 // login do app (auth.agentesgrok.com) com esquema=web: o console gera state + PKCE, a página devolve #code&state, e
 // POST /token {grant:"web"} vira um token de acesso de 1 h guardado neste navegador (localStorage: outra aba, inclusive
@@ -966,7 +966,7 @@ function pintarDevices(c) {
   const vagasDv = vagasDeDevice(l.deviceLimit, c.deviceExtras), pendentes = c.devices.length - ativos;
   $("dv-resumo").textContent = `${c.devices.length} device${c.devices.length === 1 ? "" : "s"} · ${ativos} ativo${ativos === 1 ? "" : "s"}${semPrazo(l) ? `, sem limite (${INFINITO})` : ` de ${l.deviceLimit} do plano${vagasDv.detalhe === "" ? "" : ` (${vagasDv.detalhe})`}`}.`;
   // Mac esperando vaga e o device extra à venda: o caminho para liberá-lo fica ao lado da conta.
-  if (pendentes > 0 && EXTRA_DEVICE !== null && cfg.pagamentos === "1" && podeAdicionarMaquina(l)) { const a = el("a", "", `Adicionar um device por ${reais(EXTRA_DEVICE.centavos)}/mês`); a.href = "/account/plan"; $("dv-resumo").append(document.createTextNode(` ${pendentes === 1 ? "O Mac pendente entra" : "Os Macs pendentes entram"} quando houver vaga. `), a); }
+  if (pendentes > 0 && EXTRA_DEVICE !== null && cfg.pagamentos === "1" && podeAdicionarMaquina(l)) { const a = el("a", "", `Adicionar um Mac por ${reais(EXTRA_DEVICE.centavos)}/mês`); a.href = "/account/plan"; $("dv-resumo").append(document.createTextNode(` ${pendentes === 1 ? "O Mac pendente entra" : "Os Macs pendentes entram"} quando houver vaga. `), a); }
   const tb = $("dv-tabela").querySelector("tbody"); tb.replaceChildren();
   if (c.devices.length === 0) { const tr = el("tr"); const td = el("td", "", "Nenhum device ainda: entre com a conta no app meu-bot de um Mac."); td.colSpan = 5; tr.append(td); tb.append(tr); }
   for (const d of c.devices) {
@@ -1109,7 +1109,11 @@ function pintarExtras(c, voltouDe) {
   if (cfg.pagamentos !== "1" || !podeAdicionarMaquina(c.licenca)) return;
   const painelDe = (x, titulo, texto, botao) => {
     const painel = el("div", "painel"); const aviso = el("p", "sub"); aviso.setAttribute("role", "status");
-    painel.append(el("h2", "", titulo), el("p", "", texto));
+    painel.append(el("h2", "", titulo));
+    // Preço de tabela riscado, quando o catálogo traz um (plano-core.js, deParaDoExtra).
+    const dp = deParaDoExtra(x);
+    if (dp !== null) { const o = el("p", "oferta"); o.append("De ", el("s", "", dp.de), " por ", el("strong", "", dp.por), " por mês"); painel.append(o); }
+    painel.append(el("p", "", texto));
     if (voltouDe === x.nome) aviso.textContent = "Recebemos você de volta. Assim que a AbacatePay confirmar o pagamento, a vaga nova aparece aqui (costuma levar alguns segundos).";
     const p = el("p"); const b = el("button", "btn btn-primary", botao); b.type = "button"; b.addEventListener("click", () => { void assinar(x.nome, b, aviso); }); p.append(b);
     painel.append(aviso, p); caixa.append(painel);
@@ -1117,12 +1121,12 @@ function pintarExtras(c, voltouDe) {
   const pagamento = "O pagamento é feito na página segura da AbacatePay, a vaga abre assim que ele é confirmado, e você cancela quando quiser.";
   if (EXTRA_MAQUINA !== null) {
     const vagas = vagasDeMaquina(c.maquinaLimite, c.maquinaExtras), preco = reais(EXTRA_MAQUINA.centavos);
-    painelDe(EXTRA_MAQUINA, "Máquinas", `O seu plano cobre ${vagas.total} máquina${vagas.total === 1 ? "" : "s"}${vagas.detalhe === "" ? "" : ` (${vagas.detalhe})`}. Cada máquina a mais custa ${preco} por mês: o agente passa a rodar em mais um computador remoto com a mesma conta. ${pagamento}`, `Adicionar uma máquina por ${preco}/mês`);
+    painelDe(EXTRA_MAQUINA, "Mais uma máquina para o agente", `É mais um computador remoto para o agente rodar; não é um Mac a mais com o app. O seu plano cobre ${vagas.total} máquina${vagas.total === 1 ? "" : "s"}${vagas.detalhe === "" ? "" : ` (${vagas.detalhe})`}. Cada máquina a mais custa ${preco} por mês: o agente passa a rodar em mais um computador remoto com a mesma conta. ${pagamento}`, `Adicionar uma máquina por ${preco}/mês`);
   }
   if (EXTRA_DEVICE !== null) {
     const vagas = vagasDeDevice(c.licenca.deviceLimit, c.deviceExtras), preco = reais(EXTRA_DEVICE.centavos);
     const pendentes = c.devices.filter((d) => d.status === "pending").length;
-    painelDe(EXTRA_DEVICE, "Devices", `O seu plano cobre ${vagas.total} device${vagas.total === 1 ? "" : "s"}${vagas.detalhe === "" ? "" : ` (${vagas.detalhe})`}: cada device é um Mac com o app na sua conta. Cada Mac a mais custa ${preco} por mês.${pendentes > 0 ? ` Você tem ${pendentes} Mac${pendentes === 1 ? "" : "s"} esperando vaga: com o pagamento confirmado, o que pediu primeiro entra sozinho.` : ""} ${pagamento}`, `Adicionar um device por ${preco}/mês`);
+    painelDe(EXTRA_DEVICE, "Mais um Mac com o app", `É um Mac a mais para você entrar com a conta no app; não é a máquina onde o agente roda. O seu plano cobre ${vagas.total} device${vagas.total === 1 ? "" : "s"}${vagas.detalhe === "" ? "" : ` (${vagas.detalhe})`}: cada device é um Mac com o app na sua conta. Cada Mac a mais custa ${preco} por mês.${pendentes > 0 ? ` Você tem ${pendentes} Mac${pendentes === 1 ? "" : "s"} esperando vaga: com o pagamento confirmado, o que pediu primeiro entra sozinho.` : ""} ${pagamento}`, `Adicionar um Mac por ${preco}/mês`);
   }
 }
 /** "Suas assinaturas": o que a conta paga pela AbacatePay, com a situação e até quando vale. */
