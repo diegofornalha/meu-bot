@@ -1,5 +1,5 @@
 /** Acesso ao D1: consultas tipadas, uma função por intenção. O que sai do banco é dado; quem decide é a rota. */
-import type { AdminAssinatura, AdminContaResumo, AdminListaEspera, ContaAssinatura, AdminOrg, MaquinaApi, AdminPagamento, AdminVendas, AdminPedido, AdminPerfil, AdminVisao, CodigoLinha, ContaApi, ContaLinha, DeviceApi, DeviceLinha, License, LicencaLinha, MaquinaLinha, MembroApi, MembroLinha, OrgApi, OrgLinha, OrgResumo, PapelOrg, PerfilApi, PromoApi, SessaoLinha } from "./tipos.js";
+import type { AdminAssinatura, AdminAuditoria, AdminContaResumo, AdminListaEspera, ContaAssinatura, AdminOrg, MaquinaApi, AdminPagamento, AdminVendas, AdminPedido, AdminPerfil, AdminVisao, CodigoLinha, ContaApi, ContaLinha, DeviceApi, DeviceLinha, License, LicencaLinha, MaquinaLinha, MembroApi, MembroLinha, OrgApi, OrgLinha, OrgResumo, PapelOrg, PerfilApi, PromoApi, SessaoLinha } from "./tipos.js";
 import { agoraIso, ehAdminInicial, nomeExibicao, parseProvedores, provedoresDoLogin, unirProvedores, uuid, type MetodoLogin, type PatchLicenca, type PatchOrg, type PatchPerfil } from "./sessao-core.js";
 import type { UsuarioFirebase } from "./firebase.js";
 import { direitoPromo, licencaDoSuper, licencaEmVigor, tipoDoExtra, umaPorContaEProduto, type Papel, type Promo } from "./pagamento-core.js";
@@ -66,6 +66,27 @@ export async function apagarConta(db: D1Database, conta: ContaLinha, agora = ago
     db.prepare("UPDATE devices SET name = NULL, user = NULL, platform = NULL, apps = '{}' WHERE conta_id = ?1").bind(conta.id),
     db.prepare("DELETE FROM membros WHERE conta_id = ?1").bind(conta.id),
   ]);
+}
+/** O e-mail que a conta tinha antes de `apagarConta` (que grava "apagada:<id>:<email>"); numa conta viva, o próprio. */
+export function emailOriginal(c: { id: string; email: string }): string {
+  const prefixo = `apagada:${c.id}:`;
+  return c.email.startsWith(prefixo) ? c.email.slice(prefixo.length) : c.email;
+}
+/**
+ * O que as telas escondem, para o super admin: as contas apagadas (com o e-mail original, quem apagou, a licença que
+ * ficou gravada e o total pago) e as últimas ações da tabela `auditoria`. Só leitura.
+ */
+export async function auditoriaAdmin(db: D1Database): Promise<AdminAuditoria> {
+  const [apagadas, registro] = await Promise.all([
+    db.prepare("SELECT c.id, c.email, c.criada_em, c.apagada_em, l.plan, l.status, l.expires_at, (SELECT a.quem FROM auditoria a WHERE a.conta_id = c.id AND a.acao = 'conta.apagada' ORDER BY a.id DESC LIMIT 1) AS quem, (SELECT COALESCE(SUM(p.valor_centavos), 0) FROM pagamentos p WHERE p.conta_id = c.id) AS pago FROM contas c LEFT JOIN licencas l ON l.conta_id = c.id WHERE c.apagada_em IS NOT NULL ORDER BY c.apagada_em DESC LIMIT 200")
+      .all<{ id: string; email: string; criada_em: string; apagada_em: string; plan: string | null; status: string | null; expires_at: string | null; quem: string | null; pago: number }>(),
+    db.prepare("SELECT a.id, a.quando, a.quem, a.acao, a.conta_id, a.detalhe, c.email, c.apagada_em FROM auditoria a LEFT JOIN contas c ON c.id = a.conta_id ORDER BY a.id DESC LIMIT 500")
+      .all<{ id: number; quando: string; quem: string; acao: string; conta_id: string | null; detalhe: string | null; email: string | null; apagada_em: string | null }>(),
+  ]);
+  return {
+    apagadas: apagadas.results.map((c) => ({ id: c.id, email: emailOriginal(c), criadaEm: c.criada_em, apagadaEm: c.apagada_em, apagadaPor: c.quem, plan: c.plan, status: c.status, expiresAt: c.expires_at, pagoCentavos: c.pago })),
+    registro: registro.results.map((a) => ({ id: a.id, quando: a.quando, quem: a.quem, acao: a.acao, detalhe: a.detalhe, conta: a.conta_id === null ? null : { id: a.conta_id, email: a.email === null ? null : emailOriginal({ id: a.conta_id, email: a.email }), apagada: a.apagada_em !== null } })),
+  };
 }
 /** Todas as sessões (apps) da conta saem; os tokens de acesso de 1 h ainda valem até vencer. */
 export async function revogarSessoesDaConta(db: D1Database, contaId: string, agora = agoraIso()): Promise<void> {
