@@ -165,4 +165,6 @@ async function cli(argv) {
     sai({ erro: "uso: estado | ligar | desligar | listar | aprovar <id> [--texto-b64 <texto>] | descartar <id|todas>" }, 1);
   } catch (e) { sai({ erro: e instanceof Error ? e.message : String(e) }, 1); }
 }
-if (process.argv[1] && import.meta.url === pathToFileURL(fs.realpathSync(process.argv[1])).href) await cli(process.argv.slice(2));
+// Só roda a CLI quando este arquivo é o programa; carregado pelo gateway (import do index.js), não faz nada.
+const ehPrograma = () => { try { return Boolean(process.argv[1]) && import.meta.url === pathToFileURL(fs.realpathSync(process.argv[1])).href; } catch { return false; } };
+if (ehPrograma()) await cli(process.argv.slice(2));
