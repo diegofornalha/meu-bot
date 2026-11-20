@@ -128,3 +128,8 @@ test("modo de depuração: null por padrão (a variante decide); true/false grav
   assert.equal(normalizeSettings({ version: 1, depuracao: false }).depuracao, false);
   assert.equal(normalizeSettings({ version: 1, depuracao: "sim" }).depuracao, null);
 });
+
+test("modelo padrão por máquina aceita o ollama-local (modo grátis, tutorial 17)", () => {
+  const s = normalizeSettings({ defaultModelByHost: { local: "ollama-local", colima: "grok-4" } });
+  assert.deepEqual(s.defaultModelByHost, { local: "ollama-local", colima: "grok-4" });
+});

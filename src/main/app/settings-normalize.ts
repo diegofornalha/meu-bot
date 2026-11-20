@@ -9,7 +9,7 @@ import { parseAccelerator } from "./accelerator";
 import { isZoomLevel } from "./zoom-core";
 import { isPortaMcp, isToken } from "../controle-remoto/controle-remoto-core";
 
-export const BACKEND_MODELS: readonly BackendModel[] = ["claudecode", "agente", "rene-dm", "rene", "grok-4"];
+export const BACKEND_MODELS: readonly BackendModel[] = ["claudecode", "agente", "rene-dm", "rene", "grok-4", "ollama-local"];
 export const isBackendModel = (v: unknown): v is BackendModel =>
   typeof v === "string" && (BACKEND_MODELS as readonly string[]).includes(v);
 

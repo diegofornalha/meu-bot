@@ -1,6 +1,6 @@
 import { byId as $, el } from "../lib/dom.js";
 import { planMascots } from "../lib/intro-mascots.js";
-import { type OnboardState, type Feedback, ONBOARD_STEPS, initialOnboardState, FINAL_MESSAGE, SKIPPED_MESSAGE, welcomeMessage, type OnboardEvent, advanceOnboard, pickFeedback, TOUR_INVITE, AI_CHOICE_INVITE, AI_NONE_INFO, type AiChoice, opcoesVisiveis, parseAiChoice, preselecao, pularEscolhaIa, tutorialDaEscolha } from "../lib/onboarding.js";
+import { type OnboardState, type Feedback, ONBOARD_STEPS, initialOnboardState, FINAL_MESSAGE, SKIPPED_MESSAGE, welcomeMessage, type OnboardEvent, advanceOnboard, pickFeedback, TOUR_INVITE, AI_CHOICE_INVITE, AI_NONE_INFO, type AiChoice, comModoGratis, opcoesVisiveis, parseAiChoice, preselecao, pularEscolhaIa, tutorialDaEscolha } from "../lib/onboarding.js";
 import { hostLabel } from "../lib/probe-text.js";
 import { mountSnake } from "../snake.js";
 import type { Tab } from "../renderer.js";
@@ -160,10 +160,10 @@ const aiChoiceKey = (): string => `escolhaIa:${ctx.windowHost}`;
  * já está logada; com o Claude Code Global do admin a conta já existe e segue direto para o convite do tour.
  */
 export async function showAiChoice(): Promise<void> {
-  await Promise.allSettled([ctx.refreshClaudeLine(), ctx.refreshXaiLine()]);
+  await Promise.allSettled([ctx.refreshClaudeLine(), ctx.refreshXaiLine(), ctx.refreshOllamaLine()]);
   const g = ctx.guideCtx();
   if (pularEscolhaIa(g)) { showTourWelcome(); return; }
-  const opcoes = opcoesVisiveis(g.xai.possible);
+  const opcoes = comModoGratis(opcoesVisiveis(g.xai.possible), g.ollama.possible === true);
   let guardada: AiChoice | null = null;
   try { guardada = parseAiChoice(localStorage.getItem(aiChoiceKey())); } catch { /* opcional */ }
   const marcada = guardada ?? preselecao(g);
@@ -216,7 +216,11 @@ async function confirmAiChoice(): Promise<void> {
   if (c === null) return;
   try { localStorage.setItem(aiChoiceKey(), c); } catch { /* opcional */ }
   const tut = tutorialDaEscolha(c);
-  if (tut === null) { showAiNone(); return; }
+  if (tut === null) {
+    // Com o modo grátis nesta janela (tutorial 17), "Não tenho nenhuma" vai direto à instalação; sem ele, como assinar.
+    if (ctx.guideCtx().ollama.possible === true) { await closeAiChoice(); ctx.enterOllama(); return; }
+    showAiNone(); return;
+  }
   await closeAiChoice();
   if (tut === "xai-login") ctx.enterXai(); else ctx.enterClaude();
 }

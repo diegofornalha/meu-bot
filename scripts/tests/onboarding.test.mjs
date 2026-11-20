@@ -95,3 +95,13 @@ test("escolha de IA: só aceita escolha guardada válida", () => {
   assert.equal(parseAiChoice("outra"), null);
   assert.equal(parseAiChoice(null), null);
 });
+
+import { comModoGratis } from "../../dist/renderer/lib/onboarding.js";
+
+test("escolha de IA: com o modo grátis, \"Não tenho nenhuma\" promete instalar; sem ele, o texto de assinar", () => {
+  const com = comModoGratis(AI_CHOICES, true).find((o) => o.id === "nenhuma");
+  const sem = comModoGratis(AI_CHOICES, false).find((o) => o.id === "nenhuma");
+  assert.match(com.text, /de graça/);
+  assert.match(sem.text, /como assinar/);
+  assert.equal(comModoGratis(AI_CHOICES, true).length, AI_CHOICES.length);
+});

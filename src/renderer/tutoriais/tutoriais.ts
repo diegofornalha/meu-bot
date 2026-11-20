@@ -164,6 +164,10 @@ function runGuideAction(target: GuideTarget, t: Tutorial): void {
       if (x.pronto !== true || x.loggedIn !== true) { const tab = ctx.active(); if (tab !== null) ctx.addNotice(tab, "Esta máquina ainda não tem o Grok preparado com a conta da xAI; faça os passos 1 e 2 do tutorial.", "warn"); return; }
       void ctx.goToChatFromGuide("Oi! Qual modelo está respondendo agora? Uma linha.", "A conversa muda para o grok-4. Se a xAI responder, a pill do túnel mostra \"respondeu grok-4\" e o tutorial se conclui sozinho; se outro modelo responder, volte ao passo 2.", "grok-4");
     }
+    else if (t.id === "ollama-local") {
+      if (ctx.guideCtx().ollama.status?.pronto !== true) { const tab = ctx.active(); if (tab !== null) ctx.addNotice(tab, "O modo grátis ainda não está pronto neste Mac; faça o passo 2 do tutorial.", "warn"); return; }
+      void ctx.goToChatFromGuide("Oi! Me responde em uma linha: quem é você?", "A conversa muda para o ollama-local. Quando a resposta do modelo no seu Mac chegar, a pill do túnel mostra \"respondeu ollama-local\" e o tutorial se conclui sozinho.", "ollama-local");
+    }
     else if (t.id === "claude-login") void ctx.goToChatFromGuide("Oi! Você está aí? Me responde em uma linha.", "Quando a resposta chegar, o tutorial se conclui sozinho: é a sua conta do Claude respondendo nesta máquina.");
     else void ctx.goToChatFromGuide("Oi! Me responde em uma linha, só para eu ver a status line aqui embaixo.", "Quando a resposta chegar, olhe o rodapé desta conversa: Sessão e Semanal aparecem ali, e o tutorial se conclui sozinho.");
     return;
@@ -461,6 +465,8 @@ export async function resetTutorial(t: Tutorial): Promise<void> {
       await ctx.logoutClaude(false);
     } else if (t.id === "xai-login") {
       if (ctx.xaiAuth?.loggedIn === true) await ctx.logoutXai(false);
+    } else if (t.id === "ollama-local") {
+      await ctx.removerOllama(false);
     } else if (t.id === "whatsapp-objetivo") {
       ctx.objectiveState = await window.meuBot.resetObjective(); ctx.objectiveDraft = null; ctx.objectiveMsg = null; ctx.paintAcervoCount();
     }

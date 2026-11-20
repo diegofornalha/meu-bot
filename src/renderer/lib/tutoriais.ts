@@ -4,7 +4,7 @@
  * estilo do onboarding: cada passo é uma ação da pessoa, o botão certo pulsa, e o passo se marca concluído
  * sozinho pelo estado real da máquina (QR já lido = concluído). Puro: as regras ficam aqui, testáveis.
  */
-import type { ContaEstado, CrmLocal, ObjectiveInfo, QuickEntryStatus, StatusLineSegments, SupportInfo, WhatsappGroups, WhatsappStatus, CrmInfo, FinanceInfo, LinkPublicoInfo } from "../../shared/ipc";
+import type { ContaEstado, CrmLocal, ObjectiveInfo, OllamaStatus, QuickEntryStatus, StatusLineSegments, SupportInfo, WhatsappGroups, WhatsappStatus, CrmInfo, FinanceInfo, LinkPublicoInfo } from "../../shared/ipc";
 import { type FallbackProvider, FALLBACK_PRIMARIES } from "./fallback.js";
 import { grupoAlvo, nomeDoGrupo, quemEscolhido, quemResumo } from "./whatsapp-grupos.js";
 
@@ -37,6 +37,11 @@ export interface GuideContext {
    * provedores que o backend informa (null = ainda não consultado), com quem está disponível.
    */
   fallback: { primary: string | null; chain: readonly FallbackProvider[] | null };
+  /**
+   * Tutorial 17 · modo grátis no Mac: `possible` = este Mac com chip Apple, no canal que já o oferece (false esconde o
+   * tutorial e a linha; null = não consultado); `status` = o Ollama do meu-bot nesta máquina (null = não consultado).
+   */
+  ollama: { possible: boolean | null; status: OllamaStatus | null };
   /** Tutorial 7: objetivo e nível gravados na máquina e a skill salva (null = ainda não consultado). */
   objective: ObjectiveInfo | null;
   /** Tutorial 18 (Pro): acesso pela licença (como o Navegador) e o estado na máquina (null = não consultado). */
@@ -77,14 +82,15 @@ export interface GuideContext {
   known: Record<GuideSource, boolean>;
 }
 /** De onde vêm os fatos que concluem passos; cada tutorial declara as suas em `needs`. */
-export type GuideSource = "whatsapp" | "claude" | "statusline" | "xai" | "fallback" | "support" | "objective" | "guarda" | "navegador" | "crm" | "grupos" | "contas" | "finance" | "linkpublico" | "quickentry" | "google";
-export const GUIDE_SOURCES: readonly GuideSource[] = ["whatsapp", "claude", "statusline", "xai", "fallback", "support", "objective", "guarda", "navegador", "crm", "grupos", "contas", "finance", "linkpublico", "quickentry", "google"];
-const noneKnown = (): Record<GuideSource, boolean> => ({ whatsapp: false, claude: false, statusline: false, xai: false, fallback: false, support: false, objective: false, guarda: false, navegador: false, crm: false, grupos: false, contas: false, finance: false, linkpublico: false, quickentry: false, google: false });
+export type GuideSource = "whatsapp" | "claude" | "statusline" | "xai" | "fallback" | "support" | "objective" | "guarda" | "navegador" | "crm" | "grupos" | "contas" | "finance" | "linkpublico" | "quickentry" | "google" | "ollama";
+export const GUIDE_SOURCES: readonly GuideSource[] = ["whatsapp", "claude", "statusline", "xai", "fallback", "support", "objective", "guarda", "navegador", "crm", "grupos", "contas", "finance", "linkpublico", "quickentry", "google", "ollama"];
+const noneKnown = (): Record<GuideSource, boolean> => ({ whatsapp: false, claude: false, statusline: false, xai: false, fallback: false, support: false, objective: false, guarda: false, navegador: false, crm: false, grupos: false, contas: false, finance: false, linkpublico: false, quickentry: false, google: false, ollama: false });
 export const emptyContext = (): GuideContext => ({
   support: null,
   statusLine: { installed: null, limits: false, segments: null },
   claude: { loggedIn: null, email: null, global: false, firstReply: false, contasExtras: 0, trocas: 0 },
   xai: { possible: null, pronto: null, loggedIn: null, label: null },
+  ollama: { possible: null, status: null },
   guarda: { installed: null, possible: null },
   digitando: { possible: null },
   navegador: { access: null, installed: null, tabs: 0, extensions: 0, agentOn: false, servicos: 0, extensaoEmbutida: false },
@@ -107,13 +113,13 @@ export const emptyContext = (): GuideContext => ({
 export type GuideTarget = "wa-line" | "wa-agent" | "wa-pair" | "wa-policy" | "chat" | "none";
 
 /** O que a pessoa marcou à mão (o app não tem como ver uma mensagem de teste chegar). */
-export interface GuideFlags { policyChosen: boolean; tested: boolean; statusTested: boolean; claudeSeen: boolean; grokReplied: boolean; fallbackChosen: boolean; fallbackSeen: boolean; guardaSeen: boolean; navAgentUsed: boolean; crmSeen: boolean; crmImportSeen: boolean; claudeReplied: boolean; gruposTested: boolean; githubPulado: boolean; cloudflareLogado: boolean; financeFotoPulada: boolean; contasOrdemVista: boolean; contasTrocaVista: boolean; linkNomeVisto: boolean; quickUsado: boolean; digitandoVisto: boolean; gmailLido: boolean; gmailBuscou: boolean; gmailLixeira: boolean; /** Passos `lembrar` já vistos concluídos (fato que não se desfaz: abas fechadas não reabrem o tutorial). */ feitos?: string[]; number: string | null }
-export const emptyFlags = (): GuideFlags => ({ policyChosen: false, tested: false, statusTested: false, claudeSeen: false, grokReplied: false, fallbackChosen: false, fallbackSeen: false, guardaSeen: false, navAgentUsed: false, crmSeen: false, crmImportSeen: false, claudeReplied: false, gruposTested: false, githubPulado: false, cloudflareLogado: false, financeFotoPulada: false, contasOrdemVista: false, contasTrocaVista: false, linkNomeVisto: false, quickUsado: false, digitandoVisto: false, gmailLido: false, gmailBuscou: false, gmailLixeira: false, number: null });
+export interface GuideFlags { policyChosen: boolean; tested: boolean; statusTested: boolean; claudeSeen: boolean; grokReplied: boolean; fallbackChosen: boolean; fallbackSeen: boolean; guardaSeen: boolean; navAgentUsed: boolean; crmSeen: boolean; crmImportSeen: boolean; claudeReplied: boolean; gruposTested: boolean; githubPulado: boolean; cloudflareLogado: boolean; financeFotoPulada: boolean; contasOrdemVista: boolean; contasTrocaVista: boolean; linkNomeVisto: boolean; quickUsado: boolean; digitandoVisto: boolean; gmailLido: boolean; gmailBuscou: boolean; gmailLixeira: boolean; ollamaReplied: boolean; /** Passos `lembrar` já vistos concluídos (fato que não se desfaz: abas fechadas não reabrem o tutorial). */ feitos?: string[]; number: string | null }
+export const emptyFlags = (): GuideFlags => ({ policyChosen: false, tested: false, statusTested: false, claudeSeen: false, grokReplied: false, fallbackChosen: false, fallbackSeen: false, guardaSeen: false, navAgentUsed: false, crmSeen: false, crmImportSeen: false, claudeReplied: false, gruposTested: false, githubPulado: false, cloudflareLogado: false, financeFotoPulada: false, contasOrdemVista: false, contasTrocaVista: false, linkNomeVisto: false, quickUsado: false, digitandoVisto: false, gmailLido: false, gmailBuscou: false, gmailLixeira: false, ollamaReplied: false, number: null });
 /**
  * Marcações que um passo pode pedir ("Testei, funcionou") ou que o app grava sozinho (`grokReplied`: resposta com
  * X-Provider grok-4; `fallbackChosen`: a pessoa escolheu o primário; `fallbackSeen`: uma resposta veio da reserva).
  */
-export type GuideFlagName = "policyChosen" | "tested" | "statusTested" | "claudeSeen" | "grokReplied" | "fallbackChosen" | "fallbackSeen" | "guardaSeen" | "navAgentUsed" | "crmSeen" | "crmImportSeen" | "claudeReplied" | "gruposTested" | "githubPulado" | "cloudflareLogado" | "financeFotoPulada" | "contasOrdemVista" | "contasTrocaVista" | "linkNomeVisto" | "quickUsado" | "digitandoVisto" | "gmailLido" | "gmailBuscou" | "gmailLixeira";
+export type GuideFlagName = "policyChosen" | "tested" | "statusTested" | "claudeSeen" | "grokReplied" | "fallbackChosen" | "fallbackSeen" | "guardaSeen" | "navAgentUsed" | "crmSeen" | "crmImportSeen" | "claudeReplied" | "gruposTested" | "githubPulado" | "cloudflareLogado" | "financeFotoPulada" | "contasOrdemVista" | "contasTrocaVista" | "linkNomeVisto" | "quickUsado" | "digitandoVisto" | "gmailLido" | "gmailBuscou" | "gmailLixeira" | "ollamaReplied";
 
 export interface GuideStep {
   id: string;
@@ -122,7 +128,7 @@ export interface GuideStep {
   text: string;
   target: GuideTarget;
   /** Corpo especial do passo no guia: cartões de quem responder, áudio, suporte ou a status line. */
-  body?: "contas-claude" | "agent-choice" | "reply-choice" | "support-name" | "support-switch" | "support-delivery" | "statusline-install" | "statusline-segments" | "statusline-test" | "claude-login" | "xai-prepare" | "xai-login" | "fallback-order" | "objective-choice" | "objective-level" | "objective-skill" | "guarda-install" | "digitando-escolher" | "navegador-pro" | "navegador-install" | "navegador-open" | "crm-pro" | "crm-install" | "crm-config" | "crm-test" | "crm-gmail" | "crm-importar" | "grupos-escolher" | "grupos-quem" | "grupos-modo" | "grupos-teste" | "crm-pipeline" | "cloudflare-entrar" | "conta-cloudflare" | "conta-github" | "finance-install" | "finance-contas" | "finance-renda" | "finance-testar" | "finance-foto" | "finance-pendencias" | "link-publico-ver" | "link-publico-testar" | "link-publico-nome" | "quick-atalho" | "quick-testar" | "gmail-pro" | "gmail-conectar" | "gmail-ler" | "gmail-buscar" | "gmail-lixeira";
+  body?: "contas-claude" | "agent-choice" | "reply-choice" | "support-name" | "support-switch" | "support-delivery" | "statusline-install" | "statusline-segments" | "statusline-test" | "claude-login" | "xai-prepare" | "xai-login" | "fallback-order" | "objective-choice" | "objective-level" | "objective-skill" | "guarda-install" | "digitando-escolher" | "navegador-pro" | "navegador-install" | "navegador-open" | "crm-pro" | "crm-install" | "crm-config" | "crm-test" | "crm-gmail" | "crm-importar" | "grupos-escolher" | "grupos-quem" | "grupos-modo" | "grupos-teste" | "crm-pipeline" | "cloudflare-entrar" | "conta-cloudflare" | "conta-github" | "finance-install" | "finance-contas" | "finance-renda" | "finance-testar" | "finance-foto" | "finance-pendencias" | "link-publico-ver" | "link-publico-testar" | "link-publico-nome" | "quick-atalho" | "quick-testar" | "gmail-pro" | "gmail-conectar" | "gmail-ler" | "gmail-buscar" | "gmail-lixeira" | "ollama-check" | "ollama-prepare";
   /** Concluído pelo estado real; `null` de status = ainda não consultado. */
   done: (status: WhatsappStatus | null, flags: GuideFlags, ctx: GuideContext) => boolean;
   /** Passo que a pessoa conclui com um botão no próprio cartão ("Testei, funcionou"). */
@@ -184,6 +190,8 @@ export interface Tutorial {
   needsGuarda?: true;
   /** Só onde o agente aceita ligar/desligar o "digitando…" (capacidade `digitando`); some no PicoClaw, que não mostra. */
   needsDigitando?: true;
+  /** Só no Mac com chip Apple, no canal que já oferece o modo grátis (tutorial 17); null (não consultado) esconde. */
+  needsOllama?: true;
   /** Trilha em ordem: só aparece depois que este tutorial (id) foi concluído. */
   after?: string;
   /** Fontes do contexto que os passos consultam; enquanto alguma não chegou, o tutorial está "verificando". */
@@ -732,8 +740,39 @@ export const TUTORIAIS: readonly Tutorial[] = [
     ],
   },
   {
-    id: "statusline",
+    // Modo grátis: o Ollama do meu-bot neste Mac (ollamaLocal.ts), para quem não tem Claude nem Grok. Sem `after`: é a
+    // porta de entrada de quem respondeu "Não tenho nenhuma" na primeira abertura.
+    id: "ollama-local",
     number: 17,
+    needs: ["ollama"],
+    needsOllama: true,
+    title: "Modo grátis no Mac (Ollama)",
+    short: "Modo grátis",
+    summary: "Sem assinatura de IA: um modelo roda no seu Mac, de graça e sem internet para responder. Mais simples que Claude ou Grok, bom para conversar e testar o meu-bot.",
+    minutes: 10,
+    icon: "chat",
+    reset: { what: "para o Ollama, tira o ollama-local do backend e apaga o programa e os modelos desta pasta do meu-bot" },
+    steps: [
+      {
+        id: "conferir", title: "Conferir o seu Mac", target: "none", body: "ollama-check",
+        text: "O modelo roda na memória do Mac. Confira a memória e o espaço livre: o modelo é escolhido por eles.",
+        done: (_st, _f, c) => c.ollama.status !== null && (c.ollama.status.pronto || c.ollama.status.livreMb === null || c.ollama.status.livreMb >= c.ollama.status.necessarioMb),
+      },
+      {
+        id: "instalar", title: "Instalar o modo grátis", target: "none", body: "ollama-prepare",
+        text: "Um clique: o app baixa o Ollama (versão conferida) e o modelo para uma pasta própria do meu-bot, sem mexer no resto do Mac. Na primeira vez leva alguns minutos.",
+        done: (_st, _f, c) => c.ollama.status?.pronto === true,
+      },
+      {
+        id: "resposta", title: "Ver o modo grátis responder", target: "chat",
+        text: "Vá para a conversa: ela muda para o ollama-local e manda uma mensagem. A resposta vem do modelo no seu Mac, e a pill do túnel mostra \"respondeu ollama-local\".",
+        done: (_st, f, c) => c.ollama.status?.pronto === true && f.ollamaReplied,
+      },
+    ],
+  },
+  {
+    id: "statusline",
+    number: 18,
     needs: ["statusline"],
     after: "claude-login",
     title: "Status line do Claude",
@@ -770,7 +809,7 @@ export const TUTORIAIS: readonly Tutorial[] = [
   },
   {
     id: "crm-gmail",
-    number: 18,
+    number: 19,
     needs: ["crm", "navegador"],
     after: "navegador",
     needsCrmProprio: true,
@@ -813,7 +852,7 @@ export const TUTORIAIS: readonly Tutorial[] = [
   },
   {
     id: "crm-whatsapp",
-    number: 18,
+    number: 19,
     needs: ["crm"],
     after: "navegador",
     needsCrmStreak: true,
@@ -936,6 +975,7 @@ export function visibleTutorials(ctx: GuideContext, finished: (t: Tutorial) => b
     // sumia assim que a resposta dizia "sem guarda" (Hermes).
     if (t.needsGuarda === true && ctx.guarda.possible !== true) return false;
     if (t.needsDigitando === true && ctx.digitando.possible !== true) return false;
+    if (t.needsOllama === true && ctx.ollama.possible !== true) return false;
     if (t.after === undefined) return true;
     const prev = TUTORIAIS.find((x) => x.id === t.after);
     return prev !== undefined && visible(prev) && finished(prev);
