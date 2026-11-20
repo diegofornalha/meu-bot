@@ -450,6 +450,9 @@ dialog .zoom-pct { min-width: 44px; text-align: center; font-variant-numeric: ta
 .wa-progress.bad .wa-pulse { background: var(--bad); animation: none; }
 @keyframes wa-pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent); } 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 0%, transparent); } }
 @media (prefers-reduced-motion: reduce) { .wa-pulse { animation: none; } }
+/* Log de instalação/login (pre.log): o mesmo do seletor (picker.css). Sem esta regra, o log da janela principal só
+   tinha o max-height dos contextos abaixo e vazava por cima do passo seguinte do guia, na fonte grande do <pre>. */
+.log { margin: 0; max-height: 140px; overflow: auto; font: 11px var(--mono); padding: 6px 9px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; }
 #wa-dialog .log { max-height: 120px; }
 /* Acervo (biblioteca de skills), acima da busca: mesma linha neutra, com ícone e contagem à direita. */
 .acervo-line .grow { flex: 1; }
