@@ -440,6 +440,10 @@ test("cortesias na tela da pessoa: vagas, organização, Marketplace, o que a co
   assert.equal(estadoDoItem(conta, { id: "meu-bot-finance", tipo: "app" }, data, agora).chave, "cortesia");
   assert.equal(estadoDoItem({ ...conta, assinaturas: [{ produto: "meu-bot-finance", status: "ACTIVE" }] }, { id: "meu-bot-finance", tipo: "app" }, data, agora).chave, "tem", "pago vale mais que cortesia");
   assert.equal(estadoDoItem(conta, { id: "extra-maquina", tipo: "unidade" }, data, agora).texto, "2 de cortesia");
+  const canceladaPaga = { ...conta, assinaturas: [{ produto: "meu-bot-finance", status: "CANCELLED", valeAte: d(25) }] };
+  assert.equal(estadoDoItem(canceladaPaga, { id: "meu-bot-finance", tipo: "app" }, data, agora).chave, "tem", "cancelada com o mês pago ainda vale mais que a cortesia");
+  assert.ok(oQueAContaTem(canceladaPaga, { "meu-bot-finance": "Finanças" }, agora).includes("Finanças"));
+  assert.equal(estadoDoItem({ ...conta, assinaturas: [{ produto: "meu-bot-finance", status: "CANCELLED", valeAte: d(-1) }] }, { id: "meu-bot-finance", tipo: "app" }, data, agora).chave, "cortesia", "pago vencido não conta");
   assert.deepEqual(oQueAContaTem(conta, { "meu-bot-finance": "Finanças" }, agora), ["Pro (cortesia)", "Finanças (cortesia)", "2 máquinas de cortesia"]);
   const linhas = cortesiasNaTela(conta, { "meu-bot-finance": "Finanças" }, data, agora);
   assert.deepEqual(linhas.map((x) => x.acabando), [true, false, false, false]);
