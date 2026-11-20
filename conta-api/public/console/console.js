@@ -1,5 +1,5 @@
 import { MOTIVOS_ENCERRAR, ROTULO_ALVO, avisoDepoisDo404, cortesiasDaFicha, diaDaqui, estadoCortesia, fimDoDia, oQueACortesiaDa, pedeReleitura, rotuloMotivo, seloDoPlano, visaoVelha } from "./admin-core.js";
-import { INFINITO, SEM_LIMITE, SEM_PRAZO, TODOS_ADDONS, avisoAddonPago, contagemRegressiva, addonsNaVisaoGeral, estadoAssinaturaPro, fase, linhasDeMaquinas, deParaDoExtra, assinaturasDoItem, bloqueioDeOrg, assentoChegou, proPelaOrgTexto, estadoDoItem, itemGa, ofertaDoProAparece, orgsQueGerencia, usuariosDaOrg, situacaoDaUnidade, situacaoDoApp, resumoDeUso, semDevices, oQueAContaTem, pagoChegou, assinaturasAtivasDe, pedidoAssinar, podeAdicionarMaquina, promoNaTela, buscaDaVolta, reaisCurto, semPrazo, vagaDoAssinar, voltaDoPagamento, vagasDeDevice, vagasDeMaquina } from "./plano-core.js";
+import { INFINITO, SEM_LIMITE, SEM_PRAZO, TODOS_ADDONS, avisoAddonPago, contagemRegressiva, addonsNaVisaoGeral, estadoAssinaturaPro, fase, linhasDeMaquinas, deParaDoExtra, assinaturasDoItem, bloqueioDeOrg, assentoChegou, cortesiasNaTela, proPelaOrgTexto, estadoDoItem, itemGa, ofertaDoProAparece, orgsQueGerencia, usuariosDaOrg, situacaoDaUnidade, situacaoDoApp, resumoDeUso, semDevices, oQueAContaTem, pagoChegou, assinaturasAtivasDe, pedidoAssinar, podeAdicionarMaquina, promoNaTela, buscaDaVolta, reaisCurto, semPrazo, vagaDoAssinar, voltaDoPagamento, vagasDeDevice, vagasDeMaquina } from "./plano-core.js";
 // Console da conta meu-bot (console.agentesgrok.com/account/* e /organizations/<slug>/members|settings, molde Rambox). Entra pela mesma página de
 // login do app (auth.agentesgrok.com) com esquema=web: o console gera state + PKCE, a página devolve #code&state, e
 // POST /token {grant:"web"} vira um token de acesso de 1 h guardado neste navegador (localStorage: outra aba, inclusive
@@ -1025,6 +1025,12 @@ async function abrirFichaDaConta(email, botao) {
   const c = visao?.contas.find((x) => x.email === email);
   if (linha !== undefined && c !== undefined) { editorLicenca(linha, c); linha.scrollIntoView({ block: "center" }); }
 }
+/** As cortesias do suporte (cortesiasNaTela) no parágrafo `id` do Plano ou da Visão geral; some quando não há. */
+function pintarCortesias(c, id) {
+  const linhas = semPrazo(c.licenca) ? [] : cortesiasNaTela(c, Object.fromEntries(ADDONS.map((a) => [a.nome, FICHAS[a.nome]?.nome ?? a.rotulo])), data);
+  const p = $(id); p.hidden = linhas.length === 0; p.replaceChildren();
+  linhas.forEach((x, i) => { if (i > 0) p.append(el("br")); p.append(x.acabando ? selo(x.texto, "mau") : document.createTextNode(x.texto)); });
+}
 function pintarQuem(c) {
   $("quem-nome").textContent = c.nome ?? c.email; $("quem-email").textContent = c.nome ? c.email : (c.admin ? `admin (${c.admin})` : "");
   const foto = typeof c.foto === "string" && /^https:\/\//.test(c.foto);
@@ -1048,6 +1054,7 @@ function pintarOverview(c) {
     $("ov-addons").append(painel);
   }
   { const t = proPelaOrgTexto(c.proPelaOrg, data); $("ov-pela-org").hidden = t === null; $("ov-pela-org").textContent = t ?? ""; }
+  pintarCortesias(c, "ov-cortesias");
   // Onde a conta é usada, pelos nomes: os Macs com o app e as máquinas do agente, com o caminho para organizar.
   const uso = resumoDeUso(c.devices, linhasDeMaquinas(c.maquinas, c.maquinasVistas).linhas);
   $("ov-uso").hidden = uso === null;
@@ -1138,7 +1145,7 @@ async function contaApagar(botao) {
 }
 function pintarDevices(c) {
   const l = c.licenca, ativos = c.devices.filter((d) => d.status !== "pending").length;
-  const vagasDv = vagasDeDevice(l.deviceLimit, c.deviceExtras), pendentes = c.devices.length - ativos;
+  const vagasDv = vagasDeDevice(l.deviceLimit, c.deviceExtras, c.deviceCortesias), pendentes = c.devices.length - ativos;
   $("dv-resumo").textContent = `${c.devices.length} device${c.devices.length === 1 ? "" : "s"} · ${ativos} ativo${ativos === 1 ? "" : "s"}${semPrazo(l) ? `, sem limite (${INFINITO})` : ` de ${l.deviceLimit} do plano${vagasDv.detalhe === "" ? "" : ` (${vagasDv.detalhe})`}`}.`;
   // Mac esperando vaga e o device extra à venda: o caminho para liberá-lo fica ao lado da conta.
   if (pendentes > 0 && EXTRA_DEVICE !== null && cfg.pagamentos === "1" && podeAdicionarMaquina(l)) { const a = el("a", "", `Adicionar um Mac por ${reais(EXTRA_DEVICE.centavos)}/mês`); a.href = "/account/marketplace"; $("dv-resumo").append(document.createTextNode(` ${pendentes === 1 ? "O Mac pendente entra" : "Os Macs pendentes entram"} quando houver vaga. `), a); }
@@ -1184,7 +1191,7 @@ const ocupaVaga = (m) => !m.desvinculadaEm || (m.proAte && Date.parse(m.proAte) 
 function pintarMaquinas(c) {
   const maquinas = c.maquinas ?? [], limite = c.maquinaLimite ?? 1;
   const { linhas, ocupadas, semVaga } = linhasDeMaquinas(maquinas, c.maquinasVistas);
-  const vagas = vagasDeMaquina(limite, c.maquinaExtras);
+  const vagas = vagasDeMaquina(limite, c.maquinaExtras, c.maquinaCortesias);
   $("dv-maquinas").textContent = semPrazo(c.licenca) ? `${ocupadas} máquina${ocupadas === 1 ? "" : "s"} em uso, sem limite (${INFINITO}).` : `${ocupadas} de ${limite} máquina${limite === 1 ? "" : "s"} em uso${vagas.detalhe === "" ? "" : ` (${vagas.detalhe})`}.`;
   if (semVaga > 0 && !semPrazo(c.licenca)) $("dv-maquinas").append(document.createTextNode(" Máquina com licença do admin não ocupa vaga."));
   // No limite e com a máquina extra à venda: o caminho para ter mais uma fica ao lado da conta.
@@ -1327,8 +1334,8 @@ function pintarExtras(c, voltouDe, so = null) {
     const p = el("p"); const b = el("button", "btn btn-primary", botao); b.type = "button"; b.addEventListener("click", () => { void assinar(x.nome, b, aviso); }); p.append(b);
     painel.append(aviso, p); caixa.append(painel);
   };
-  if (EXTRA_MAQUINA !== null && (so === null || so === EXTRA_MAQUINA.nome)) painelDe(EXTRA_MAQUINA, situacaoDaUnidade("maquina", vagasDeMaquina(c.maquinaLimite, c.maquinaExtras)), `Adicionar uma máquina por ${reais(EXTRA_MAQUINA.centavos)}/mês`);
-  if (EXTRA_DEVICE !== null && (so === null || so === EXTRA_DEVICE.nome)) painelDe(EXTRA_DEVICE, situacaoDaUnidade("device", vagasDeDevice(c.licenca.deviceLimit, c.deviceExtras), c.devices.filter((d) => d.status === "pending").length), `Adicionar um Mac por ${reais(EXTRA_DEVICE.centavos)}/mês`);
+  if (EXTRA_MAQUINA !== null && (so === null || so === EXTRA_MAQUINA.nome)) painelDe(EXTRA_MAQUINA, situacaoDaUnidade("maquina", vagasDeMaquina(c.maquinaLimite, c.maquinaExtras, c.maquinaCortesias)), `Adicionar uma máquina por ${reais(EXTRA_MAQUINA.centavos)}/mês`);
+  if (EXTRA_DEVICE !== null && (so === null || so === EXTRA_DEVICE.nome)) painelDe(EXTRA_DEVICE, situacaoDaUnidade("device", vagasDeDevice(c.licenca.deviceLimit, c.deviceExtras, c.deviceCortesias), c.devices.filter((d) => d.status === "pending").length), `Adicionar um Mac por ${reais(EXTRA_DEVICE.centavos)}/mês`);
 }
 /** O último endereço do Marketplace medido no Analytics (view_item_list ou view_item saem uma vez por endereço). */
 let mkMedido = null;
@@ -1368,7 +1375,7 @@ function pintarMarketplace(c) {
     const tem = semPrazo(l) ? [`Pro ${INFINITO}`, TODOS_ADDONS] : oQueAContaTem(c, nomes);
     $("mk-tem").textContent = tem.length === 0 ? "Ainda nada além da conta gratuita. Comece pelo Pro." : `${tem.join(" · ")}.`;
     $("mk-grade").replaceChildren(...MKT.map((x) => {
-      const a = el("a", "mk-cartao"), topo = el("div", "mk-topo"), e = estadoDoItem(c, x);
+      const a = el("a", "mk-cartao"), topo = el("div", "mk-topo"), e = estadoDoItem(c, x, data);
       a.href = `/account/marketplace/${x.slug}`; a.addEventListener("click", (ev) => { ga.evento("select_item", { item_list_id: "marketplace", items: [itemGa(x)] }); irPara(ev, a.getAttribute("href")); });
       topo.append(avatarDe(x), selo(e.texto, e.tom));
       a.append(topo, el("h3", "", x.nome), el("p", "mk-tipo", TIPO_ITEM[x.tipo] ?? ""), el("p", "mk-resumo", x.resumo ?? ""), precoDoItem(x, "mk-preco"));
@@ -1376,7 +1383,7 @@ function pintarMarketplace(c) {
     }));
     return;
   }
-  const e = estadoDoItem(c, item), ficha = $("mk-ficha"), painel = el("div", "painel"), cabeca = el("div", "mk-cabeca"), voltar = el("a", "mk-voltar", "← Marketplace");
+  const e = estadoDoItem(c, item, data), ficha = $("mk-ficha"), painel = el("div", "painel"), cabeca = el("div", "mk-cabeca"), voltar = el("a", "mk-voltar", "← Marketplace");
   voltar.href = "/account/marketplace"; voltar.addEventListener("click", (ev) => irPara(ev, "/account/marketplace"));
   cabeca.append(avatarDe(item), el("h2", "", item.nome), selo(e.texto, e.tom));
   painel.append(cabeca, el("p", "", item.resumo ?? ""), precoDoItem(item, "oferta"));
@@ -1480,7 +1487,7 @@ function pintarAssinar(c) {
   $("pl-assinar").hidden = cfg.pagamentos !== "1" || !ofertaDoProAparece(l, c.assinaturas, Date.now());
   $("pl-assinar-ja").hidden = !estado.proSemAssinatura;
   pintarPromo(c);
-  $("pl-assinar-ja").textContent = estado.proSemAssinatura ? `Você já tem o Pro${l.expiresAt ? ` até ${data(l.expiresAt)}` : ""}, sem assinatura ativa. Assinando, a cobrança passa a ser mensal e o prazo que você já tem não é encurtado.` : "";
+  $("pl-assinar-ja").textContent = !estado.proSemAssinatura ? "" : c.origemDoPro === "cortesia" ? `Você tem o Pro de cortesia${l.expiresAt ? ` até ${data(l.expiresAt)}` : ""}. Para continuar depois, assine: a cobrança passa a ser mensal e o prazo que você já tem não é encurtado.` : `Você já tem o Pro${l.expiresAt ? ` até ${data(l.expiresAt)}` : ""}, sem assinatura ativa. Assinando, a cobrança passa a ser mensal e o prazo que você já tem não é encurtado.`;
   return estado;
 }
 function pintarPlano(c) {
@@ -1496,11 +1503,12 @@ function pintarPlano(c) {
     cartao("✓", "Status", document.createTextNode(STATUS[l.status] ?? l.status)),
     cartao("▦", "Vale até", semPrazo(l) ? infinito() : document.createTextNode(l.expiresAt ? data(l.expiresAt) : l.trialEnd ? `trial até ${data(l.trialEnd)}` : "sem prazo")),
     cartao("↻", "Ciclo", document.createTextNode(l.interval ? CICLO[l.interval] : "-")),
-    cartao("▭", "Limite de devices", semPrazo(l) ? infinito(SEM_LIMITE) : document.createTextNode(`${l.deviceLimit}${vagasDeDevice(l.deviceLimit, c.deviceExtras).detalhe === "" ? "" : ` (${vagasDeDevice(l.deviceLimit, c.deviceExtras).detalhe})`}`)),
-    cartao("⌂", "Máquinas com a licença", semPrazo(l) ? infinito(SEM_LIMITE) : document.createTextNode(`${(c.maquinas ?? []).filter(ocupaVaga).length} de ${c.maquinaLimite ?? 1}${vagasDeMaquina(c.maquinaLimite, c.maquinaExtras).detalhe === "" ? "" : ` (${vagasDeMaquina(c.maquinaLimite, c.maquinaExtras).detalhe})`}`)),
+    cartao("▭", "Limite de devices", semPrazo(l) ? infinito(SEM_LIMITE) : document.createTextNode(`${l.deviceLimit}${vagasDeDevice(l.deviceLimit, c.deviceExtras, c.deviceCortesias).detalhe === "" ? "" : ` (${vagasDeDevice(l.deviceLimit, c.deviceExtras, c.deviceCortesias).detalhe})`}`)),
+    cartao("⌂", "Máquinas com a licença", semPrazo(l) ? infinito(SEM_LIMITE) : document.createTextNode(`${(c.maquinas ?? []).filter(ocupaVaga).length} de ${c.maquinaLimite ?? 1}${vagasDeMaquina(c.maquinaLimite, c.maquinaExtras, c.maquinaCortesias).detalhe === "" ? "" : ` (${vagasDeMaquina(c.maquinaLimite, c.maquinaExtras, c.maquinaCortesias).detalhe})`}`)),
     cartao("+", "Add-ons", ...(semPrazo(l) ? [infinito(TODOS_ADDONS)] : l.produtos.length > 0 ? l.produtos.map((p) => selo(rotuloProduto(p))) : [document.createTextNode("nenhum")])),
   );
   { const t = proPelaOrgTexto(c.proPelaOrg, data); $("pl-pela-org").hidden = t === null; $("pl-pela-org").textContent = t ?? ""; }
+  pintarCortesias(c, "pl-cortesias");
   // Assinar pela AbacatePay: só com os pagamentos ligados no Worker (config.js) e enquanto não há Pro pago ativo.
   // Pro ativo sem assinatura (liberado pelo admin, ou assinatura cancelada com o mês ainda valendo) continua podendo
   // assinar: o painel só some para quem tem a assinatura do Pro em andamento e o Pro valendo (plano-core.js).

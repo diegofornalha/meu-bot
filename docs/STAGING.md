@@ -162,11 +162,18 @@ Logado no console do staging com perfil de acesso (admin ou super admin).
 | Lista de contas e fase | Plano › "Planos de todas as contas" | Uma linha por conta, com Plano, Fase, Vale até, Devices, Máquinas, Pedidos. Com as quatro contas de teste: "Trial · 3 dias", "Trial venceu há 1 dia", "Trial venceu há 4 dias", "Pro · 30 dias". Super admin: "Pro · ∞". |
 | Totais | Visão geral › "Todas as contas" | Cartões Contas, Em trial, Trial vencido (com "converter ou liberar"), Pro ativo, Devices pendentes, Pedidos abertos. |
 | Buscar | campo "Buscar por e-mail ou nome" | Filtra a lista; `+mb-staging-` traz só as contas de teste. |
-| Editor de licença | "Editar" na linha | Abre Plano, Status, "Vale até", Devices, Máquinas, Senha e os add-ons da conta. Salvar grava e a linha muda na hora. |
+| Editor de licença | "Editar" na linha | Abre Plano, Status, "Vale até", Devices, Máquinas, Organizações, Motivo, Senha e "O que a conta tem". Só vai o que mudou, com o motivo (obrigatório). Admin comum: só o "+30 dias de teste"; os outros campos ficam travados. |
+| Lista com a origem do Pro | Plano › "Planos de todas as contas" | O selo do plano diz "Pro pago", "Pro cortesia", "Pro em teste" ou "Pro (ajuste do admin)"; o cartão "Pro ativo" diz quantas são cortesia. |
+| Dar cortesia | Editar › "Dar cortesia" | Escolha Pro, um app, máquinas, devices ou usuários de uma organização da conta, a data (30 dias por padrão, máximo 365) e o motivo. A cortesia aparece em "Cortesias" com quem deu e o motivo; a pessoa vê "Cortesia: … até …" no Plano e na Visão geral, e "Cortesia até …" no Marketplace. |
+| Renovar e encerrar cortesia | Editar › "Cortesias" | Renovar só vai para mais longe. Encerrar pede o motivo; a cortesia sai na hora e vai para o Histórico; a pessoa vê "encerrada pelo suporte em …", sem o motivo. |
+| Cortesia vencida | banco do staging: `UPDATE cortesias SET fim = <ontem>` | Sai sozinha da conta e vai para o Histórico como "venceu". |
+| Encerrar o Pro pago | Editar › "Encerrar o Pro" | Pede o motivo (reembolso, disputa, pedido da pessoa, erro ou teste, outro). A AbacatePay cancela a assinatura antes de o Pro sair; se ela não confirmar, nada muda e aparece o motivo. Depois: aviso "o reembolso, se houver, é feito no painel da AbacatePay" e a linha no Histórico. |
+| Liberar device com a conta no limite | Devices › "Liberar" | O segundo clique ("Liberar com 1 device de cortesia") dá 1 device de cortesia por 30 dias, em vez de subir o limite do plano. |
+| Pedido "Revisar pagamento" | Suporte › "Ver a conta" | Abre a ficha da conta no Plano, para encerrar com o motivo. |
 | "+30 dias de teste" | no editor | Preenche Pro, Trial e hoje mais 30 dias; **só vale depois de Salvar**. Salvo, a Fase vira "Trial · 30 dias" ou "· 31 dias" (o prazo vale até 23:59:59 UTC do 30º dia). A conta passa a ter os `PROMO_DIAS` da promoção depois desse novo fim. |
 | Trocar o Status de Trial para outro | no editor | O fim do teste é apagado: a conta deixa de ter direito à promoção. |
 | Liberar um add-on na máquina | Suporte › "Pedidos abertos de todas as contas" | O pedido "Liberar na máquina" da compra aparece; "Atender" o fecha. Ele fecha sozinho quando a pessoa aplica a licença na máquina pelo app ("Usar o meu Pro nesta máquina"). **Ainda não verificado neste roteiro:** a aplicação na máquina é do app, não do site. |
-| Encerrar um add-on pago | Editar › Add-ons › "Encerrar" | Dois cliques; o add-on sai da conta na hora. A assinatura na AbacatePay é cancelada à parte. |
+| Encerrar um add-on ou extra pago | Editar › "Pago" › "Encerrar" | Pede o motivo; a AbacatePay cancela a assinatura e o add-on (ou a vaga) sai da conta na hora. |
 | Só super admin | menu | Assinaturas, Perfis de acesso, Janelas de suporte e Auditoria só aparecem para o super admin. |
 
 ## 6. Analytics do ensaio

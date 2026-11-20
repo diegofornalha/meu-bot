@@ -1,7 +1,7 @@
 // Painel "Assinar o Pro" do console (public/console/plano-core.js): quando some e quando avisa do prazo atual.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addonsNaVisaoGeral, buscaDaVolta, assinaturasDoItem, estadoDoItem, itemGa, resumoDeUso, semDevices, assinaturasAtivasDe, oQueAContaTem, pagoChegou, deParaDoExtra, avisoAddonPago, contagemRegressiva, diasAteOFim, estadoAssinaturaPro, fase, linhasDeMaquinas, ofertaDoProAparece, pedidoAssinar, promoNaTela, reaisCurto, semPrazo, podeAdicionarMaquina, vagaDoAssinar, voltaDoPagamento, vagasDeDevice, vagasDeMaquina } from "../public/console/plano-core.js";
+import { addonsNaVisaoGeral, buscaDaVolta, cortesiasNaTela, usuariosDaOrg, assinaturasDoItem, estadoDoItem, itemGa, resumoDeUso, semDevices, assinaturasAtivasDe, oQueAContaTem, pagoChegou, deParaDoExtra, avisoAddonPago, contagemRegressiva, diasAteOFim, estadoAssinaturaPro, fase, linhasDeMaquinas, ofertaDoProAparece, pedidoAssinar, promoNaTela, reaisCurto, semPrazo, podeAdicionarMaquina, vagaDoAssinar, voltaDoPagamento, vagasDeDevice, vagasDeMaquina } from "../public/console/plano-core.js";
 
 const pro = { plan: "pro", status: "active" };
 const ativa = { status: "ACTIVE", produto: null };
@@ -88,10 +88,10 @@ test("pedido do Assinar: a promoção na tela manda promo; \"Prefiro Pix\" manda
 });
 
 test("vagas de máquina: a tela separa o que o plano inclui do que é máquina extra", () => {
-  assert.deepEqual(vagasDeMaquina(1, 0), { total: 1, inclusas: 1, extras: 0, detalhe: "" });
-  assert.deepEqual(vagasDeMaquina(2, 1), { total: 2, inclusas: 1, extras: 1, detalhe: "1 inclusa + 1 extra" });
-  assert.deepEqual(vagasDeMaquina(5, 3), { total: 5, inclusas: 2, extras: 3, detalhe: "2 inclusas + 3 extras" });
-  assert.deepEqual(vagasDeMaquina(undefined, undefined), { total: 1, inclusas: 1, extras: 0, detalhe: "" }, "API antiga, sem os campos");
+  assert.deepEqual(vagasDeMaquina(1, 0), { total: 1, inclusas: 1, extras: 0, cortesias: 0, detalhe: "" });
+  assert.deepEqual(vagasDeMaquina(2, 1), { total: 2, inclusas: 1, extras: 1, cortesias: 0, detalhe: "1 inclusa + 1 extra" });
+  assert.deepEqual(vagasDeMaquina(5, 3), { total: 5, inclusas: 2, extras: 3, cortesias: 0, detalhe: "2 inclusas + 3 extras" });
+  assert.deepEqual(vagasDeMaquina(undefined, undefined), { total: 1, inclusas: 1, extras: 0, cortesias: 0, detalhe: "" }, "API antiga, sem os campos");
   assert.equal(vagasDeMaquina(2, 9).inclusas, 1, "nunca menos de uma inclusa");
   assert.deepEqual(pedidoAssinar("extra-maquina", null), { produto: "extra-maquina" });
 });
@@ -197,10 +197,10 @@ test("Visão geral: quem já tem o Pro vê os add-ons que ainda não tem; com a 
 });
 
 test("vagasDeDevice: a mesma conta das máquinas, com o texto no masculino", () => {
-  assert.deepEqual(vagasDeDevice(1, 0), { total: 1, inclusas: 1, extras: 0, detalhe: "" });
-  assert.deepEqual(vagasDeDevice(2, 1), { total: 2, inclusas: 1, extras: 1, detalhe: "1 incluso + 1 extra" });
-  assert.deepEqual(vagasDeDevice(5, 2), { total: 5, inclusas: 3, extras: 2, detalhe: "3 inclusos + 2 extras" });
-  assert.deepEqual(vagasDeDevice(undefined, undefined), { total: 1, inclusas: 1, extras: 0, detalhe: "" }, "API antiga, sem os campos");
+  assert.deepEqual(vagasDeDevice(1, 0), { total: 1, inclusas: 1, extras: 0, cortesias: 0, detalhe: "" });
+  assert.deepEqual(vagasDeDevice(2, 1), { total: 2, inclusas: 1, extras: 1, cortesias: 0, detalhe: "1 incluso + 1 extra" });
+  assert.deepEqual(vagasDeDevice(5, 2), { total: 5, inclusas: 3, extras: 2, cortesias: 0, detalhe: "3 inclusos + 2 extras" });
+  assert.deepEqual(vagasDeDevice(undefined, undefined), { total: 1, inclusas: 1, extras: 0, cortesias: 0, detalhe: "" }, "API antiga, sem os campos");
 });
 
 test("unidade extra: o preço de tabela só aparece riscado quando é maior que o cobrado", () => {
@@ -286,7 +286,7 @@ test("Marketplace: a vitrine não vende, leva à página do item; o endereço do
   const { readFile } = await import("node:fs/promises");
   const js = await readFile(new URL("../public/console/console.js", import.meta.url), "utf8");
   assert.match(js, /\/account\\\/marketplace\\\/\(\[a-z0-9-\]\{1,60\}\)/, "rota /account/marketplace/<slug>");
-  const vitrine = js.slice(js.indexOf('$("mk-grade").replaceChildren'), js.indexOf("const e = estadoDoItem(c, item), ficha"));
+  const vitrine = js.slice(js.indexOf('$("mk-grade").replaceChildren'), js.indexOf("const e = estadoDoItem(c, item, data), ficha"));
   assert.ok(vitrine.length > 100 && !vitrine.includes("assinar("), "nenhum botão de compra na vitrine");
 });
 
@@ -425,4 +425,27 @@ test("buscaDaVolta: o login no meio do caminho mantém só a marca de quem volta
   assert.equal(buscaDaVolta("?assinatura=cancelada"), "");
   assert.equal(buscaDaVolta(""), "");
   assert.equal(buscaDaVolta(undefined), "");
+});
+
+test("cortesias na tela da pessoa: vagas, organização, Marketplace, o que a conta tem e os avisos", () => {
+  assert.equal(vagasDeMaquina(3, 1, 1).detalhe, "1 inclusa + 1 de cortesia + 1 extra");
+  assert.equal(vagasDeMaquina(2, 0, 1).detalhe, "1 inclusa + 1 de cortesia");
+  assert.equal(vagasDeMaquina(2, 1).detalhe, "1 inclusa + 1 extra", "sem cortesia, como antes");
+  assert.equal(vagasDeDevice(3, 0, 1).detalhe, "2 inclusos + 1 de cortesia");
+  assert.equal(vagasDeDevice(2, 0, 0).detalhe, "");
+  assert.match(usuariosDaOrg({ assentos: 4, assentosInclusos: 1, assentosCortesia: 2, assentosPagos: 1, ocupados: 2, membros: [] }).texto, /2 de 4 usuários em uso \(1 incluso \+ 2 de cortesia \+ 1 pago\)/);
+  const agora = Date.now(), d = (n) => new Date(agora + n * 86400000).toISOString(), data = (iso) => iso.slice(0, 10);
+  const conta = { origemDoPro: "cortesia", licenca: { plan: "pro", status: "active", expiresAt: d(20), produtos: ["meu-bot-finance"] }, assinaturas: [], maquinaExtras: 0, maquinaCortesias: 2, deviceExtras: 0, deviceCortesias: 0, cortesias: [{ tipo: "pro", fim: d(20), encerradaEm: null }, { tipo: "addon", produto: "meu-bot-finance", fim: d(5), encerradaEm: null }, { tipo: "maquina", quantidade: 2, fim: d(30), encerradaEm: null }, { tipo: "device", quantidade: 1, fim: d(30), encerradaEm: d(-1) }] };
+  assert.deepEqual(estadoDoItem(conta, { id: "pro", tipo: "plano" }, data), { chave: "cortesia", texto: `Cortesia até ${d(20).slice(0, 10)}`, tom: "ok" });
+  assert.equal(estadoDoItem(conta, { id: "meu-bot-finance", tipo: "app" }, data).chave, "cortesia");
+  assert.equal(estadoDoItem({ ...conta, assinaturas: [{ produto: "meu-bot-finance", status: "ACTIVE" }] }, { id: "meu-bot-finance", tipo: "app" }, data).chave, "tem", "pago vale mais que cortesia");
+  assert.equal(estadoDoItem(conta, { id: "extra-maquina", tipo: "unidade" }, data).texto, "2 de cortesia");
+  assert.deepEqual(oQueAContaTem(conta, { "meu-bot-finance": "Finanças" }), ["Pro (cortesia)", "Finanças (cortesia)", "2 máquinas de cortesia"]);
+  const linhas = cortesiasNaTela(conta, { "meu-bot-finance": "Finanças" }, data, agora);
+  assert.deepEqual(linhas.map((x) => x.acabando), [true, false, false, false]);
+  assert.match(linhas[0].texto, /^Cortesia: Finanças até .* Acaba em 5 dias: para continuar, contrate antes\.$/);
+  assert.match(linhas[1].texto, /^Cortesia: o Pro até /);
+  assert.match(linhas[2].texto, /^Cortesia: 2 máquinas a mais até /);
+  assert.match(linhas[3].texto, /^Cortesia de 1 Mac a mais encerrada pelo suporte em /);
+  assert.deepEqual(cortesiasNaTela({ cortesias: [] }), []);
 });

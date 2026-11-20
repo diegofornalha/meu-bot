@@ -36,12 +36,13 @@ export function fase(l: Prazo, agora: number = Date.now()): Selo {
   if (l.status === "expired") return { texto: "Expirado", tom: "mau" };
   return { texto: "Free", tom: "" };
 }
-export function vagasDeMaquina(limite: unknown, extras: unknown): { total: number; inclusas: number; extras: number; detalhe: string } {
+export function vagasDeMaquina(limite: unknown, extras: unknown, cortesias: unknown = 0): { total: number; inclusas: number; extras: number; cortesias: number; detalhe: string } {
   const total = typeof limite === "number" && Number.isInteger(limite) && limite >= 1 ? limite : 1;
   const pagas = typeof extras === "number" && Number.isInteger(extras) && extras >= 0 ? Math.min(extras, total - 1) : 0;
-  const inclusas = total - pagas;
-  const detalhe = pagas === 0 ? "" : `${inclusas} inclusa${inclusas === 1 ? "" : "s"} + ${pagas} extra${pagas === 1 ? "" : "s"}`;
-  return { total, inclusas, extras: pagas, detalhe };
+  const cortesia = typeof cortesias === "number" && Number.isInteger(cortesias) && cortesias >= 0 ? Math.min(cortesias, total - 1 - pagas) : 0;
+  const inclusas = total - pagas - cortesia;
+  const partes = [`${inclusas} inclusa${inclusas === 1 ? "" : "s"}`, ...(cortesia > 0 ? [`${cortesia} de cortesia`] : []), ...(pagas > 0 ? [`${pagas} extra${pagas === 1 ? "" : "s"}`] : [])];
+  return { total, inclusas, extras: pagas, cortesias: cortesia, detalhe: partes.length === 1 ? "" : partes.join(" + ") };
 }
 
 const okDoTom = (tom: Selo["tom"]): boolean | null => (tom === "ok" ? true : tom === "mau" ? false : null);
@@ -57,7 +58,7 @@ export function contaLinhas(c: Extract<ContaDaPessoa, { estado: "ok" }>, now: nu
   const f = fase(l, now), cr = contagemRegressiva(l, now);
   const ativos = k.devices.filter((d) => d.status !== "pending").length, pend = k.devices.length - ativos;
   const usadas = k.maquinas.filter((m) => m.desvinculadaEm === null).length;
-  const vagas = vagasDeMaquina(k.maquinaLimite, c.maquinaExtras);
+  const vagas = vagasDeMaquina(k.maquinaLimite, c.maquinaExtras, c.maquinaCortesias);
   const lines: HealthLine[] = [
     { text: `Conta: ${k.email}${k.nome !== null ? ` (${k.nome})` : ""}${papel} · ${PISTA[c.achadaPor]}`, ok: c.achadaPor === "email" ? null : true },
     { text: `Plano: ${PLAN_LABEL[l.plan]} · ${f.texto}${cr !== null && !sp ? ` · ${cr.texto}` : ""}`, ok: okDoTom(f.tom) },

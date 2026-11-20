@@ -102,24 +102,27 @@ export function pedidoAssinar(produto, promoMostrada, semPromo = false, cupom = 
 }
 
 /**
- * As vagas de máquina da conta, para a tela explicar a conta: `limite` é o total em vigor e `extras` quantas delas
- * são máquinas extras pagas; o resto é o que o plano inclui. Valores fora da forma (API antiga) viram 1 e 0.
+ * As vagas de máquina da conta, para a tela explicar a conta: `limite` é o total em vigor, `extras` quantas delas
+ * são máquinas extras pagas e `cortesias` quantas são cortesia do suporte; o resto é o que o plano inclui. Valores
+ * fora da forma (API antiga) viram 1 e 0.
  */
-export function vagasDeMaquina(limite, extras) {
+export function vagasDeMaquina(limite, extras, cortesias = 0) {
   const total = Number.isInteger(limite) && limite >= 1 ? limite : 1;
   const pagas = Number.isInteger(extras) && extras >= 0 ? Math.min(extras, total - 1) : 0;
-  const inclusas = total - pagas;
-  const detalhe = pagas === 0 ? "" : `${inclusas} inclusa${inclusas === 1 ? "" : "s"} + ${pagas} extra${pagas === 1 ? "" : "s"}`;
-  return { total, inclusas, extras: pagas, detalhe };
+  const cortesia = Number.isInteger(cortesias) && cortesias >= 0 ? Math.min(cortesias, total - 1 - pagas) : 0;
+  const inclusas = total - pagas - cortesia;
+  const partes = [`${inclusas} inclusa${inclusas === 1 ? "" : "s"}`, ...(cortesia > 0 ? [`${cortesia} de cortesia`] : []), ...(pagas > 0 ? [`${pagas} extra${pagas === 1 ? "" : "s"}`] : [])];
+  return { total, inclusas, extras: pagas, cortesias: cortesia, detalhe: partes.length === 1 ? "" : partes.join(" + ") };
 }
 
 /**
  * As vagas de device da conta, como `vagasDeMaquina`: `limite` é o total em vigor (licenca.deviceLimit, que a API já
  * entrega somado) e `extras` quantas delas são devices extras pagos.
  */
-export function vagasDeDevice(limite, extras) {
-  const v = vagasDeMaquina(limite, extras);
-  return { ...v, detalhe: v.extras === 0 ? "" : `${v.inclusas} incluso${v.inclusas === 1 ? "" : "s"} + ${v.extras} extra${v.extras === 1 ? "" : "s"}` };
+export function vagasDeDevice(limite, extras, cortesias = 0) {
+  const v = vagasDeMaquina(limite, extras, cortesias);
+  const partes = [`${v.inclusas} incluso${v.inclusas === 1 ? "" : "s"}`, ...(v.cortesias > 0 ? [`${v.cortesias} de cortesia`] : []), ...(v.extras > 0 ? [`${v.extras} extra${v.extras === 1 ? "" : "s"}`] : [])];
+  return { ...v, detalhe: partes.length === 1 ? "" : partes.join(" + ") };
 }
 
 /**
@@ -250,9 +253,10 @@ export function orgsQueGerencia(conta) {
  * os lugares e quantos convidados ainda não entraram. `livres` é o que sobra para convidar.
  */
 export function usuariosDaOrg(o) {
-  const total = Number.isInteger(o?.assentos) ? o.assentos : 1, pagos = Number.isInteger(o?.assentosPagos) ? o.assentosPagos : 0, inclusos = Number.isInteger(o?.assentosInclusos) ? o.assentosInclusos : total - pagos;
+  const total = Number.isInteger(o?.assentos) ? o.assentos : 1, pagos = Number.isInteger(o?.assentosPagos) ? o.assentosPagos : 0, cortesia = Number.isInteger(o?.assentosCortesia) ? o.assentosCortesia : 0, inclusos = Number.isInteger(o?.assentosInclusos) ? o.assentosInclusos : total - pagos - cortesia;
   const ocupados = Number.isInteger(o?.ocupados) ? o.ocupados : 0, convidados = (Array.isArray(o?.membros) ? o.membros : []).filter((m) => m.status !== "ativo").length;
-  const origem = pagos === 0 ? (inclusos === 1 ? "o seu, incluso" : `${inclusos} inclusos`) : `${inclusos} incluso${inclusos === 1 ? "" : "s"} + ${pagos} pago${pagos === 1 ? "" : "s"}`;
+  const partes = [`${inclusos} incluso${inclusos === 1 ? "" : "s"}`, ...(cortesia > 0 ? [`${cortesia} de cortesia`] : []), ...(pagos > 0 ? [`${pagos} pago${pagos === 1 ? "" : "s"}`] : [])];
+  const origem = partes.length === 1 ? (inclusos === 1 ? "o seu, incluso" : `${inclusos} inclusos`) : partes.join(" + ");
   return { livres: Math.max(0, total - ocupados), semCobertura: Math.max(0, ocupados - total), texto: `${ocupados} de ${total} usuário${total === 1 ? "" : "s"} em uso (${origem})${convidados > 0 ? ` · ${convidados} ainda sem entrar` : ""}.` };
 }
 /** Na volta do pagamento de um usuário: a vaga nova já chegou à organização? `antes` = quantos pagos ela tinha ao sair para pagar. */
@@ -290,20 +294,27 @@ export function itemGa(item) {
  * (app pago que o suporte ainda não liberou na máquina), `precisa-pro` (unidade extra sem o Pro valendo) ou
  * `disponivel`. `item` é a ficha entregue pelo config.js ({id, tipo}); super admin tem tudo.
  */
-export function estadoDoItem(conta, item) {
+export function estadoDoItem(conta, item, data = (iso) => iso.slice(0, 10)) {
   const l = conta?.licenca ?? {};
   const tem = (texto = "Você tem") => ({ chave: "tem", texto, tom: "ok" }), disponivel = { chave: "disponivel", texto: "Disponível", tom: "" };
+  const cortesia = (fim) => ({ chave: "cortesia", texto: `Cortesia até ${data(fim)}`, tom: "ok" });
   if (semPrazo(l)) return tem();
   const proValendo = l.plan === "pro" && (l.status === "active" || l.status === "trialing");
-  if (item?.tipo === "plano") return !proValendo ? disponivel : l.status === "trialing" ? { chave: "teste", texto: "Em teste grátis", tom: "ok" } : tem();
+  if (item?.tipo === "plano") return !proValendo ? disponivel : l.status === "trialing" ? { chave: "teste", texto: "Em teste grátis", tom: "ok" } : conta?.origemDoPro === "cortesia" && l.expiresAt ? cortesia(l.expiresAt) : tem();
   // Usuário de organização: só faz sentido para quem gerencia uma (dona ou admin); a quantidade está na página dela.
   if (item?.id === "extra-assento") return orgsQueGerencia(conta).length > 0 ? disponivel : { chave: "precisa-org", texto: "Precisa de organização", tom: "" };
   if (item?.tipo === "unidade") {
     const n = item.id === "extra-maquina" ? conta?.maquinaExtras : item.id === "extra-device" ? conta?.deviceExtras : 0;
     if (Number.isInteger(n) && n > 0) return tem(`Você tem ${n}`);
+    const nc = item.id === "extra-maquina" ? conta?.maquinaCortesias : item.id === "extra-device" ? conta?.deviceCortesias : 0;
+    if (Number.isInteger(nc) && nc > 0) return tem(`${nc} de cortesia`);
     return podeAdicionarMaquina(l) ? disponivel : { chave: "precisa-pro", texto: "Precisa do Pro", tom: "" };
   }
   if (!(Array.isArray(l.produtos) ? l.produtos : []).includes(item?.id)) return disponivel;
+  // O app de cortesia (e não pago): o selo diz até quando; a pessoa pode contratar para continuar depois.
+  const pago = assinaturasDoItem(conta?.assinaturas, item.id).some((a) => a.status === "ACTIVE");
+  const cort = cortesiasValendo(conta, Date.now()).filter((c) => c.tipo === "addon" && c.produto === item.id).sort((a, b) => Date.parse(b.fim) - Date.parse(a.fim))[0];
+  if (!pago && cort !== undefined) return cortesia(cort.fim);
   const lib = (Array.isArray(conta?.liberacoes) ? conta.liberacoes : []).find((x) => x && x.produto === item.id);
   return lib && lib.aberta === true ? { chave: "falta-liberar", texto: "Falta liberar na máquina", tom: "" } : tem();
 }
@@ -336,12 +347,16 @@ export function pagoChegou(conta, produto, antes) {
  * pagas. `nomes` traduz o nome técnico para o nome do item (`{"meu-bot-finance": "Finanças"}`).
  */
 export function oQueAContaTem(conta, nomes = {}) {
-  const l = conta?.licenca ?? {}, out = [];
-  if (l.plan === "pro" && (l.status === "active" || l.status === "trialing")) out.push(l.status === "trialing" ? "Pro (teste grátis)" : "Pro");
-  for (const p of Array.isArray(l.produtos) ? l.produtos : []) out.push(nomes[p] ?? p);
-  const mq = Number.isInteger(conta?.maquinaExtras) ? conta.maquinaExtras : 0, dv = Number.isInteger(conta?.deviceExtras) ? conta.deviceExtras : 0;
+  const l = conta?.licenca ?? {}, out = [], agora = Date.now();
+  const deCortesia = new Set(cortesiasValendo(conta, agora).filter((c) => c.tipo === "addon").map((c) => c.produto));
+  if (l.plan === "pro" && (l.status === "active" || l.status === "trialing")) out.push(l.status === "trialing" ? "Pro (teste grátis)" : conta?.origemDoPro === "cortesia" ? "Pro (cortesia)" : "Pro");
+  for (const p of Array.isArray(l.produtos) ? l.produtos : []) out.push(`${nomes[p] ?? p}${deCortesia.has(p) ? " (cortesia)" : ""}`);
+  const n = (x) => (Number.isInteger(x) && x > 0 ? x : 0);
+  const mq = n(conta?.maquinaExtras), dv = n(conta?.deviceExtras), mqc = n(conta?.maquinaCortesias), dvc = n(conta?.deviceCortesias);
   if (mq > 0) out.push(`${mq} máquina${mq === 1 ? "" : "s"} extra${mq === 1 ? "" : "s"}`);
+  if (mqc > 0) out.push(`${mqc} máquina${mqc === 1 ? "" : "s"} de cortesia`);
   if (dv > 0) out.push(`${dv} Mac${dv === 1 ? "" : "s"} extra${dv === 1 ? "" : "s"}`);
+  if (dvc > 0) out.push(`${dvc} Mac${dvc === 1 ? "" : "s"} de cortesia`);
   return out;
 }
 
@@ -369,4 +384,36 @@ export function voltaDoPagamento(licenca, assinaturas, data = (iso) => iso) {
   if (pagoAtivo) return { texto: "Pagamento confirmado: o Pro está ativo.", esperar: false };
   if (proSemAssinatura) return { texto: `O Pro está ativo${licenca?.expiresAt ? ` até ${data(licenca.expiresAt)}` : ""}. Se você acabou de assinar, a assinatura aparece aqui em alguns segundos.`, esperar: true };
   return { texto: "Recebemos você de volta. Assim que a AbacatePay confirmar o pagamento, o Pro aparece aqui (costuma levar alguns segundos).", esperar: true };
+}
+
+/** As cortesias do suporte que valem agora (`conta.cortesias` da API: as válidas e as dos últimos 30 dias). */
+export function cortesiasValendo(conta, agoraMs = Date.now()) {
+  return (Array.isArray(conta?.cortesias) ? conta.cortesias : []).filter((c) => c && !c.encerradaEm && Date.parse(c.fim) > agoraMs);
+}
+/** O que uma cortesia dá, para a própria pessoa: "o Pro", o nome do app, "1 máquina a mais", "2 Macs a mais", "3 usuários na organização". */
+export function oQueACortesiaDaParaAPessoa(c, nomes = {}) {
+  const n = Number.isInteger(c?.quantidade) && c.quantidade > 0 ? c.quantidade : 1;
+  if (c?.tipo === "pro") return "o Pro";
+  if (c?.tipo === "addon") return nomes[c.produto] ?? c.produto;
+  if (c?.tipo === "maquina") return `${n} máquina${n === 1 ? "" : "s"} a mais`;
+  if (c?.tipo === "device") return `${n} Mac${n === 1 ? "" : "s"} a mais`;
+  if (c?.tipo === "assento") return `${n} usuário${n === 1 ? "" : "s"} a mais na organização`;
+  return String(c?.tipo ?? "");
+}
+/**
+ * As linhas de cortesia para o Plano e a Visão geral: o que vale e até quando, com o aviso nos últimos
+ * DIAS_PARA_OFERTAR dias, e o que o suporte encerrou antes do prazo (sem o motivo, que é só do admin). `data` formata.
+ * Vazio quando não há cortesia.
+ */
+export function cortesiasNaTela(conta, nomes = {}, data = (iso) => iso.slice(0, 10), agoraMs = Date.now()) {
+  const linhas = [];
+  for (const c of cortesiasValendo(conta, agoraMs).sort((a, b) => Date.parse(a.fim) - Date.parse(b.fim))) {
+    const dias = Math.ceil((Date.parse(c.fim) - agoraMs) / DIA);
+    const acaba = dias <= DIAS_PARA_OFERTAR ? ` Acaba em ${dias} dia${dias === 1 ? "" : "s"}: para continuar, contrate antes.` : "";
+    linhas.push({ texto: `Cortesia: ${oQueACortesiaDaParaAPessoa(c, nomes)} até ${data(c.fim)}.${acaba}`, acabando: acaba !== "" });
+  }
+  for (const c of (Array.isArray(conta?.cortesias) ? conta.cortesias : []).filter((x) => x && x.encerradaEm)) {
+    linhas.push({ texto: `Cortesia de ${oQueACortesiaDaParaAPessoa(c, nomes)} encerrada pelo suporte em ${data(c.encerradaEm)}.`, acabando: false });
+  }
+  return linhas;
 }

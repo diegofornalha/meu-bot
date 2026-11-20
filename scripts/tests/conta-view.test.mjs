@@ -32,8 +32,8 @@ test("paridade com o console: fase, contagem regressiva, fim do plano e dias", (
 });
 
 test("paridade com o console: vagas de máquina", () => {
-  for (const limite of [undefined, null, 0, 1, 2, 3, 50, 1.5, "2"]) for (const extras of [undefined, null, -1, 0, 1, 2, 3, 99, 0.5]) {
-    assert.deepEqual(app.vagasDeMaquina(limite, extras), web.vagasDeMaquina(limite, extras), `limite=${limite} extras=${extras}`);
+  for (const limite of [undefined, null, 0, 1, 2, 3, 50, 1.5, "2"]) for (const extras of [undefined, null, -1, 0, 1, 2, 3, 99, 0.5]) for (const cortesias of [undefined, 0, 1, 2, -1, 0.5]) {
+    assert.deepEqual(app.vagasDeMaquina(limite, extras, cortesias), web.vagasDeMaquina(limite, extras, cortesias), `limite=${limite} extras=${extras} cortesias=${cortesias}`);
   }
 });
 
