@@ -89,6 +89,12 @@ export async function postLiberarDevice(auth: Autenticado, env: Env, id: string,
   const conta = await contaPorId(env.DB, id);
   if (conta === null) return json({ erro: "conta não existe" }, 404);
   const corpo = (await lerJson(req)) as Record<string, unknown> | null;
+  // Prazo e motivo da cortesia, se vierem, são conferidos antes de qualquer mudança: pedido fora da forma é recusado,
+  // não trocado em silêncio pelo padrão.
+  const fimPedido = corpo?.fim === undefined ? null : validaFimCortesia(corpo.fim, Date.now());
+  if (corpo?.fim !== undefined && fimPedido === null) return json({ erro: "fim: uma data no futuro, até 365 dias a partir de hoje" }, 400);
+  const motivoPedido = corpo?.motivo === undefined ? null : validaMotivo(corpo.motivo);
+  if (corpo?.motivo !== undefined && motivoPedido === null) return json({ erro: "motivo: de 3 a 300 caracteres" }, 400);
   const [devices, vigor, papel] = await Promise.all([devicesDaConta(env.DB, conta.id), limiteDeDevicesComExtras(env.DB, conta), papelAdmin(env.DB, conta.email, env.ADMIN_BOOTSTRAP_EMAIL)]);
   const device = devices.find((d) => d.id === deviceId);
   if (device === undefined) return json({ erro: "device não existe nesta conta" }, 404);
@@ -101,8 +107,8 @@ export async function postLiberarDevice(auth: Autenticado, env: Env, id: string,
   // Subir o limite é dar device de cortesia (com prazo, padrão de CORTESIA_DIAS_PADRAO dias, e motivo), não mexer na
   // base do plano: assim a vaga aparece como cortesia, com quem deu e até quando.
   if (d.novoLimite !== null) {
-    const fim = validaFimCortesia(corpo?.fim, Date.now()) ?? new Date(Date.now() + CORTESIA_DIAS_PADRAO * 86400000).toISOString();
-    const motivo = validaMotivo(corpo?.motivo) ?? `liberar o device ${device.name || deviceId} pendente`;
+    const fim = fimPedido ?? new Date(Date.now() + CORTESIA_DIAS_PADRAO * 86400000).toISOString();
+    const motivo = motivoPedido ?? `liberar o device ${device.name || deviceId} pendente`;
     await gravarCortesia(env.DB, conta.id, { tipo: "device", produto: null, orgId: null, quantidade: d.novoLimite - vigor.limite, fim, motivo }, auth.conta.email);
   }
   await auditar(env.DB, auth.conta.email, "device.liberado", conta.id, `${deviceId}${d.novoLimite !== null ? ` · limite ${vigor.limite} → ${d.novoLimite} com device de cortesia` : ""}`);

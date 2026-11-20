@@ -101,6 +101,8 @@ test("device extra: o webhook soma uma vaga, o Mac pendente mais antigo entra, o
   // O admin libera o terceiro: o limite que vale é o em vigor (2); subir é dar 1 device de cortesia, e a base fica.
   r = await chamar("POST", `/admin/contas/${A}/devices/c1b2c3d4e5f6/liberar`, {}, tadm);
   assert.equal(r.status, 409); assert.equal(r.corpo.noLimite, true); assert.match(r.corpo.erro, /2 de 2 devices/);
+  assert.equal((await chamar("POST", `/admin/contas/${A}/devices/c1b2c3d4e5f6/liberar`, { subirLimite: true, fim: "2000-01-01" }, tadm)).status, 400, "prazo fora da forma é recusado, não trocado pelo padrão");
+  assert.equal((await chamar("POST", `/admin/contas/${A}/devices/c1b2c3d4e5f6/liberar`, { subirLimite: true, motivo: "x" }, tadm)).status, 400, "motivo curto é recusado");
   r = await chamar("POST", `/admin/contas/${A}/devices/c1b2c3d4e5f6/liberar`, { subirLimite: true }, tadm);
   assert.equal(r.status, 200); assert.equal(r.corpo.deviceLimit, 3);
   assert.equal((await DB.prepare("SELECT device_limit FROM licencas WHERE conta_id = ?1").bind(A).first()).device_limit, 1);
