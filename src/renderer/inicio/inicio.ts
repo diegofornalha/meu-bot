@@ -144,7 +144,7 @@ const twStart = $<HTMLButtonElement>("tw-start");
 let twMode: "tour" | "ia" | "nenhuma" = "tour";
 let aiChoice: AiChoice | null = null;
 export function showTourWelcome(): void {
-  twMode = "tour"; twChoice.hidden = true; twChoice.replaceChildren();
+  twMode = "tour"; twChoice.hidden = true; twChoice.replaceChildren(); tourWelcomeEl.classList.remove("tw-escolha");
   twTitle.textContent = TOUR_INVITE.title; twText.textContent = TOUR_INVITE.text; twStart.textContent = "Iniciar tour"; twStart.disabled = false;
   tourWelcomeEl.hidden = false; syncRest(); twStart.focus();
 }
@@ -168,7 +168,7 @@ export async function showAiChoice(): Promise<void> {
   try { guardada = parseAiChoice(localStorage.getItem(aiChoiceKey())); } catch { /* opcional */ }
   const marcada = guardada ?? preselecao(g);
   aiChoice = marcada !== null && opcoes.some((o) => o.id === marcada) ? marcada : null;
-  twMode = "ia";
+  twMode = "ia"; tourWelcomeEl.classList.add("tw-escolha");
   twTitle.textContent = AI_CHOICE_INVITE.title; twText.textContent = AI_CHOICE_INVITE.text; twStart.textContent = "Continuar";
   const paint = (): void => {
     const cards = el("div", "reply-cards guide-cards"); cards.setAttribute("role", "radiogroup");
@@ -193,7 +193,7 @@ export async function showAiChoice(): Promise<void> {
 
 /** Encerra a primeira abertura sem o tour (ele continua em Tutoriais) e sem o cartão de "Tour pulado". */
 async function closeAiChoice(): Promise<void> {
-  tourWelcomeEl.hidden = true; twChoice.hidden = true; twChoice.replaceChildren(); twMode = "tour";
+  tourWelcomeEl.hidden = true; twChoice.hidden = true; twChoice.replaceChildren(); twMode = "tour"; tourWelcomeEl.classList.remove("tw-escolha");
   syncRest();
   try { ctx.applySettings(await window.meuBot.setSettings({ onboarding: "skipped" })); } catch { /* fica pendente; volta na próxima vez */ }
   ctx.reportProgress();
