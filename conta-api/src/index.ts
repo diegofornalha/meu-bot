@@ -19,6 +19,7 @@ import type { Env } from "./tipos.js";
 import { autenticar, cors, json } from "./http.js";
 import { postSair, postSessao, postSessaoConsole } from "./rotas/sessao.js";
 import { postToken } from "./rotas/token.js";
+import { deletePasskey, getPasskeys, passkeyLigada, postLoginOpcoes, postLoginPasskey, postPasskey, postPasskeyOpcoes } from "./rotas/passkeys.js";
 import { postEncerrarAddon, postEncerrarExtra, postEncerrarPro } from "./rotas/encerrar.js";
 import { postCortesia, postEncerrarCortesia, postRenovarCortesia } from "./rotas/cortesias.js";
 import { deleteConta, getConta, patchConta, postSenha } from "./rotas/conta.js";
@@ -93,7 +94,7 @@ async function pagina(req: Request, env: Env, url: URL): Promise<Response> {
   // A raiz do host de login não é uma página: quem chega aqui à mão vai para o console da conta.
   if (url.pathname === "/" || url.pathname === "/index.html") return comCabecalhos(Response.redirect(`${env.CONSOLE_ORIGIN}/account/overview`, 302), {});
   if (url.pathname === "/robots.txt") return comCabecalhos(robotsFechado(), {});
-  if (url.pathname === "/config.js") return comCabecalhos(configJs({ apiKey: env.FIREBASE_API_KEY, authDomain: env.FIREBASE_AUTH_DOMAIN, projectId: env.FIREBASE_PROJECT_ID, api: env.API_ORIGIN, canal: env.CANAL, console: env.CONSOLE_ORIGIN, site: env.SITE_ORIGIN, ga: gaDoEnv(env) }), {});
+  if (url.pathname === "/config.js") return comCabecalhos(configJs({ apiKey: env.FIREBASE_API_KEY, authDomain: env.FIREBASE_AUTH_DOMAIN, projectId: env.FIREBASE_PROJECT_ID, api: env.API_ORIGIN, canal: env.CANAL, console: env.CONSOLE_ORIGIN, site: env.SITE_ORIGIN, ga: gaDoEnv(env), passkey: passkeyLigada(env) ? "1" : "" }), {});
   // /enterprise e /enterprise/<slug> (como o Rambox; /org/<slug> é apelido): a mesma página de login; sem slug ela
   // pergunta o endereço da organização, com slug mostra o cabeçalho dela (o JS lê o caminho).
   const alvo = /^\/(?:enterprise|org)(?:\/[a-z0-9-]{1,40})?\/?$/.test(url.pathname) ? new Request(new URL("/entrar", url.origin).toString(), req) : req;
@@ -111,7 +112,7 @@ const cspDoConsole = (env: Env): string => ["default-src 'self'", `script-src 's
  */
 async function consolePagina(req: Request, env: Env, url: URL): Promise<Response> {
   if (url.pathname === "/robots.txt") return comCabecalhos(robotsFechado(), {});
-  if (url.pathname === "/config.js") return comCabecalhos(configJs({ api: env.API_ORIGIN, auth: env.AUTH_ORIGIN, console: env.CONSOLE_ORIGIN, site: env.SITE_ORIGIN, canal: env.CANAL, ga: gaDoEnv(env), pagamentos: pagamentosLigados(env) ? "1" : "", cupomPix: cupomPixLigado(env) ? "1" : "", addons: JSON.stringify(addonsAVenda(env).map((a) => ({ nome: a.nome, rotulo: a.rotulo, centavos: a.centavos }))), extras: JSON.stringify(extrasAVenda(env).map((x) => ({ tipo: x.tipo, nome: x.nome, rotulo: x.rotulo, centavos: x.centavos, ...(x.deCentavos === undefined ? {} : { deCentavos: x.deCentavos }) }))), marketplace: JSON.stringify(marketplaceDoEnv(env)) }), {});
+  if (url.pathname === "/config.js") return comCabecalhos(configJs({ api: env.API_ORIGIN, auth: env.AUTH_ORIGIN, console: env.CONSOLE_ORIGIN, site: env.SITE_ORIGIN, canal: env.CANAL, ga: gaDoEnv(env), passkey: passkeyLigada(env) ? "1" : "", pagamentos: pagamentosLigados(env) ? "1" : "", cupomPix: cupomPixLigado(env) ? "1" : "", addons: JSON.stringify(addonsAVenda(env).map((a) => ({ nome: a.nome, rotulo: a.rotulo, centavos: a.centavos }))), extras: JSON.stringify(extrasAVenda(env).map((x) => ({ tipo: x.tipo, nome: x.nome, rotulo: x.rotulo, centavos: x.centavos, ...(x.deCentavos === undefined ? {} : { deCentavos: x.deCentavos }) }))), marketplace: JSON.stringify(marketplaceDoEnv(env)) }), {});
   const caminho = /\.[a-z0-9]{1,8}$/i.test(url.pathname) && !url.pathname.endsWith(".html") ? url.pathname : "/console/index.html";
   const res = await env.ASSETS.fetch(new Request(new URL(caminho, url.origin).toString(), { method: "GET", headers: req.headers }));
   // Tudo sem cache: o console muda junto com a API, e um JS velho de 5 min já mostrou tela errada depois de um deploy.
@@ -125,13 +126,15 @@ async function api(req: Request, env: Env, url: URL, espera: (p: Promise<unknown
   // `commit`: o sha que o scripts/site-publicar.mjs passou no deploy (--var COMMIT:<sha>); null = deploy antigo ou à mão.
   if (rota === "GET /health") res = json({ ok: true, canal: env.CANAL, commit: /^[0-9a-f]{40}$/.test(env.COMMIT ?? "") ? env.COMMIT : null });
   else if (rota === "POST /sessao") res = await postSessao(req, env);
+  else if (rota === "POST /sessao/passkey/opcoes") res = await postLoginOpcoes(req, env);
+  else if (rota === "POST /sessao/passkey") res = await postLoginPasskey(req, env);
   else if (/^GET \/orgs\/[a-z0-9-]{1,40}\/publico$/.test(rota)) res = await getOrgPublico(env, rota.split("/")[2]!);
   else if (rota === "POST /token") res = await postToken(req, env);
   // Leads do site: sem login de conta (prova quem chama pelo LEADS_TOKEN) e sem CORS.
   else if (rota.startsWith("GET /leads/") || rota.startsWith("POST /leads/")) return comCabecalhos((await rotaLeads(rota, req, env)) ?? json({ erro: "rota desconhecida" }, 404), {});
   // Webhook da AbacatePay: sem login (prova a origem pelo secret e o corpo pela assinatura) e sem CORS.
   else if (rota === "POST /pagamentos/abacatepay") return comCabecalhos(await postWebhookAbacate(req, env, url, espera), {});
-  else if (rota === "POST /sessao/sair" || rota === "POST /sessao/console" || rota === "GET /conta" || rota === "PATCH /conta" || rota === "DELETE /conta" || rota === "POST /conta/senha" || rota === "POST /conta/assinatura" || rota === "POST /conta/assinatura/cancelar" || /^(POST|DELETE) \/conta\/maquinas(\/|$)/.test(rota) || /^DELETE \/conta\/devices\//.test(rota) || /^(GET|POST|PATCH|DELETE) \/orgs(\/|$)/.test(rota) || rota.startsWith("GET /admin/") || rota.startsWith("POST /admin/") || rota.startsWith("PATCH /admin/") || rota.startsWith("PUT /admin/") || rota.startsWith("DELETE /admin/")) {
+  else if (rota === "POST /sessao/sair" || rota === "POST /sessao/console" || rota === "GET /conta/passkeys" || rota === "POST /conta/passkeys" || rota === "POST /conta/passkeys/opcoes" || /^DELETE \/conta\/passkeys\/[A-Za-z0-9_-]{1,1400}$/.test(rota) || rota === "GET /conta" || rota === "PATCH /conta" || rota === "DELETE /conta" || rota === "POST /conta/senha" || rota === "POST /conta/assinatura" || rota === "POST /conta/assinatura/cancelar" || /^(POST|DELETE) \/conta\/maquinas(\/|$)/.test(rota) || /^DELETE \/conta\/devices\//.test(rota) || /^(GET|POST|PATCH|DELETE) \/orgs(\/|$)/.test(rota) || rota.startsWith("GET /admin/") || rota.startsWith("POST /admin/") || rota.startsWith("PATCH /admin/") || rota.startsWith("PUT /admin/") || rota.startsWith("DELETE /admin/")) {
     const auth = await autenticar(req, env);
     const atender = /^POST \/admin\/pedidos\/([A-Za-z0-9-]{1,40})\/atender$/.exec(rota);
     const licenca = /^PATCH \/admin\/contas\/([A-Za-z0-9-]{1,40})\/licenca$/.exec(rota);
@@ -149,6 +152,7 @@ async function api(req: Request, env: Env, url: URL, espera: (p: Promise<unknown
     const firebaseAdmin = /^GET \/admin\/contas\/([A-Za-z0-9-]{1,40})\/firebase$/.exec(rota);
     const renovarLicenca = /^POST \/conta\/maquinas\/([a-f0-9-]{36})\/licenca$/.exec(rota);
     const tirarMaquina = /^DELETE \/conta\/maquinas\/([a-f0-9-]{36})$/.exec(rota);
+    const tirarPasskey = /^DELETE \/conta\/passkeys\/([A-Za-z0-9_-]{1,1400})$/.exec(rota);
     const tirarDevice = /^DELETE \/conta\/devices\/([a-f0-9-]{12,36})$/.exec(rota);
     const atribuirMaquina = /^(POST|DELETE) \/admin\/maquinas\/([a-f0-9-]{36})\/conta$/.exec(rota);
     const maquinaVista = /^(POST|DELETE) \/conta\/maquinas\/([a-f0-9-]{36})\/visto$/.exec(rota);
@@ -175,6 +179,10 @@ async function api(req: Request, env: Env, url: URL, espera: (p: Promise<unknown
     else if (tirarMaquina !== null) res = await deleteMaquina(auth, env, tirarMaquina[1]!, req);
     else if (tirarDevice !== null) res = await deleteDeviceDaConta(auth, env, tirarDevice[1]!);
     else if (maquinaVista !== null) res = maquinaVista[1] === "POST" ? await postMaquinaVista(auth, env, maquinaVista[2]!, req) : await deleteMaquinaVista(auth, env, maquinaVista[2]!);
+    else if (rota === "GET /conta/passkeys") res = await getPasskeys(auth, env);
+    else if (rota === "POST /conta/passkeys/opcoes") res = await postPasskeyOpcoes(auth, env);
+    else if (rota === "POST /conta/passkeys") res = await postPasskey(auth, env, req);
+    else if (tirarPasskey !== null) res = await deletePasskey(auth, env, tirarPasskey[1]!);
     else if (rota === "POST /sessao/sair") res = await postSair(auth, env);
     else if (rota === "POST /sessao/console") res = await postSessaoConsole(auth, env, req);
     else if (rota === "GET /admin/visao") res = await getAdminVisao(auth, env, url);

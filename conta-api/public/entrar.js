@@ -95,6 +95,10 @@ if (!orgOk) {
     if (!r.ok || typeof j.code !== "string") { falhou(j.erro ?? `a API respondeu ${r.status}`, "api", metodoGa); return; }
     // O evento sai antes de navegar (o gtag usa sendBeacon; mesmo assim, nunca depois da linha que sai da página).
     if (novo) ga.evento("cadastro_concluido", { metodo: metodoGa === "link" ? "link" : metodoGa, via: "login" });
+    voltar(j, metodoGa);
+  }
+  // Com o código da API na mão (do Firebase ou da passkey): volta ao console ou abre o app.
+  function voltar(j, metodoGa) {
     ga.evento("login_concluido", { metodo: metodoGa, destino, ...comOrg });
     if (paraConsole) { location.replace(`${pedido.retorno}#code=${encodeURIComponent(j.code)}&state=${encodeURIComponent(pedido.state)}`); return; }
     const volta = `${pedido.esquema}://auth?code=${encodeURIComponent(j.code)}&state=${encodeURIComponent(pedido.state)}`;
@@ -129,6 +133,39 @@ if (!orgOk) {
     ga.evento("login_iniciado", { metodo: "google", destino, ...comOrg });
     try { const prov = new GoogleAuthProvider(); prov.setCustomParameters({ prompt: "select_account" }); const cred = await signInWithPopup(auth, prov); await concluir(cred.user, "google", undefined, getAdditionalUserInfo(cred)?.isNewUser === true); }
     catch (e) { const fechado = e?.code === "auth/popup-closed-by-user"; falhou(fechado ? "A janela do Google foi fechada antes de terminar." : `Google: ${e?.message ?? e}`, fechado ? "popup-fechado" : "google", "google"); }
+  });
+
+  // Passkey (WebAuthn), sem Firebase: a API manda um desafio, o aparelho assina (biometria ou senha do aparelho) e a
+  // API confere com a chave pública que a pessoa cadastrou no console. A passkey é "descobrível": o aparelho mostra as
+  // que tem deste site, então não se pergunta o e-mail.
+  const AGUARDANDO = $("aguardando-sub").textContent;
+  const b64u = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const deB64u = (t) => Uint8Array.from(atob(t.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0));
+  $("btn-passkey").hidden = !(cfg.passkey === "1" && typeof window.PublicKeyCredential === "function" && typeof navigator.credentials?.get === "function");
+  $("btn-passkey").addEventListener("click", async () => {
+    $("aguardando-sub").textContent = "Confirme no seu aparelho (digital, rosto ou a senha dele).";
+    mostrar("aguardando");
+    ga.evento("login_iniciado", { metodo: "passkey", destino, ...comOrg });
+    try {
+      const ro = await fetch(`${cfg.api}/sessao/passkey/opcoes`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+      const op = await ro.json().catch(() => ({}));
+      if (!ro.ok || typeof op.challenge !== "string") { falhou(op.erro ?? `a API respondeu ${ro.status}`, "api", "passkey"); return; }
+      let cred;
+      try { cred = await navigator.credentials.get({ publicKey: { challenge: deB64u(op.challenge), rpId: op.rpId, userVerification: "required", timeout: op.timeout } }); }
+      catch (e) {
+        // Cancelou ou não há passkey deste site no aparelho: o navegador responde a mesma coisa nos dois casos.
+        const cancelou = e?.name === "NotAllowedError" || e?.name === "AbortError";
+        falhou(cancelou ? "Não deu para usar a passkey: o pedido foi cancelado, ou este aparelho não tem passkey desta conta. Entre de outro jeito e crie uma no console, em Perfil › Login e segurança." : `Passkey: ${e?.message ?? e}`, cancelou ? "passkey-cancelada" : "passkey", "passkey");
+        return;
+      }
+      if (cred === null) { falhou("O aparelho não devolveu a passkey.", "passkey", "passkey"); return; }
+      const a = cred.response;
+      const r = await fetch(`${cfg.api}/sessao/passkey`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: cred.id, clientDataJSON: b64u(a.clientDataJSON), authenticatorData: b64u(a.authenticatorData), signature: b64u(a.signature), userHandle: a.userHandle && a.userHandle.byteLength > 0 ? b64u(a.userHandle) : undefined, state: pedido.state, challenge: pedido.challenge, esquema: pedido.esquema, app: pedido.app || undefined, v: pedido.v || undefined, org: orgSlug ?? undefined }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || typeof j.code !== "string") { falhou(j.erro ?? `a API respondeu ${r.status}`, "api", "passkey"); return; }
+      voltar(j, "passkey");
+    } catch (e) { falhou(`Passkey: ${e?.message ?? e}`, "outro", "passkey"); }
+    finally { $("aguardando-sub").textContent = AGUARDANDO; }
   });
 
   // E-mail com senha entra na hora; sem senha, vai um link por e-mail (o que a pessoa sempre teve).

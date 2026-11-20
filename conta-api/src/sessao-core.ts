@@ -18,8 +18,8 @@ export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-
 export const DEVICE_ID_RE = /^(?:[a-f0-9]{12}|[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/;
 /** Campos livres do device e do app (nome do Mac, usuário…), como MACHINE_FIELD_RE do backend. */
 const CAMPO_RE = /^[^\p{C}]{0,80}$/u;
-const APP_RE = /^meu-bot(?:-[a-z0-9-]{1,30})?$/;
-const VERSAO_RE = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]{1,40})?$/;
+export const APP_RE = /^meu-bot(?:-[a-z0-9-]{1,30})?$/;
+export const VERSAO_RE = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]{1,40})?$/;
 
 export const CODE_TTL_S = 120;
 export const ACESSO_TTL_S = 60 * 60;
