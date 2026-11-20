@@ -26,7 +26,9 @@ const API = "https://api.abacatepay.com/v2";
 
 /** O cliente da AbacatePay guardado na conta (o da última compra paga), ou null. */
 async function clienteDaConta(env: Env, contaId: string): Promise<string | null> {
-  const l = await env.DB.prepare("SELECT abacatepay_cliente FROM contas WHERE id = ?1").bind(contaId).first<{ abacatepay_cliente: string | null }>();
+  // Só serve para pré-preencher a página: falha ao ler não impede ninguém de pagar.
+  const l = await env.DB.prepare("SELECT abacatepay_cliente FROM contas WHERE id = ?1").bind(contaId).first<{ abacatepay_cliente: string | null }>()
+    .catch((e: unknown) => { console.log(`[pagamento] não li o cliente da conta ${contaId}: ${e instanceof Error ? e.message : String(e)}`); return null; });
   return l?.abacatepay_cliente ?? null;
 }
 
@@ -47,7 +49,8 @@ async function postarComCliente(env: Env, caminho: string, corpo: Record<string,
   const primeira = await enviar(cliente);
   if (cliente === null || !clienteNaoExiste(primeira.r.status, primeira.resp)) return primeira;
   console.log(`[pagamento] cliente ${cliente} não existe mais na AbacatePay: esquecido, checkout aberto sem ele`);
-  await env.DB.prepare("UPDATE contas SET abacatepay_cliente = NULL WHERE id = ?1 AND abacatepay_cliente = ?2").bind(contaId, cliente).run();
+  await env.DB.prepare("UPDATE contas SET abacatepay_cliente = NULL WHERE id = ?1 AND abacatepay_cliente = ?2").bind(contaId, cliente).run()
+    .catch((e: unknown) => { console.log(`[pagamento] não esqueci o cliente da conta ${contaId}: ${e instanceof Error ? e.message : String(e)}`); });
   return enviar(null);
 }
 export const pagamentosLigados = (env: Env): boolean => Boolean(env.ABACATEPAY_KEY && env.ABACATEPAY_WEBHOOK_SECRET && env.ABACATEPAY_PRODUTO);
