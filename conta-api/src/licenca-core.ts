@@ -88,15 +88,19 @@ export function admitirMaquina(daConta: readonly Vinculo[], id: string, limite: 
 }
 
 /**
- * O limite em vigor de máquinas ou de devices: o que o admin gravou (`base`) mais uma vaga por unidade extra paga que
- * ainda não venceu, até `teto` (o das máquinas, ou DEVICE_LIMITE_MAX para devices). `extras` diz quantas das vagas são
- * pagas (a tela explica a conta com ele).
+ * O limite em vigor de máquinas, devices ou usuários de organização: o do plano (`base`) mais uma vaga por unidade
+ * extra paga e por unidade de cortesia do admin que ainda não venceram, até `teto` (o das máquinas, DEVICE_LIMITE_MAX
+ * ou ASSENTOS_MAX). `extras` diz quantas das vagas são pagas e `cortesias` quantas são cortesia (a tela explica a conta
+ * com eles).
  */
-export function limiteComExtras(base: number, pagos: readonly { expiresAt: string }[], agoraMs: number, teto: number = MAQUINA_LIMITE_MAX): { limite: number; extras: number } {
+export function limiteComExtras(base: number, pagos: readonly { expiresAt: string }[], agoraMs: number, teto: number = MAQUINA_LIMITE_MAX, cortesias: readonly { expiresAt: string }[] = []): { limite: number; extras: number; cortesias: number } {
   const b = Number.isInteger(base) && base >= 1 ? base : 1;
-  const emDia = pagos.filter((p) => Date.parse(p.expiresAt) > agoraMs).length;
-  const limite = Math.min(b + emDia, Math.max(b, teto));
-  return { limite, extras: limite - b };
+  const emDia = (xs: readonly { expiresAt: string }[]): number => xs.filter((p) => Date.parse(p.expiresAt) > agoraMs).length;
+  const pagas = emDia(pagos), deCortesia = emDia(cortesias);
+  const limite = Math.min(b + pagas + deCortesia, Math.max(b, teto));
+  // No teto, as pagas contam primeiro: a tela não diz "cortesia" de uma vaga que a pessoa pagou.
+  const extras = Math.min(pagas, limite - b);
+  return { limite, extras, cortesias: limite - b - extras };
 }
 
 /**

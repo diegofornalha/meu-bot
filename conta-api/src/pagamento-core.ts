@@ -510,11 +510,18 @@ export function melhorCobertura(coberturas: readonly CoberturaOrg[]): CoberturaO
  * para os add-ons pagos da pessoa serem lidos com o plano já certo.
  */
 export function licencaComProDaOrg<L extends LicencaBase>(gravada: L, cobertura: CoberturaOrg | null, agoraMs: number): L {
-  if (cobertura === null) return gravada;
-  if (cobertura.ate !== null && !(Date.parse(cobertura.ate) > agoraMs)) return gravada;
-  const proProprio = gravada.plan === "pro" && gravada.status === "active" && (gravada.expiresAt === null || Date.parse(gravada.expiresAt) > agoraMs);
-  if (proProprio && !prazoMaior(cobertura.ate, gravada.expiresAt)) return gravada;
-  return { ...gravada, plan: "pro", status: "active", interval: gravada.interval ?? "month", expiresAt: cobertura.ate };
+  return cobertura === null ? gravada : licencaComProAte(gravada, cobertura.ate, agoraMs);
+}
+/**
+ * A licença com um Pro que vem de fora dela (a organização, `licencaComProDaOrg`, ou uma cortesia do admin) valendo até
+ * `ate` (null = sem prazo), quando ele vai mais longe que o Pro que a licença já tem. Prazo vencido não conta. Só o
+ * plano muda; devolve o mesmo objeto quando nada muda (quem chama compara para saber de onde veio o Pro).
+ */
+export function licencaComProAte<L extends LicencaBase>(l: L, ate: string | null, agoraMs: number): L {
+  if (ate !== null && !(Date.parse(ate) > agoraMs)) return l;
+  const proProprio = l.plan === "pro" && l.status === "active" && (l.expiresAt === null || Date.parse(l.expiresAt) > agoraMs);
+  if (proProprio && !prazoMaior(ate, l.expiresAt)) return l;
+  return { ...l, plan: "pro", status: "active", interval: l.interval ?? "month", expiresAt: ate };
 }
 
 /**
