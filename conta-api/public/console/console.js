@@ -169,7 +169,9 @@ async function orgCarregar(slug) {
   if (r.status !== 200) throw new Error(erroDe(r));
   return r.corpo;
 }
-function mostrarErro(texto) { $("erro").hidden = texto === null; $("erro").textContent = texto ?? ""; }
+function mostrarErro(texto) { $("erro").hidden = texto === null; $("erro").textContent = texto ?? ""; if (texto !== null) mostrarAvisoOk(null); }
+/** O resultado de uma ação que a pessoa precisa ler; some no próximo erro ou na próxima ação que o limpa. */
+function mostrarAvisoOk(texto) { $("aviso-ok").hidden = texto === null; $("aviso-ok").textContent = texto ?? ""; }
 function mostrarEntrada(erro) {
   $("console").hidden = true; $("entrada").hidden = false;
   if (secaoAtual() === "marketplace") $("entrada-texto").textContent = "Entre com a sua conta meu-bot para contratar. Depois do login você volta para esta mesma página.";
@@ -726,7 +728,8 @@ function addonsDaConta(c) {
   // que ainda está pago em dia aparece, porque é cobrança que se pode encerrar.
   const vale = (x) => !semPrazo(l) || Date.parse(x.expiresAt) > Date.now();
   const bloco = el("p", "sub");
-  // O Pro da conta (pago, gravado pelo admin ou de cortesia), com o Encerrar: não aparece no super admin nem no teste.
+  // O Pro da conta (pago, gravado pelo admin ou de cortesia), com o Encerrar. Na visão do admin, `c.licenca` é a gravada
+  // com a cortesia, sem o Pro da organização; o teste grátis (status "trialing") e o super admin ficam de fora pela condição.
   if (!semPrazo(l) && l.plan === "pro" && l.status === "active" && (l.expiresAt === null || Date.parse(l.expiresAt) > Date.now())) {
     const b = el("button", "btn btn-ghost", "Encerrar o Pro"); b.type = "button"; b.title = "Para a cobrança do Pro na AbacatePay e tira o Pro agora (reembolso, disputa ou pedido da pessoa).";
     b.addEventListener("click", () => { encerrarPago(c, "pro", b); });
@@ -885,6 +888,8 @@ function encerrarPago(c, caminho, botao) {
     const r = await api("POST", `/admin/contas/${encodeURIComponent(c.id)}/${caminho}/encerrar`, { motivo: motivo.value, detalhe: detalhe.value.trim() || null }, s.acesso);
     if (r.status !== 200) { confirmar.disabled = false; await falhaAdmin(r, c); return; }
     await depoisDeDevice();
+    // O que aconteceu com a cobrança e o lembrete do reembolso, que não sai daqui.
+    mostrarAvisoOk(`Encerrado para ${c.email}: ${r.corpo?.cobranca ?? "feito"}. ${r.corpo?.aviso ? `${r.corpo.aviso.charAt(0).toUpperCase()}${r.corpo.aviso.slice(1)}.` : ""}`.trim());
   });
   caixa.append(motivo, detalhe, confirmar, voltar);
   botao.disabled = true; botao.after(caixa);
