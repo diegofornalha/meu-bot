@@ -6,9 +6,10 @@
  * para ela aparecer no console da pessoa como "licença do admin": não emite licença nem ocupa vaga. Tudo fica na auditoria.
  */
 import type { Env, TipoVenda } from "../tipos.js";
-import { apagarConta, atribuirMaquina, desatribuirMaquina, contaAtribuidaDaMaquina, limiteDeDevicesComExtras, contaPorEmail, maquinaPorId, montarContaApi, assinaturasOcultas, ativarDevice, atenderPedido, auditoriaAdmin, zerarAuditoria, marcarVendaOculta, papelAdmin,  auditar, contaPorId, contarSupers, devicesDaConta, gravarLicenca, licencaGravada, removerDevice, gravarPerfil, gravarProvedor, removerPerfil, revogarSessoesDaConta, visaoAdmin } from "../db.js";
+import { apagarConta, atribuirMaquina, desatribuirMaquina, contaAtribuidaDaMaquina, limiteDeDevicesComExtras, contaPorEmail, maquinaPorId, montarContaApi, assinaturasOcultas, ativarDevice, atenderPedido, auditoriaAdmin, zerarAuditoria, marcarVendaOculta, papelAdmin,  auditar, contaPorId, contarSupers, devicesDaConta, gravarCortesia, gravarLicenca, licencaGravada, removerDevice, gravarPerfil, gravarProvedor, removerPerfil, revogarSessoesDaConta, visaoAdmin } from "../db.js";
 import { consultarFirebase, definirSenhaFirebase } from "../firebase-admin.js";
-import { DEVICE_ID_RE, UUID_RE, decidirLiberarDevice, ehAdminInicial, validaBusca, validaEmail, validaPapel, validaPatchLicenca, validaSenhaNova } from "../sessao-core.js";
+import { DEVICE_ID_RE, UUID_RE, decidirLiberarDevice, ehAdminInicial, validaBusca, validaEmail, validaPapel, validaPatchLicenca, validaSenhaNova, type PatchLicenca } from "../sessao-core.js";
+import { CORTESIA_DIAS_PADRAO, validaFimCortesia, validaMotivo } from "../cortesia-core.js";
 import { json, lerJson, type Autenticado } from "../http.js";
 import { validaApelido } from "../licenca-core.js";
 import { enviarEmailSenha, impedimentosDeApagar } from "./conta.js";
@@ -55,20 +56,32 @@ export async function postAtenderPedido(auth: Autenticado, env: Env, id: string)
   await auditar(env.DB, auth.conta.email, "pedido.atendido", auth.conta.id, id);
   return json({ ok: true });
 }
+/** O patch só mexe no teste grátis (Pro em "trialing", o prazo dele) ou nas instruções de pagamento: o que o admin comum pode. */
+function ajusteDeTeste(p: PatchLicenca): boolean {
+  const chaves = Object.keys(p);
+  const soTeste = chaves.every((k) => k === "plan" || k === "status" || k === "trialEnd" || k === "expiresAt" || k === "interval" || k === "pagamento");
+  return soTeste && (p.plan === undefined || p.plan === "pro") && (p.status === undefined || p.status === "trialing") && (p.status === "trialing" || (p.plan === undefined && p.trialEnd === undefined && p.expiresAt === undefined && p.interval === undefined));
+}
 export async function patchLicenca(auth: Autenticado, env: Env, id: string, req: Request): Promise<Response> {
   if (auth.claims.adm === null) return json({ erro: "só admin" }, 403);
   if (!UUID_RE.test(id)) return json({ erro: "id da conta fora do formato" }, 400);
-  const patch = validaPatchLicenca(await lerJson(req));
+  const bruto = await lerJson(req);
+  const patch = validaPatchLicenca(bruto);
   if ("erro" in patch) return json({ erro: patch.erro }, 400);
+  // Dar de graça é cortesia (com prazo e motivo, rotas/cortesias.ts). Aqui fica o teste grátis, que qualquer admin
+  // estende, e o ajuste técnico do super admin; os dois pedem o motivo, que vai para a auditoria.
+  const motivo = validaMotivo((bruto as Record<string, unknown> | null)?.motivo);
+  if (motivo === null) return json({ erro: "motivo: diga por que está mudando a licença (3 a 300 caracteres)" }, 400);
+  if (auth.claims.adm !== "super" && !ajusteDeTeste(patch)) return json({ erro: "admin só estende o teste grátis aqui; para dar Pro, add-on, máquina, device ou organização, use Dar cortesia" }, 403);
   const conta = await contaPorId(env.DB, id);
   if (conta === null) return json({ erro: "conta não existe" }, 404);
   const licenca = await gravarLicenca(env.DB, conta, patch);
-  await auditar(env.DB, auth.conta.email, "licenca.alterada", conta.id, JSON.stringify(patch).slice(0, 500));
+  await auditar(env.DB, auth.conta.email, "licenca.alterada", conta.id, `${motivo} · ${JSON.stringify(patch)}`.slice(0, 500));
   return json({ ok: true, licenca });
 }
 /**
  * `POST /admin/contas/:id/devices/:device/liberar`: ativa um device pendente. Conta no limite responde 409 com
- * `noLimite`; com `{subirLimite: true}` o limite sobe o bastante para caber este device, na mesma ação.
+ * `noLimite`; com `{subirLimite: true, motivo?, fim?}` a conta ganha um device de cortesia para caber este, na mesma ação.
  */
 export async function postLiberarDevice(auth: Autenticado, env: Env, id: string, deviceId: string, req: Request): Promise<Response> {
   if (auth.claims.adm === null) return json({ erro: "só admin" }, 403);
@@ -76,6 +89,12 @@ export async function postLiberarDevice(auth: Autenticado, env: Env, id: string,
   const conta = await contaPorId(env.DB, id);
   if (conta === null) return json({ erro: "conta não existe" }, 404);
   const corpo = (await lerJson(req)) as Record<string, unknown> | null;
+  // Prazo e motivo da cortesia, se vierem, são conferidos antes de qualquer mudança: pedido fora da forma é recusado,
+  // não trocado em silêncio pelo padrão.
+  const fimPedido = corpo?.fim === undefined ? null : validaFimCortesia(corpo.fim, Date.now());
+  if (corpo?.fim !== undefined && fimPedido === null) return json({ erro: "fim: uma data no futuro, até 365 dias a partir de hoje" }, 400);
+  const motivoPedido = corpo?.motivo === undefined ? null : validaMotivo(corpo.motivo);
+  if (corpo?.motivo !== undefined && motivoPedido === null) return json({ erro: "motivo: de 3 a 300 caracteres" }, 400);
   const [devices, vigor, papel] = await Promise.all([devicesDaConta(env.DB, conta.id), limiteDeDevicesComExtras(env.DB, conta), papelAdmin(env.DB, conta.email, env.ADMIN_BOOTSTRAP_EMAIL)]);
   const device = devices.find((d) => d.id === deviceId);
   if (device === undefined) return json({ erro: "device não existe nesta conta" }, 404);
@@ -85,8 +104,14 @@ export async function postLiberarDevice(auth: Autenticado, env: Env, id: string,
   if (d.acao === "ja-ativo") return json({ ok: true, deviceLimit: vigor.limite });
   // Ativa antes de subir o limite: se o device sumiu no meio (removido por outro admin), o limite não muda à toa.
   if (!(await ativarDevice(env.DB, conta.id, deviceId))) return json({ erro: "device não existe nesta conta" }, 404);
-  if (d.novoLimite !== null) await gravarLicenca(env.DB, conta, { deviceLimit: d.novoLimite - vigor.extras });
-  await auditar(env.DB, auth.conta.email, "device.liberado", conta.id, `${deviceId}${d.novoLimite !== null ? ` · limite ${vigor.limite} → ${d.novoLimite}` : ""}`);
+  // Subir o limite é dar device de cortesia (com prazo, padrão de CORTESIA_DIAS_PADRAO dias, e motivo), não mexer na
+  // base do plano: assim a vaga aparece como cortesia, com quem deu e até quando.
+  if (d.novoLimite !== null) {
+    const fim = fimPedido ?? new Date(Date.now() + CORTESIA_DIAS_PADRAO * 86400000).toISOString();
+    const motivo = motivoPedido ?? `liberar o device ${device.name || deviceId} pendente`;
+    await gravarCortesia(env.DB, conta.id, { tipo: "device", produto: null, orgId: null, quantidade: d.novoLimite - vigor.limite, fim, motivo }, auth.conta.email);
+  }
+  await auditar(env.DB, auth.conta.email, "device.liberado", conta.id, `${deviceId}${d.novoLimite !== null ? ` · limite ${vigor.limite} → ${d.novoLimite} com device de cortesia` : ""}`);
   return json({ ok: true, deviceLimit: d.novoLimite ?? vigor.limite });
 }
 /** `DELETE /admin/contas/:id/devices/:device`: tira o device da conta (abre a vaga) e encerra as sessões dele. */

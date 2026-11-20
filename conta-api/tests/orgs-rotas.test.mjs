@@ -71,8 +71,8 @@ test("criar organização: sem Pro não cria, com Pro cria uma, a segunda é rec
     assert.equal(r.status, 403); assert.equal(r.corpo.motivo, "no-limite"); assert.match(r.corpo.erro, /já tem uma organização/);
 
     // O admin sobe o limite pela licença: a segunda passa, a terceira não.
-    assert.equal((await chamar("PATCH", `/admin/contas/${P}/licenca`, { orgLimit: 0 }, ts)).status, 400);
-    assert.equal((await chamar("PATCH", `/admin/contas/${P}/licenca`, { orgLimit: 2 }, ts)).status, 200);
+    assert.equal((await chamar("PATCH", `/admin/contas/${P}/licenca`, { orgLimit: 0, motivo: "ajuste de teste" }, ts)).status, 400);
+    assert.equal((await chamar("PATCH", `/admin/contas/${P}/licenca`, { orgLimit: 2, motivo: "ajuste de teste" }, ts)).status, 200);
     assert.equal((await chamar("POST", "/orgs", { nome: "Segunda", slug: "segunda" }, tp)).status, 200);
     assert.equal((await chamar("POST", "/orgs", { nome: "Terceira", slug: "terceira" }, tp)).status, 403);
     const visao = (await chamar("GET", "/admin/visao", undefined, ts)).corpo;

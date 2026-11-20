@@ -48,6 +48,7 @@ test("device extra: o webhook soma uma vaga, o Mac pendente mais antigo entra, o
     return { status: r.status, resultado: (await DB.prepare("SELECT resultado FROM webhook_eventos WHERE id = ?1").bind(`log_${n}`).first())?.resultado ?? null };
   };
   const tadm = await assinarJwt({ sub: B, sid: "s", dev: null, adm: "admin", iat: s, exp: s + 3600 }, HMAC);
+  const tsuper = await assinarJwt({ sub: B, sid: "s", dev: null, adm: "super", iat: s, exp: s + 3600 }, HMAC);
   // A AbacatePay de mentira: o encerramento pede o cancelamento da assinatura antes de tirar o acesso.
   globalThis.fetch = async (url, init) => { if (!String(url).startsWith("https://api.abacatepay.com/")) return fetchReal(url, init); canceladas.push(JSON.parse(init.body).id); return new Response(JSON.stringify({ success: true, data: { status: "CANCELLED" } }), { status: 200, headers: { "content-type": "application/json" } }); };
   const checkout = async (ref, conta = A) => { await DB.prepare("INSERT INTO pagamento_checkouts (ref, conta_id, checkout_id, ga_client_id, ga_session_id, criado_em, produto, promo) VALUES (?1, ?2, NULL, NULL, NULL, ?3, 'extra-device', 0)").bind(ref, conta, agora).run(); return ref; };
@@ -85,7 +86,11 @@ test("device extra: o webhook soma uma vaga, o Mac pendente mais antigo entra, o
   const naVisao = (await chamar("GET", "/admin/visao", undefined, tadm)).corpo.contas.find((x) => x.id === A);
   assert.equal(naVisao.licenca.deviceLimit, 1, "a visão do admin mostra a base");
   assert.deepEqual(naVisao.extrasPagos.map((x) => x.tipo), ["device"]);
-  r = await chamar("PATCH", `/admin/contas/${A}/licenca`, { plan: naVisao.licenca.plan, status: naVisao.licenca.status, deviceLimit: naVisao.licenca.deviceLimit, maquinaLimit: naVisao.maquinaLimite }, tadm);
+  const ajuste = { plan: naVisao.licenca.plan, status: naVisao.licenca.status, deviceLimit: naVisao.licenca.deviceLimit, maquinaLimit: naVisao.maquinaLimite };
+  r = await chamar("PATCH", `/admin/contas/${A}/licenca`, { ...ajuste, motivo: "ajuste de teste" }, tadm);
+  assert.equal(r.status, 403, "admin comum não mexe nos limites: dar a mais é cortesia");
+  assert.equal((await chamar("PATCH", `/admin/contas/${A}/licenca`, ajuste, tsuper)).status, 400, "sem motivo");
+  r = await chamar("PATCH", `/admin/contas/${A}/licenca`, { ...ajuste, motivo: "ajuste de teste" }, tsuper);
   assert.equal(r.status, 200, r.corpo.erro);
   assert.equal((await conta()).licenca.deviceLimit, 2, "salvar sem alterar não soma o extra de novo");
   // A renovação estende a mesma vaga, não soma outra.
@@ -93,14 +98,17 @@ test("device extra: o webhook soma uma vaga, o Mac pendente mais antigo entra, o
   assert.match(w.resultado, /^extra-device liberado até /);
   assert.equal((await conta()).licenca.deviceLimit, 2);
 
-  // O admin libera o terceiro: o limite que vale é o em vigor (2); ao subir, grava só a parte dele (3 em vigor - 1 extra).
+  // O admin libera o terceiro: o limite que vale é o em vigor (2); subir é dar 1 device de cortesia, e a base fica.
   r = await chamar("POST", `/admin/contas/${A}/devices/c1b2c3d4e5f6/liberar`, {}, tadm);
   assert.equal(r.status, 409); assert.equal(r.corpo.noLimite, true); assert.match(r.corpo.erro, /2 de 2 devices/);
+  assert.equal((await chamar("POST", `/admin/contas/${A}/devices/c1b2c3d4e5f6/liberar`, { subirLimite: true, fim: "2000-01-01" }, tadm)).status, 400, "prazo fora da forma é recusado, não trocado pelo padrão");
+  assert.equal((await chamar("POST", `/admin/contas/${A}/devices/c1b2c3d4e5f6/liberar`, { subirLimite: true, motivo: "x" }, tadm)).status, 400, "motivo curto é recusado");
   r = await chamar("POST", `/admin/contas/${A}/devices/c1b2c3d4e5f6/liberar`, { subirLimite: true }, tadm);
   assert.equal(r.status, 200); assert.equal(r.corpo.deviceLimit, 3);
-  assert.equal((await DB.prepare("SELECT device_limit FROM licencas WHERE conta_id = ?1").bind(A).first()).device_limit, 2);
+  assert.equal((await DB.prepare("SELECT device_limit FROM licencas WHERE conta_id = ?1").bind(A).first()).device_limit, 1);
   c = await conta();
-  assert.deepEqual([c.licenca.deviceLimit, c.deviceExtras], [3, 1]);
+  assert.deepEqual([c.licenca.deviceLimit, c.deviceExtras, c.deviceCortesias], [3, 1, 1]);
+  assert.equal(c.cortesias[0].tipo, "device");
 
   // O admin encerra o extra (reembolso): a vaga paga sai do limite na hora.
   r = await chamar("POST", `/admin/contas/${A}/extras/subs_d1/encerrar`, { motivo: "reembolso" }, tadm);

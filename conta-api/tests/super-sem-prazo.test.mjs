@@ -107,11 +107,11 @@ test("super admin com a licença gravada expirada: Pro ativo sem prazo no consol
     for (const x of [va, vc]) assert.deepEqual([x.licenca.status, x.licenca.expiresAt, "semPrazo" in x.licenca, "licencaGravada" in x], ["expired", ontem, false, false]);
 
     // O editor do admin continua mudando o que está gravado, e isso não mexe na licença em vigor do super admin.
-    r = await chamar("PATCH", `/admin/contas/${S}/licenca`, { plan: "free", status: "free", expiresAt: null, trialEnd: null }, ts);
+    r = await chamar("PATCH", `/admin/contas/${S}/licenca`, { plan: "free", status: "free", expiresAt: null, trialEnd: null, motivo: "ajuste de teste" }, ts);
     assert.deepEqual([r.status, r.corpo.licenca.plan, "semPrazo" in r.corpo.licenca], [200, "free", false], "o PATCH devolve a gravada");
     r = await chamar("GET", "/conta", undefined, ts);
     assert.deepEqual([r.corpo.licenca.plan, r.corpo.licenca.status, r.corpo.licenca.semPrazo], ["pro", "active", true]);
-    await chamar("PATCH", `/admin/contas/${S}/licenca`, { plan: "pro", status: "expired", expiresAt: ontem, trialEnd: ontem }, ts);
+    await chamar("PATCH", `/admin/contas/${S}/licenca`, { plan: "pro", status: "expired", expiresAt: ontem, trialEnd: ontem, motivo: "ajuste de teste" }, ts);
 
     // Nada foi gravado pela regra: deixando de ser super admin, volta a valer o que estava gravado (e a promoção).
     const gravadaDepois = await DB.prepare("SELECT plan, status, trial_end, expires_at, device_limit, produtos FROM licencas WHERE conta_id = ?1").bind(S).first();

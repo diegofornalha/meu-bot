@@ -59,13 +59,13 @@ test("rotas da licença na máquina: vincular, vaga, renovar, tirar, limite do a
   r = await chamar("POST", `/conta/maquinas/${M1}/licenca`, undefined, ta); diz("desvinculada não renova: 404", r.status === 404);
   r = await chamar("DELETE", `/conta/maquinas/${M1}`, { apagada: true }, ta); diz("o app apagou o arquivo: a vaga abre na hora", r.status === 200 && r.corpo.naHora === true && r.corpo.maquinas.length === 0);
   r = await chamar("POST", "/conta/maquinas", { id: M2, apelido: "Outra" }, ta); diz("agora a segunda entra", r.status === 200);
-  r = await chamar("PATCH", `/admin/contas/${A}/licenca`, { maquinaLimit: 2 }, tadm); diz("o admin sobe o limite de máquinas", r.status === 200 && r.corpo.licenca.maquinaLimit === undefined, JSON.stringify(Object.keys(r.corpo.licenca ?? {})).slice(0, 40));
+  r = await chamar("PATCH", `/admin/contas/${A}/licenca`, { maquinaLimit: 2, motivo: "ajuste de teste" }, tadm); diz("o admin sobe o limite de máquinas", r.status === 200 && r.corpo.licenca.maquinaLimit === undefined, JSON.stringify(Object.keys(r.corpo.licenca ?? {})).slice(0, 40));
   r = await chamar("POST", "/conta/maquinas", { id: M1, apelido: "Karen" }, ta); diz("com limite 2, as duas ficam", r.status === 200 && r.corpo.maquinas.length === 2);
   r = await chamar("GET", "/admin/visao", undefined, tadm); const ca = r.corpo.contas?.find((c) => c.id === A); diz("a visão do admin mostra máquinas e limite", ca?.maquinas === 2 && ca?.maquinaLimite === 2);
   // Conta que o painel ainda lista mas o banco já não tem (removida depois da leitura): as ações do admin respondem 404,
   // que é o que faz o painel reler a lista (public/console/admin-core.js).
   const FANTASMA = "0613dc2c-0000-4000-8000-000000000000";
-  r = await chamar("PATCH", `/admin/contas/${FANTASMA}/licenca`, { deviceLimit: 2 }, tadm); diz("licença de conta que não existe: 404", r.status === 404 && r.corpo.erro === "conta não existe", `${r.status} ${r.corpo.erro}`);
+  r = await chamar("PATCH", `/admin/contas/${FANTASMA}/licenca`, { deviceLimit: 2, motivo: "ajuste de teste" }, tadm); diz("licença de conta que não existe: 404", r.status === 404 && r.corpo.erro === "conta não existe", `${r.status} ${r.corpo.erro}`);
   r = await chamar("POST", `/admin/contas/${FANTASMA}/senha`, {}, tadm); diz("e-mail de senha de conta que não existe: 404", r.status === 404, `${r.status} ${r.corpo.erro}`);
   r = await chamar("PUT", `/admin/contas/${FANTASMA}/senha`, { senha: "uma-senha-longa" }, tadm, { ...env, FIREBASE_ADMIN_SA: "{}" }); diz("definir senha de conta que não existe: 404, antes de falar com o Firebase", r.status === 404, `${r.status} ${r.corpo.erro}`);
   r = await chamar("GET", "/admin/visao", undefined, tadm); diz("a visão do admin não lista a conta que não existe", r.status === 200 && !r.corpo.contas.some((c) => c.id === FANTASMA));

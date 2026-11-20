@@ -194,3 +194,11 @@ div.mk-cartao:hover { border-color: var(--borda); }
 /* Encerrar com motivo (admin): o motivo, o detalhe e os botões ficam ao lado do Encerrar, e quebram linha quando falta espaço. */
 .encerrar-motivo { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0; }
 .encerrar-motivo input { min-width: 0; width: min(260px, 100%); }
+/* Ficha da conta (admin): o que é pago, o que é cortesia, o Dar cortesia e o histórico. */
+.selo.aviso { background: var(--ghost); color: var(--primario); }
+.ficha-conta { display: grid; gap: 4px; margin-top: 8px; }
+.ficha-conta .cortesia-item { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 2px 0; }
+.dar-cortesia { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 6px 0; }
+.dar-cortesia input[type="text"] { min-width: 0; width: min(280px, 100%); }
+.dar-cortesia .qtd { width: 64px; }
+.ficha-conta .historico { margin: 0 0 4px; padding-left: 18px; color: var(--sub); font-size: 13px; }
