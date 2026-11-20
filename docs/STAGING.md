@@ -105,6 +105,7 @@ do WhatsApp abrem a conversa com o número real da Coflow: confira a mensagem pr
 | Entrar pela primeira vez com um e-mail novo (link por e-mail ou Google) | `console-staging.agentesgrok.com` › Entrar | A conta é criada e o console abre. Em Plano: Plano "Pro", Status "Trial", "Vale até" daqui a `TRIAL_DIAS` dias. |
 | Criar conta com senha | `auth-staging.agentesgrok.com/signup` | Pede a confirmação do e-mail; só depois de confirmar o login entra ("confirme o e-mail antes de entrar"). |
 | Entrar de novo com a mesma conta | console | O prazo do teste não muda: o teste é dado uma vez, no primeiro login. |
+| Passkey | console › Perfil › Login e segurança, depois a página de login | "Criar passkey" pede a digital, o rosto ou a senha do aparelho e a linha passa a "1 configurada", com o nome (por exemplo "Mac · Chrome") e "Remover" (dois cliques). Saindo e voltando, "Entrar com passkey" na página de login entra sem e-mail nem senha e a linha mostra "usada em". Passkey removida não entra mais ("passkey não reconhecida"). Navegador sem passkey: o botão não aparece no login e o console diz para abrir em outro navegador. |
 | Apagar a conta (Perfil › Apagar conta) e entrar de novo com o mesmo e-mail | console | A conta nova **não** ganha outro teste (Plano "Free"). Use um e-mail descartável: é um caminho sem volta para aquele e-mail. |
 | Ver a conta nova como admin | console › Plano › "Planos de todas as contas" | A conta aparece com Fase "Trial · 3 dias". |
 

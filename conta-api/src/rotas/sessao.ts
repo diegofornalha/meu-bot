@@ -3,7 +3,7 @@
  * ao `state` e ao PKCE que o app pôs na URL de login. A página manda a pessoa de volta com `<esquema>://auth?code&state`.
  * `POST /sessao/sair` (o app): revoga a família de refresh desta sessão.
  */
-import type { Env } from "../tipos.js";
+import type { ContaLinha, Env, OrgLinha } from "../tipos.js";
 import { aceitarConvites, auditar, contarLimite, criarCodigo, houveContaApagada, iniciarTrialSeNovo, membroPor, orgPorSlug, papelAdmin, revogarFamilia, sessaoPorId, upsertConta } from "../db.js";
 import { buscaJwksGoogle, verificarIdToken } from "../firebase.js";
 import { agoraIso, CHALLENGE_RE, CODE_TTL_S, ESQUEMA_WEB, janelaMinuto, LIMITE_SESSAO_POR_MIN, maisSegundos, segredo, TOKEN_RE, validaPedidoSessao } from "../sessao-core.js";
@@ -26,20 +26,32 @@ export async function postSessao(req: Request, env: Env): Promise<Response> {
   // Convites de organização para este e-mail viram membros ativos agora.
   const aceitos = await aceitarConvites(env.DB, conta, agora);
   if (aceitos > 0) await auditar(env.DB, conta.email, "org.convite-aceito", conta.id, `${aceitos} convite${aceitos === 1 ? "" : "s"}`, agora);
-  if (org !== null) {
-    // Só membro entra pela página da organização (o convite acabou de ser aceito acima, se havia).
-    const m = await membroPor(env.DB, org.id, conta.email);
-    if (m === null || m.conta_id !== conta.id) { await auditar(env.DB, conta.email, "login.org-recusado", conta.id, org.slug, agora); return json({ erro: `${conta.email} não faz parte da organização ${org.nome}; peça o convite a quem a administra` }, 403); }
-    await auditar(env.DB, conta.email, "login.org", conta.id, org.slug, agora);
-  }
+  const recusa = await entrarNaOrg(env, conta, org, agora);
+  if (recusa !== null) return recusa;
   // Primeira entrada: trial do Pro (TRIAL_DIAS), como no Rambox; o admin muda depois pelo console.
   const dias = Number.parseInt(env.TRIAL_DIAS ?? "3", 10);
   // Quem apagou a conta e voltou com o mesmo e-mail não ganha outro trial.
   if (conta.criada_em === agora && await houveContaApagada(env.DB, conta.email)) await auditar(env.DB, conta.email, "licenca.trial-negado", conta.id, "conta apagada antes com este e-mail", agora);
   else if (await iniciarTrialSeNovo(env.DB, conta, Number.isFinite(dias) ? dias : 3, agora)) await auditar(env.DB, conta.email, "licenca.trial", conta.id, `${dias} dias`, agora);
+  return codigoDoLogin(env, conta, pedido, agora);
+}
+
+/**
+ * No login pela página de uma organização só membro entra (o convite, se havia, já foi aceito por quem chama).
+ * Devolve a recusa (403) ou null. Vale para o login do Firebase e para o da passkey.
+ */
+export async function entrarNaOrg(env: Env, conta: ContaLinha, org: OrgLinha | null, agora: string): Promise<Response | null> {
+  if (org === null) return null;
+  const m = await membroPor(env.DB, org.id, conta.email);
+  if (m === null || m.conta_id !== conta.id) { await auditar(env.DB, conta.email, "login.org-recusado", conta.id, org.slug, agora); return json({ erro: `${conta.email} não faz parte da organização ${org.nome}; peça o convite a quem a administra` }, 403); }
+  await auditar(env.DB, conta.email, "login.org", conta.id, org.slug, agora);
+  return null;
+}
+/** O fim de todo login pela página: o código de uso único (120 s) preso ao `state` e ao PKCE do app. `como` vai para a auditoria. */
+export async function codigoDoLogin(env: Env, conta: ContaLinha, pedido: { state: string; challenge: string; esquema: string; app: string | null; versao: string | null }, agora: string, como = ""): Promise<Response> {
   const code = segredo(32);
   await criarCodigo(env.DB, { code, conta_id: conta.id, state: pedido.state, challenge: pedido.challenge, esquema: pedido.esquema, app: pedido.app, versao_app: pedido.versao, criado_em: agora, expira_em: maisSegundos(CODE_TTL_S) });
-  await auditar(env.DB, conta.email, "login.codigo", conta.id, `${pedido.esquema}${pedido.app === null ? "" : ` · ${pedido.app} ${pedido.versao ?? ""}`}`.trim(), agora);
+  await auditar(env.DB, conta.email, "login.codigo", conta.id, `${`${pedido.esquema}${pedido.app === null ? "" : ` · ${pedido.app} ${pedido.versao ?? ""}`}`.trim()}${como === "" ? "" : ` · ${como}`}`, agora);
   return json({ code, expiraEm: CODE_TTL_S });
 }
 

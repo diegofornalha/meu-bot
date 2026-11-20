@@ -52,6 +52,8 @@
       <button type="button" class="btn btn-google" id="btn-google">
         <span class="g" aria-hidden="true">G</span> Entrar com Google
       </button>
+      <!-- Passkey: só aparece com a passkey ligada no ambiente e num navegador que tem WebAuthn. Criada no console (Perfil). -->
+      <button type="button" class="btn btn-ghost btn-largo" id="btn-passkey" hidden>Entrar com passkey</button>
       <div class="ou"><span>ou</span></div>
       <form id="form-email" class="form">
         <label for="email">Entrar com e-mail</label>
@@ -73,7 +75,7 @@
 
     <section id="aguardando" hidden>
       <p class="forte">Entrando…</p>
-      <p class="sub">Termine na janela do Google ou no link do e-mail.</p>
+      <p class="sub" id="aguardando-sub">Termine na janela do Google ou no link do e-mail.</p>
     </section>
 
     <section id="email-enviado" hidden>

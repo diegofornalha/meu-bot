@@ -46,6 +46,14 @@ O que isso exige de quem mexer aqui:
   `iam.managed.disableServiceAccountKeyCreation`) foram sobrescritas para "não aplicada" em 7 nov 2026, só para
   esse projeto. Para trocar a chave: IAM › Contas de serviço › firebase-adminsdk › Chaves › Adicionar chave (JSON),
   `wrangler secret put FIREBASE_ADMIN_SA [--env staging] < arquivo.json`, apagar o arquivo e a chave antiga.
+- **Passkey** (console › Perfil › Login e segurança › "Criar passkey"; página de login › "Entrar com passkey") não passa
+  pelo Firebase, que não tem passkey: é WebAuthn conferido no próprio Worker (`src/passkey-core.ts`,
+  `src/rotas/passkeys.ts`, tabelas `passkeys` e `passkey_desafios`). A pessoa cria a passkey já logada; no login, o
+  aparelho assina um desafio de uso único (5 min) e a API confere origem, RP, verificação da pessoa, assinatura e
+  contador, e devolve o mesmo código de uso único do `POST /sessao`. `PASSKEY_RP_ID` (`wrangler.toml`) é o domínio
+  de que login e console são subdomínios; vazio desliga (rotas 503, botões escondidos). Não há atestado: a chave vale
+  pela sessão de quem a cadastrou. Remover a passkey no console só a invalida na conta; no aparelho, a pessoa apaga
+  no gerenciador de senhas.
 
 ## Organizações (molde Rambox Enterprise)
 
@@ -100,8 +108,8 @@ nesta versão: o rodapé do site diz que medimos visitas sem anúncios e sem dad
 | site | `download_iniciado` | `versao` (da release) |
 | site | `download_repetido` | `versao`: clique em "use este link" na /obrigado (não conta como conversão) |
 | login | `page_view` | `tipo`: `app`, `console`, `sem-app`, `org-pergunta`, `org-nao-achada`, `org-redirect` |
-| login | `login_iniciado`, `login_concluido` | `metodo`: `google`, `lembrado`, `senha`, `link`; `destino`: `app`, `console`; `org: true` na página da organização |
-| login | `login_falhou` | `motivo`: `popup-fechado`, `google`, `senha`, `muitas-tentativas`, `sem-conta`, `link-invalido`, `api`, `sessao-vencida`, `outro`; `metodo`; `destino` |
+| login | `login_iniciado`, `login_concluido` | `metodo`: `google`, `lembrado`, `senha`, `link`, `passkey`; `destino`: `app`, `console`; `org: true` na página da organização |
+| login | `login_falhou` | `motivo`: `popup-fechado`, `google`, `senha`, `muitas-tentativas`, `sem-conta`, `link-invalido`, `passkey`, `passkey-cancelada`, `api`, `sessao-vencida`, `outro`; `metodo`; `destino` |
 | login | `link_enviado`, `senha_recuperar` | `destino` |
 | login | `app_aberto` | `repeticao`: `false` (automático), `true` (botão "Abrir o meu-bot") |
 | login | `sem_app_visto` | `acao`: `visto`, `baixar`, `console`, `signup` |
@@ -115,7 +123,7 @@ nesta versão: o rodapé do site diz que medimos visitas sem anúncios e sem dad
 | console | `page_view` | `secao` (`overview`, `plan`, `org`, `entrada`…), caminho anonimizado |
 | console | `console_entrada`, `console_saida` | `via`: `app`, `login`; `admin` |
 | console | `org_criada`, `org_apagada`, `convite_enviado`, `membro_removido` | `papel`, `status`, `eu` |
-| console | `plano_alterado`, `perfil_salvo`, `dados_uso_alterado`, `senha_pedida`, `conta_apagada` | `plan`, `status`, `ligado` |
+| console | `plano_alterado`, `perfil_salvo`, `dados_uso_alterado`, `senha_pedida`, `passkey_criada`, `passkey_removida`, `conta_apagada` | `plan`, `status`, `ligado` |
 | todas | `click`, `scroll`, `file_download`, `form_start`, `form_submit` | medição otimizada do GA4 (automática) |
 
 Campanha: o `page_location` leva só as chaves de `CHAVES_CAMPANHA` (`src/analytics-core.ts`: `utm_*`, `gclid`, `gbraid`,

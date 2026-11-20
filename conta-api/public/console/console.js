@@ -1095,6 +1095,8 @@ function pintarPerfil(c) {
   const bSenha = el("button", "btn btn-ghost", temSenha ? "Redefinir senha" : "Criar senha"); bSenha.type = "button"; bSenha.id = "pf-senha";
   bSenha.addEventListener("click", () => { void senhaPedir(bSenha, c.email); });
   linha("Senha", temSenha ? selo("configurada", "ok") : selo("não configurada"), bSenha, el("span", "sub", temSenha ? "Na página de login, use e-mail e senha." : "Mandamos um e-mail com o link para criar a senha; depois entre com e-mail e senha na página de login."));
+  // Passkey: a linha nasce vazia e a lista vem da API (GET /conta/passkeys); sem a passkey ligada no ambiente, não aparece.
+  if (cfg.passkey === "1") { const dd = el("dd"); dd.id = "pf-passkeys"; dl.append(el("dt", "", "Passkey"), dd); void passkeysPintar(); }
   // Dados de uso
   const cb = $("pf-dados-uso"); cb.checked = c.dadosUso !== false; cb.disabled = false;
   // Apagar
@@ -1131,6 +1133,76 @@ async function senhaPedir(botao, email) {
   mostrarErro(null);
   ga.evento("senha_pedida");
   botao.replaceWith(el("span", "sub", `E-mail enviado para ${email}. Abra o link para definir a senha; depois entre com e-mail e senha na página de login, e ela aparece aqui como configurada.`));
+}
+// ---- Passkey (WebAuthn): criar e remover as passkeys da conta. A chave privada nunca sai do aparelho da pessoa.
+const b64u = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const deB64u = (t) => Uint8Array.from(atob(t.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0));
+const passkeyNoNavegador = () => typeof window.PublicKeyCredential === "function" && typeof navigator.credentials?.create === "function";
+/** Nome que a passkey ganha na lista: o sistema e o navegador de onde foi criada (a pessoa reconhece "Mac · Safari"). */
+function nomeDaPasskey(ua = navigator.userAgent) {
+  const so = /iPhone|iPad/.test(ua) ? "iPhone ou iPad" : /Android/.test(ua) ? "Android" : /Mac OS X|Macintosh/.test(ua) ? "Mac" : /Windows/.test(ua) ? "Windows" : /Linux/.test(ua) ? "Linux" : "Aparelho";
+  const nav = /Edg\//.test(ua) ? "Edge" : /OPR\//.test(ua) ? "Opera" : /Firefox\//.test(ua) ? "Firefox" : /Chrome\//.test(ua) ? "Chrome" : /Safari\//.test(ua) ? "Safari" : "navegador";
+  return `${so} · ${nav}`;
+}
+/** Desenha a linha "Passkey" do perfil: as que a conta tem (com Remover) e o botão de criar. `lista` = resposta já lida. */
+async function passkeysPintar(lista = null) {
+  const s = sessaoGuardada(); if (s === null) return;
+  let corpo = lista;
+  if (corpo === null) { const r = await api("GET", "/conta/passkeys", undefined, s.acesso); if (r.status !== 200) return; corpo = r.corpo; }
+  const dd = $("pf-passkeys"); if (dd === null) return;
+  const ps = Array.isArray(corpo.passkeys) ? corpo.passkeys : [];
+  dd.replaceChildren(ps.length > 0 ? selo(ps.length === 1 ? "1 configurada" : `${ps.length} configuradas`, "ok") : selo("não configurada"));
+  if (!passkeyNoNavegador()) { dd.append(el("span", "sub", "Este navegador não tem passkey; abra o console no Safari, no Chrome ou no Edge para criar uma.")); }
+  else if (ps.length < (corpo.limite ?? 10)) {
+    const b = el("button", "btn btn-ghost", ps.length > 0 ? "Criar outra" : "Criar passkey"); b.type = "button"; b.id = "pf-passkey-criar";
+    b.addEventListener("click", () => { void passkeyCriar(b); });
+    dd.append(b);
+  }
+  dd.append(el("span", "sub", ps.length > 0 ? 'Na página de login, use "Entrar com passkey".' : "Entre com a digital, o rosto ou a senha do aparelho, sem senha da conta e sem e-mail."));
+  for (const p of ps) {
+    const linha = el("span", "passkey-item");
+    const usada = typeof p.usadaEm === "string" ? `usada em ${new Date(p.usadaEm).toLocaleDateString("pt-BR")}` : "ainda não usada";
+    linha.append(el("strong", "", p.nome), el("span", "sub", `criada em ${new Date(p.criadaEm).toLocaleDateString("pt-BR")} · ${usada}${p.sincronizada ? " · sincronizada entre os seus aparelhos" : ""}`));
+    const rm = el("button", "btn btn-ghost", "Remover"); rm.type = "button";
+    rm.addEventListener("click", () => { void passkeyRemover(rm, p); });
+    linha.append(rm); dd.append(linha);
+  }
+}
+async function passkeyCriar(botao) {
+  const s = sessaoGuardada(); if (s === null) return;
+  botao.disabled = true;
+  try {
+    const ro = await api("POST", "/conta/passkeys/opcoes", {}, s.acesso);
+    if (ro.status !== 200) { mostrarErro(erroDe(ro)); return; }
+    const op = ro.corpo;
+    let cred;
+    try {
+      cred = await navigator.credentials.create({ publicKey: { ...op, challenge: deB64u(op.challenge), user: { ...op.user, id: deB64u(op.user.id) }, excludeCredentials: (op.excludeCredentials ?? []).map((c) => ({ ...c, id: deB64u(c.id) })) } });
+    } catch (e) {
+      // InvalidStateError: o aparelho já tem passkey desta conta (excludeCredentials). NotAllowedError: a pessoa cancelou.
+      mostrarErro(e?.name === "InvalidStateError" ? "Este aparelho já tem uma passkey desta conta." : e?.name === "NotAllowedError" || e?.name === "AbortError" ? "A criação da passkey foi cancelada." : `Passkey: ${e?.message ?? e}`);
+      return;
+    }
+    const a = cred?.response;
+    if (!a || typeof a.getPublicKey !== "function" || typeof a.getAuthenticatorData !== "function" || a.getPublicKey() === null) { mostrarErro("Este navegador é antigo demais para criar passkey aqui; atualize-o e tente de novo."); return; }
+    const r = await api("POST", "/conta/passkeys", { clientDataJSON: b64u(a.clientDataJSON), authenticatorData: b64u(a.getAuthenticatorData()), publicKey: b64u(a.getPublicKey()), alg: a.getPublicKeyAlgorithm(), transportes: typeof a.getTransports === "function" ? a.getTransports() : [], nome: nomeDaPasskey() }, s.acesso);
+    if (r.status !== 200) { mostrarErro(erroDe(r)); return; }
+    mostrarErro(null);
+    ga.evento("passkey_criada");
+    mostrarAvisoOk('Passkey criada. Na página de login, use "Entrar com passkey".');
+    await passkeysPintar(r.corpo);
+  } finally { botao.disabled = false; }
+}
+async function passkeyRemover(botao, p) {
+  const s = sessaoGuardada(); if (s === null) return;
+  if (botao.dataset.confirma !== "1") { botao.dataset.confirma = "1"; botao.textContent = "Confirmar: remover"; return; }
+  botao.disabled = true;
+  const r = await api("DELETE", `/conta/passkeys/${encodeURIComponent(p.id)}`, undefined, s.acesso);
+  if (r.status !== 200) { botao.disabled = false; mostrarErro(erroDe(r)); return; }
+  mostrarErro(null);
+  ga.evento("passkey_removida");
+  mostrarAvisoOk("Passkey removida: ela não entra mais nesta conta. Apague-a também no gerenciador de senhas do aparelho.");
+  await passkeysPintar(r.corpo);
 }
 async function contaApagar(botao) {
   const s = sessaoGuardada(); if (s === null) return;

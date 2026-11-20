@@ -69,6 +69,9 @@ FIREBASE_AUTH_DOMAIN = "auth.agentesgrok.com"
 ADMIN_BOOTSTRAP_EMAIL = "diegofornalha@gmail.com"
 # Conta nova (primeiro login) começa em trial do Pro por estes dias; 0 desliga (começa free).
 TRIAL_DIAS = "3"
+# Passkey (WebAuthn): o RP ID, o domínio de que a página de login e o console são subdomínios. O mesmo nos dois
+# ambientes (cada um tem o seu D1; no staging o nome da passkey sai com "(staging)"). VAZIO = passkey desligada.
+PASSKEY_RP_ID = "agentesgrok.com"
 # Promoção do primeiro mês do Pro: quem teve o teste grátis tem PROMO_DIAS dias, depois que ele acaba, para assinar
 # pagando PROMO_PRECO_CENTAVOS na primeira cobrança (uma vez por conta, só no cartão). PROMO_CUPOM é o código do cupom
 # de valor fixo criado na AbacatePay (desconto = preço cheio menos PROMO_PRECO_CENTAVOS: R$ 96,00). VAZIO = promoção
@@ -154,6 +157,9 @@ FIREBASE_AUTH_DOMAIN = "auth-staging.agentesgrok.com"
 ADMIN_BOOTSTRAP_EMAIL = "diegofornalha@gmail.com"
 # Conta nova (primeiro login) começa em trial do Pro por estes dias; 0 desliga (começa free).
 TRIAL_DIAS = "3"
+# Passkey (WebAuthn): o RP ID, o domínio de que a página de login e o console são subdomínios. O mesmo nos dois
+# ambientes (cada um tem o seu D1; no staging o nome da passkey sai com "(staging)"). VAZIO = passkey desligada.
+PASSKEY_RP_ID = "agentesgrok.com"
 # Promoção do primeiro mês do Pro: quem teve o teste grátis tem PROMO_DIAS dias, depois que ele acaba, para assinar
 # pagando PROMO_PRECO_CENTAVOS na primeira cobrança (uma vez por conta, só no cartão). PROMO_CUPOM é o código do cupom
 # de valor fixo criado na AbacatePay (desconto = preço cheio menos PROMO_PRECO_CENTAVOS: R$ 96,00). VAZIO = promoção

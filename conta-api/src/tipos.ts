@@ -56,6 +56,11 @@ export interface Env {
   GA_MP_SECRET?: string;
   /** Secret: o token de quem atende os leads do site (32+ caracteres) para ler e qualificar um código por visita. Sem ele, /leads responde 503. */
   LEADS_TOKEN?: string;
+  /**
+   * Passkey (WebAuthn): o RP ID, o domínio de que a página de login e o console são subdomínios ("agentesgrok.com").
+   * Vazio ou ausente = passkey desligada (as rotas respondem 503 e as páginas não mostram os botões).
+   */
+  PASSKEY_RP_ID?: string;
 }
 
 export interface ContaLinha {

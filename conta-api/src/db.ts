@@ -66,6 +66,8 @@ export async function apagarConta(db: D1Database, conta: ContaLinha, agora = ago
     db.prepare("UPDATE sessoes SET revogada_em = ?2 WHERE conta_id = ?1 AND revogada_em IS NULL").bind(conta.id, agora),
     db.prepare("UPDATE devices SET name = NULL, user = NULL, platform = NULL, apps = '{}' WHERE conta_id = ?1").bind(conta.id),
     db.prepare("DELETE FROM membros WHERE conta_id = ?1").bind(conta.id),
+    db.prepare("DELETE FROM passkeys WHERE conta_id = ?1").bind(conta.id),
+    db.prepare("DELETE FROM passkey_desafios WHERE conta_id = ?1").bind(conta.id),
   ]);
 }
 /** O e-mail que a conta tinha antes de `apagarConta` (que grava "apagada:<id>:<email>"); numa conta viva, o próprio. */
@@ -105,7 +107,7 @@ export async function marcarVendaOculta(db: D1Database, tipo: TipoVenda, id: str
   return r === null ? null : { contaId: r.conta_id };
 }
 /** Tabelas com linhas de uma conta, fora assinaturas e pagamentos, na ordem em que saem antes da linha de `contas`. */
-const TABELAS_DA_CONTA = ["sessoes", "codigos_login", "pagamento_checkouts", "addons_pagos", "extras_pagos", "pedidos", "devices", "maquinas", "maquinas_vistas", "membros", "licencas"] as const;
+const TABELAS_DA_CONTA = ["sessoes", "codigos_login", "pagamento_checkouts", "addons_pagos", "extras_pagos", "pedidos", "devices", "maquinas", "maquinas_vistas", "membros", "licencas", "passkeys", "passkey_desafios"] as const;
 /** As assinaturas que a tela Auditoria mostra como ocultas: o que `zerarAuditoria` tem de cancelar antes de apagar. */
 export async function assinaturasOcultas(db: D1Database): Promise<{ id: string; status: string }[]> {
   return (await db.prepare("SELECT id, status FROM assinaturas WHERE oculta_em IS NOT NULL").all<{ id: string; status: string }>()).results;
@@ -815,4 +817,43 @@ export async function apagarOrg(db: D1Database, org: OrgLinha, agora = agoraIso(
     db.prepare("UPDATE organizacoes SET apagada_em = ?2, slug = ?3, atualizada_em = ?2 WHERE id = ?1").bind(org.id, agora, `apagada:${org.id}:${org.slug}`),
     db.prepare("DELETE FROM membros WHERE org_id = ?1").bind(org.id),
   ]);
+}
+
+// ---- Passkeys (WebAuthn): as credenciais da conta e os desafios de uso único.
+export interface PasskeyLinha { id: string; conta_id: string; chave_publica: string; alg: number; contador: number; sincronizada: number; transportes: string; nome: string; criada_em: string; usada_em: string | null }
+export async function passkeysDaConta(db: D1Database, contaId: string): Promise<PasskeyLinha[]> {
+  return (await db.prepare("SELECT * FROM passkeys WHERE conta_id = ?1 ORDER BY criada_em").bind(contaId).all<PasskeyLinha>()).results;
+}
+export async function passkeyPorId(db: D1Database, id: string): Promise<PasskeyLinha | null> {
+  return (await db.prepare("SELECT * FROM passkeys WHERE id = ?1").bind(id).first<PasskeyLinha>()) ?? null;
+}
+/** false = a credencial já está cadastrada (nesta ou em outra conta). */
+export async function criarPasskey(db: D1Database, p: Omit<PasskeyLinha, "usada_em">): Promise<boolean> {
+  try {
+    await db.prepare("INSERT INTO passkeys (id, conta_id, chave_publica, alg, contador, sincronizada, transportes, nome, criada_em) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)")
+      .bind(p.id, p.conta_id, p.chave_publica, p.alg, p.contador, p.sincronizada, p.transportes, p.nome, p.criada_em).run();
+    return true;
+  } catch (e) { if (/UNIQUE/i.test(e instanceof Error ? e.message : String(e))) return false; throw e; }
+}
+/**
+ * Grava o uso (contador e hora). O contador só anda para a frente: com dois logins ao mesmo tempo pela mesma
+ * credencial, o segundo a gravar não muda nada e devolve false (quem chama recusa o login).
+ */
+export async function usarPasskey(db: D1Database, id: string, contadorAntes: number, contador: number, agora = agoraIso()): Promise<boolean> {
+  return ((await db.prepare("UPDATE passkeys SET contador = ?3, usada_em = ?4 WHERE id = ?1 AND contador = ?2").bind(id, contadorAntes, contador, agora).run()).meta.changes ?? 0) === 1;
+}
+export async function removerPasskey(db: D1Database, contaId: string, id: string): Promise<boolean> {
+  return ((await db.prepare("DELETE FROM passkeys WHERE conta_id = ?1 AND id = ?2").bind(contaId, id).run()).meta.changes ?? 0) === 1;
+}
+/** Guarda um desafio novo e joga fora os vencidos. */
+export async function criarDesafio(db: D1Database, desafio: string, tipo: "cadastro" | "login", contaId: string | null, expiraEm: string, agora = agoraIso()): Promise<void> {
+  await db.batch([
+    db.prepare("DELETE FROM passkey_desafios WHERE expira_em < ?1").bind(agora),
+    db.prepare("INSERT INTO passkey_desafios (desafio, tipo, conta_id, expira_em) VALUES (?1, ?2, ?3, ?4)").bind(desafio, tipo, contaId, expiraEm),
+  ]);
+}
+/** Gasta o desafio: true só para o primeiro pedido, do tipo certo, da conta certa (no cadastro) e dentro do prazo. */
+export async function gastarDesafio(db: D1Database, desafio: string, tipo: "cadastro" | "login", contaId: string | null, agora = agoraIso()): Promise<boolean> {
+  const r = await db.prepare("DELETE FROM passkey_desafios WHERE desafio = ?1 AND tipo = ?2 AND conta_id IS ?3 AND expira_em >= ?4").bind(desafio, tipo, contaId, agora).run();
+  return (r.meta.changes ?? 0) === 1;
 }
