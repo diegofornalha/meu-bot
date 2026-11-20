@@ -1,4 +1,4 @@
-import { avisoDepoisDo404, pedeReleitura, visaoVelha } from "./admin-core.js";
+import { MOTIVOS_ENCERRAR, ROTULO_ALVO, avisoDepoisDo404, cortesiasDaFicha, diaDaqui, estadoCortesia, fimDoDia, oQueACortesiaDa, pedeReleitura, rotuloMotivo, seloDoPlano, visaoVelha } from "./admin-core.js";
 import { INFINITO, SEM_LIMITE, SEM_PRAZO, TODOS_ADDONS, avisoAddonPago, contagemRegressiva, addonsNaVisaoGeral, estadoAssinaturaPro, fase, linhasDeMaquinas, deParaDoExtra, assinaturasDoItem, bloqueioDeOrg, assentoChegou, proPelaOrgTexto, estadoDoItem, itemGa, ofertaDoProAparece, orgsQueGerencia, usuariosDaOrg, situacaoDaUnidade, situacaoDoApp, resumoDeUso, semDevices, oQueAContaTem, pagoChegou, assinaturasAtivasDe, pedidoAssinar, podeAdicionarMaquina, promoNaTela, buscaDaVolta, reaisCurto, semPrazo, vagaDoAssinar, voltaDoPagamento, vagasDeDevice, vagasDeMaquina } from "./plano-core.js";
 // Console da conta meu-bot (console.agentesgrok.com/account/* e /organizations/<slug>/members|settings, molde Rambox). Entra pela mesma página de
 // login do app (auth.agentesgrok.com) com esquema=web: o console gera state + PKCE, a página devolve #code&state, e
@@ -535,13 +535,13 @@ async function copiarLink(url, botao) {
 }
 function pintarAdminOrgs(v) {
   const tb = $("ad-orgs").querySelector("tbody"); tb.replaceChildren();
-  if (v.orgs.length === 0) { const tr = el("tr"); const td = el("td", "", "Nenhuma organização ainda."); td.colSpan = 8; tr.append(td); tb.append(tr); }
+  if (v.orgs.length === 0) { const tr = el("tr"); const td = el("td", "", "Nenhuma organização ainda."); td.colSpan = 9; tr.append(td); tb.append(tr); }
   for (const o of v.orgs) {
     const tr = el("tr");
     const tdSlug = el("td"); const a = el("a", "", o.slug); a.href = `/organizations/${o.slug}/members`; a.addEventListener("click", (ev) => { ev.preventDefault(); history.pushState(null, "", a.getAttribute("href")); if (conta !== null) mostrarConsole(conta); }); tdSlug.append(a); tr.append(tdSlug);
     tr.append(el("td", "", o.nome), el("td", "", o.dona), el("td", "", String(o.membros)));
     const tdA = el("td"); const inp = el("input"); inp.type = "number"; inp.min = "1"; inp.max = "1000"; inp.value = String(o.assentos); inp.style.width = "80px"; tdA.append(inp); tr.append(tdA);
-    tr.append(el("td", "", String(o.assentosPagos ?? 0)), el("td", "", data(o.criadaEm)));
+    tr.append(el("td", "", String(o.assentosCortesia ?? 0)), el("td", "", String(o.assentosPagos ?? 0)), el("td", "", data(o.criadaEm)));
     const td = el("td", "acoes-linha"); const b = el("button", "btn btn-ghost", "Salvar"); b.type = "button"; b.addEventListener("click", () => { void adminAssentos(o.slug, Number(inp.value), b); });
     const rm = el("button", "btn btn-ghost btn-perigo", "Remover"); rm.type = "button"; rm.title = `Apaga a organização ${o.nome} e tira todos os membros dela. Não dá para desfazer.`;
     rm.addEventListener("click", () => { void adminRemoverOrg(o, rm); });
@@ -608,11 +608,12 @@ const contaCelula = (email, nome) => { const td = el("td"); const box = el("div"
 function pintarAdminTotais(v) {
   const fases = v.contas.map((c) => fase(c.licenca));
   const n = (re) => fases.filter((f) => re.test(f.texto)).length;
+  const cortesiasPro = v.contas.filter((c) => c.origemDoPro === "cortesia").length;
   $("ad-totais").replaceChildren(
     cartao("◉", "Contas", document.createTextNode(String(v.totais.contas))),
     cartao("◷", "Em trial", document.createTextNode(String(n(/^Trial ·|^Trial$/)))),
     cartao("◷", "Trial vencido", document.createTextNode(String(n(/^Trial venceu/))), ...(n(/^Trial venceu/) > 0 ? [selo("converter ou liberar", "mau")] : [])),
-    cartao("⬢", "Pro ativo", document.createTextNode(String(n(/^Pro ativo|^Pro ·/)))),
+    cartao("⬢", "Pro ativo", document.createTextNode(String(n(/^Pro ativo|^Pro ·/))), ...(cortesiasPro > 0 ? [selo(`${cortesiasPro} cortesia${cortesiasPro === 1 ? "" : "s"}`, "aviso")] : [])),
     cartao("▭", "Devices pendentes", document.createTextNode(String(v.totais.devicesPendentes)), ...(v.totais.devicesPendentes > 0 ? [selo("liberar", "mau")] : [])),
     cartao("✉", "Pedidos abertos", document.createTextNode(String(v.totais.pedidosAbertos)), ...(v.totais.pedidosAbertos > 0 ? [selo("ver em Suporte", "mau")] : [])),
     ...(v.vendas ? cartoesVendas(v.vendas) : []),
@@ -707,7 +708,7 @@ function pintarAdminContas(v) {
     const l = c.licenca, ativos = c.devices.filter((d) => d.status !== "pending").length, pend = c.devices.length - ativos;
     const tr = el("tr");
     tr.append(contaCelula(c.email, c.nome));
-    const plano = el("td"); plano.append(selo(PLANO[l.plan] ?? l.plan, l.plan === "pro" ? "ok" : "")); if (c.admin) plano.append(document.createTextNode(" "), selo(c.admin === "super" ? "super admin" : "admin")); tr.append(plano);
+    const plano = el("td"); const sp = seloDoPlano(c); plano.append(selo(sp.texto, sp.tom)); if (c.admin) plano.append(document.createTextNode(" "), selo(c.admin === "super" ? "super admin" : "admin")); tr.append(plano);
     const f = fase(l); const tdFase = el("td"); tdFase.append(selo(f.texto, f.tom)); tr.append(tdFase);
     if (semPrazo(l)) { const tdAte = el("td"); tdAte.append(infinito()); tr.append(tdAte); }
     else tr.append(el("td", "", l.expiresAt ? data(l.expiresAt) : l.trialEnd ? data(l.trialEnd) : "-"));
@@ -718,41 +719,102 @@ function pintarAdminContas(v) {
   }
 }
 /**
- * Os add-ons da conta `c`, para o editor da conta: os pagos com o prazo (vencido fica marcado) e o Encerrar, as
- * máquinas extras pagas, e os concedidos pelo admin, que valem junto com a licença. Lê a licença em vigor.
+ * "O que a conta tem", na ficha da conta (editor): cada coisa com a origem, para o admin ver o que é pago e o que é
+ * cortesia. O Pro (com Encerrar), os add-ons e as unidades extras pagas (com Encerrar), as cortesias (com Renovar e
+ * Encerrar), o "Dar cortesia" e o histórico (cortesias que acabaram e os encerramentos, com o motivo).
  */
-function addonsDaConta(c) {
-  const l = c.licenca;
-  // Add-ons: os pagos com o prazo (vencido fica marcado) e os concedidos pelo admin, que valem junto com a licença.
-  // Super admin tem tudo pela regra: o que venceu ou foi encerrado não diz nada sobre o acesso dele e não aparece; o
-  // que ainda está pago em dia aparece, porque é cobrança que se pode encerrar.
-  const vale = (x) => !semPrazo(l) || Date.parse(x.expiresAt) > Date.now();
-  const bloco = el("p", "sub");
-  // O Pro da conta (pago, gravado pelo admin ou de cortesia), com o Encerrar. Na visão do admin, `c.licenca` é a gravada
-  // com a cortesia, sem o Pro da organização; o teste grátis (status "trialing") e o super admin ficam de fora pela condição.
-  if (!semPrazo(l) && l.plan === "pro" && l.status === "active" && (l.expiresAt === null || Date.parse(l.expiresAt) > Date.now())) {
-    const b = el("button", "btn btn-ghost", "Encerrar o Pro"); b.type = "button"; b.title = "Para a cobrança do Pro na AbacatePay e tira o Pro agora (reembolso, disputa ou pedido da pessoa).";
-    b.addEventListener("click", () => { encerrarPago(c, "pro", b); });
-    bloco.append(el("strong", "", "Pro: "), selo(`ativo${l.expiresAt ? ` até ${data(l.expiresAt)}` : ""}`, "ok"), document.createTextNode(" "), b, el("br"));
+function fichaDaConta(c) {
+  const l = c.licenca, agora = Date.now();
+  const caixa = el("div", "ficha-conta");
+  const linha = (rotulo, ...filhos) => { const p = el("p", "sub"); p.append(el("strong", "", `${rotulo}: `), ...filhos); caixa.append(p); return p; };
+  const botao = (texto, titulo, aoClicar, classe = "btn btn-ghost") => { const b = el("button", classe, texto); b.type = "button"; b.title = titulo; b.addEventListener("click", () => aoClicar(b)); return b; };
+  const sp = (...xs) => xs.flatMap((x) => [x, document.createTextNode(" ")]);
+  // O Pro, pela origem. Super admin: ∞; teste: o prazo; pago, cortesia ou ajuste do admin: o prazo e o Encerrar.
+  const o = c.origemDoPro ?? null;
+  const proValendo = !semPrazo(l) && l.plan === "pro" && l.status === "active" && (l.expiresAt === null || Date.parse(l.expiresAt) > agora);
+  if (semPrazo(l)) linha("Pro", infinito());
+  else if (o === "teste") linha("Pro", selo(`em teste até ${data(l.trialEnd ?? l.expiresAt)}`));
+  else if (proValendo) linha("Pro", ...sp(selo(`${seloDoPlano(c).texto}${l.expiresAt ? ` até ${data(l.expiresAt)}` : ""}`, seloDoPlano(c).tom), botao("Encerrar o Pro", "Para a cobrança do Pro na AbacatePay e tira o Pro agora (reembolso, disputa ou pedido da pessoa).", (b) => encerrarPago(c, "pro", b))));
+  else linha("Pro", document.createTextNode("não tem"));
+  // Pagos: add-ons e unidades extras em dia (super admin: só o que ainda cobra), com o Encerrar.
+  const vale = (x) => !semPrazo(l) || Date.parse(x.expiresAt) > agora;
+  const pagos = [];
+  for (const a of (c.addonsPagos ?? []).filter(vale)) {
+    const emDia = Date.parse(a.expiresAt) > agora;
+    pagos.push(selo(`${rotuloProduto(a.produto)} · ${emDia ? "pago até" : "venceu em"} ${data(a.expiresAt)}`, emDia ? "ok" : "mau"));
+    if (emDia) pagos.push(botao("Encerrar", "Para a cobrança deste add-on na AbacatePay e tira o acesso agora (reembolso ou disputa).", (b) => encerrarPago(c, `addons/${encodeURIComponent(a.produto)}`, b)));
   }
-  bloco.append(el("strong", "", "Add-ons: ")); const pagosC = (c.addonsPagos ?? []).filter(vale);
-  for (const a of pagosC) {
-    const emDia = Date.parse(a.expiresAt) > Date.now();
-    bloco.append(selo(`${rotuloProduto(a.produto)} · ${emDia ? "pago até" : "venceu em"} ${data(a.expiresAt)}`, emDia ? "ok" : "mau"), document.createTextNode(" "));
-    if (emDia) { const b = el("button", "btn btn-ghost", "Encerrar"); b.type = "button"; b.title = "Para a cobrança deste add-on na AbacatePay e tira o acesso agora (reembolso ou disputa)."; b.addEventListener("click", () => { encerrarPago(c, `addons/${encodeURIComponent(a.produto)}`, b); }); bloco.append(b, document.createTextNode(" ")); }
+  for (const x of (c.extrasPagos ?? []).filter(vale)) {
+    const emDia = Date.parse(x.expiresAt) > agora;
+    pagos.push(selo(`${ROTULO_EXTRA[x.tipo] ?? x.tipo} · ${emDia ? "paga até" : "venceu em"} ${data(x.expiresAt)}`, emDia ? "ok" : "mau"));
+    if (emDia) pagos.push(botao("Encerrar", "Para a cobrança desta unidade extra na AbacatePay e tira a vaga agora (reembolso ou disputa).", (b) => encerrarPago(c, `extras/${encodeURIComponent(x.assinaturaId)}`, b)));
   }
-  // Máquinas extras pagas: uma por assinatura, cada uma com o seu prazo e o seu Encerrar.
-  const extrasC = (c.extrasPagos ?? []).filter(vale);
-  for (const x of extrasC) {
-    const emDia = Date.parse(x.expiresAt) > Date.now();
-    bloco.append(selo(`${ROTULO_EXTRA[x.tipo] ?? x.tipo} · ${emDia ? "paga até" : "venceu em"} ${data(x.expiresAt)}`, emDia ? "ok" : "mau"), document.createTextNode(" "));
-    if (emDia) { const b = el("button", "btn btn-ghost", "Encerrar"); b.type = "button"; b.title = "Para a cobrança desta unidade extra na AbacatePay e tira a vaga agora (reembolso ou disputa)."; b.addEventListener("click", () => { encerrarPago(c, `extras/${encodeURIComponent(x.assinaturaId)}`, b); }); bloco.append(b, document.createTextNode(" ")); }
+  linha("Pago", ...(pagos.length > 0 ? sp(...pagos) : [document.createTextNode("nada")]));
+  // Cortesias que valem: o que dão, até quando, quem deu e por quê; Renovar (só para mais longe) e Encerrar.
+  const nomeDaOrg = (id) => (visao?.orgs ?? []).find((x) => x.id === id)?.slug ?? "organização";
+  const { vale: valendo, antigas } = cortesiasDaFicha(c.cortesias ?? [], agora);
+  const cort = linha("Cortesias", ...(valendo.length === 0 ? [document.createTextNode("nenhuma")] : []));
+  for (const x of valendo) {
+    const item = el("span", "cortesia-item");
+    const ate = el("input"); ate.type = "date"; ate.value = diaDaqui(30, Date.parse(x.fim)); ate.min = x.fim.slice(0, 10); ate.max = diaDaqui(365, agora); ate.setAttribute("aria-label", "Renovar até");
+    item.append(...sp(selo(`${oQueACortesiaDa(x, rotuloProduto, nomeDaOrg)} · cortesia até ${data(x.fim)}`, "aviso"), el("span", "sub", `por ${x.por}: ${x.motivo}`), ate,
+      botao("Renovar", "Estende o prazo desta cortesia até a data ao lado.", (b) => { void renovarCortesia(c, x, ate.value, b); }),
+      botao("Encerrar", "Tira esta cortesia agora, com o motivo.", (b) => encerrarPago(c, `cortesias/${encodeURIComponent(x.id)}`, b))));
+    cort.append(el("br"), item);
   }
-  // Super admin: tem todos os add-ons pela regra, não por concessão; um "∞" no lugar da lista.
-  if (semPrazo(l)) bloco.append(infinito(TODOS_ADDONS));
-  else for (const p of l.produtos) bloco.append(selo(`${rotuloProduto(p)} · concedido`), document.createTextNode(" "));
-  if (pagosC.length === 0 && extrasC.length === 0 && l.produtos.length === 0 && !semPrazo(l)) bloco.append(document.createTextNode("nenhum"));
-  return bloco;
+  // Concedidos antes das cortesias (lista da licença, sem prazo): só aparecem se houver.
+  if (!semPrazo(l) && l.produtos.length > 0) linha("Concedido (antigo, sem prazo)", ...sp(...l.produtos.map((p) => selo(rotuloProduto(p)))));
+  caixa.append(formDarCortesia(c));
+  // Histórico: cortesias que acabaram nos últimos 90 dias e os encerramentos feitos pelo admin, com o motivo.
+  const hist = [
+    ...antigas.map((x) => ({ quando: x.encerradaEm ?? x.fim, texto: `Cortesia de ${oQueACortesiaDa(x, rotuloProduto, nomeDaOrg)} ${estadoCortesia(x, agora) === "encerrada" ? "encerrada" : "venceu"} · dada por ${x.por}: ${x.motivo}` })),
+    ...(c.encerramentos ?? []).filter((e) => e.alvo !== "cortesia").map((e) => ({ quando: e.quando, texto: `${ROTULO_ALVO[e.alvo] ?? e.alvo} encerrado por ${e.por} · ${rotuloMotivo(e.motivo)}${e.detalhe ? `: ${e.detalhe}` : ""}${e.cobranca ? ` · ${e.cobranca}` : ""}` })),
+  ].sort((a, b) => Date.parse(b.quando) - Date.parse(a.quando));
+  if (hist.length > 0) { const ul = el("ul", "historico"); for (const h of hist) ul.append(el("li", "", `${data(h.quando)} · ${h.texto}`)); const p = linha("Histórico"); p.after(ul); }
+  return caixa;
+}
+/**
+ * "Dar cortesia": o que (Pro, add-on, máquinas, devices, usuários de uma organização da conta), quantos, até quando
+ * (30 dias por padrão, no máximo 365) e por quê. Tudo obrigatório, como no servidor (validaCortesia).
+ */
+function formDarCortesia(c) {
+  const caixa = el("div", "dar-cortesia");
+  const tipo = el("select"); tipo.setAttribute("aria-label", "O que dar");
+  const orgsDaDona = (visao?.orgs ?? []).filter((o) => o.dona === c.email);
+  for (const [v, t] of [["pro", "Pro"], ...ADDONS.map((a) => [`addon:${a.nome}`, a.rotulo]), ["maquina", "Máquinas"], ["device", "Devices"], ...orgsDaDona.map((o) => [`assento:${o.slug}`, `Usuários na ${o.slug}`])]) { const op = el("option", "", t); op.value = v; tipo.append(op); }
+  const qtd = el("input"); qtd.type = "number"; qtd.min = "1"; qtd.max = "50"; qtd.value = "1"; qtd.setAttribute("aria-label", "Quantidade"); qtd.className = "qtd";
+  const ate = el("input"); ate.type = "date"; ate.value = diaDaqui(30); ate.min = diaDaqui(1); ate.max = diaDaqui(365); ate.setAttribute("aria-label", "Até");
+  const motivo = el("input"); motivo.type = "text"; motivo.maxLength = 300; motivo.placeholder = "motivo (obrigatório)"; motivo.setAttribute("aria-label", "Motivo da cortesia");
+  const unidade = () => tipo.value === "maquina" || tipo.value === "device" || tipo.value.startsWith("assento:");
+  const ajustar = () => { qtd.hidden = !unidade(); };
+  tipo.addEventListener("change", ajustar); ajustar();
+  const dar = el("button", "btn btn-ghost", "Dar cortesia"); dar.type = "button";
+  dar.title = "Libera de graça até a data escolhida. A pessoa vê \"Cortesia até …\" no console; acaba sozinha no prazo.";
+  dar.addEventListener("click", async () => {
+    const fim = fimDoDia(ate.value);
+    if (fim === null) { mostrarErro("Escolha até quando vale a cortesia."); return; }
+    if (motivo.value.trim().length < 3) { mostrarErro("Escreva o motivo da cortesia."); motivo.focus(); return; }
+    const [t, extra] = tipo.value.split(":");
+    const corpo = { tipo: t, fim, motivo: motivo.value.trim(), ...(t === "addon" ? { produto: extra } : {}), ...(t === "assento" ? { org: extra } : {}), ...(unidade() ? { quantidade: Number(qtd.value) } : {}) };
+    const s = sessaoGuardada(); if (s === null) return;
+    dar.disabled = true; mostrarErro(null);
+    const r = await api("POST", `/admin/contas/${encodeURIComponent(c.id)}/cortesias`, corpo, s.acesso);
+    if (r.status !== 200) { dar.disabled = false; await falhaAdmin(r, c); return; }
+    await depoisDeDevice();
+    mostrarAvisoOk(`Cortesia dada a ${c.email}: ${oQueACortesiaDa(r.corpo.cortesia, rotuloProduto)} até ${data(r.corpo.cortesia.fim)}.`);
+  });
+  caixa.append(el("strong", "", "Dar cortesia: "), tipo, qtd, el("span", "sub", "até"), ate, motivo, dar);
+  return caixa;
+}
+/** "Renovar" uma cortesia até o dia escolhido (só para mais longe; o servidor recusa encurtar). */
+async function renovarCortesia(c, x, dia, botao) {
+  const fim = fimDoDia(dia); if (fim === null) { mostrarErro("Escolha até quando renovar."); return; }
+  const s = sessaoGuardada(); if (s === null) return;
+  botao.disabled = true; mostrarErro(null);
+  const r = await api("POST", `/admin/contas/${encodeURIComponent(c.id)}/cortesias/${encodeURIComponent(x.id)}/renovar`, { fim }, s.acesso);
+  if (r.status !== 200) { botao.disabled = false; await falhaAdmin(r, c); return; }
+  await depoisDeDevice();
+  mostrarAvisoOk(`Cortesia renovada até ${data(r.corpo.cortesia.fim)}.`);
 }
 /** O admin manda o e-mail de senha de uma conta; o botão vira "enviado" por um tempo. */
 async function adminSenha(c, botao) {
@@ -780,10 +842,10 @@ async function adminExcluirConta(c, botao) {
   if (conta !== null) mostrarConsole(conta);
 }
 /**
- * Linha de edição abaixo da conta (botão "Editar"): plano, status, vale até, limite de devices e de máquinas, salvos
- * com PATCH; e os add-ons da conta, só para ver e encerrar um pago (`addonsDaConta`).
- * Add-ons concedidos e "Como pagar" não se editam aqui (a pessoa assina sozinha pela AbacatePay): o PATCH não os manda,
- * e o que estiver gravado fica como está.
+ * Linha de edição abaixo da conta (botão "Editar"): o ajuste da licença (só o que mudou vai no PATCH, com o motivo),
+ * e a ficha da conta (`fichaDaConta`): o que é pago, o que é cortesia, o Dar cortesia e o histórico.
+ * Dar de graça é cortesia, com prazo. Aqui o admin comum só estende o teste grátis ("+30 dias de teste"); plano, status
+ * e limites são o ajuste técnico do super admin. Add-ons concedidos e "Como pagar" não se editam aqui.
  */
 function editorLicenca(tr, c) {
   const existente = tr.nextElementSibling;
@@ -804,9 +866,12 @@ function editorLicenca(tr, c) {
   const limite = input("deviceLimit", "number", String(l.deviceLimit)); limite.min = "1"; limite.max = "50";
   const maquinas = input("maquinaLimit", "number", String(c.maquinaLimite ?? 1)); maquinas.min = "1"; maquinas.max = "50"; maquinas.title = "Em quantas máquinas (VMs) a pessoa pode usar a licença da conta ao mesmo tempo";
   const orgs = input("orgLimit", "number", String(c.orgLimite ?? 1)); orgs.min = "1"; orgs.max = "20"; orgs.title = "Quantas organizações a pessoa pode criar (ser dona). O plano inclui 1";
-  form.append(campo("Plano", plan), campo("Status", status), campo("Vale até", ate), mais30, campo("Devices", limite), campo("Máquinas", maquinas), campo("Organizações", orgs));
   // Senha: o super admin define na hora (em branco não muda); qualquer admin manda o e-mail de redefinição.
   const superAdmin = conta !== null && conta.admin === "super";
+  // Admin comum: só o teste grátis (o "+30 dias de teste"); o resto é ajuste técnico do super admin.
+  if (!superAdmin) for (const x of [plan, status, ate, limite, maquinas, orgs]) { x.disabled = true; x.title = "Só o super admin ajusta. Para dar Pro, add-on, máquina ou device, use Dar cortesia; para o teste, +30 dias de teste."; }
+  const motivoAjuste = input("motivo", "text", "", "motivo do ajuste (obrigatório)"); motivoAjuste.maxLength = 300;
+  form.append(campo("Plano", plan), campo("Status", status), campo("Vale até", ate), mais30, campo("Devices", limite), campo("Máquinas", maquinas), campo("Organizações", orgs), campo("Motivo", motivoAjuste));
   const senha = input("senha", "password", "", superAdmin ? "nova senha (em branco: não muda)" : "só o super admin define"); senha.autocomplete = "new-password"; senha.minLength = 8; senha.maxLength = 128; senha.disabled = !superAdmin;
   form.append(campo("Senha", senha));
   // Ao lado da senha, só para o super admin: o mesmo "Apagar conta" do perfil, na conta de qualquer pessoa.
@@ -820,26 +885,36 @@ function editorLicenca(tr, c) {
   const emailSenha = el("button", "btn btn-ghost", "E-mail de senha"); emailSenha.type = "button"; emailSenha.title = `Manda a ${c.email} o e-mail para criar ou redefinir a senha (o mesmo de "Esqueci a senha").`; emailSenha.addEventListener("click", () => { void adminSenha(c, emailSenha); });
   const cancelar = el("button", "btn btn-ghost", "Cancelar"); cancelar.type = "button"; cancelar.addEventListener("click", () => linha.remove());
   const acoes = el("div", "acoes"); acoes.append(salvar, emailSenha, cancelar); form.append(acoes);
-  // Os add-ons da conta (pagos, com o Encerrar; extras; concedidos) ficam aqui, não mais numa coluna da lista.
-  form.append(addonsDaConta(c));
+  // O que a conta tem (Pro, pagos, cortesias, histórico) e o "Dar cortesia".
+  form.append(fichaDaConta(c));
   const aviso = el("p", "sub", `Vale na conta e em Este Mac; numa máquina por SSH, a pessoa aplica pelo app ("Usar o meu Pro nesta máquina"), ou o admin grava a licença da máquina (meu-bot-admin › Suporte). Senha preenchida: troca no Firebase e desconecta a pessoa de todos os Macs.`);
   form.append(aviso);
   if (c.admin === "super") form.prepend(el("p", "sub", "Super admin: Pro sem prazo. O que está gravado aqui só volta a valer se a pessoa deixar de ser super admin."));
   form.addEventListener("submit", async (ev) => {
     ev.preventDefault(); salvar.disabled = true;
     const ateIso = ate.value ? `${ate.value}T23:59:59.000Z` : null;
-    const patch = { plan: plan.value, status: status.value, deviceLimit: Number(limite.value), maquinaLimit: Number(maquinas.value), orgLimit: Number(orgs.value) };
-    if (status.value === "trialing") { patch.trialEnd = ateIso; patch.expiresAt = ateIso; } else { patch.expiresAt = ateIso; patch.trialEnd = null; }
+    // Só vai no PATCH o que mudou: salvar sem mexer (ou só trocar a senha) não grava a licença.
+    const patch = {};
+    if (plan.value !== l.plan) patch.plan = plan.value;
+    if (status.value !== l.status) patch.status = status.value;
+    const ateAntes = (l.status === "trialing" ? l.trialEnd ?? l.expiresAt : l.expiresAt) ?? null;
+    if ((ateIso ?? "").slice(0, 10) !== (ateAntes ?? "").slice(0, 10) || patch.status !== undefined) { if (status.value === "trialing") { patch.trialEnd = ateIso; patch.expiresAt = ateIso; } else { patch.expiresAt = ateIso; patch.trialEnd = null; } }
+    if (Number(limite.value) !== l.deviceLimit) patch.deviceLimit = Number(limite.value);
+    if (Number(maquinas.value) !== (c.maquinaLimite ?? 1)) patch.maquinaLimit = Number(maquinas.value);
+    if (Number(orgs.value) !== (c.orgLimite ?? 1)) patch.orgLimit = Number(orgs.value);
     const s = sessaoGuardada(); if (s === null) return;
-    const r = await api("PATCH", `/admin/contas/${encodeURIComponent(c.id)}/licenca`, patch, s.acesso);
-    if (r.status !== 200) { salvar.disabled = false; await falhaAdmin(r, c); return; }
+    if (Object.keys(patch).length > 0) {
+      if (motivoAjuste.value.trim().length < 3) { salvar.disabled = false; mostrarErro("Escreva o motivo do ajuste da licença."); motivoAjuste.focus(); return; }
+      const r = await api("PATCH", `/admin/contas/${encodeURIComponent(c.id)}/licenca`, { ...patch, motivo: motivoAjuste.value.trim() }, s.acesso);
+      if (r.status !== 200) { salvar.disabled = false; await falhaAdmin(r, c); return; }
+    }
     if (senha.value !== "") {
       // Troca a senha no Firebase e desconecta a pessoa de todos os Macs; ela passa a entrar com e-mail e senha.
       const rs = await api("PUT", `/admin/contas/${encodeURIComponent(c.id)}/senha`, { senha: senha.value }, s.acesso);
       if (rs.status !== 200) { salvar.disabled = false; if (pedeReleitura(rs.status)) await falhaAdmin(rs, c); else mostrarErro(`Licença salva, mas a senha não: ${erroDe(rs)}`); return; }
     }
     mostrarErro(null);
-    ga.evento("plano_alterado", { plan: plan.value, status: status.value });
+    if (Object.keys(patch).length > 0) ga.evento("plano_alterado", { plan: plan.value, status: status.value });
     await carregarVisao(visaoBusca).catch((e) => mostrarErro(e?.message ?? String(e)));
     if (conta !== null) mostrarConsole(conta);
   });
@@ -865,8 +940,6 @@ function pintarAdminDevices(v) {
     tb.append(tr);
   }
 }
-/** Os motivos de encerramento (cortesia-core.ts, MOTIVOS_ENCERRAMENTO), com o texto da tela. */
-const MOTIVOS_ENCERRAR = [["reembolso", "Reembolso pedido pela pessoa"], ["disputa", "Disputa ou estorno"], ["pedido-da-pessoa", "A pessoa pediu para cancelar"], ["erro-ou-teste", "Erro ou compra de teste"], ["outro", "Outro (escreva)"]];
 /**
  * Encerrar o Pro (`pro`), um add-on pago (`addons/<produto>`) ou uma unidade extra paga (`extras/<assinatura>`): o botão
  * abre ao lado a escolha do motivo e um detalhe; "Confirmar" encerra. A cobrança para na AbacatePay antes de o acesso
@@ -907,7 +980,7 @@ async function liberarDevice(c, d, botao) {
   const r = await api("POST", `/admin/contas/${encodeURIComponent(c.id)}/devices/${encodeURIComponent(d.id)}/liberar`, subir ? { subirLimite: true } : {}, s.acesso);
   if (r.status === 409 && r.corpo && r.corpo.noLimite === true && !subir) {
     const ativos = c.devices.filter((x) => x.status !== "pending").length;
-    botao.disabled = false; botao.dataset.subir = "1"; botao.textContent = `Liberar e subir o limite para ${ativos + 1}`; botao.title = erroDe(r);
+    botao.disabled = false; botao.dataset.subir = "1"; botao.textContent = `Liberar com 1 device de cortesia (30 dias, até ${ativos + 1})`; botao.title = erroDe(r);
     mostrarErro(erroDe(r));
     return;
   }
@@ -934,9 +1007,23 @@ function pintarAdminPedidos(v) {
   for (const p of v.pedidos) {
     const tr = el("tr");
     tr.append(el("td", "", dataHora(p.criadoEm)), contaCelula(p.conta.email, p.conta.nome), el("td", "", TIPO_PEDIDO[p.tipo] ?? p.tipo), el("td", "", p.detalhe ?? "-"));
-    const td = el("td"); const b = el("button", "btn btn-ghost", "Atender"); b.type = "button"; b.addEventListener("click", () => { void atender(p.id, b); }); td.append(b); tr.append(td);
+    const td = el("td"); const b = el("button", "btn btn-ghost", "Atender"); b.type = "button"; b.addEventListener("click", () => { void atender(p.id, b); }); td.append(b);
+    // Reembolso ou disputa (pagamento a revisar): o caminho para encerrar com o motivo é a ficha da conta, no Plano.
+    if (p.tipo === "pagamento.revisar") { const ver = el("button", "btn btn-ghost", "Ver a conta"); ver.type = "button"; ver.title = "Abre a ficha desta conta (Plano), onde se encerra o que foi pago, com o motivo."; ver.addEventListener("click", () => { void abrirFichaDaConta(p.conta.email, ver); }); td.append(document.createTextNode(" "), ver); }
+    tr.append(td);
     tb.append(tr);
   }
+}
+/** Vai para Plano › contas, busca a conta pelo e-mail e abre a ficha dela (o editor), para encerrar com o motivo. */
+async function abrirFichaDaConta(email, botao) {
+  botao.disabled = true;
+  history.pushState(null, "", "/account/plan");
+  await carregarVisao(email).catch((e) => mostrarErro(e?.message ?? String(e)));
+  if (conta !== null) mostrarConsole(conta);
+  botao.disabled = false;
+  const linha = [...$("ad-contas").querySelectorAll("tbody tr")].find((tr) => tr.textContent?.includes(email));
+  const c = visao?.contas.find((x) => x.email === email);
+  if (linha !== undefined && c !== undefined) { editorLicenca(linha, c); linha.scrollIntoView({ block: "center" }); }
 }
 function pintarQuem(c) {
   $("quem-nome").textContent = c.nome ?? c.email; $("quem-email").textContent = c.nome ? c.email : (c.admin ? `admin (${c.admin})` : "");

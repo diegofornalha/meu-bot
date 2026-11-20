@@ -126,6 +126,14 @@ test("rotas: o admin dá, renova e encerra cortesias; a pessoa vê de onde vem c
     const vb = visao.contas.find((x) => x.id === B);
     assert.equal(vb.licenca.plan, "pro"); assert.equal(vb.cortesias.length, 4); assert.equal(vb.cortesias.find((x) => x.tipo === "pro").motivo, "parceiro de lançamento"); assert.equal(vb.cortesias[0].por, "adm@exemplo.com");
 
+    assert.equal(vb.origemDoPro, "cortesia");
+
+    // Ajuste de licença: sempre com motivo; o admin comum só estende o teste grátis, o resto é cortesia.
+    assert.equal((await chamar("PATCH", `/admin/contas/${B}/licenca`, { plan: "pro", status: "trialing", trialEnd: fim(30), expiresAt: fim(30) }, ta)).status, 400, "sem motivo");
+    assert.equal((await chamar("PATCH", `/admin/contas/${B}/licenca`, { deviceLimit: 9, motivo: "quero dar" }, ta)).status, 403, "admin comum não mexe nos limites");
+    assert.equal((await chamar("PATCH", `/admin/contas/${B}/licenca`, { plan: "pro", status: "active", expiresAt: fim(30), motivo: "quero dar" }, ta)).status, 403, "admin comum não dá Pro ativo");
+    assert.equal((await chamar("PATCH", `/admin/contas/${D}/licenca`, { plan: "pro", status: "trialing", trialEnd: fim(30), expiresAt: fim(30), motivo: "mais um mês para testar" }, ta)).status, 200, "estender o teste pode");
+
     // Renovar estende o prazo; encerrar pede motivo e tira na hora.
     r = await chamar("POST", `/admin/contas/${B}/cortesias/${pro.id}/renovar`, { fim: fim(60) }, ta);
     assert.equal(r.status, 200, r.corpo.erro);
@@ -141,6 +149,8 @@ test("rotas: o admin dá, renova e encerra cortesias; a pessoa vê de onde vem c
     assert.equal((await chamar("POST", `/admin/contas/${B}/cortesias/${pro.id}/renovar`, { fim: fim(5) }, ta)).status, 404, "encerrada não renova");
     const hist = await DB.prepare("SELECT alvo, motivo, detalhe, por FROM encerramentos WHERE conta_id = ?1").bind(B).all();
     assert.deepEqual(hist.results, [{ alvo: "cortesia", motivo: "pedido-da-pessoa", detalhe: "não vai usar", por: "adm@exemplo.com" }]);
+    const vb2 = (await chamar("GET", "/admin/visao?busca=bia", undefined, ta)).corpo.contas.find((x) => x.id === B);
+    assert.deepEqual(vb2.encerramentos.map((e) => [e.alvo, e.motivo]), [["cortesia", "pedido-da-pessoa"]]);
 
     // Vencida não conta: as máquinas de cortesia saem quando o prazo passa.
     await DB.prepare("UPDATE cortesias SET fim = ?2 WHERE conta_id = ?1 AND tipo = 'maquina'").bind(B, fim(-1)).run();
@@ -151,6 +161,7 @@ test("rotas: o admin dá, renova e encerra cortesias; a pessoa vê de onde vem c
     assert.equal((await dar(D, { tipo: "assento", org: "acme", quantidade: 2, fim: fim(30), motivo: "equipe piloto" })).status, 200);
     const org = (await chamar("GET", "/orgs/acme", undefined, td)).corpo;
     assert.equal(org.assentos, 3); assert.equal(org.assentosCortesia, 2); assert.equal(org.assentosInclusos, 1); assert.equal(org.assentosPagos, 0);
+    assert.equal((await chamar("GET", "/admin/visao", undefined, ta)).corpo.orgs.find((o) => o.slug === "acme").assentosCortesia, 2);
   } finally {
     await px.dispose();
     rmSync(persist, { recursive: true, force: true });

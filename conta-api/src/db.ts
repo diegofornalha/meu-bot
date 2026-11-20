@@ -1,5 +1,5 @@
 /** Acesso ao D1: consultas tipadas, uma função por intenção. O que sai do banco é dado; quem decide é a rota. */
-import type { CortesiaDaConta, AdminAssinatura, AdminAuditoria, AdminContaResumo, AdminVendaOculta, TipoVenda, AdminListaEspera, ContaAssinatura, AdminOrg, MaquinaApi, MaquinaVistaApi, AdminPagamento, AdminVendas, AdminPedido, AdminPerfil, AdminVisao, CodigoLinha, ContaApi, ContaLinha, DeviceApi, DeviceLinha, License, LicencaLinha, MaquinaLinha, MembroApi, MembroLinha, OrgApi, OrgLinha, OrgResumo, PapelOrg, PerfilApi, PromoApi, SessaoLinha } from "./tipos.js";
+import type { AdminEncerramento, CortesiaDaConta, AdminAssinatura, AdminAuditoria, AdminContaResumo, AdminVendaOculta, TipoVenda, AdminListaEspera, ContaAssinatura, AdminOrg, MaquinaApi, MaquinaVistaApi, AdminPagamento, AdminVendas, AdminPedido, AdminPerfil, AdminVisao, CodigoLinha, ContaApi, ContaLinha, DeviceApi, DeviceLinha, License, LicencaLinha, MaquinaLinha, MembroApi, MembroLinha, OrgApi, OrgLinha, OrgResumo, PapelOrg, PerfilApi, PromoApi, SessaoLinha } from "./tipos.js";
 import { ASSENTOS_INCLUSOS, ASSENTOS_MAX, podeCriarOrg, DEVICE_LIMITE_MAX, agoraIso, ehAdminInicial, nomeExibicao, parseProvedores, provedoresDoLogin, unirProvedores, uuid, type MetodoLogin, type PatchLicenca, type PatchOrg, type PatchPerfil } from "./sessao-core.js";
 import type { UsuarioFirebase } from "./firebase.js";
 import { licencaComProAte, licencaComProDaOrg, melhorCobertura, type CoberturaOrg, direitoPromo, liberacoesPorAddon, licencaDoSuper, licencaEmVigor, tipoDoExtra, umaPorContaEProduto, type Liberacao, type Papel, type Promo } from "./pagamento-core.js";
@@ -580,7 +580,9 @@ export async function visaoAdmin(db: D1Database, busca: string, adminInicial: st
   ]);
   // Os usuários pagos em dia de cada organização (extras_pagos de tipo "assento"); `assentos` é a parte inclusa, a que o super admin edita.
   const pagosOrg = new Map((await db.prepare("SELECT org_id, COUNT(*) AS n FROM extras_pagos WHERE tipo = 'assento' AND org_id IS NOT NULL AND expires_at > ?1 GROUP BY org_id").bind(agoraIso()).all<{ org_id: string; n: number }>()).results.map((x) => [x.org_id, x.n]));
-  const orgs: AdminOrg[] = orgsLinhas.results.map((o) => ({ id: o.id, slug: o.slug, nome: o.nome, dona: o.dona, membros: o.membros, assentos: o.assentos, assentosPagos: pagosOrg.get(o.id) ?? 0, criadaEm: o.criada_em }));
+  // Os usuários de cortesia em dia de cada organização (cortesias de tipo "assento"), somando as quantidades.
+  const cortesiaOrg = new Map((await db.prepare("SELECT org_id, SUM(quantidade) AS n FROM cortesias WHERE tipo = 'assento' AND org_id IS NOT NULL AND encerrada_em IS NULL AND fim > ?1 GROUP BY org_id").bind(agoraIso()).all<{ org_id: string; n: number }>()).results.map((x) => [x.org_id, x.n]));
+  const orgs: AdminOrg[] = orgsLinhas.results.map((o) => ({ id: o.id, slug: o.slug, nome: o.nome, dona: o.dona, membros: o.membros, assentos: o.assentos, assentosCortesia: cortesiaOrg.get(o.id) ?? 0, assentosPagos: pagosOrg.get(o.id) ?? 0, criadaEm: o.criada_em }));
   const lic = new Map(licencas.results.map((l) => [l.conta_id, l]));
   const pagosLinhas = (await db.prepare("SELECT conta_id, produto, expires_at FROM addons_pagos").all<{ conta_id: string; produto: string; expires_at: string }>()).results;
   const pagos = new Map<string, { produto: string; expiresAt: string }[]>();
@@ -589,6 +591,10 @@ export async function visaoAdmin(db: D1Database, busca: string, adminInicial: st
   for (const x of (await db.prepare("SELECT conta_id, assinatura_id, tipo, expires_at FROM extras_pagos ORDER BY expires_at").all<{ conta_id: string; assinatura_id: string; tipo: string; expires_at: string }>()).results) { const lista = extrasDe.get(x.conta_id) ?? []; lista.push({ assinaturaId: x.assinatura_id, tipo: x.tipo, expiresAt: x.expires_at }); extrasDe.set(x.conta_id, lista); }
   const cortesiasDe = new Map<string, Cortesia[]>();
   for (const c of (await db.prepare("SELECT * FROM cortesias ORDER BY inicio DESC").all<CortesiaLinha>()).results) { const x = cortesiaDaLinha(c); if (x === null) continue; const lista = cortesiasDe.get(c.conta_id) ?? []; lista.push(x); cortesiasDe.set(c.conta_id, lista); }
+  // Quem já pagou o Pro (para "Pro pago" × ajuste do admin) e o histórico de encerramentos de cada conta (os 20 mais novos).
+  const pagaramPro = new Set((await db.prepare("SELECT conta_id FROM pagamentos WHERE produto IS NULL UNION SELECT conta_id FROM assinaturas WHERE produto IS NULL").all<{ conta_id: string }>()).results.map((x) => x.conta_id));
+  const encerramentosDe = new Map<string, AdminEncerramento[]>();
+  for (const e of (await db.prepare("SELECT * FROM encerramentos ORDER BY quando DESC").all<{ conta_id: string; alvo: string; ref: string; motivo: string; detalhe: string | null; cobranca: string | null; por: string; quando: string }>()).results) { const lista = encerramentosDe.get(e.conta_id) ?? []; if (lista.length < 20) lista.push({ alvo: e.alvo, ref: e.ref, motivo: e.motivo, detalhe: e.detalhe, cobranca: e.cobranca, por: e.por, quando: e.quando }); encerramentosDe.set(e.conta_id, lista); }
   const devs = new Map<string, DeviceApi[]>();
   for (const d of devices.results) { const lista = devs.get(d.conta_id) ?? []; lista.push(deviceApi(d)); devs.set(d.conta_id, lista); }
   const maq = new Map(maquinas.results.map((m) => [m.conta_id, m.n]));
@@ -600,7 +606,13 @@ export async function visaoAdmin(db: D1Database, busca: string, adminInicial: st
     const gravada = licencaDaLinha(lic.get(c.id) ?? null, c.criada_em);
     return adm.get(c.email) === "super" ? { licenca: licencaDoSuper(gravada, catalogo), licencaGravada: gravada } : { licenca: comProDeCortesia(gravada, cortesiasDe.get(c.id) ?? [], Date.parse(agora)) };
   };
-  const resumo: AdminContaResumo[] = contas.map((c) => ({ id: c.id, email: c.email, nome: nomeExibicao(c), foto: c.foto, admin: adm.get(c.email) ?? null, criadaEm: c.criada_em, ...licencasDe(c), addonsPagos: pagos.get(c.id) ?? [], extrasPagos: extrasDe.get(c.id) ?? [], devices: devs.get(c.id) ?? [], maquinas: maq.get(c.id) ?? 0, maquinaLimite: limiteValido(lic.get(c.id)?.maquina_limit), orgLimite: limiteValido(lic.get(c.id)?.org_limit), pedidos: ped.get(c.id) ?? 0, cortesias: cortesiasDe.get(c.id) ?? [] }));
+  // De onde vem o Pro na lista do admin (origemDoPro): sem o Pro de organização, que custaria uma leitura por conta.
+  const origemNaVisao = (c: { id: string; email: string; criada_em: string }): AdminContaResumo["origemDoPro"] => {
+    const gravada = licencaDaLinha(lic.get(c.id) ?? null, c.criada_em);
+    const comCortesia = comProDeCortesia(gravada, cortesiasDe.get(c.id) ?? [], Date.parse(agora));
+    return origemDoPro({ papel: adm.get(c.email) ?? null, licenca: comCortesia, pelaOrg: false, porCortesia: comCortesia !== gravada, pagou: pagaramPro.has(c.id), agoraMs: Date.parse(agora) });
+  };
+  const resumo: AdminContaResumo[] = contas.map((c) => ({ id: c.id, email: c.email, nome: nomeExibicao(c), foto: c.foto, admin: adm.get(c.email) ?? null, criadaEm: c.criada_em, ...licencasDe(c), addonsPagos: pagos.get(c.id) ?? [], extrasPagos: extrasDe.get(c.id) ?? [], devices: devs.get(c.id) ?? [], maquinas: maq.get(c.id) ?? 0, maquinaLimite: limiteValido(lic.get(c.id)?.maquina_limit), orgLimite: limiteValido(lic.get(c.id)?.org_limit), pedidos: ped.get(c.id) ?? 0, cortesias: cortesiasDe.get(c.id) ?? [], encerramentos: encerramentosDe.get(c.id) ?? [], origemDoPro: origemNaVisao(c) }));
   const todas = busca === "" ? resumo : (await db.prepare("SELECT id, email, criada_em FROM contas WHERE apagada_em IS NULL").all<{ id: string; email: string; criada_em: string }>()).results.map((c) => ({ id: c.id, licenca: licencasDe(c).licenca, devices: devs.get(c.id) ?? [] }));
   const totais = { contas: todas.length, pro: todas.filter((c) => c.licenca.plan === "pro").length, devicesPendentes: devices.results.filter((d) => d.status === "pending").length, pedidosAbertos: pedidos.results.length, orgs: orgs.length };
   const emails = new Set((await db.prepare("SELECT email FROM contas WHERE apagada_em IS NULL").all<{ email: string }>()).results.map((c) => c.email));

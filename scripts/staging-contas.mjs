@@ -190,7 +190,8 @@ async function principal(argv, env) {
     if (p.situacao === "falta") { console.log(`· ${p.estado}: falta criar ${p.email} (entre uma vez em https://console-staging.agentesgrok.com com esse e-mail)`); continue; }
     if (p.situacao === "pulada") { console.log(`· ${p.estado}: ${p.email} pulada (${p.motivo})`); continue; }
     if (args.modo === "listar") { console.log(`${p.noEstado ? "✓" : "⚠"} ${p.estado}: ${p.email} ${p.noEstado ? "está no estado" : "NÃO está no estado"} (${linhaDaLicenca(p.licenca)})`); continue; }
-    const r = await pedir(api.origem, "PATCH", `/admin/contas/${p.id}/licenca`, token, p.patch);
+    // O servidor pede o motivo de todo ajuste de licença (vai para a auditoria).
+    const r = await pedir(api.origem, "PATCH", `/admin/contas/${p.id}/licenca`, token, { ...p.patch, motivo: `contas de teste do staging: estado ${p.estado}` });
     const ok = r.status === 200 && noEstado(r.corpo?.licenca, p.estado, { agoraMs: Date.now(), promoDias: d.promoDias });
     if (!ok) falhas++;
     console.log(`${ok ? "✓" : "✗"} ${p.estado}: ${p.email} ${ok ? `aplicado (${linhaDaLicenca(r.corpo.licenca)})` : r.status === 200 ? "a API aceitou, mas a licença devolvida não está no estado" : `não aplicado (${erroDe(r)})`}`);
