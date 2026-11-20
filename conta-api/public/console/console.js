@@ -725,18 +725,25 @@ function addonsDaConta(c) {
   // Super admin tem tudo pela regra: o que venceu ou foi encerrado não diz nada sobre o acesso dele e não aparece; o
   // que ainda está pago em dia aparece, porque é cobrança que se pode encerrar.
   const vale = (x) => !semPrazo(l) || Date.parse(x.expiresAt) > Date.now();
-  const bloco = el("p", "sub"); bloco.append(el("strong", "", "Add-ons: ")); const pagosC = (c.addonsPagos ?? []).filter(vale);
+  const bloco = el("p", "sub");
+  // O Pro da conta (pago, gravado pelo admin ou de cortesia), com o Encerrar: não aparece no super admin nem no teste.
+  if (!semPrazo(l) && l.plan === "pro" && l.status === "active" && (l.expiresAt === null || Date.parse(l.expiresAt) > Date.now())) {
+    const b = el("button", "btn btn-ghost", "Encerrar o Pro"); b.type = "button"; b.title = "Para a cobrança do Pro na AbacatePay e tira o Pro agora (reembolso, disputa ou pedido da pessoa).";
+    b.addEventListener("click", () => { encerrarPago(c, "pro", b); });
+    bloco.append(el("strong", "", "Pro: "), selo(`ativo${l.expiresAt ? ` até ${data(l.expiresAt)}` : ""}`, "ok"), document.createTextNode(" "), b, el("br"));
+  }
+  bloco.append(el("strong", "", "Add-ons: ")); const pagosC = (c.addonsPagos ?? []).filter(vale);
   for (const a of pagosC) {
     const emDia = Date.parse(a.expiresAt) > Date.now();
     bloco.append(selo(`${rotuloProduto(a.produto)} · ${emDia ? "pago até" : "venceu em"} ${data(a.expiresAt)}`, emDia ? "ok" : "mau"), document.createTextNode(" "));
-    if (emDia) { const b = el("button", "btn btn-ghost", "Encerrar"); b.type = "button"; b.title = "Encerra agora o acesso a este add-on pago (reembolso ou disputa). A assinatura na AbacatePay é cancelada à parte."; b.addEventListener("click", () => { void encerrarPago(c, `addons/${encodeURIComponent(a.produto)}`, b); }); bloco.append(b, document.createTextNode(" ")); }
+    if (emDia) { const b = el("button", "btn btn-ghost", "Encerrar"); b.type = "button"; b.title = "Para a cobrança deste add-on na AbacatePay e tira o acesso agora (reembolso ou disputa)."; b.addEventListener("click", () => { encerrarPago(c, `addons/${encodeURIComponent(a.produto)}`, b); }); bloco.append(b, document.createTextNode(" ")); }
   }
   // Máquinas extras pagas: uma por assinatura, cada uma com o seu prazo e o seu Encerrar.
   const extrasC = (c.extrasPagos ?? []).filter(vale);
   for (const x of extrasC) {
     const emDia = Date.parse(x.expiresAt) > Date.now();
     bloco.append(selo(`${ROTULO_EXTRA[x.tipo] ?? x.tipo} · ${emDia ? "paga até" : "venceu em"} ${data(x.expiresAt)}`, emDia ? "ok" : "mau"), document.createTextNode(" "));
-    if (emDia) { const b = el("button", "btn btn-ghost", "Encerrar"); b.type = "button"; b.title = "Encerra agora esta máquina extra paga (reembolso ou disputa): a vaga sai do limite da conta. A assinatura na AbacatePay é cancelada à parte."; b.addEventListener("click", () => { void encerrarPago(c, `extras/${encodeURIComponent(x.assinaturaId)}`, b); }); bloco.append(b, document.createTextNode(" ")); }
+    if (emDia) { const b = el("button", "btn btn-ghost", "Encerrar"); b.type = "button"; b.title = "Para a cobrança desta unidade extra na AbacatePay e tira a vaga agora (reembolso ou disputa)."; b.addEventListener("click", () => { encerrarPago(c, `extras/${encodeURIComponent(x.assinaturaId)}`, b); }); bloco.append(b, document.createTextNode(" ")); }
   }
   // Super admin: tem todos os add-ons pela regra, não por concessão; um "∞" no lugar da lista.
   if (semPrazo(l)) bloco.append(infinito(TODOS_ADDONS));
@@ -855,19 +862,32 @@ function pintarAdminDevices(v) {
     tb.append(tr);
   }
 }
-/** "Encerrar" um add-on pago: dois cliques (o segundo confirma, em até 5 s), porque a pessoa perde o acesso na hora. */
-/** Encerrar um add-on pago (`addons/<produto>`) ou uma máquina extra paga (`extras/<assinatura>`), com confirmação em dois toques. */
-async function encerrarPago(c, caminho, botao) {
-  if (botao.dataset.confirma !== "1") {
-    botao.dataset.confirma = "1"; botao.textContent = "Confirmar encerramento";
-    setTimeout(() => { if (botao.isConnected && !botao.disabled) { delete botao.dataset.confirma; botao.textContent = "Encerrar"; } }, 5000);
-    return;
-  }
-  const s = sessaoGuardada(); if (s === null) return;
-  botao.disabled = true; mostrarErro(null);
-  const r = await api("POST", `/admin/contas/${encodeURIComponent(c.id)}/${caminho}/encerrar`, {}, s.acesso);
-  if (r.status !== 200) { botao.disabled = false; delete botao.dataset.confirma; botao.textContent = "Encerrar"; await falhaAdmin(r, c); return; }
-  await depoisDeDevice();
+/** Os motivos de encerramento (cortesia-core.ts, MOTIVOS_ENCERRAMENTO), com o texto da tela. */
+const MOTIVOS_ENCERRAR = [["reembolso", "Reembolso pedido pela pessoa"], ["disputa", "Disputa ou estorno"], ["pedido-da-pessoa", "A pessoa pediu para cancelar"], ["erro-ou-teste", "Erro ou compra de teste"], ["outro", "Outro (escreva)"]];
+/**
+ * Encerrar o Pro (`pro`), um add-on pago (`addons/<produto>`) ou uma unidade extra paga (`extras/<assinatura>`): o botão
+ * abre ao lado a escolha do motivo e um detalhe; "Confirmar" encerra. A cobrança para na AbacatePay antes de o acesso
+ * sair (o servidor recusa se ela não confirmar); o reembolso em dinheiro é feito no painel da AbacatePay.
+ */
+function encerrarPago(c, caminho, botao) {
+  if (botao.nextElementSibling?.classList.contains("encerrar-motivo")) return;
+  const caixa = el("span", "encerrar-motivo");
+  const motivo = el("select"); motivo.setAttribute("aria-label", "Motivo do encerramento");
+  for (const [v, t] of MOTIVOS_ENCERRAR) { const o = el("option", "", t); o.value = v; motivo.append(o); }
+  const detalhe = el("input"); detalhe.type = "text"; detalhe.maxLength = 300; detalhe.placeholder = "detalhe (opcional; obrigatório em Outro)"; detalhe.setAttribute("aria-label", "Detalhe do motivo");
+  const confirmar = el("button", "btn btn-ghost btn-perigo", "Confirmar encerramento"); confirmar.type = "button";
+  confirmar.title = "Para a cobrança na AbacatePay e tira o acesso agora. O reembolso em dinheiro é feito no painel da AbacatePay.";
+  const voltar = el("button", "btn btn-ghost", "Voltar"); voltar.type = "button";
+  voltar.addEventListener("click", () => { caixa.remove(); botao.disabled = false; });
+  confirmar.addEventListener("click", async () => {
+    const s = sessaoGuardada(); if (s === null) return;
+    confirmar.disabled = true; mostrarErro(null);
+    const r = await api("POST", `/admin/contas/${encodeURIComponent(c.id)}/${caminho}/encerrar`, { motivo: motivo.value, detalhe: detalhe.value.trim() || null }, s.acesso);
+    if (r.status !== 200) { confirmar.disabled = false; await falhaAdmin(r, c); return; }
+    await depoisDeDevice();
+  });
+  caixa.append(motivo, detalhe, confirmar, voltar);
+  botao.disabled = true; botao.after(caixa);
 }
 /** Relê a visão do admin e redesenha a seção depois de uma ação em devices. */
 async function depoisDeDevice() {

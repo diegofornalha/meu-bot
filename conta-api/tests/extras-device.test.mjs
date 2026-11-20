@@ -16,6 +16,7 @@ test("device extra: o webhook soma uma vaga, o Mac pendente mais antigo entra, o
   const persist = mkdtempSync(join(tmpdir(), "conta-d1-"));
   const { getPlatformProxy } = req("wrangler");
   const px = await getPlatformProxy({ configPath: api + "/wrangler.toml", environment: "staging", persist: { path: persist } });
+  const canceladas = [], fetchReal = globalThis.fetch;
   try {
   const DB = px.env.DB;
   for (const f of readdirSync(api + "/migrations").sort()) {
@@ -47,6 +48,8 @@ test("device extra: o webhook soma uma vaga, o Mac pendente mais antigo entra, o
     return { status: r.status, resultado: (await DB.prepare("SELECT resultado FROM webhook_eventos WHERE id = ?1").bind(`log_${n}`).first())?.resultado ?? null };
   };
   const tadm = await assinarJwt({ sub: B, sid: "s", dev: null, adm: "admin", iat: s, exp: s + 3600 }, HMAC);
+  // A AbacatePay de mentira: o encerramento pede o cancelamento da assinatura antes de tirar o acesso.
+  globalThis.fetch = async (url, init) => { if (!String(url).startsWith("https://api.abacatepay.com/")) return fetchReal(url, init); canceladas.push(JSON.parse(init.body).id); return new Response(JSON.stringify({ success: true, data: { status: "CANCELLED" } }), { status: 200, headers: { "content-type": "application/json" } }); };
   const checkout = async (ref, conta = A) => { await DB.prepare("INSERT INTO pagamento_checkouts (ref, conta_id, checkout_id, ga_client_id, ga_session_id, criado_em, produto, promo) VALUES (?1, ?2, NULL, NULL, NULL, ?3, 'extra-device', 0)").bind(ref, conta, agora).run(); return ref; };
   const conta = async () => (await chamar("GET", "/conta", undefined, ta)).corpo;
   const status = async () => Object.fromEntries((await conta()).devices.map((d) => [d.name, d.status]));
@@ -100,9 +103,9 @@ test("device extra: o webhook soma uma vaga, o Mac pendente mais antigo entra, o
   assert.deepEqual([c.licenca.deviceLimit, c.deviceExtras], [3, 1]);
 
   // O admin encerra o extra (reembolso): a vaga paga sai do limite na hora.
-  r = await chamar("POST", `/admin/contas/${A}/extras/subs_d1/encerrar`, {}, tadm);
+  r = await chamar("POST", `/admin/contas/${A}/extras/subs_d1/encerrar`, { motivo: "reembolso" }, tadm);
   assert.equal(r.status, 200);
   c = await conta();
   assert.deepEqual([c.licenca.deviceLimit, c.deviceExtras], [2, 0]);
-  } finally { await px.dispose(); rmSync(persist, { recursive: true, force: true }); }
+  } finally { globalThis.fetch = fetchReal; await px.dispose(); rmSync(persist, { recursive: true, force: true }); }
 });
