@@ -89,6 +89,7 @@ function paintOllamaGuide(): void {
   prep.start.classList.toggle("pulse", !prep.start.hidden);
   prep.log.hidden = !st.preparing && !st.removing && st.log.length === 0;
   prep.log.textContent = st.log.join("\n");
+  prep.log.scrollTop = prep.log.scrollHeight; // o progresso mais novo sempre à vista
 }
 
 async function prepareOllama(): Promise<void> {
