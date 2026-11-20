@@ -1,0 +1,1 @@
+- Organizações em produção: só uma por conta, com o Pro valendo; a dona vem incluída e cada usuário a mais custa R$ 47 por mês (de R$ 97), com o Pro incluído para ele.
