@@ -161,7 +161,8 @@ export function parseContaDoAdmin(status: number, corpo: unknown, now: number = 
     if (x.status !== "ACTIVE" || typeof x.produto !== "string" || !/^meu-bot-[a-z0-9-]{1,40}$/.test(x.produto)) return [];
     return [{ produto: x.produto, valeAte: iso(x.valeAte) }];
   });
-  return { estado: "ok", conta, maquinaExtras: typeof extras === "number" && Number.isInteger(extras) && extras >= 0 ? extras : 0, addonsPagos, achadaPor: por, lidaEm: new Date(now).toISOString(), ...(r!.atribuida === true ? { atribuida: true } : {}) };
+  const cortesias = c.maquinaCortesias;
+  return { estado: "ok", conta, maquinaExtras: typeof extras === "number" && Number.isInteger(extras) && extras >= 0 ? extras : 0, maquinaCortesias: typeof cortesias === "number" && Number.isInteger(cortesias) && cortesias >= 0 ? cortesias : 0, addonsPagos, achadaPor: por, lidaEm: new Date(now).toISOString(), ...(r!.atribuida === true ? { atribuida: true } : {}) };
 }
 /** 401 da API: a sessão não vale mais (vencida, revogada, conta apagada): o app sai sozinho e pede para entrar de novo. */
 export const sessaoAcabou = (status: number): boolean => status === 401;

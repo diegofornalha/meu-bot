@@ -91,7 +91,7 @@ export interface ContaAddonPago { produto: string; valeAte: string | null }
  * "sem-ligacao". Com pista e sem conta na API: "nao-achada". API fora ou sessão sem valer: "sem-resposta".
  */
 export type ContaDaPessoa =
-  | { estado: "ok"; conta: ContaInfo; maquinaExtras: number; addonsPagos: ContaAddonPago[]; achadaPor: "maquina" | "id" | "email"; lidaEm: string; /** O admin atribuiu esta máquina à conta (não é a licença da conta que roda nela). */ atribuida?: boolean }
+  | { estado: "ok"; conta: ContaInfo; maquinaExtras: number; /** Quantas vagas de máquina são cortesia do suporte. */ maquinaCortesias: number; addonsPagos: ContaAddonPago[]; achadaPor: "maquina" | "id" | "email"; lidaEm: string; /** O admin atribuiu esta máquina à conta (não é a licença da conta que roda nela). */ atribuida?: boolean }
   | { estado: "sem-ligacao" }
   | { estado: "nao-achada" }
   | { estado: "sem-resposta"; motivo: string };
