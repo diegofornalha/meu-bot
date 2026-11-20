@@ -18,11 +18,41 @@ import { assentosDaOrg, membroPor, orgPorSlug, limiteDeDevicesComExtras, promove
 import { ASSENTOS_MAX, DEVICE_LIMITE_MAX, agoraIso, janelaMinuto, uuid, validaSlug } from "../sessao-core.js";
 import { json, lerJson, type Autenticado } from "../http.js";
 import { gaIds } from "../analytics-core.js";
-import { assinaturaIdValido, clientIdDeReserva, clientIdValido, compraGa4, decidir, detalheLiberar, lerAddons, lerEvento, lerExtras, lerPromo, metodosSemPix, itemIdGa, pedidoDoCheckout, cuponsDoCheckout, decidirAvulso, ehCupomDaPromo, EVENTO_AVULSO, precoDaCobranca, voltaDoCheckout, refValida, resultadoCancelamento, sessionIdValido, validoAte, webhookConfere, tipoDoExtra, type Decisao, type OfertaAddon, type OfertaExtra, type Promo } from "../pagamento-core.js";
+import { assinaturaIdValido, clientIdDeReserva, clientIdValido, compraGa4, decidir, detalheLiberar, lerAddons, lerEvento, lerExtras, lerPromo, metodosSemPix, itemIdGa, pedidoDoCheckout, cuponsDoCheckout, decidirAvulso, clienteNaoExiste, pedidoComCliente, ehCupomDaPromo, EVENTO_AVULSO, precoDaCobranca, voltaDoCheckout, refValida, resultadoCancelamento, sessionIdValido, validoAte, webhookConfere, tipoDoExtra, type Decisao, type OfertaAddon, type OfertaExtra, type Promo } from "../pagamento-core.js";
 import { MAQUINA_LIMITE_MAX } from "../licenca-core.js";
 import { itensDoMarketplace, type ItemMarketplace } from "../marketplace-core.js";
 
 const API = "https://api.abacatepay.com/v2";
+
+/** O cliente da AbacatePay guardado na conta (o da última compra paga), ou null. */
+async function clienteDaConta(env: Env, contaId: string): Promise<string | null> {
+  // Só serve para pré-preencher a página: falha ao ler não impede ninguém de pagar.
+  const l = await env.DB.prepare("SELECT abacatepay_cliente FROM contas WHERE id = ?1").bind(contaId).first<{ abacatepay_cliente: string | null }>()
+    .catch((e: unknown) => { console.log(`[pagamento] não li o cliente da conta ${contaId}: ${e instanceof Error ? e.message : String(e)}`); return null; });
+  return l?.abacatepay_cliente ?? null;
+}
+
+/**
+ * POST à AbacatePay com o cliente já cadastrado da conta (`customerId`), para a página de pagamento abrir preenchida.
+ * Se o cliente não existe mais na loja, apaga o id guardado e tenta de novo uma vez sem ele: a pessoa vê a página em
+ * branco, como antes, e não um erro.
+ */
+async function postarComCliente(env: Env, caminho: string, corpo: Record<string, unknown>, contaId: string, cliente: string | null): Promise<{ r: Response; resp: unknown }> {
+  const enviar = async (c: string | null): Promise<{ r: Response; resp: unknown }> => {
+    const r = await fetch(`${API}/${caminho}`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${env.ABACATEPAY_KEY}`, "content-type": "application/json" },
+      body: JSON.stringify(pedidoComCliente(corpo, c)),
+    });
+    return { r, resp: await r.json().catch(() => null) };
+  };
+  const primeira = await enviar(cliente);
+  if (cliente === null || !clienteNaoExiste(primeira.r.status, primeira.resp)) return primeira;
+  console.log(`[pagamento] cliente ${cliente} não existe mais na AbacatePay: esquecido, checkout aberto sem ele`);
+  await env.DB.prepare("UPDATE contas SET abacatepay_cliente = NULL WHERE id = ?1 AND abacatepay_cliente = ?2").bind(contaId, cliente).run()
+    .catch((e: unknown) => { console.log(`[pagamento] não esqueci o cliente da conta ${contaId}: ${e instanceof Error ? e.message : String(e)}`); });
+  return enviar(null);
+}
 export const pagamentosLigados = (env: Env): boolean => Boolean(env.ABACATEPAY_KEY && env.ABACATEPAY_WEBHOOK_SECRET && env.ABACATEPAY_PRODUTO);
 const preco = (env: Env): number => { const n = Number(env.ABACATEPAY_PRECO_CENTAVOS ?? "9700"); return Number.isInteger(n) && n > 0 ? n : 9700; };
 /** Os nomes dos add-ons do catálogo deste ambiente, à venda ou não: é o que o super admin tem por padrão (`licencaDoSuper`). */
@@ -64,12 +94,8 @@ async function primeiroMesPorPix(auth: Autenticado, env: Env, corpo: Record<stri
   type Resposta = { data?: { id?: unknown; url?: unknown; amount?: unknown }; error?: unknown } | null;
   let r: Response; let resp: Resposta;
   try {
-    r = await fetch(`${API}/checkouts/create`, {
-      method: "POST",
-      headers: { authorization: `Bearer ${env.ABACATEPAY_KEY}`, "content-type": "application/json" },
-      body: JSON.stringify({ items: [{ id: produto, quantity: 1 }], methods: ["PIX"], externalId: ref, completionUrl: volta.concluiu, returnUrl: volta.desistiu, metadata: { conta: auth.conta.id, produto: "pro-primeiro-mes" } }),
-    });
-    resp = (await r.json().catch(() => null)) as Resposta;
+    const cliente = await clienteDaConta(env, auth.conta.id);
+    ({ r, resp } = (await postarComCliente(env, "checkouts/create", { items: [{ id: produto, quantity: 1 }], methods: ["PIX"], externalId: ref, completionUrl: volta.concluiu, returnUrl: volta.desistiu, metadata: { conta: auth.conta.id, produto: "pro-primeiro-mes" } }, auth.conta.id, cliente)) as { r: Response; resp: Resposta });
   } catch (e) { console.log(`[pagamento] AbacatePay fora: ${e instanceof Error ? e.message : String(e)}`); return json({ erro: "o pagamento não respondeu; tente de novo" }, 502); }
   const url = typeof resp?.data?.url === "string" && /^https:\/\/([a-z0-9-]+\.)*abacatepay\.com\//.test(resp.data.url) ? resp.data.url : null;
   const bill = typeof resp?.data?.id === "string" && resp.data.id.length <= 100 ? resp.data.id : null;
@@ -177,31 +203,26 @@ export async function postAssinatura(auth: Autenticado, env: Env, req: Request):
   const volta = voltaDoCheckout(env.CONSOLE_ORIGIN, item?.nome ?? null, org?.slug ?? null);
   // Uma tentativa por lista de métodos: com Pix pedido e o Pix Automático ainda não liberado na loja, a AbacatePay
   // recusa a assinatura inteira; aí vale tentar de novo só com cartão, em vez de deixar o "Assinar" quebrado.
-  const criar = (methods: string[]): Promise<Response> => fetch(`${API}/subscriptions/create`, {
-    method: "POST",
-    headers: { authorization: `Bearer ${env.ABACATEPAY_KEY}`, "content-type": "application/json" },
-    body: JSON.stringify({
-      items: [{ id: item?.produto ?? env.ABACATEPAY_PRODUTO, quantity: 1 }],
-      methods,
-      externalId: ref,
-      completionUrl: volta.concluiu,
-      returnUrl: volta.desistiu,
-      metadata: { conta: auth.conta.id, produto: item?.nome ?? "pro" },
-      // Com a promoção: o cupom (o desconto vale na primeira cobrança; as renovações cobram o preço cheio).
-      ...(envio.coupons === undefined ? {} : { coupons: envio.coupons }),
-    }),
-  });
   type Resposta = { data?: { id?: unknown; url?: unknown }; error?: unknown } | null;
+  // O cliente é relido a cada tentativa: se a primeira descobriu que ele não existe mais, a segunda já sai sem ele.
+  const criar = async (methods: string[]): Promise<{ r: Response; resp: Resposta }> => (await postarComCliente(env, "subscriptions/create", {
+    items: [{ id: item?.produto ?? env.ABACATEPAY_PRODUTO, quantity: 1 }],
+    methods,
+    externalId: ref,
+    completionUrl: volta.concluiu,
+    returnUrl: volta.desistiu,
+    metadata: { conta: auth.conta.id, produto: item?.nome ?? "pro" },
+    // Com a promoção: o cupom (o desconto vale na primeira cobrança; as renovações cobram o preço cheio).
+    ...(envio.coupons === undefined ? {} : { coupons: envio.coupons }),
+  }, auth.conta.id, await clienteDaConta(env, auth.conta.id))) as { r: Response; resp: Resposta };
   let r: Response; let resp: Resposta;
   try {
     // Com a promoção, só cartão e uma tentativa só (pedidoDoCheckout).
-    r = await criar(envio.methods);
-    resp = (await r.json().catch(() => null)) as Resposta;
+    ({ r, resp } = await criar(envio.methods));
     const semPix = envio.tentarSemPix ? metodosSemPix(envio.methods, r.ok, resp?.error) : null;
     if (semPix !== null) {
       console.log("[pagamento] Pix Automático não liberado na loja: assinatura criada só com cartão");
-      r = await criar(semPix);
-      resp = (await r.json().catch(() => null)) as Resposta;
+      ({ r, resp } = await criar(semPix));
     }
   } catch (e) { console.log(`[pagamento] AbacatePay fora: ${e instanceof Error ? e.message : String(e)}`); return json({ erro: "o pagamento não respondeu; tente de novo" }, 502); }
   const url = typeof resp?.data?.url === "string" && /^https:\/\/([a-z0-9-]+\.)*abacatepay\.com\//.test(resp.data.url) ? resp.data.url : null;
@@ -325,6 +346,12 @@ export async function postWebhookAbacate(req: Request, env: Env, url: URL, esper
     return json({ erro: "falha ao aplicar o evento; tente de novo" }, 500);
   }
   await env.DB.prepare("UPDATE webhook_eventos SET resultado = ?1 WHERE id = ?2").bind(resultado.slice(0, 300), e.id).run();
+  // Pagamento aceito: guarda quem pagou (só o cust_...), e a próxima compra desta conta abre a página já preenchida.
+  // Checkout abandonado, recusado, reembolso ou revisão não chegam aqui como liberar.
+  if ((d.acao === "liberar" || d.acao === "liberarAvulso") && e.cliente !== null && doEvento !== null) {
+    await env.DB.prepare("UPDATE contas SET abacatepay_cliente = ?1 WHERE id = ?2").bind(e.cliente, doEvento.conta_id).run()
+      .catch((e2: unknown) => { console.log(`[pagamento] não guardei o cliente da conta ${doEvento.conta_id}: ${e2 instanceof Error ? e2.message : String(e2)}`); });
+  }
   return json({ ok: true });
 }
 
