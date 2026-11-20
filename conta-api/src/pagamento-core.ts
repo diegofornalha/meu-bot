@@ -50,6 +50,8 @@ export interface EventoAssinatura {
   checkout: { id: string | null; ref: string | null; frequencia: string | null; /** Quanto entrou e a situação, no checkout avulso (não há bloco `payment`). */ pago: number | null; status: string } | null;
   /** A cobrança deste evento: card_.../char_..., quanto entrou e se está paga. */
   pagamento: { id: string; pago: number | null; status: string; quando: string | null } | null;
+  /** O cliente da AbacatePay que pagou (cust_...), para pré-preencher as próximas compras; null se não veio. */
+  cliente: string | null;
 }
 
 const obj = (x: unknown): Record<string, unknown> | null => (x !== null && typeof x === "object" && !Array.isArray(x) ? (x as Record<string, unknown>) : null);
@@ -69,7 +71,26 @@ export function lerEvento(bruto: unknown): EventoAssinatura | { erro: string } {
   const assinatura = s !== null && txt(s.id, 100) !== null ? { id: s.id as string, status: txt(s.status, 30) ?? "", metodo: txt(s.method, 20), valor: num(s.amount) } : null;
   const checkout = c !== null ? { id: txt(c.id, 100), ref: txt(c.externalId, 100), frequencia: txt(c.frequency, 30), pago: num(c.paidAmount), status: txt(c.status, 30) ?? "" } : null;
   const pagamento = p !== null && txt(p.id, 100) !== null ? { id: p.id as string, pago: num(p.paidAmount), status: txt(p.status, 30) ?? "", quando: txt(p.updatedAt, 40) } : null;
-  return { id, evento, devMode: e.devMode === true, assinatura, checkout, pagamento };
+  return { id, evento, devMode: e.devMode === true, assinatura, checkout, pagamento, cliente: clienteValido(obj(data.customer)?.id) ?? clienteValido(c?.customerId) };
+}
+
+/** Id de cliente da AbacatePay (`cust_...`); outro formato vira null. */
+export const clienteValido = (x: unknown): string | null => (typeof x === "string" && /^cust_[A-Za-z0-9]{1,60}$/.test(x) ? x : null);
+
+/** O corpo do pedido à AbacatePay com o cliente já cadastrado (`customerId`): a página abre preenchida. Sem cliente, igual. */
+export function pedidoComCliente<T extends Record<string, unknown>>(corpo: T, cliente: string | null): T & { customerId?: string } {
+  return cliente === null ? corpo : { ...corpo, customerId: cliente };
+}
+
+/**
+ * A AbacatePay recusou porque o `customerId` não existe mais na loja ("Customer not found"; a documentação também
+ * mostra "Cliente não encontrado"). Aí vale apagar o id guardado e abrir a página em branco.
+ */
+export function clienteNaoExiste(status: number, resposta: unknown): boolean {
+  if (status < 400 || status >= 500) return false;
+  const erro = (resposta !== null && typeof resposta === "object" ? (resposta as { error?: unknown }).error : null);
+  const texto = (typeof erro === "string" ? erro : JSON.stringify(erro ?? "")).toLowerCase();
+  return texto.includes("customer not found") || texto.includes("cliente não encontrado") || texto.includes("cliente nao encontrado");
 }
 
 /** O nosso externalId: mb_ + uuid. Outro formato não é de checkout criado pelo console. */
