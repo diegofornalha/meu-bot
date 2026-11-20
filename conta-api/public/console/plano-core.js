@@ -346,6 +346,19 @@ export function oQueAContaTem(conta, nomes = {}) {
 }
 
 /**
+ * O que da busca da URL sobrevive a um login no meio do caminho: só a marca de quem volta do pagamento
+ * (`?assinatura=paga`, com o `produto` quando é um extra ou um módulo). A sessão do console dura 1 h; quem demora no
+ * checkout volta sem sessão, entra de novo e, sem isto, cai na página sem o aviso de pagamento recebido.
+ * Devolve "" ou a busca já com o "?"; qualquer outro parâmetro fica de fora.
+ */
+export function buscaDaVolta(busca) {
+  const qs = new URLSearchParams(typeof busca === "string" ? busca : "");
+  if (qs.get("assinatura") !== "paga") return "";
+  const produto = qs.get("produto");
+  return produto !== null && /^[a-z0-9-]{1,40}$/.test(produto) ? `?assinatura=paga&produto=${produto}` : "?assinatura=paga";
+}
+
+/**
  * O aviso da página Plano para quem volta do pagamento (`?assinatura=paga`): com a assinatura do Pro em andamento, está
  * confirmado. Pro ativo sem assinatura é o primeiro mês pago por Pix (compra avulsa, sem assinatura) ou um Pro que a
  * conta já tinha antes de assinar: a tela diz até quando vale e continua esperando a assinatura aparecer, se houver.

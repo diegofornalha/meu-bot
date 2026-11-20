@@ -1,5 +1,5 @@
 import { avisoDepoisDo404, pedeReleitura, visaoVelha } from "./admin-core.js";
-import { INFINITO, SEM_LIMITE, SEM_PRAZO, TODOS_ADDONS, avisoAddonPago, contagemRegressiva, addonsNaVisaoGeral, estadoAssinaturaPro, fase, linhasDeMaquinas, deParaDoExtra, assinaturasDoItem, bloqueioDeOrg, assentoChegou, proPelaOrgTexto, estadoDoItem, itemGa, ofertaDoProAparece, orgsQueGerencia, usuariosDaOrg, situacaoDaUnidade, situacaoDoApp, resumoDeUso, semDevices, oQueAContaTem, pagoChegou, assinaturasAtivasDe, pedidoAssinar, podeAdicionarMaquina, promoNaTela, reaisCurto, semPrazo, vagaDoAssinar, voltaDoPagamento, vagasDeDevice, vagasDeMaquina } from "./plano-core.js";
+import { INFINITO, SEM_LIMITE, SEM_PRAZO, TODOS_ADDONS, avisoAddonPago, contagemRegressiva, addonsNaVisaoGeral, estadoAssinaturaPro, fase, linhasDeMaquinas, deParaDoExtra, assinaturasDoItem, bloqueioDeOrg, assentoChegou, proPelaOrgTexto, estadoDoItem, itemGa, ofertaDoProAparece, orgsQueGerencia, usuariosDaOrg, situacaoDaUnidade, situacaoDoApp, resumoDeUso, semDevices, oQueAContaTem, pagoChegou, assinaturasAtivasDe, pedidoAssinar, podeAdicionarMaquina, promoNaTela, buscaDaVolta, reaisCurto, semPrazo, vagaDoAssinar, voltaDoPagamento, vagasDeDevice, vagasDeMaquina } from "./plano-core.js";
 // Console da conta meu-bot (console.agentesgrok.com/account/* e /organizations/<slug>/members|settings, molde Rambox). Entra pela mesma página de
 // login do app (auth.agentesgrok.com) com esquema=web: o console gera state + PKCE, a página devolve #code&state, e
 // POST /token {grant:"web"} vira um token de acesso de 1 h guardado neste navegador (localStorage: outra aba, inclusive
@@ -79,7 +79,10 @@ async function entrar(org = null) {
   const challenge = b64url(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
   const state = aleatorio(32);
   ss.set(CH_LOGIN, { state, verifier, em: Date.now() });
-  const retorno = `${cfg.console}${org !== null ? `/organizations/${org}/members` : secaoAtual() === null ? "/account/overview" : location.pathname}`;
+  // A marca de quem volta do pagamento (buscaDaVolta) vai junto quando o login volta à mesma página.
+  const membros = org !== null ? `/organizations/${org}/members` : null;
+  const caminho = membros ?? (secaoAtual() === null ? "/account/overview" : location.pathname);
+  const retorno = `${cfg.console}${caminho}${caminho === location.pathname ? buscaDaVolta(location.search) : ""}`;
   const q = new URLSearchParams({ esquema: "web", state, challenge, app: "meu-bot-console", retorno });
   location.href = `${cfg.auth}/${org !== null ? `enterprise/${encodeURIComponent(org)}` : "entrar"}?${q.toString()}`;
 }
@@ -1477,7 +1480,7 @@ document.addEventListener("visibilitychange", () => {
       return;
     }
     if (code !== null && (state !== null || verifier !== null)) {
-      history.replaceState(null, "", location.pathname);
+      history.replaceState(null, "", location.pathname + buscaDaVolta(location.search));
       if (!TOKEN_RE.test(code) || (state !== null && !TOKEN_RE.test(state)) || (verifier !== null && !/^[A-Za-z0-9._~-]{43,128}$/.test(verifier))) throw new Error("retorno do login fora do formato");
       conta = await trocarCodigo(code, state ?? "", verifier);
       ga.evento("console_entrada", { via: verifier !== null ? "app" : "login", admin: conta.admin !== null });
