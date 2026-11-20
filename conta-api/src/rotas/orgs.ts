@@ -6,7 +6,7 @@
  * e-mail entra, `aceitarConvites` (no POST /sessao) liga a conta. Assentos: ativos + convidados cabem até `assentos`.
  */
 import type { Env, OrgLinha, PapelOrg } from "../tipos.js";
-import { apagarOrg, assentosDaOrg, auditar, contarDonas, contarLimite, contarMembros, criarOrg, licencaGravada, orgsParaCriar, papelAdmin, gravarAssentos, gravarConvite, gravarOrg, membroPor, montarOrgApi, mudarPapel, orgPorSlug, orgsDaConta, removerMembro } from "../db.js";
+import { apagarOrg, assentosDaOrg, auditar, contarDonas, contarLimite, contarMembros, criarOrg, licencaPropria, orgsParaCriar, papelAdmin, gravarAssentos, gravarConvite, gravarOrg, membroPor, montarOrgApi, mudarPapel, orgPorSlug, orgsDaConta, removerMembro } from "../db.js";
 import { assentosLivres, emailNoDominio, janelaMinuto, podeCriarOrg, validaAssentos, validaConvite, validaEmail, validaNovaOrg, validaPapelOrg, validaPatchOrg, validaSlug } from "../sessao-core.js";
 import { json, lerJson, type Autenticado } from "../http.js";
 
@@ -43,8 +43,8 @@ export async function postOrg(auth: Autenticado, env: Env, req: Request): Promis
   if ("erro" in nova) return json({ erro: nova.erro }, 400);
   // Criar organização é do Pro assinado e tem limite por conta (podeCriarOrg): quem decide é este servidor.
   const papel = await papelAdmin(env.DB, auth.conta.email, env.ADMIN_BOOTSTRAP_EMAIL);
-  const [gravada, criar] = await Promise.all([licencaGravada(env.DB, auth.conta), orgsParaCriar(env.DB, auth.conta.id)]);
-  const nao = podeCriarOrg({ licenca: gravada, papel, donaDe: criar.donaDe, limite: criar.limite, agoraMs: Date.now() });
+  const [propria, criar] = await Promise.all([licencaPropria(env.DB, auth.conta), orgsParaCriar(env.DB, auth.conta.id)]);
+  const nao = podeCriarOrg({ licenca: propria, papel, donaDe: criar.donaDe, limite: criar.limite, agoraMs: Date.now() });
   if (nao !== null) return json({ erro: nao.erro, motivo: nao.motivo }, 403);
   const org = await criarOrg(env.DB, auth.conta, nova);
   if (org === null) return json({ erro: "esse endereço já está em uso; escolha outro" }, 409);

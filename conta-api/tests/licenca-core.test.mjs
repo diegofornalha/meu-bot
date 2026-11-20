@@ -89,12 +89,12 @@ test("apelido e limite: o que o app e o admin mandam", () => {
 test("limite de máquinas: o que o admin deu mais uma vaga por máquina extra em dia; vencida não conta; respeita o teto", () => {
   const agora = Date.parse("2026-11-19T12:00:00Z");
   const emDia = { expiresAt: "2026-12-19T12:00:00Z" }, vencida = { expiresAt: "2026-11-19T11:59:59Z" };
-  assert.deepEqual(limiteComExtras(1, [], agora), { limite: 1, extras: 0 });
-  assert.deepEqual(limiteComExtras(1, [emDia], agora), { limite: 2, extras: 1 });
-  assert.deepEqual(limiteComExtras(1, [emDia, emDia, vencida], agora), { limite: 3, extras: 2 });
-  assert.deepEqual(limiteComExtras(2, [vencida], agora), { limite: 2, extras: 0 });
-  assert.deepEqual(limiteComExtras(0, [emDia], agora), { limite: 2, extras: 1 }, "base fora da forma vale 1");
-  assert.deepEqual(limiteComExtras(1, [{ expiresAt: "lixo" }], agora), { limite: 1, extras: 0 });
+  assert.deepEqual(limiteComExtras(1, [], agora), { limite: 1, extras: 0, cortesias: 0 });
+  assert.deepEqual(limiteComExtras(1, [emDia], agora), { limite: 2, extras: 1, cortesias: 0 });
+  assert.deepEqual(limiteComExtras(1, [emDia, emDia, vencida], agora), { limite: 3, extras: 2, cortesias: 0 });
+  assert.deepEqual(limiteComExtras(2, [vencida], agora), { limite: 2, extras: 0, cortesias: 0 });
+  assert.deepEqual(limiteComExtras(0, [emDia], agora), { limite: 2, extras: 1, cortesias: 0 }, "base fora da forma vale 1");
+  assert.deepEqual(limiteComExtras(1, [{ expiresAt: "lixo" }], agora), { limite: 1, extras: 0, cortesias: 0 });
   assert.equal(limiteComExtras(1, Array.from({ length: 80 }, () => emDia), agora).limite, MAQUINA_LIMITE_MAX);
 });
 

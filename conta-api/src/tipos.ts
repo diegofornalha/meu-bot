@@ -90,7 +90,7 @@ export type PapelOrg = "dona" | "admin" | "membro";
 export interface OrgResumo { id: string; slug: string; nome: string; papel: PapelOrg; membros: number; assentos: number }
 export interface MembroApi { email: string; nome: string | null; foto: string | null; papel: PapelOrg; status: "convidado" | "ativo"; convidadoPor: string | null; convidadoEm: string; entrouEm: string | null; eu: boolean; /** Dentro das vagas da organização (os que entraram primeiro): é quem recebe o Pro por ela quando a dona tem o Pro valendo. */ coberto: boolean }
 /** `GET /orgs/:slug`: a organização inteira para quem é membro (ou super admin). */
-export interface OrgApi { id: string; slug: string; nome: string; dominioEmail: string | null; /** Usuários em vigor: `assentosInclusos` (a dona e as cortesias do super admin) mais `assentosPagos` (usuários pagos em dia). */ assentos: number; assentosInclusos: number; assentosPagos: number; /** O Pro de quem é a dona está valendo: sem ele, os usuários ficam sem o Pro pela organização. */ donaComPro: boolean; ocupados: number; criadaEm: string; dona: { email: string; nome: string | null }; meuPapel: PapelOrg | "super"; membros: MembroApi[]; url: string }
+export interface OrgApi { id: string; slug: string; nome: string; dominioEmail: string | null; /** Usuários em vigor: `assentosInclusos` (a dona e as cortesias do super admin) mais `assentosPagos` (usuários pagos em dia). */ assentos: number; assentosInclusos: number; /** Usuários de cortesia do admin, em dia. */ assentosCortesia: number; assentosPagos: number; /** O Pro de quem é a dona está valendo: sem ele, os usuários ficam sem o Pro pela organização. */ donaComPro: boolean; ocupados: number; criadaEm: string; dona: { email: string; nome: string | null }; meuPapel: PapelOrg | "super"; membros: MembroApi[]; url: string }
 /** `GET /admin/visao`: uma linha por organização. */
 export interface AdminOrg { id: string; slug: string; nome: string; dona: string; membros: number; /** A parte inclusa (a dona e as cortesias), editada pelo super admin. */ assentos: number; /** Usuários pagos em dia. */ assentosPagos: number; criadaEm: string }
 export interface CodigoLinha { code: string; conta_id: string; state: string; challenge: string; esquema: string; app: string | null; versao_app: string | null; criado_em: string; expira_em: string; usado_em: string | null }
@@ -127,6 +127,8 @@ export interface MaquinaVistaApi { id: string; apelido: string | null; origem: "
 export interface ContaAssinatura { id: string; produto: string | null; status: "ACTIVE" | "CANCELLED"; valorCentavos: number | null; valeAte: string | null }
 /** A promoção do primeiro mês a que a conta tem direito agora (console › Plano): o preço, até quando e o código do cupom. */
 export interface PromoApi { precoCentavos: number; ate: string; cupom: string }
+/** Uma cortesia do admin como a própria pessoa a vê: o que é e até quando; `encerradaEm` quando o suporte a encerrou antes. */
+export interface CortesiaDaConta { id: string; tipo: import("./cortesia-core.js").TipoCortesia; produto: string | null; orgId: string | null; quantidade: number; inicio: string; fim: string; encerradaEm: string | null }
 export interface ContaApi {
   id: string;
   email: string;
@@ -155,8 +157,16 @@ export interface ContaApi {
   maquinaLimite: number;
   /** Quantas das vagas de `maquinaLimite` vêm de máquina extra paga (extras_pagos em dia); o resto é o que o plano inclui. */
   maquinaExtras: number;
-  /** Quantas das vagas de `licenca.deviceLimit` vêm de device extra pago (extras_pagos em dia); o resto é o que o plano inclui. */
+  /** Quantas das vagas de `licenca.deviceLimit` vêm de device extra pago (extras_pagos em dia). */
   deviceExtras: number;
+  /** Quantas das vagas de `licenca.deviceLimit` são cortesia do admin; o resto (menos `deviceExtras`) é o que o plano inclui. */
+  deviceCortesias: number;
+  /** Quantas das vagas de `maquinaLimite` são cortesia do admin. */
+  maquinaCortesias: number;
+  /** De onde vem o Pro que a conta tem agora (cortesia-core.ts, `origemDoPro`); null sem Pro. */
+  origemDoPro: import("./cortesia-core.js").OrigemPro | null;
+  /** As cortesias do admin que valem e as que acabaram nos últimos 30 dias (sem quem liberou nem o motivo). */
+  cortesias: CortesiaDaConta[];
   /** Pedidos abertos desta conta (Pro, add-on, device). */
   pedidos: number;
   /**
@@ -172,7 +182,7 @@ export interface ContaApi {
   promo: PromoApi | null;
 }
 /** `GET /admin/visao`: todas as contas (com licença, devices e máquinas), os pedidos abertos e os totais. Só admin. */
-export interface AdminContaResumo { id: string; email: string; nome: string | null; foto: string | null; admin: "super" | "admin" | null; criadaEm: string; /** A licença em vigor (para o super admin, o Pro sem prazo). */ licenca: License; /** Só vem para conta de super admin: o que está gravado, que o editor de licença mostra e muda. */ licencaGravada?: License; /** Add-ons pagos pela AbacatePay, com o prazo de cada um (os concedidos pelo admin estão em licenca.produtos). */ addonsPagos: { produto: string; expiresAt: string }[]; /** Unidades extras pagas (máquina extra), uma por assinatura, com o prazo de cada uma; `maquinaLimite` aqui é só o que o admin gravou, sem elas. */ extrasPagos: { assinaturaId: string; tipo: string; expiresAt: string }[]; devices: DeviceApi[]; maquinas: number; maquinaLimite: number; /** Quantas organizações a conta pode criar (licencas.org_limit). */ orgLimite: number; pedidos: number }
+export interface AdminContaResumo { id: string; email: string; nome: string | null; foto: string | null; admin: "super" | "admin" | null; criadaEm: string; /** A licença em vigor (para o super admin, o Pro sem prazo). */ licenca: License; /** Só vem para conta de super admin: o que está gravado, que o editor de licença mostra e muda. */ licencaGravada?: License; /** Add-ons pagos pela AbacatePay, com o prazo de cada um (os concedidos pelo admin estão em licenca.produtos). */ addonsPagos: { produto: string; expiresAt: string }[]; /** Unidades extras pagas (máquina extra), uma por assinatura, com o prazo de cada uma; `maquinaLimite` aqui é só o que o admin gravou, sem elas. */ extrasPagos: { assinaturaId: string; tipo: string; expiresAt: string }[]; devices: DeviceApi[]; maquinas: number; maquinaLimite: number; /** Quantas organizações a conta pode criar (licencas.org_limit). */ orgLimite: number; pedidos: number; /** Todas as cortesias que a conta recebeu, com quem liberou e o motivo. */ cortesias: import("./cortesia-core.js").Cortesia[] }
 export interface AdminPedido { id: string; tipo: string; detalhe: string | null; maquinaId: string | null; criadoEm: string; atendidoEm: string | null; atendidoPor: string | null; conta: { id: string; email: string; nome: string | null } }
 /** `fixo`: o admin inicial (ADMIN_BOOTSTRAP_EMAIL), que não é removido nem rebaixado. */
 export interface AdminPerfil { email: string; papel: "super" | "admin"; criadoEm: string; entrou: boolean; fixo: boolean }

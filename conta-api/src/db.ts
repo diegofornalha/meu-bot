@@ -1,9 +1,10 @@
 /** Acesso ao D1: consultas tipadas, uma função por intenção. O que sai do banco é dado; quem decide é a rota. */
-import type { AdminAssinatura, AdminAuditoria, AdminContaResumo, AdminVendaOculta, TipoVenda, AdminListaEspera, ContaAssinatura, AdminOrg, MaquinaApi, MaquinaVistaApi, AdminPagamento, AdminVendas, AdminPedido, AdminPerfil, AdminVisao, CodigoLinha, ContaApi, ContaLinha, DeviceApi, DeviceLinha, License, LicencaLinha, MaquinaLinha, MembroApi, MembroLinha, OrgApi, OrgLinha, OrgResumo, PapelOrg, PerfilApi, PromoApi, SessaoLinha } from "./tipos.js";
+import type { CortesiaDaConta, AdminAssinatura, AdminAuditoria, AdminContaResumo, AdminVendaOculta, TipoVenda, AdminListaEspera, ContaAssinatura, AdminOrg, MaquinaApi, MaquinaVistaApi, AdminPagamento, AdminVendas, AdminPedido, AdminPerfil, AdminVisao, CodigoLinha, ContaApi, ContaLinha, DeviceApi, DeviceLinha, License, LicencaLinha, MaquinaLinha, MembroApi, MembroLinha, OrgApi, OrgLinha, OrgResumo, PapelOrg, PerfilApi, PromoApi, SessaoLinha } from "./tipos.js";
 import { ASSENTOS_INCLUSOS, ASSENTOS_MAX, podeCriarOrg, DEVICE_LIMITE_MAX, agoraIso, ehAdminInicial, nomeExibicao, parseProvedores, provedoresDoLogin, unirProvedores, uuid, type MetodoLogin, type PatchLicenca, type PatchOrg, type PatchPerfil } from "./sessao-core.js";
 import type { UsuarioFirebase } from "./firebase.js";
-import { licencaComProDaOrg, melhorCobertura, type CoberturaOrg, direitoPromo, liberacoesPorAddon, licencaDoSuper, licencaEmVigor, tipoDoExtra, umaPorContaEProduto, type Liberacao, type Papel, type Promo } from "./pagamento-core.js";
+import { licencaComProAte, licencaComProDaOrg, melhorCobertura, type CoberturaOrg, direitoPromo, liberacoesPorAddon, licencaDoSuper, licencaEmVigor, tipoDoExtra, umaPorContaEProduto, type Liberacao, type Papel, type Promo } from "./pagamento-core.js";
 import { DEVICES_INCLUSOS, LICENCA_VALIDADE_MS, limiteComExtras, valeAte } from "./licenca-core.js";
+import { addonsDeCortesia, cortesiaValida, ehTipoCortesia, fimDoProDeCortesia, origemDoPro, unidadesDeCortesia, type Cortesia, type TipoCortesia } from "./cortesia-core.js";
 
 export async function contaPorUid(db: D1Database, uid: string): Promise<ContaLinha | null> {
   return (await db.prepare("SELECT * FROM contas WHERE firebase_uid = ?1 AND apagada_em IS NULL").bind(uid).first<ContaLinha>()) ?? null;
@@ -214,17 +215,89 @@ export async function addonsPagos(db: D1Database, contaId: string): Promise<{ pr
  * ambiente (`catalogoAddons`), que o super admin tem todos.
  */
 export async function licencaDaConta(db: D1Database, conta: ContaLinha, papel: Papel, catalogo: readonly string[], agora = agoraIso()): Promise<License> {
-  const [l, pagos, devices, cobertura] = await Promise.all([licencaGravada(db, conta), addonsPagos(db, conta.id), extrasPagos(db, conta.id, "device"), coberturaDaOrg(db, conta, Date.parse(agora))]);
-  const vigor = licencaEmVigor(licencaComProDaOrg(l, cobertura, Date.parse(agora)), pagos, papel, catalogo, agora);
-  return { ...vigor, deviceLimit: limiteComExtras(vigor.deviceLimit, devices, Date.parse(agora), DEVICE_LIMITE_MAX).limite };
+  const [l, pagos, devices, cobertura, cs] = await Promise.all([licencaGravada(db, conta), addonsPagos(db, conta.id), extrasPagos(db, conta.id, "device"), coberturaDaOrg(db, conta, Date.parse(agora)), cortesiasDaConta(db, conta.id)]);
+  return comporLicenca({ gravada: l, pagos, devices, cobertura, cortesias: cs, papel, catalogo, agora }).licenca;
+}
+/**
+ * A regra única da licença em vigor, a partir do que foi lido: a gravada; o Pro de cortesia por cima (`comCortesia`,
+ * que vale também como o "Pro da própria conta" para organização e dona); o Pro da organização (`licencaComProDaOrg`);
+ * o super admin e os add-ons pagos e de cortesia (`licencaEmVigor`); e o limite de devices com os extras pagos e as
+ * cortesias. `licencaDaConta` (app e máquina) e `montarContaApi` (console) usam esta mesma função.
+ */
+function comporLicenca(f: { gravada: License; pagos: readonly { produto: string; expiresAt: string }[]; devices: readonly { expiresAt: string }[]; cobertura: CoberturaOrg | null; cortesias: readonly Cortesia[]; papel: Papel; catalogo: readonly string[]; agora: string }): { licenca: License; comCortesia: License; comOrg: License; deviceExtras: number; deviceCortesias: number } {
+  const ms = Date.parse(f.agora);
+  const comCortesia = comProDeCortesia(f.gravada, f.cortesias, ms);
+  const comOrg = licencaComProDaOrg(comCortesia, f.cobertura, ms);
+  const vigor = licencaEmVigor(comOrg, [...f.pagos, ...addonsDeCortesia(f.cortesias)], f.papel, f.catalogo, f.agora);
+  const dev = limiteComExtras(vigor.deviceLimit, f.devices, ms, DEVICE_LIMITE_MAX, unidadesDeCortesia(f.cortesias, "device"));
+  return { licenca: { ...vigor, deviceLimit: dev.limite }, comCortesia, comOrg, deviceExtras: dev.extras, deviceCortesias: dev.cortesias };
+}
+/** A licença gravada com o Pro de cortesia por cima, quando ele vale mais (`licencaComProAte`); a mesma, sem cortesia de Pro valendo. */
+function comProDeCortesia(l: License, cs: readonly Cortesia[], agoraMs: number): License {
+  const fim = fimDoProDeCortesia(cs, agoraMs);
+  return fim === null ? l : licencaComProAte(l, fim, agoraMs);
+}
+/**
+ * A licença da própria conta (a gravada com o Pro de cortesia), sem o Pro de organização nem os add-ons: é a que conta
+ * para "o Pro da dona está valendo" e para criar organização. O Pro pago e o de cortesia valem igual aqui.
+ */
+export async function licencaPropria(db: D1Database, conta: ContaLinha, agoraMs = Date.now()): Promise<License> {
+  const [l, cs] = await Promise.all([licencaGravada(db, conta), cortesiasDaConta(db, conta.id)]);
+  return comProDeCortesia(l, cs, agoraMs);
+}
+/** O Pro da dona da organização vale agora (super admin vale sempre)? Sem ele, ninguém é coberto pela organização. */
+export async function donaComPro(db: D1Database, dona: ContaLinha, adminInicial: string, agoraMs = Date.now()): Promise<boolean> {
+  const [l, papel] = await Promise.all([licencaPropria(db, dona, agoraMs), papelAdmin(db, dona.email, adminInicial)]);
+  return papel === "super" || (l.plan === "pro" && l.status === "active" && (l.expiresAt === null || Date.parse(l.expiresAt) > agoraMs));
+}
+
+// ---- Cortesias (tabela `cortesias`, cortesia-core.ts): o que o admin libera de graça, com prazo, quem e por quê.
+interface CortesiaLinha { id: string; conta_id: string; tipo: string; produto: string | null; org_id: string | null; quantidade: number; inicio: string; fim: string; motivo: string; por: string; encerrada_em: string | null }
+const cortesiaDaLinha = (r: CortesiaLinha): Cortesia | null => (ehTipoCortesia(r.tipo) ? { id: r.id, tipo: r.tipo, produto: r.produto, orgId: r.org_id, quantidade: Number.isInteger(r.quantidade) && r.quantidade >= 1 ? r.quantidade : 1, inicio: r.inicio, fim: r.fim, motivo: r.motivo, por: r.por, encerradaEm: r.encerrada_em } : null);
+const cortesiasDasLinhas = (rs: readonly CortesiaLinha[]): Cortesia[] => rs.map(cortesiaDaLinha).filter((c): c is Cortesia => c !== null);
+/** As cortesias da conta (todas as que ela recebeu, válidas ou não), a mais nova primeiro; até 200. */
+export async function cortesiasDaConta(db: D1Database, contaId: string): Promise<Cortesia[]> {
+  return cortesiasDasLinhas((await db.prepare("SELECT * FROM cortesias WHERE conta_id = ?1 ORDER BY inicio DESC LIMIT 200").bind(contaId).all<CortesiaLinha>()).results);
+}
+/** As cortesias de usuário de uma organização (tipo "assento"), não encerradas. */
+async function cortesiasDaOrg(db: D1Database, orgId: string): Promise<Cortesia[]> {
+  return cortesiasDasLinhas((await db.prepare("SELECT * FROM cortesias WHERE org_id = ?1 AND tipo = 'assento' AND encerrada_em IS NULL").bind(orgId).all<CortesiaLinha>()).results);
+}
+/** Registra um encerramento feito pelo admin (o histórico da conta): o que, por quê e o que a AbacatePay respondeu. */
+export async function registrarEncerramento(db: D1Database, e: { contaId: string; alvo: "pro" | "addon" | "extra" | "cortesia"; ref: string; motivo: string; detalhe: string | null; cobranca: string | null; por: string }, agora = agoraIso()): Promise<void> {
+  await db.prepare("INSERT INTO encerramentos (id, conta_id, alvo, ref, motivo, detalhe, cobranca, por, quando) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)").bind(uuid(), e.contaId, e.alvo, e.ref, e.motivo, e.detalhe, e.cobranca, e.por, agora).run();
+}
+/** Grava uma cortesia nova e a devolve. `orgId` só no tipo "assento" (a rota confere que a conta é a dona). */
+export async function gravarCortesia(db: D1Database, contaId: string, p: { tipo: TipoCortesia; produto: string | null; orgId: string | null; quantidade: number; fim: string; motivo: string }, por: string, agora = agoraIso()): Promise<Cortesia> {
+  const c: Cortesia = { id: uuid(), tipo: p.tipo, produto: p.produto, orgId: p.orgId, quantidade: p.quantidade, inicio: agora, fim: p.fim, motivo: p.motivo, por, encerradaEm: null };
+  await db.prepare("INSERT INTO cortesias (id, conta_id, tipo, produto, org_id, quantidade, inicio, fim, motivo, por) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)").bind(c.id, contaId, c.tipo, c.produto, c.orgId, c.quantidade, c.inicio, c.fim, c.motivo, por).run();
+  return c;
+}
+/**
+ * Renova uma cortesia não encerrada da conta até `fim`, só para mais longe (vencida também volta a valer). Encurtar não
+ * é renovar: tirar antes do prazo é encerrar, que pede motivo e vai para o histórico. Devolve a renovada, ou null.
+ */
+export async function renovarCortesia(db: D1Database, contaId: string, id: string, fim: string): Promise<Cortesia | null> {
+  const r = await db.prepare("UPDATE cortesias SET fim = ?3 WHERE conta_id = ?1 AND id = ?2 AND encerrada_em IS NULL AND fim < ?3").bind(contaId, id, fim).run();
+  if ((r.meta.changes ?? 0) === 0) return null;
+  const l = await db.prepare("SELECT * FROM cortesias WHERE id = ?1").bind(id).first<CortesiaLinha>();
+  return l === null ? null : cortesiaDaLinha(l);
+}
+/** Encerra agora uma cortesia ainda válida da conta, com quem e por quê; devolve a cortesia como era, ou null se não há. */
+export async function encerrarCortesia(db: D1Database, contaId: string, id: string, por: string, motivo: string, agora = agoraIso()): Promise<Cortesia | null> {
+  const l = await db.prepare("SELECT * FROM cortesias WHERE conta_id = ?1 AND id = ?2").bind(contaId, id).first<CortesiaLinha>();
+  const c = l === null ? null : cortesiaDaLinha(l);
+  if (c === null || !cortesiaValida(c, Date.parse(agora))) return null;
+  const r = await db.prepare("UPDATE cortesias SET encerrada_em = ?3, encerrada_por = ?4, motivo_encerramento = ?5 WHERE conta_id = ?1 AND id = ?2 AND encerrada_em IS NULL").bind(contaId, id, agora, por, motivo).run();
+  return (r.meta.changes ?? 0) > 0 ? c : null;
 }
 /**
  * Quantos devices a conta pode ter ativos agora: o que o admin gravou (licencas.device_limit) mais os devices extras
- * pagos em dia. `extras` é quantas vagas são pagas. É o limite que `licencaDaConta` e `montarContaApi` entregam.
+ * pagos e as cortesias em dia. `extras` é quantas vagas são pagas; `cortesias`, quantas são cortesia. É o limite que `licencaDaConta` e `montarContaApi` entregam.
  */
-export async function limiteDeDevicesComExtras(db: D1Database, conta: ContaLinha, agoraMs = Date.now()): Promise<{ limite: number; extras: number }> {
-  const [l, pagos] = await Promise.all([licencaGravada(db, conta), extrasPagos(db, conta.id, "device")]);
-  return limiteComExtras(l.deviceLimit, pagos, agoraMs, DEVICE_LIMITE_MAX);
+export async function limiteDeDevicesComExtras(db: D1Database, conta: ContaLinha, agoraMs = Date.now()): Promise<{ limite: number; extras: number; cortesias: number }> {
+  const [l, pagos, cs] = await Promise.all([licencaGravada(db, conta), extrasPagos(db, conta.id, "device"), cortesiasDaConta(db, conta.id)]);
+  return limiteComExtras(l.deviceLimit, pagos, agoraMs, DEVICE_LIMITE_MAX, unidadesDeCortesia(cs, "device"));
 }
 /**
  * Promove a ativos os devices pendentes que cabem em `limite`, do pedido mais antigo para o mais novo (um device extra
@@ -315,12 +388,13 @@ export async function maquinasVistasDaConta(db: D1Database, contaId: string, des
 }
 const limiteValido = (n: unknown): number => (typeof n === "number" && Number.isInteger(n) && n >= 1 ? n : 1);
 /**
- * Quantos usuários a organização tem agora: os inclusos e de cortesia (`organizacoes.assentos`) mais os usuários pagos
- * em dia (extras_pagos de tipo "assento" com o `org_id` dela). `extras` é quantos são pagos.
+ * Quantos usuários a organização tem agora: os inclusos (`organizacoes.assentos`), os de cortesia do admin (cortesias
+ * de tipo "assento" da organização) e os usuários pagos em dia (extras_pagos de tipo "assento" com o `org_id` dela).
+ * `extras` é quantos são pagos; `cortesias`, quantos são cortesia.
  */
-export async function assentosDaOrg(db: D1Database, org: OrgLinha, agoraMs = Date.now()): Promise<{ limite: number; extras: number }> {
-  const r = await db.prepare("SELECT expires_at FROM extras_pagos WHERE org_id = ?1 AND tipo = 'assento'").bind(org.id).all<{ expires_at: string }>();
-  return limiteComExtras(limiteValido(org.assentos), r.results.map((x) => ({ expiresAt: x.expires_at })), agoraMs, ASSENTOS_MAX);
+export async function assentosDaOrg(db: D1Database, org: OrgLinha, agoraMs = Date.now()): Promise<{ limite: number; extras: number; cortesias: number }> {
+  const [r, cs] = await Promise.all([db.prepare("SELECT expires_at FROM extras_pagos WHERE org_id = ?1 AND tipo = 'assento'").bind(org.id).all<{ expires_at: string }>(), cortesiasDaOrg(db, org.id)]);
+  return limiteComExtras(limiteValido(org.assentos), r.results.map((x) => ({ expiresAt: x.expires_at })), agoraMs, ASSENTOS_MAX, unidadesDeCortesia(cs, "assento", org.id));
 }
 /** As unidades extras pagas da conta (extras_pagos), vencidas ou não; `tipo` filtra (ex.: "maquina"). */
 export async function extrasPagos(db: D1Database, contaId: string, tipo?: string): Promise<{ assinaturaId: string; tipo: string; expiresAt: string }[]> {
@@ -329,11 +403,11 @@ export async function extrasPagos(db: D1Database, contaId: string, tipo?: string
 }
 /**
  * Em quantas máquinas a conta pode usar a licença agora: o que o admin gravou (licencas.maquina_limit; sem linha, 1)
- * mais as máquinas extras pagas em dia (limiteComExtras). `extras` é quantas vagas são pagas.
+ * mais as máquinas extras pagas e as cortesias em dia (limiteComExtras). `extras` é quantas vagas são pagas; `cortesias`, quantas são cortesia.
  */
-export async function limiteDeMaquinasComExtras(db: D1Database, contaId: string, agoraMs = Date.now()): Promise<{ limite: number; extras: number }> {
-  const [base, pagos] = await Promise.all([db.prepare("SELECT maquina_limit FROM licencas WHERE conta_id = ?1").bind(contaId).first<{ maquina_limit: number }>(), extrasPagos(db, contaId, "maquina")]);
-  return limiteComExtras(limiteValido(base?.maquina_limit), pagos, agoraMs);
+export async function limiteDeMaquinasComExtras(db: D1Database, contaId: string, agoraMs = Date.now()): Promise<{ limite: number; extras: number; cortesias: number }> {
+  const [base, pagos, cs] = await Promise.all([db.prepare("SELECT maquina_limit FROM licencas WHERE conta_id = ?1").bind(contaId).first<{ maquina_limit: number }>(), extrasPagos(db, contaId, "maquina"), cortesiasDaConta(db, contaId)]);
+  return limiteComExtras(limiteValido(base?.maquina_limit), pagos, agoraMs, undefined, unidadesDeCortesia(cs, "maquina"));
 }
 /**
  * A fila de cobertura de uma organização, a regra única de quem recebe o Pro por ela: a dona primeiro, depois quem
@@ -356,7 +430,7 @@ export async function coberturaDaOrg(db: D1Database, conta: ContaLinha, agoraMs 
   const coberturas = await Promise.all(minhas.results.map(async (org): Promise<CoberturaOrg | null> => {
     const dona = await contaPorId(db, org.dona_conta_id);
     if (dona === null) return null;
-    const [ld, papelDona] = await Promise.all([licencaGravada(db, dona), papelAdmin(db, dona.email, "")]);
+    const [ld, papelDona] = await Promise.all([licencaPropria(db, dona, agoraMs), papelAdmin(db, dona.email, "")]);
     const donaSuper = papelDona === "super";
     if (!donaSuper && !(ld.plan === "pro" && ld.status === "active" && (ld.expiresAt === null || Date.parse(ld.expiresAt) > agoraMs))) return null;
     const [vagas, fila] = await Promise.all([assentosDaOrg(db, org, agoraMs),
@@ -457,22 +531,32 @@ export async function promoDaConta(db: D1Database, conta: ContaLinha, promo: Pro
   const d = direitoPromo({ ...base, jaPagouPro: await jaPagouPro(db, conta.id) });
   return d === null ? null : { precoCentavos: promo.precoCentavos, ate: d.ate, cupom: promo.cupom };
 }
+/**
+ * As cortesias que a própria pessoa vê no console: as válidas e as que acabaram ou foram encerradas nos últimos 30 dias,
+ * sem quem liberou nem o motivo (isso é só do admin).
+ */
+function cortesiasParaAConta(cs: readonly Cortesia[], agoraMs: number): CortesiaDaConta[] {
+  const desde = agoraMs - 30 * 24 * 60 * 60 * 1000;
+  return cs.filter((c) => Date.parse(c.encerradaEm ?? c.fim) > desde).map((c) => ({ id: c.id, tipo: c.tipo, produto: c.produto, orgId: c.orgId, quantidade: c.quantidade, inicio: c.inicio, fim: c.fim, encerradaEm: c.encerradaEm }));
+}
 /** A conta como o app a vê: licença, devices (com "este"), máquinas, pedidos e o papel de admin. `promo`: a configuração da promoção do primeiro mês no ambiente; só o console (`GET|PATCH /conta`) a passa. */
 export async function montarContaApi(db: D1Database, conta: ContaLinha, admin: Papel, catalogo: readonly string[], deviceAtual: string | null, promo: Promo | null = null): Promise<ContaApi> {
-  const [criar, gravada, pagos, devices, maquinas, vistas, pedidos, liberacoes, orgs, limiteMaq, extras, ass] = await Promise.all([orgsParaCriar(db, conta.id), licencaGravada(db, conta), addonsPagos(db, conta.id), devicesDaConta(db, conta.id), maquinasDaConta(db, conta.id), maquinasVistasDaConta(db, conta.id, agoraIso(Date.now() - LICENCA_VALIDADE_MS)), pedidosAbertos(db, conta.id), liberacoesDaConta(db, conta.id), orgsDaConta(db, conta.id), limiteDeMaquinasComExtras(db, conta.id), extrasPagos(db, conta.id),
-    db.prepare("SELECT id, produto, status, valor_centavos FROM assinaturas WHERE conta_id = ?1 ORDER BY criada_em DESC LIMIT 50").bind(conta.id).all<{ id: string; produto: string | null; status: string; valor_centavos: number | null }>()]);
-  const limiteDev = limiteComExtras(gravada.deviceLimit, extras.filter((x) => x.tipo === "device"), Date.now(), DEVICE_LIMITE_MAX);
-  // O Pro pela organização entra antes da licença em vigor; `proPelaOrg` diz à tela de onde ele vem (null = é da própria conta).
-  const cobertura = await coberturaDaOrg(db, conta);
-  const comOrg = licencaComProDaOrg(gravada, cobertura, Date.now());
-  const licenca = { ...licencaEmVigor(comOrg, pagos, admin, catalogo, agoraIso()), deviceLimit: limiteDev.limite };
+  const [criar, gravada, pagos, devices, maquinas, vistas, pedidos, liberacoes, orgs, limiteMaq, extras, ass, cs, cobertura] = await Promise.all([orgsParaCriar(db, conta.id), licencaGravada(db, conta), addonsPagos(db, conta.id), devicesDaConta(db, conta.id), maquinasDaConta(db, conta.id), maquinasVistasDaConta(db, conta.id, agoraIso(Date.now() - LICENCA_VALIDADE_MS)), pedidosAbertos(db, conta.id), liberacoesDaConta(db, conta.id), orgsDaConta(db, conta.id), limiteDeMaquinasComExtras(db, conta.id), extrasPagos(db, conta.id),
+    db.prepare("SELECT id, produto, status, valor_centavos FROM assinaturas WHERE conta_id = ?1 ORDER BY criada_em DESC LIMIT 50").bind(conta.id).all<{ id: string; produto: string | null; status: string; valor_centavos: number | null }>(), cortesiasDaConta(db, conta.id), coberturaDaOrg(db, conta)]);
+  // A mesma regra de licencaDaConta (comporLicenca). `comOrg !== comCortesia` diz que o Pro veio da organização, e
+  // `comCortesia !== gravada`, que veio da cortesia: a tela diz de onde vem (`origemDoPro`, `proPelaOrg`).
+  const agora = agoraIso(), agoraMs = Date.parse(agora);
+  const { licenca, comCortesia, comOrg, deviceExtras, deviceCortesias } = comporLicenca({ gravada, pagos, devices: extras.filter((x) => x.tipo === "device"), cobertura, cortesias: cs, papel: admin, catalogo, agora });
+  const pelaOrg = comOrg !== comCortesia && cobertura !== null && admin !== "super";
+  const porCortesia = comCortesia !== gravada;
+  const pagou = ass.results.some((a) => a.produto === null) || (!pelaOrg && !porCortesia && licenca.plan === "pro" && await jaPagouPro(db, conta.id));
   const assinaturas: ContaAssinatura[] = ass.results.map((a) => ({ id: a.id, produto: a.produto, status: a.status === "CANCELLED" ? "CANCELLED" : "ACTIVE", valorCentavos: a.valor_centavos, valeAte: a.produto === null ? gravada.expiresAt : tipoDoExtra(a.produto) !== null ? extras.find((x) => x.assinaturaId === a.id)?.expiresAt ?? null : pagos.find((p) => p.produto === a.produto)?.expiresAt ?? null }));
   const ds: DeviceApi[] = devices.map((d) => {
     let apps: DeviceApi["apps"] = {};
     try { const a: unknown = JSON.parse(d.apps); if (a !== null && typeof a === "object") apps = a as DeviceApi["apps"]; } catch { apps = {}; }
     return { id: d.id, alias: d.alias_legado, name: d.name ?? "", user: d.user ?? "", platform: d.platform ?? "", status: d.status === "pending" ? "pending" : "active", requestedAt: d.requested_at, firstSeen: d.first_seen, lastSeen: d.last_seen, apps, este: deviceAtual !== null && (d.id === deviceAtual || d.alias_legado === deviceAtual) };
   });
-  return { id: conta.id, email: conta.email, nome: nomeExibicao(conta), nomeLogin: conta.nome, foto: conta.foto, perfil: perfilDaLinha(conta), provedores: parseProvedores(conta.provedores), dadosUso: conta.dados_uso !== 0, admin, licenca, devices: ds, maquinas: maquinas.map(maquinaApi), maquinasVistas: vistas, maquinaLimite: limiteMaq.limite, maquinaExtras: limiteMaq.extras, deviceExtras: limiteDev.extras, pedidos, liberacoes, assinaturas, orgs, proPelaOrg: comOrg !== gravada && cobertura !== null && admin !== "super" ? { slug: cobertura.slug, nome: cobertura.nome, ate: cobertura.ate } : null, orgCriar: { limite: criar.limite, donaDe: criar.donaDe, motivo: podeCriarOrg({ licenca: gravada, papel: admin, donaDe: criar.donaDe, limite: criar.limite, agoraMs: Date.now() })?.motivo ?? null }, promo: await promoDaConta(db, conta, promo, admin, Date.now(), gravada) };
+  return { id: conta.id, email: conta.email, nome: nomeExibicao(conta), nomeLogin: conta.nome, foto: conta.foto, perfil: perfilDaLinha(conta), provedores: parseProvedores(conta.provedores), dadosUso: conta.dados_uso !== 0, admin, licenca, devices: ds, maquinas: maquinas.map(maquinaApi), maquinasVistas: vistas, maquinaLimite: limiteMaq.limite, maquinaExtras: limiteMaq.extras, maquinaCortesias: limiteMaq.cortesias, deviceExtras, deviceCortesias, pedidos, liberacoes, assinaturas, orgs, proPelaOrg: pelaOrg && cobertura !== null ? { slug: cobertura.slug, nome: cobertura.nome, ate: cobertura.ate } : null, origemDoPro: origemDoPro({ papel: admin, licenca, pelaOrg, porCortesia, pagou, agoraMs }), cortesias: cortesiasParaAConta(cs, agoraMs), orgCriar: { limite: criar.limite, donaDe: criar.donaDe, motivo: podeCriarOrg({ licenca: comCortesia, papel: admin, donaDe: criar.donaDe, limite: criar.limite, agoraMs })?.motivo ?? null }, promo: await promoDaConta(db, conta, promo, admin, Date.now(), gravada) };
 }
 
 // ---- Admin: a visão de todas as contas. `busca` filtra por e-mail ou nome (LIKE, escapado); até 500 contas.
@@ -503,6 +587,8 @@ export async function visaoAdmin(db: D1Database, busca: string, adminInicial: st
   for (const a of pagosLinhas) { const lista = pagos.get(a.conta_id) ?? []; lista.push({ produto: a.produto, expiresAt: a.expires_at }); pagos.set(a.conta_id, lista); }
   const extrasDe = new Map<string, { assinaturaId: string; tipo: string; expiresAt: string }[]>();
   for (const x of (await db.prepare("SELECT conta_id, assinatura_id, tipo, expires_at FROM extras_pagos ORDER BY expires_at").all<{ conta_id: string; assinatura_id: string; tipo: string; expires_at: string }>()).results) { const lista = extrasDe.get(x.conta_id) ?? []; lista.push({ assinaturaId: x.assinatura_id, tipo: x.tipo, expiresAt: x.expires_at }); extrasDe.set(x.conta_id, lista); }
+  const cortesiasDe = new Map<string, Cortesia[]>();
+  for (const c of (await db.prepare("SELECT * FROM cortesias ORDER BY inicio DESC").all<CortesiaLinha>()).results) { const x = cortesiaDaLinha(c); if (x === null) continue; const lista = cortesiasDe.get(c.conta_id) ?? []; lista.push(x); cortesiasDe.set(c.conta_id, lista); }
   const devs = new Map<string, DeviceApi[]>();
   for (const d of devices.results) { const lista = devs.get(d.conta_id) ?? []; lista.push(deviceApi(d)); devs.set(d.conta_id, lista); }
   const maq = new Map(maquinas.results.map((m) => [m.conta_id, m.n]));
@@ -512,9 +598,9 @@ export async function visaoAdmin(db: D1Database, busca: string, adminInicial: st
   // seguem à parte em `addonsPagos`. De um super admin vai também a gravada, que é o que o editor de licença muda.
   const licencasDe = (c: { id: string; email: string; criada_em: string }): { licenca: License; licencaGravada?: License } => {
     const gravada = licencaDaLinha(lic.get(c.id) ?? null, c.criada_em);
-    return adm.get(c.email) === "super" ? { licenca: licencaDoSuper(gravada, catalogo), licencaGravada: gravada } : { licenca: gravada };
+    return adm.get(c.email) === "super" ? { licenca: licencaDoSuper(gravada, catalogo), licencaGravada: gravada } : { licenca: comProDeCortesia(gravada, cortesiasDe.get(c.id) ?? [], Date.parse(agora)) };
   };
-  const resumo: AdminContaResumo[] = contas.map((c) => ({ id: c.id, email: c.email, nome: nomeExibicao(c), foto: c.foto, admin: adm.get(c.email) ?? null, criadaEm: c.criada_em, ...licencasDe(c), addonsPagos: pagos.get(c.id) ?? [], extrasPagos: extrasDe.get(c.id) ?? [], devices: devs.get(c.id) ?? [], maquinas: maq.get(c.id) ?? 0, maquinaLimite: limiteValido(lic.get(c.id)?.maquina_limit), orgLimite: limiteValido(lic.get(c.id)?.org_limit), pedidos: ped.get(c.id) ?? 0 }));
+  const resumo: AdminContaResumo[] = contas.map((c) => ({ id: c.id, email: c.email, nome: nomeExibicao(c), foto: c.foto, admin: adm.get(c.email) ?? null, criadaEm: c.criada_em, ...licencasDe(c), addonsPagos: pagos.get(c.id) ?? [], extrasPagos: extrasDe.get(c.id) ?? [], devices: devs.get(c.id) ?? [], maquinas: maq.get(c.id) ?? 0, maquinaLimite: limiteValido(lic.get(c.id)?.maquina_limit), orgLimite: limiteValido(lic.get(c.id)?.org_limit), pedidos: ped.get(c.id) ?? 0, cortesias: cortesiasDe.get(c.id) ?? [] }));
   const todas = busca === "" ? resumo : (await db.prepare("SELECT id, email, criada_em FROM contas WHERE apagada_em IS NULL").all<{ id: string; email: string; criada_em: string }>()).results.map((c) => ({ id: c.id, licenca: licencasDe(c).licenca, devices: devs.get(c.id) ?? [] }));
   const totais = { contas: todas.length, pro: todas.filter((c) => c.licenca.plan === "pro").length, devicesPendentes: devices.results.filter((d) => d.status === "pending").length, pedidosAbertos: pedidos.results.length, orgs: orgs.length };
   const emails = new Set((await db.prepare("SELECT email FROM contas WHERE apagada_em IS NULL").all<{ email: string }>()).results.map((c) => c.email));
@@ -677,9 +763,8 @@ export async function montarOrgApi(db: D1Database, org: OrgLinha, meuEmail: stri
   const cobertos = new Set(fila.slice(0, vagas.limite).map((m) => m.email));
   for (const m of lista) m.coberto = cobertos.has(m.email);
   const contaDona = await contaPorId(db, org.dona_conta_id);
-  const ld = contaDona === null ? null : await licencaGravada(db, contaDona);
-  const donaComPro = contaDona !== null && ((await papelAdmin(db, contaDona.email, "")) === "super" || (ld !== null && ld.plan === "pro" && ld.status === "active" && (ld.expiresAt === null || Date.parse(ld.expiresAt) > Date.now())));
-  return { id: org.id, slug: org.slug, nome: org.nome, dominioEmail: org.dominio_email, assentos: vagas.limite, assentosInclusos: vagas.limite - vagas.extras, assentosPagos: vagas.extras, donaComPro, ocupados: lista.length, criadaEm: org.criada_em, dona: { email: dona?.email ?? "", nome: dona ? nomeExibicao(dona) : null }, meuPapel, membros: lista, url: `${consoleOrigin}/organizations/${org.slug}/members` };
+  const comPro = contaDona !== null && await donaComPro(db, contaDona, "");
+  return { id: org.id, slug: org.slug, nome: org.nome, dominioEmail: org.dominio_email, assentos: vagas.limite, assentosInclusos: vagas.limite - vagas.extras - vagas.cortesias, assentosCortesia: vagas.cortesias, assentosPagos: vagas.extras, donaComPro: comPro, ocupados: lista.length, criadaEm: org.criada_em, dona: { email: dona?.email ?? "", nome: dona ? nomeExibicao(dona) : null }, meuPapel, membros: lista, url: `${consoleOrigin}/organizations/${org.slug}/members` };
 }
 /** A conta pelo e-mail exato (já normalizado: minúsculo, sem espaços). */
 export async function contaPorEmail(db: D1Database, email: string): Promise<ContaLinha | null> {

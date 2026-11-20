@@ -14,7 +14,7 @@
  * Liga só com ABACATEPAY_KEY, ABACATEPAY_WEBHOOK_SECRET e ABACATEPAY_PRODUTO; sem eles, as duas rotas respondem 503.
  */
 import type { Env, OrgLinha } from "../tipos.js";
-import { assentosDaOrg, membroPor, orgPorSlug, limiteDeDevicesComExtras, promoverDevicesPendentes, addonsPagos, auditar, contaPorId, contarLimite, jaPagouPro, licencaDaConta, licencaGravada, limiteDeMaquinas, papelAdmin, promoDaConta, removerAssinatura } from "../db.js";
+import { assentosDaOrg, donaComPro, membroPor, orgPorSlug, limiteDeDevicesComExtras, promoverDevicesPendentes, addonsPagos, auditar, contaPorId, contarLimite, jaPagouPro, licencaDaConta, licencaGravada, limiteDeMaquinas, papelAdmin, promoDaConta, removerAssinatura } from "../db.js";
 import { ASSENTOS_MAX, DEVICE_LIMITE_MAX, agoraIso, janelaMinuto, uuid, validaSlug } from "../sessao-core.js";
 import { json, lerJson, type Autenticado } from "../http.js";
 import { gaIds } from "../analytics-core.js";
@@ -147,10 +147,7 @@ export async function postAssinatura(auth: Autenticado, env: Env, req: Request):
     if (eu === null || eu.conta_id !== auth.conta.id || (eu.papel !== "dona" && eu.papel !== "admin")) return json({ erro: "só a dona ou um admin da organização adiciona usuários" }, 403);
     // O usuário pago recebe o Pro pela organização: sem o Pro da dona valendo, a vaga não entregaria nada.
     const dona = await contaPorId(env.DB, org.dona_conta_id);
-    const ld = dona === null ? null : await licencaGravada(env.DB, dona);
-    const papelDona = dona === null ? null : await papelAdmin(env.DB, dona.email, env.ADMIN_BOOTSTRAP_EMAIL);
-    const donaComPro = papelDona === "super" || (ld !== null && ld.plan === "pro" && ld.status === "active" && (ld.expiresAt === null || Date.parse(ld.expiresAt) > agoraMs));
-    if (!donaComPro) return json({ erro: "o usuário da organização vale junto com o Pro de quem é a dona; assine o Pro primeiro" }, 409);
+    if (dona === null || !(await donaComPro(env.DB, dona, env.ADMIN_BOOTSTRAP_EMAIL, agoraMs))) return json({ erro: "o usuário da organização vale junto com o Pro de quem é a dona; assine o Pro primeiro" }, 409);
     if ((await assentosDaOrg(env.DB, org, agoraMs)).limite >= ASSENTOS_MAX) return json({ erro: `a organização já está no máximo de ${ASSENTOS_MAX} usuários; fale com o suporte` }, 409);
   } else if (extra !== null) {
     const device = extra.tipo === "device";
