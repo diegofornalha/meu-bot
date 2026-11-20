@@ -1,12 +1,15 @@
 /**
  * Modo instagramável (19 nov): com a depuração ligada, cada log que chega de fora (depuracao:evento) vira um cursor
- * colorido com o nome de alguém da organização da conta. Ele entra por uma borda, voa até a página do Navegador (ação
- * do navegador) ou até a faixa de depuração (o resto) e "clica", com uma explosão de partículas; log com erro treme e explode em vermelho. Liga no seletor
- * (o ✨ colado no Intro) ou na paleta; fica gravado em `instagramavel` nas configurações.
+ * colorido com o nome de alguém da organização da conta e um balão que diz o que aquele log fez. Ele entra por uma
+ * borda, voa até onde a ação aconteceu (o ponto real, a página do Navegador ou a faixa de depuração) e "clica", com uma
+ * explosão de partículas (erro treme e explode em vermelho). Depois entra na esteira: o mais novo na primeira vaga, os
+ * outros deslizam uma vaga adiante, todos flutuando devagar para dar para ler. Entram um a um (ENTRADA_MS), acumulam
+ * até MAX_CURSORES e, sem logs, saem aos poucos (SAIDA_MS). Liga no seletor (o ✨ colado no Intro) ou na paleta; fica
+ * gravado em `instagramavel` nas configurações.
  */
 import type { ContaView, EventoDepuracao, SettingsView } from "../../shared/ipc";
 import { byId as $ } from "../lib/dom.js";
-import { MAX_CURSORES, corDoCursor, pontoDeEntrada, pontoNaPagina, proximoNome, textoDoBalao } from "../lib/instagramavel-core.js";
+import { ENTRADA_MS, MAX_CURSORES, SAIDA_MS, SILENCIO_MS, corDoCursor, pontoDeEntrada, pontoNaPagina, proximoNome, textoDoBalao, vagaDoCursor } from "../lib/instagramavel-core.js";
 import { faixaLigada } from "./faixa.js";
 import { pontoReal } from "./cursor-agente.js";
 import { ctx } from "../app/ctx.js";
@@ -17,7 +20,14 @@ const ERRO = "hsl(0 85% 55%)";
 let ligado = false;
 let nomes: string[] = [];
 let vez = 0;
-let vivos = 0;
+/** Os cursores parados na tela, do mais antigo ao mais novo (no máximo MAX_CURSORES). */
+const parados: HTMLElement[] = [];
+/** Logs esperando a vez de entrar (rajada entra aos poucos); só os MAX_CURSORES mais novos esperam. */
+const fila: EventoDepuracao[] = [];
+let entrando: ReturnType<typeof setTimeout> | null = null;
+let silencio: ReturnType<typeof setTimeout> | null = null;
+/** A saída gradual em curso (um por SAIDA_MS); null = parada. */
+let saindo: ReturnType<typeof setInterval> | null = null;
 
 export const instagramavelLigado = (): boolean => ligado;
 const calmo = (): boolean => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -29,7 +39,7 @@ function aplicar(on: boolean): void {
   if (on === ligado) return;
   ligado = on;
   palco.hidden = !on;
-  if (on) void carregarNomes(); else palco.replaceChildren();
+  if (on) void carregarNomes(); else { palco.replaceChildren(); parados.length = 0; fila.length = 0; if (saindo !== null) { clearInterval(saindo); saindo = null; } }
 }
 /**
  * Para onde o cursor voa. Ação do Navegador (onde o show passa mais tempo, com o agente navegando): um ponto dentro da
@@ -59,48 +69,106 @@ function explodir(x: number, y: number, cor: string): void {
   palco.append(anel);
   anel.animate([{ transform: "translate(-50%, -50%) scale(.2)", opacity: 1 }, { transform: "translate(-50%, -50%) scale(1.6)", opacity: 0 }], { duration: 480, easing: "ease-out" }).onfinish = () => anel.remove();
 }
+/** A área onde os cursores ficam parados: a página do Navegador à vista, senão a janela abaixo das barras. */
+function areaDoPalco(): { left: number; top: number; width: number; height: number } {
+  const pagina = [...document.querySelectorAll("webview")].map((w) => w.getBoundingClientRect()).find((r) => r.width > 300 && r.height > 200);
+  if (pagina !== undefined) return pagina;
+  const topo = document.getElementById("depuracao-bar")?.getBoundingClientRect().bottom ?? 80;
+  return { left: 0, top: topo + 40, width: window.innerWidth, height: window.innerHeight - topo - 120 };
+}
+/** O mais antigo sai (esmaece e sobe um pouco); a vaga dele fica para quem está chegando. */
+function tirar(el: HTMLElement, devagar = false): void {
+  el.animate([{ opacity: 1 }, { opacity: 0, translate: "0 -12px" }], { duration: devagar ? 1200 : 500, easing: "ease-in", fill: "forwards" }).onfinish = () => el.remove();
+}
+/**
+ * O palco se reorganiza: cada cursor parado vai para a vaga da sua idade (o mais novo na primeira), deslizando de onde
+ * está. Chamado quando alguém chega e quando alguém sai: a esteira anda e a tela nunca fica parada.
+ */
+function reorganizar(): void {
+  const area = areaDoPalco();
+  const prontos = parados.filter((el) => el.dataset["parado"] === "1");
+  prontos.forEach((el, k) => {
+    const vaga = vagaDoCursor(prontos.length - 1 - k, area);
+    const de = { x: Number(el.dataset["x"]), y: Number(el.dataset["y"]) };
+    if (de.x === vaga.x && de.y === vaga.y) return;
+    // As animações anteriores viram estilo fixo e saem: sem acumular uma por reorganização.
+    for (const an of el.getAnimations()) { an.commitStyles(); an.cancel(); }
+    el.dataset["x"] = String(vaga.x); el.dataset["y"] = String(vaga.y);
+    el.animate([{ transform: `translate(${de.x}px, ${de.y}px)` }, { transform: `translate(${vaga.x}px, ${vaga.y}px)` }], { duration: calmo() ? 0 : 800 + k * 25, easing: "cubic-bezier(.3,.1,.2,1)", fill: "forwards" });
+  });
+}
+/** Depois de SILENCIO_MS sem log, os parados saem aos poucos: o mais antigo a cada SAIDA_MS, esmaecendo devagar. */
+function armarSilencio(): void {
+  if (silencio !== null) clearTimeout(silencio);
+  if (saindo !== null) { clearInterval(saindo); saindo = null; } // chegou log: a saída para, o palco volta a encher
+  silencio = setTimeout(() => {
+    saindo = setInterval(() => {
+      const el = parados.shift();
+      if (el === undefined) { if (saindo !== null) clearInterval(saindo); saindo = null; return; }
+      tirar(el, true); reorganizar();
+    }, SAIDA_MS);
+  }, SILENCIO_MS);
+}
 function mostrar(e: EventoDepuracao): void {
-  if (!ligado || !faixaLigada() || vivos >= MAX_CURSORES) return;
+  if (!ligado || !faixaLigada()) return;
+  if (textoDoBalao(e) === "") return; // sem nada a dizer (js, sonda): fica só na faixa
+  fila.push(e);
+  if (fila.length > MAX_CURSORES) fila.splice(0, fila.length - MAX_CURSORES);
+  armarSilencio();
+  if (entrando === null) proximo();
+}
+/** Tira o próximo da fila e agenda o seguinte: um cursor a cada ENTRADA_MS. */
+function proximo(): void {
+  const e = fila.shift();
+  if (e === undefined) { entrando = null; return; }
+  entrar(e);
+  entrando = setTimeout(proximo, ENTRADA_MS);
+}
+function entrar(e: EventoDepuracao): void {
   const fim = alvo(e);
   if (fim === null) return;
   const i = vez++;
   const nome = proximoNome(nomes, i);
   const cor = corDoCursor(nome, i);
   const el = document.createElement("div"); el.className = `insta-cursor${e.ok ? "" : " insta-erro"}`; el.style.color = cor;
-  el.innerHTML = SETA;
+  // O corpo flutua em volta da vaga (CSS, ritmo próprio): parado na tela, mas nunca imóvel.
+  const corpo = document.createElement("div"); corpo.className = "insta-corpo"; corpo.innerHTML = SETA;
+  corpo.style.animationDuration = `${5 + Math.random() * 3}s`; corpo.style.animationDelay = `-${Math.random() * 5}s`;
+  el.append(corpo);
   const etiqueta = document.createElement("span"); etiqueta.className = "insta-nome"; etiqueta.textContent = nome; etiqueta.style.background = cor;
-  el.append(etiqueta);
-  // O balão: o que este log fez (limpo para a tela). Aparece quando o cursor chega e segura o cursor um pouco mais.
+  corpo.append(etiqueta);
+  // O balão: o que este log fez (limpo para a tela). Aparece no clique e fica, para dar para ler.
   const fala = textoDoBalao(e);
   const balao = fala === "" ? null : Object.assign(document.createElement("span"), { className: "insta-balao", textContent: fala });
-  if (balao !== null) { balao.style.borderColor = e.ok ? cor : ERRO; el.append(balao); }
-  const fica = balao !== null ? 1800 : 350;
-  palco.append(el); vivos++;
-  const sair = (): void => {
-    el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 400, easing: "ease-in" }).onfinish = () => { el.remove(); vivos--; };
-  };
+  if (balao !== null) { balao.style.borderColor = e.ok ? cor : ERRO; corpo.append(balao); }
+  palco.append(el);
+  // Cheio: o mais antigo sai enquanto este entra (o novo toma a cena).
+  parados.push(el);
+  while (parados.length > MAX_CURSORES) tirar(parados.shift()!);
+  // Depois do clique, entra na esteira: ocupa a primeira vaga e empurra os outros uma vaga adiante.
+  const ficar = (): void => { el.dataset["x"] = String(fim.x); el.dataset["y"] = String(fim.y); el.dataset["parado"] = "1"; reorganizar(); };
   if (calmo()) {
-    el.style.transform = `translate(${fim.x}px, ${fim.y + 14}px)`;
+    el.style.transform = `translate(${fim.x}px, ${fim.y}px)`;
+    ficar();
     balao?.classList.add("on");
-    el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300 }).onfinish = () => setTimeout(sair, fica + 350);
+    el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300 });
     return;
   }
   const ini = pontoDeEntrada(window.innerWidth, window.innerHeight, Math.random());
   // Um ponto no meio do caminho desviado para o lado: o voo faz uma curva em vez de uma reta.
   const meio = { x: (ini.x + fim.x) / 2 + (Math.random() - 0.5) * 220, y: (ini.y + fim.y) / 2 + (Math.random() - 0.5) * 160 };
-  const voo = el.animate([
+  el.animate([
     { transform: `translate(${ini.x}px, ${ini.y}px)` },
     { transform: `translate(${meio.x}px, ${meio.y}px)`, offset: 0.55 },
     { transform: `translate(${fim.x}px, ${fim.y}px)` },
-  ], { duration: 850 + Math.random() * 250, easing: "cubic-bezier(.45,.05,.25,1)", fill: "forwards" });
-  voo.onfinish = () => {
-    // O clique: o cursor afunda um pouco e volta; com erro, treme.
+  ], { duration: 850 + Math.random() * 250, easing: "cubic-bezier(.45,.05,.25,1)", fill: "forwards" }).onfinish = () => {
+    // O clique: o cursor afunda um pouco e volta; com erro, treme. Depois desliza para a vaga e fica.
     const quadros = e.ok
       ? [{ transform: `translate(${fim.x}px, ${fim.y}px) scale(1)` }, { transform: `translate(${fim.x}px, ${fim.y}px) scale(.82)` }, { transform: `translate(${fim.x}px, ${fim.y}px) scale(1)` }]
       : [-6, 6, -4, 4, 0].map((d) => ({ transform: `translate(${fim.x + d}px, ${fim.y}px)` }));
     explodir(fim.x, fim.y, e.ok ? cor : ERRO);
     balao?.classList.add("on");
-    el.animate(quadros, { duration: e.ok ? 220 : 320, fill: "forwards" }).onfinish = () => setTimeout(sair, fica);
+    el.animate(quadros, { duration: e.ok ? 220 : 320, fill: "forwards" }).onfinish = () => setTimeout(ficar, 500);
   };
 }
 /** Liga eventos e o estado inicial; o renderer.ts chama uma vez, depois de ligarFaixaDepuracao. */

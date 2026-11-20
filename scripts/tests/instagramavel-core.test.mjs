@@ -66,3 +66,21 @@ test("pontoNaTela: converte o ponto da página para a janela com o zoom da aba; 
   assert.equal(rotuloDoDono("WhatsApp (whatsapp)"), "WhatsApp");
   assert.equal(rotuloDoDono(null), "agente");
 });
+
+test("vagaDoCursor: 20 vagas diferentes dentro da área; o 21º volta à vaga do 1º (o novo toma a do mais antigo)", async () => {
+  const { vagaDoCursor, MAX_CURSORES } = await import("../../dist/renderer/lib/instagramavel-core.js");
+  assert.equal(MAX_CURSORES, 20);
+  const area = { left: 200, top: 100, width: 1200, height: 700 };
+  const vagas = Array.from({ length: 20 }, (_, i) => vagaDoCursor(i, area));
+  assert.equal(new Set(vagas.map((v) => `${v.x},${v.y}`)).size, 20);
+  for (const v of vagas) assert.ok(v.x >= area.left && v.x <= area.left + area.width - 280 && v.y >= area.top && v.y <= area.top + area.height, JSON.stringify(v));
+  assert.deepEqual(vagaDoCursor(20, area), vagaDoCursor(0, area));
+  // Janela estreita: uma coluna só, ainda 20 vagas distintas.
+  assert.equal(new Set(Array.from({ length: 20 }, (_, i) => JSON.stringify(vagaDoCursor(i, { left: 0, top: 0, width: 400, height: 900 })))).size, 20);
+});
+
+test("textoDoBalao: /js e sondas não entram no palco (vazio)", async () => {
+  const { textoDoBalao } = await import("../../dist/renderer/lib/instagramavel-core.js");
+  assert.equal(textoDoBalao({ origem: "navegador", rota: "/js", ok: true, resumo: "js: 505 caracteres" }), "");
+  assert.equal(textoDoBalao({ origem: "navegador", rota: "/abas", ok: true, resumo: "sonda: 3 aba(s)" }), "");
+});

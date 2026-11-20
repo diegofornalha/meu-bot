@@ -4,8 +4,14 @@
  */
 import { hashHue } from "./host-color.js";
 
-/** Quantos cursores podem estar na tela ao mesmo tempo: além disso o log fica só na faixa (limite de DOM e animação). */
-export const MAX_CURSORES = 24;
+/** Quantos cursores ficam na tela, parados com o balão para dar para ler: o 21º toma a vaga do mais antigo. */
+export const MAX_CURSORES = 20;
+/** Intervalo mínimo entre dois cursores entrando: uma rajada de logs entra aos poucos, um de cada vez. */
+export const ENTRADA_MS = 450;
+/** Sem log nenhum por este tempo, os cursores parados começam a sair, para a tela não ficar cheia à toa. */
+export const SILENCIO_MS = 45_000;
+/** Na saída por silêncio, sai o mais antigo a cada SAIDA_MS (gradual, não todos de uma vez); um log novo interrompe. */
+export const SAIDA_MS = 2_500;
 /** Sem organização (ou sem nome nenhum): os cursores levam o nome do app. */
 export const NOME_PADRAO = "meu-bot";
 
@@ -55,9 +61,12 @@ export function limparParaTela(s: string): string {
 const VERBO_GMAIL: Record<string, string> = { "/status": "conferiu a conta", "/listar": "listou a caixa de entrada", "/ler": "leu um e-mail", "/apagar": "mandou um e-mail para a lixeira", "/restaurar": "restaurou um e-mail" };
 /**
  * O balão do cursor: o que aquele log fez, em uma linha curta e sem dado pessoal. A nota é o recado de quem dirige o
- * app (vai inteira, limpa); no Gmail só a ação (o resumo tem assunto e conta); erro leva ✗. Vazio = sem balão.
+ * app (vai inteira, limpa); no Gmail só a ação (o resumo tem assunto e conta); erro leva ✗. Vazio = o log não entra no
+ * palco (fica só na faixa): /js e sondas não dizem nada a quem assiste.
  */
 export function textoDoBalao(e: { origem: string; rota: string; ok: boolean; resumo: string }): string {
+  // Sem informação para quem assiste (código rodando na página, sondas automáticas): não entra no palco.
+  if (e.rota === "/js" || e.resumo.startsWith("sonda:")) return "";
   const base = e.origem === "gmail" ? `Gmail: ${VERBO_GMAIL[e.rota] ?? e.rota.replace(/^\//, "")}` : limparParaTela(e.resumo);
   if (base === "" || base === "ok") return "";
   const t = `${e.ok ? "" : "✗ "}${base}`;
@@ -78,4 +87,18 @@ export function pontoNaTela(p: { x: number; y: number; vw: number; vh: number },
 export function rotuloDoDono(dono: string | null): string {
   if (dono === null || dono.trim() === "") return "agente";
   return dono.replace(/\s*\([^()]*\)\s*$/, "").trim().slice(0, 32) || "agente";
+}
+
+/**
+ * A vaga do i-ésimo cursor, onde ele fica parado com o balão. São `max` vagas numa grade sobre a área de conteúdo
+ * (colunas de ~300 px, conforme a largura); o cursor i ocupa a vaga i % max, então o novo toma a vaga do mais antigo.
+ * Linhas alternadas andam meia coluna, para os balões não formarem uma tabela dura.
+ */
+export function vagaDoCursor(i: number, area: { left: number; top: number; width: number; height: number }, max: number = MAX_CURSORES): { x: number; y: number } {
+  const cols = Math.max(1, Math.min(max, Math.floor(area.width / 300)));
+  const linhas = Math.ceil(max / cols);
+  const k = ((i % max) + max) % max, col = k % cols, lin = Math.floor(k / cols);
+  const larg = area.width / cols, alt = area.height / linhas;
+  const desloc = lin % 2 === 1 ? larg * 0.35 : 0;
+  return { x: Math.round(area.left + Math.min(col * larg + 16 + desloc, area.width - 280)), y: Math.round(area.top + lin * alt + Math.min(alt * 0.5, 40) + 26) };
 }
