@@ -40,3 +40,29 @@ test("pontoNaPagina: sempre dentro da página, com margem das bordas (a etiqueta
   assert.deepEqual(pontoNaPagina(r, 0.5, 0.5), { x: 600, y: 350 });
   assert.deepEqual(pontoNaPagina(r, -3, 9), pontoNaPagina(r, 0, 1));
 });
+
+test("textoDoBalao: o que o log fez, sem e-mail, URL só com o domínio, Gmail só a ação, erro com ✗, cortado", async () => {
+  const { textoDoBalao, limparParaTela, BALAO_MAX } = await import("../../dist/renderer/lib/instagramavel-core.js");
+  assert.equal(textoDoBalao({ origem: "navegador", rota: "/abrir", ok: true, resumo: "https://analytics.google.com/analytics/web/?requestAccessEmail=box%40agentesgrok.com#/a1p2 → aba 5 (nova)" }), "analytics.google.com → aba 5 (nova)");
+  assert.equal(limparParaTela("aba 3: Inbox (2) - ana.souza@empresa.com.br - Gmail"), "aba 3: Inbox (2) - •••@••• - Gmail");
+  assert.equal(textoDoBalao({ origem: "gmail", rota: "/ler", ok: true, resumo: "leu 18c2: Proposta para ana@x.com" }), "Gmail: leu um e-mail");
+  assert.equal(textoDoBalao({ origem: "navegador", rota: "/clicar", ok: false, resumo: "nada com o seletor" }), "✗ nada com o seletor");
+  assert.equal(textoDoBalao({ origem: "nota", rota: "/nota", ok: true, resumo: "Claude: vou ler o Analytics" }), "Claude: vou ler o Analytics");
+  assert.equal(textoDoBalao({ origem: "hook", rota: "x", ok: true, resumo: "ok" }), "");
+  const longo = textoDoBalao({ origem: "nota", rota: "/nota", ok: true, resumo: "a".repeat(200) });
+  assert.equal(longo.length, BALAO_MAX); assert.ok(longo.endsWith("…"));
+  assert.ok(!/@[a-z]/i.test(textoDoBalao({ origem: "navegador", rota: "/ler", ok: true, resumo: "aba 2: box@agentesgrok.com - Google" })));
+});
+
+test("pontoNaTela: converte o ponto da página para a janela com o zoom da aba; fora do webview é null", async () => {
+  const { pontoNaTela, rotuloDoDono } = await import("../../dist/renderer/lib/instagramavel-core.js");
+  const wv = { left: 300, top: 120, width: 830, height: 600 };
+  // Zoom 83%: a página tem 1000 × 723 px visíveis num webview de 830 × 600.
+  assert.deepEqual(pontoNaTela({ x: 500, y: 361, vw: 1000, vh: 723 }, wv), { x: 715, y: 420 });
+  assert.deepEqual(pontoNaTela({ x: 0, y: 0, vw: 830, vh: 600 }, wv), { x: 300, y: 120 });
+  assert.equal(pontoNaTela({ x: 10, y: 10, vw: 0, vh: 600 }, wv), null);
+  assert.equal(pontoNaTela({ x: 2000, y: 10, vw: 1000, vh: 723 }, wv), null);
+  assert.equal(rotuloDoDono("Claude Code (MCP) (claude-code)"), "Claude Code (MCP)");
+  assert.equal(rotuloDoDono("WhatsApp (whatsapp)"), "WhatsApp");
+  assert.equal(rotuloDoDono(null), "agente");
+});

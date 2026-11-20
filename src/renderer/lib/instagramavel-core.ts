@@ -43,3 +43,39 @@ export function pontoNaPagina(r: { left: number; top: number; width: number; hei
   const f = (s: number): number => 0.12 + Math.min(Math.max(s, 0), 1) * 0.76;
   return { x: Math.round(r.left + r.width * f(sx)), y: Math.round(r.top + r.height * f(sy)) };
 }
+
+/** Quanto texto cabe no balão de cada cursor. */
+export const BALAO_MAX = 70;
+const EMAIL_RE = /[^\s@<>()"',;:]+@[^\s@<>()"',;:]+\.[a-z]{2,}/gi;
+const URL_RE = /\bhttps?:\/\/([^\s/?#]+)[^\s]*/gi;
+/** O que vai para a tela (e para o vídeo): e-mail nunca; URL só o domínio, sem caminho, query nem fragmento. */
+export function limparParaTela(s: string): string {
+  return s.replace(URL_RE, (_m, host: string) => host.replace(/^www\./, "")).replace(EMAIL_RE, "•••@•••").replace(/\s+/g, " ").trim();
+}
+const VERBO_GMAIL: Record<string, string> = { "/status": "conferiu a conta", "/listar": "listou a caixa de entrada", "/ler": "leu um e-mail", "/apagar": "mandou um e-mail para a lixeira", "/restaurar": "restaurou um e-mail" };
+/**
+ * O balão do cursor: o que aquele log fez, em uma linha curta e sem dado pessoal. A nota é o recado de quem dirige o
+ * app (vai inteira, limpa); no Gmail só a ação (o resumo tem assunto e conta); erro leva ✗. Vazio = sem balão.
+ */
+export function textoDoBalao(e: { origem: string; rota: string; ok: boolean; resumo: string }): string {
+  const base = e.origem === "gmail" ? `Gmail: ${VERBO_GMAIL[e.rota] ?? e.rota.replace(/^\//, "")}` : limparParaTela(e.resumo);
+  if (base === "" || base === "ok") return "";
+  const t = `${e.ok ? "" : "✗ "}${base}`;
+  return t.length > BALAO_MAX ? `${t.slice(0, BALAO_MAX - 1).trimEnd()}…` : t;
+}
+
+/**
+ * O ponto real de uma ação (px da página da aba, com a área visível vw × vh) na tela da janela, dado o retângulo do
+ * webview: a escala é a razão entre os dois tamanhos (o zoom da aba). Fora do webview → null.
+ */
+export function pontoNaTela(p: { x: number; y: number; vw: number; vh: number }, r: { left: number; top: number; width: number; height: number }): { x: number; y: number } | null {
+  if (p.vw <= 0 || p.vh <= 0 || r.width <= 0 || r.height <= 0) return null;
+  const x = r.left + (p.x * r.width) / p.vw, y = r.top + (p.y * r.height) / p.vh;
+  if (x < r.left || x > r.left + r.width || y < r.top || y > r.top + r.height) return null;
+  return { x: Math.round(x), y: Math.round(y) };
+}
+/** Quem age, para a etiqueta do cursor do agente: "Claude Code (MCP) (claude-code)" → "Claude Code (MCP)". */
+export function rotuloDoDono(dono: string | null): string {
+  if (dono === null || dono.trim() === "") return "agente";
+  return dono.replace(/\s*\([^()]*\)\s*$/, "").trim().slice(0, 32) || "agente";
+}

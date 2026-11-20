@@ -6,8 +6,9 @@
  */
 import type { ContaView, EventoDepuracao, SettingsView } from "../../shared/ipc";
 import { byId as $ } from "../lib/dom.js";
-import { MAX_CURSORES, corDoCursor, pontoDeEntrada, pontoNaPagina, proximoNome } from "../lib/instagramavel-core.js";
+import { MAX_CURSORES, corDoCursor, pontoDeEntrada, pontoNaPagina, proximoNome, textoDoBalao } from "../lib/instagramavel-core.js";
 import { faixaLigada } from "./faixa.js";
+import { pontoReal } from "./cursor-agente.js";
 import { ctx } from "../app/ctx.js";
 
 const palco = $<HTMLElement>("insta-palco");
@@ -35,6 +36,9 @@ function aplicar(on: boolean): void {
  * página visível, como se alguém clicasse nela. O resto: o fluxo da faixa de depuração, onde o log aparece.
  */
 function alvo(e: EventoDepuracao): { x: number; y: number } | null {
+  // Onde a ação aconteceu de verdade (clicar, digitar): a multidão vai ao mesmo ponto do cursor do agente.
+  const real = pontoReal(e.ponto);
+  if (real !== null) return real;
   if (e.origem === "navegador") {
     const pagina = [...document.querySelectorAll("webview")].map((w) => w.getBoundingClientRect()).find((r) => r.width > 80 && r.height > 80);
     if (pagina !== undefined) return pontoNaPagina(pagina, Math.random(), Math.random());
@@ -65,13 +69,20 @@ function mostrar(e: EventoDepuracao): void {
   const el = document.createElement("div"); el.className = `insta-cursor${e.ok ? "" : " insta-erro"}`; el.style.color = cor;
   el.innerHTML = SETA;
   const etiqueta = document.createElement("span"); etiqueta.className = "insta-nome"; etiqueta.textContent = nome; etiqueta.style.background = cor;
-  el.append(etiqueta); palco.append(el); vivos++;
+  el.append(etiqueta);
+  // O balão: o que este log fez (limpo para a tela). Aparece quando o cursor chega e segura o cursor um pouco mais.
+  const fala = textoDoBalao(e);
+  const balao = fala === "" ? null : Object.assign(document.createElement("span"), { className: "insta-balao", textContent: fala });
+  if (balao !== null) { balao.style.borderColor = e.ok ? cor : ERRO; el.append(balao); }
+  const fica = balao !== null ? 1800 : 350;
+  palco.append(el); vivos++;
   const sair = (): void => {
     el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 400, easing: "ease-in" }).onfinish = () => { el.remove(); vivos--; };
   };
   if (calmo()) {
     el.style.transform = `translate(${fim.x}px, ${fim.y + 14}px)`;
-    el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300 }).onfinish = () => setTimeout(sair, 700);
+    balao?.classList.add("on");
+    el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300 }).onfinish = () => setTimeout(sair, fica + 350);
     return;
   }
   const ini = pontoDeEntrada(window.innerWidth, window.innerHeight, Math.random());
@@ -88,7 +99,8 @@ function mostrar(e: EventoDepuracao): void {
       ? [{ transform: `translate(${fim.x}px, ${fim.y}px) scale(1)` }, { transform: `translate(${fim.x}px, ${fim.y}px) scale(.82)` }, { transform: `translate(${fim.x}px, ${fim.y}px) scale(1)` }]
       : [-6, 6, -4, 4, 0].map((d) => ({ transform: `translate(${fim.x + d}px, ${fim.y}px)` }));
     explodir(fim.x, fim.y, e.ok ? cor : ERRO);
-    el.animate(quadros, { duration: e.ok ? 220 : 320, fill: "forwards" }).onfinish = () => setTimeout(sair, 350);
+    balao?.classList.add("on");
+    el.animate(quadros, { duration: e.ok ? 220 : 320, fill: "forwards" }).onfinish = () => setTimeout(sair, fica);
   };
 }
 /** Liga eventos e o estado inicial; o renderer.ts chama uma vez, depois de ligarFaixaDepuracao. */

@@ -1309,3 +1309,14 @@ table.fin-abc tr.fin-abc-C td.fin-abc-tag { color: #757575; }
 .insta-particula { position: absolute; width: 7px; height: 7px; border-radius: 50%; }
 .insta-anel { position: absolute; width: 34px; height: 34px; border: 2px solid; border-radius: 50%; }
 @media (prefers-reduced-motion: reduce) { .insta-particula, .insta-anel { display: none; } }
+/* O balão do cursor: o que aquele log fez. Nasce pequeno acima do nome e cresce quando o cursor chega. */
+.insta-balao { position: absolute; left: 14px; bottom: 26px; max-width: 280px; padding: 5px 10px; border: 2px solid; border-radius: 14px 14px 14px 4px; background: var(--card); color: var(--fg); font: 500 12px/1.35 -apple-system, system-ui, sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: 0 4px 14px rgb(0 0 0 / .25); opacity: 0; transform: scale(.6); transform-origin: 0 100%; transition: opacity .18s, transform .22s cubic-bezier(.3,1.6,.5,1); }
+.insta-balao.on { opacity: 1; transform: scale(1); }
+@media (prefers-reduced-motion: reduce) { .insta-balao { transition: none; } }
+/* Cursor do agente (depuracao/cursor-agente.ts): um só, vai até onde a ação aconteceu de verdade na página. */
+.agente-cursor { position: fixed; left: 0; top: 0; z-index: 9001; pointer-events: none; color: #111; will-change: transform; filter: drop-shadow(0 2px 5px rgb(0 0 0 / .4)); transition: opacity .4s; }
+.agente-cursor svg { display: block; }
+.agente-cursor.some { opacity: 0; }
+.agente-nome { position: absolute; left: 18px; top: 20px; padding: 2px 8px; border-radius: 6px; background: #111; color: #fff; font: 600 11px/1.4 -apple-system, system-ui, sans-serif; white-space: nowrap; }
+.agente-cursor.agente-erro { color: hsl(0 85% 50%); } .agente-cursor.agente-erro .agente-nome { background: hsl(0 85% 45%); }
+.agente-anel { position: fixed; z-index: 9001; pointer-events: none; width: 30px; height: 30px; border: 2px solid #111; border-radius: 50%; }

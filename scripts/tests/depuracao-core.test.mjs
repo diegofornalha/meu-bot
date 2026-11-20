@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { estadoBatimento, linhaEvento, rotuloBuild, rotuloReversos, rotuloTunel, textoSaude } from "../../dist/renderer/lib/depuracao-core.js";
+import { createRequire } from "node:module";
+const { pontoDoResultado } = createRequire(import.meta.url)("../../dist/main/app/depuracao-core.js");
 
 test("batimento: ok até 3 s sem tique; depois conta os segundos; sem tique nenhum é 'não ok' com 0 s", () => {
   assert.deepEqual(estadoBatimento(10_000, 12_999), { ok: true, segundos: 2 });
@@ -32,4 +34,11 @@ test("linha do fluxo: hora, origem, dono, rota, ✗ no erro e o resumo", () => {
   const hora = () => "15:40:02";
   assert.equal(linhaEvento({ em: 0, origem: "navegador", dono: "agente (meu-bot)", rota: "/fechar", ok: true, resumo: "fechou aba 5 → recarregou [4]" }, hora), "15:40:02 navegador (agente (meu-bot)) /fechar: fechou aba 5 → recarregou [4]");
   assert.equal(linhaEvento({ em: 0, origem: "nota", dono: null, rota: "/nota", ok: false, resumo: "x" }, hora), "15:40:02 nota /nota ✗: x");
+});
+
+test("pontoDoResultado: o ponto real do clicar/digitar só passa inteiro e dentro da página; o resto é null", () => {
+  assert.deepEqual(pontoDoResultado({ ok: true, ponto: { aba: 7, x: 100.4, y: 50.6, vw: 1200, vh: 800 } }), { aba: 7, x: 100, y: 51, vw: 1200, vh: 800 });
+  for (const r of [null, {}, { ponto: null }, { ponto: { aba: 7, x: 1, y: 1, vw: 0, vh: 10 } }, { ponto: { aba: 7, x: -1, y: 1, vw: 10, vh: 10 } },
+    { ponto: { aba: 7, x: 11, y: 1, vw: 10, vh: 10 } }, { ponto: { aba: 1.5, x: 1, y: 1, vw: 10, vh: 10 } }, { ponto: { aba: 7, x: "1", y: 1, vw: 10, vh: 10 } }, { ponto: { aba: 7, x: NaN, y: 1, vw: 10, vh: 10 } }])
+    assert.equal(pontoDoResultado(r), null, JSON.stringify(r));
 });

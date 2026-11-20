@@ -13,7 +13,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { BatimentoDepuracao, EstadoDepuracao, EventoDepuracao } from "../../shared/ipc";
 import { caps } from "./variant";
-import { SONDAS, detalheSeguro, deveEmitirSonda, podar as podarAnel, resumoAcao, type Corpo } from "./depuracao-core";
+import { SONDAS, detalheSeguro, deveEmitirSonda, podar as podarAnel, pontoDoResultado, resumoAcao, type Corpo } from "./depuracao-core";
 import { getDepuracaoGravado, updateSettings } from "./settings";
 import type { broadcast as Broadcast } from "./windows";
 
@@ -80,6 +80,9 @@ export function registrarAcao(p: { origem: EventoDepuracao["origem"]; dono: { ro
   const erro = p.erro ?? null;
   const resumo = resumoAcao(p.origem, p.rota, p.corpo, p.resultado, erro);
   const ev: Omit<EventoDepuracao, "em"> = { origem: p.origem, dono: p.dono === null ? null : `${p.dono.rotulo} (${p.dono.origem})`, rota: p.rota, ok: erro === null, ms: Date.now() - p.t0, resumo, detalhe: detalheSeguro(p.rota, p.corpo) ?? undefined };
+  // Onde a ação aconteceu na página (clicar, digitar): o cursor do agente vai até lá.
+  const ponto = erro === null ? pontoDoResultado(p.resultado) : null;
+  if (ponto !== null) ev.ponto = ponto;
   if (SONDAS.has(p.rota) && erro === null) {
     const k = `${p.origem}${p.rota}`; const agora = Date.now();
     if (!deveEmitirSonda(sondas.get(k) ?? null, agora)) { logLinha(`${ev.origem} ${ev.rota} ok (sonda)`); return; }
