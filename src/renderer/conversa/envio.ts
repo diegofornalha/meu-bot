@@ -81,14 +81,17 @@ export function ligarEnvio(): void {
       const had = ctx.firstReplyOnHost();
       ctx.patchIndex(tab.id, { messages: [...(cur?.messages ?? []), { role: "assistant", content: tab.pendingText, ...(done.provider === undefined ? {} : { provider: done.provider }), ...(done.fallback === undefined ? {} : { fallback: done.fallback }) }] });
       // Tutorial 1: a primeira resposta aconteceu; lembrar na flag, senão apagar as conversas "desfaz" o passo.
-      if (!had && ctx.windowHost !== "") { const t1 = TUTORIAIS.find((x) => x.id === "claude-login"); if (t1 !== undefined && !ctx.loadGuideFlags(t1).claudeReplied) ctx.saveGuideFlag(t1, "claudeReplied"); }
+      if (!had && ctx.windowHost !== "" && done.provider !== "ollama-local") { const t1 = TUTORIAIS.find((x) => x.id === "claude-login"); if (t1 !== undefined && !ctx.loadGuideFlags(t1).claudeReplied) ctx.saveGuideFlag(t1, "claudeReplied"); }
       if (tab.currentAssistant !== null) ctx.paintProviderLabel(tab.currentAssistant, tab.model, done.provider, done.fallback);
       // Tutorial 4: a prova de que o grok-4 responde é o X-Provider da resposta, não o que o modelo diz de si.
       const grokNow = done.provider === "grok-4" && !ctx.loadGuideFlags(ctx.XAI_TUTORIAL).grokReplied;
       if (grokNow) ctx.saveGuideFlag(ctx.XAI_TUTORIAL, "grokReplied");
+      // Tutorial 17: idem, a resposta veio do ollama-local (o Ollama deste Mac).
+      const ollamaNow = done.provider === "ollama-local" && !ctx.loadGuideFlags(ctx.OLLAMA_TUTORIAL).ollamaReplied;
+      if (ollamaNow) ctx.saveGuideFlag(ctx.OLLAMA_TUTORIAL, "ollamaReplied");
       // A reserva assumiu de verdade: o passo 3 do tutorial 5 se marca sozinho.
       if (done.fallback !== undefined && !ctx.loadGuideFlags(ctx.FALLBACK_TUTORIAL).fallbackSeen) { ctx.saveGuideFlag(ctx.FALLBACK_TUTORIAL, "fallbackSeen"); ctx.paintGuide(); }
-      if (!had || grokNow) ctx.paintGuide(); // primeira resposta nesta máquina (tutorial 1) / primeira do grok-4 (tutorial 4)
+      if (!had || grokNow || ollamaNow) ctx.paintGuide(); // primeira resposta nesta máquina (tutorial 1) / primeira do grok-4 (tutorial 4)
     }
     markUnread(tab);
     ctx.maybeNotify(tab, tab.pendingText);

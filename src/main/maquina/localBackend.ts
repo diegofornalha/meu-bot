@@ -14,6 +14,7 @@ import { backendBundleDir } from "./hostProbe";
 import { BACKEND_RUNTIME_FILES } from "./backend-bundle-core";
 import { ehNossoOrfao, pidsDoLsof } from "./backend-local-orfao-core";
 import { produto } from "../app/variant";
+import { temOllamaNoProviders } from "../agente/ollamaLocal-core";
 
 export const LOCAL_HOST = "local";
 /**
@@ -55,6 +56,7 @@ export function claudeLoggedIn(): boolean {
 }
 
 const dir = (): string => path.join(app.getPath("userData"), "backend-local");
+const lerProvidersLocal = (d: string): string | null => { try { return fs.readFileSync(path.join(d, "providers.json"), "utf8"); } catch { return null; } };
 /** Pasta do backend local (server.js, .env, providers.json). */
 export const localBackendDir = dir;
 export const localBackendPort = localPort;
@@ -125,10 +127,14 @@ export function ensureLocalBackend(onStatus?: (detail: string) => void): Promise
       if (localBackendAlive() && (await portOpen(localPort()))) return { localPort: localPort(), apiKey: state!.apiKey };
       const node = findNode();
       if (node === null) throw new Error("Node.js não encontrado neste Mac (procurei em Homebrew, /usr/local, ~/.local e nvm). Instale o Node 18+ para usar a máquina \"local\".");
-      const claude = findClaude();
-      if (claude === null) throw new Error("Claude Code não encontrado neste Mac (~/.local/bin/claude). Instale e faça login para usar a máquina \"local\".");
-      if (!claudeLoggedIn()) throw new Error("O Claude Code deste Mac não está logado: rode `claude` no Terminal e use /login.");
       const d = dir();
+      // Sem o Claude Code logado, o backend só sobe com o modo grátis (Ollama, tutorial 17) no providers.json: aí o chat
+      // usa o ollama-local, e o agente (Claude) só falha se alguém pedir por ele.
+      const achado = findClaude();
+      const gratis = temOllamaNoProviders(lerProvidersLocal(d));
+      if (achado === null && !gratis) throw new Error("Claude Code não encontrado neste Mac (~/.local/bin/claude). Instale e faça login para usar a máquina \"local\", ou faça o tutorial 17 (modo grátis).");
+      if (achado !== null && !claudeLoggedIn() && !gratis) throw new Error("O Claude Code deste Mac não está logado: rode `claude` no Terminal e use /login, ou faça o tutorial 17 (modo grátis).");
+      const claude = achado ?? path.join(HOME, ".local", "bin", "claude");
       fs.mkdirSync(path.join(d, "data"), { recursive: true });
       const bundle = backendBundleDir();
       // Tudo que o server.js exige ao lado (a lista única de backend-bundle-core.ts): sem um deles o require falha na

@@ -1,6 +1,6 @@
 import { byId as $, el } from "../lib/dom.js";
 import { planMascots } from "../lib/intro-mascots.js";
-import { type OnboardState, type Feedback, ONBOARD_STEPS, initialOnboardState, FINAL_MESSAGE, SKIPPED_MESSAGE, welcomeMessage, type OnboardEvent, advanceOnboard, pickFeedback, TOUR_INVITE, AI_CHOICE_INVITE, AI_NONE_INFO, type AiChoice, opcoesVisiveis, parseAiChoice, preselecao, pularEscolhaIa, tutorialDaEscolha } from "../lib/onboarding.js";
+import { type OnboardState, type Feedback, ONBOARD_STEPS, initialOnboardState, FINAL_MESSAGE, SKIPPED_MESSAGE, welcomeMessage, type OnboardEvent, advanceOnboard, pickFeedback, TOUR_INVITE, AI_CHOICE_INVITE, AI_NONE_INFO, type AiChoice, comModoGratis, opcoesVisiveis, parseAiChoice, preselecao, pularEscolhaIa, tutorialDaEscolha } from "../lib/onboarding.js";
 import { hostLabel } from "../lib/probe-text.js";
 import { mountSnake } from "../snake.js";
 import type { Tab } from "../renderer.js";
@@ -144,7 +144,7 @@ const twStart = $<HTMLButtonElement>("tw-start");
 let twMode: "tour" | "ia" | "nenhuma" = "tour";
 let aiChoice: AiChoice | null = null;
 export function showTourWelcome(): void {
-  twMode = "tour"; twChoice.hidden = true; twChoice.replaceChildren();
+  twMode = "tour"; twChoice.hidden = true; twChoice.replaceChildren(); tourWelcomeEl.classList.remove("tw-escolha");
   twTitle.textContent = TOUR_INVITE.title; twText.textContent = TOUR_INVITE.text; twStart.textContent = "Iniciar tour"; twStart.disabled = false;
   tourWelcomeEl.hidden = false; syncRest(); twStart.focus();
 }
@@ -160,15 +160,15 @@ const aiChoiceKey = (): string => `escolhaIa:${ctx.windowHost}`;
  * já está logada; com o Claude Code Global do admin a conta já existe e segue direto para o convite do tour.
  */
 export async function showAiChoice(): Promise<void> {
-  await Promise.allSettled([ctx.refreshClaudeLine(), ctx.refreshXaiLine()]);
+  await Promise.allSettled([ctx.refreshClaudeLine(), ctx.refreshXaiLine(), ctx.refreshOllamaLine()]);
   const g = ctx.guideCtx();
   if (pularEscolhaIa(g)) { showTourWelcome(); return; }
-  const opcoes = opcoesVisiveis(g.xai.possible);
+  const opcoes = comModoGratis(opcoesVisiveis(g.xai.possible), g.ollama.possible === true);
   let guardada: AiChoice | null = null;
   try { guardada = parseAiChoice(localStorage.getItem(aiChoiceKey())); } catch { /* opcional */ }
   const marcada = guardada ?? preselecao(g);
   aiChoice = marcada !== null && opcoes.some((o) => o.id === marcada) ? marcada : null;
-  twMode = "ia";
+  twMode = "ia"; tourWelcomeEl.classList.add("tw-escolha");
   twTitle.textContent = AI_CHOICE_INVITE.title; twText.textContent = AI_CHOICE_INVITE.text; twStart.textContent = "Continuar";
   const paint = (): void => {
     const cards = el("div", "reply-cards guide-cards"); cards.setAttribute("role", "radiogroup");
@@ -193,7 +193,7 @@ export async function showAiChoice(): Promise<void> {
 
 /** Encerra a primeira abertura sem o tour (ele continua em Tutoriais) e sem o cartão de "Tour pulado". */
 async function closeAiChoice(): Promise<void> {
-  tourWelcomeEl.hidden = true; twChoice.hidden = true; twChoice.replaceChildren(); twMode = "tour";
+  tourWelcomeEl.hidden = true; twChoice.hidden = true; twChoice.replaceChildren(); twMode = "tour"; tourWelcomeEl.classList.remove("tw-escolha");
   syncRest();
   try { ctx.applySettings(await window.meuBot.setSettings({ onboarding: "skipped" })); } catch { /* fica pendente; volta na próxima vez */ }
   ctx.reportProgress();
@@ -216,7 +216,11 @@ async function confirmAiChoice(): Promise<void> {
   if (c === null) return;
   try { localStorage.setItem(aiChoiceKey(), c); } catch { /* opcional */ }
   const tut = tutorialDaEscolha(c);
-  if (tut === null) { showAiNone(); return; }
+  if (tut === null) {
+    // Com o modo grátis nesta janela (tutorial 17), "Não tenho nenhuma" vai direto à instalação; sem ele, como assinar.
+    if (ctx.guideCtx().ollama.possible === true) { await closeAiChoice(); ctx.enterOllama(); return; }
+    showAiNone(); return;
+  }
   await closeAiChoice();
   if (tut === "xai-login") ctx.enterXai(); else ctx.enterClaude();
 }

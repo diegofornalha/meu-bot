@@ -294,7 +294,7 @@ export function itemGa(item) {
  * (app pago que o suporte ainda não liberou na máquina), `precisa-pro` (unidade extra sem o Pro valendo) ou
  * `disponivel`. `item` é a ficha entregue pelo config.js ({id, tipo}); super admin tem tudo.
  */
-export function estadoDoItem(conta, item, data = (iso) => iso.slice(0, 10)) {
+export function estadoDoItem(conta, item, data = (iso) => iso.slice(0, 10), agoraMs = Date.now()) {
   const l = conta?.licenca ?? {};
   const tem = (texto = "Você tem") => ({ chave: "tem", texto, tom: "ok" }), disponivel = { chave: "disponivel", texto: "Disponível", tom: "" };
   const cortesia = (fim) => ({ chave: "cortesia", texto: `Cortesia até ${data(fim)}`, tom: "ok" });
@@ -312,8 +312,8 @@ export function estadoDoItem(conta, item, data = (iso) => iso.slice(0, 10)) {
   }
   if (!(Array.isArray(l.produtos) ? l.produtos : []).includes(item?.id)) return disponivel;
   // O app de cortesia (e não pago): o selo diz até quando; a pessoa pode contratar para continuar depois.
-  const pago = assinaturasDoItem(conta?.assinaturas, item.id).some((a) => a.status === "ACTIVE");
-  const cort = cortesiasValendo(conta, Date.now()).filter((c) => c.tipo === "addon" && c.produto === item.id).sort((a, b) => Date.parse(b.fim) - Date.parse(a.fim))[0];
+  const pago = pagoValendo(conta, item.id, agoraMs);
+  const cort = cortesiasValendo(conta, agoraMs).filter((c) => c.tipo === "addon" && c.produto === item.id).sort((a, b) => Date.parse(b.fim) - Date.parse(a.fim))[0];
   if (!pago && cort !== undefined) return cortesia(cort.fim);
   const lib = (Array.isArray(conta?.liberacoes) ? conta.liberacoes : []).find((x) => x && x.produto === item.id);
   return lib && lib.aberta === true ? { chave: "falta-liberar", texto: "Falta liberar na máquina", tom: "" } : tem();
@@ -346,9 +346,9 @@ export function pagoChegou(conta, produto, antes) {
  * O que a conta já tem, para o topo do Marketplace: o Pro (quando vale), cada add-on em vigor e as unidades extras
  * pagas. `nomes` traduz o nome técnico para o nome do item (`{"meu-bot-finance": "Finanças"}`).
  */
-export function oQueAContaTem(conta, nomes = {}) {
-  const l = conta?.licenca ?? {}, out = [], agora = Date.now();
-  const deCortesia = new Set(cortesiasValendo(conta, agora).filter((c) => c.tipo === "addon").map((c) => c.produto));
+export function oQueAContaTem(conta, nomes = {}, agora = Date.now()) {
+  const l = conta?.licenca ?? {}, out = [];
+  const deCortesia = new Set(cortesiasValendo(conta, agora).filter((c) => c.tipo === "addon" && !pagoValendo(conta, c.produto, agora)).map((c) => c.produto));
   if (l.plan === "pro" && (l.status === "active" || l.status === "trialing")) out.push(l.status === "trialing" ? "Pro (teste grátis)" : conta?.origemDoPro === "cortesia" ? "Pro (cortesia)" : "Pro");
   for (const p of Array.isArray(l.produtos) ? l.produtos : []) out.push(`${nomes[p] ?? p}${deCortesia.has(p) ? " (cortesia)" : ""}`);
   const n = (x) => (Number.isInteger(x) && x > 0 ? x : 0);
@@ -416,4 +416,12 @@ export function cortesiasNaTela(conta, nomes = {}, data = (iso) => iso.slice(0, 
     linhas.push({ texto: `Cortesia de ${oQueACortesiaDaParaAPessoa(c, nomes)} encerrada pelo suporte em ${data(c.encerradaEm)}.`, acabando: false });
   }
   return linhas;
+}
+
+/**
+ * O app `produto` está pago e valendo agora: assinatura em andamento, ou cancelada com o período pago ainda valendo
+ * (`valeAte`). Pago vale mais que cortesia: a tela só diz "cortesia" do que a pessoa não pagou.
+ */
+export function pagoValendo(conta, produto, agoraMs = Date.now()) {
+  return assinaturasDoItem(conta?.assinaturas, produto).some((a) => a.status === "ACTIVE" || (typeof a.valeAte === "string" && Date.parse(a.valeAte) > agoraMs));
 }

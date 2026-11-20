@@ -450,6 +450,9 @@ dialog .zoom-pct { min-width: 44px; text-align: center; font-variant-numeric: ta
 .wa-progress.bad .wa-pulse { background: var(--bad); animation: none; }
 @keyframes wa-pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent); } 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 0%, transparent); } }
 @media (prefers-reduced-motion: reduce) { .wa-pulse { animation: none; } }
+/* Log de instalação/login (pre.log): o mesmo do seletor (picker.css). Sem esta regra, o log da janela principal só
+   tinha o max-height dos contextos abaixo e vazava por cima do passo seguinte do guia, na fonte grande do <pre>. */
+.log { margin: 0; max-height: 140px; overflow: auto; font: 11px var(--mono); padding: 6px 9px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; }
 #wa-dialog .log { max-height: 120px; }
 /* Acervo (biblioteca de skills), acima da busca: mesma linha neutra, com ícone e contagem à direita. */
 .acervo-line .grow { flex: 1; }
@@ -917,8 +920,9 @@ body.topbar-hidden .topbar { display: none; }
 .wa-out { align-self: flex-end; background: color-mix(in srgb, var(--ok) 14%, var(--card)); border: 1px solid color-mix(in srgb, var(--ok) 30%, var(--line)); }
 .wa-time { align-self: flex-end; font-size: 10px; color: var(--muted); }
 /* Convite do tour (primeira abertura): ilustração verde em cima, pergunta, "Pular por enquanto" e "Iniciar tour". */
-.tour-welcome { position: absolute; left: 50%; top: 50%; translate: -50% -50%; width: min(560px, calc(100% - 32px)); z-index: 6; overflow: hidden; border-radius: 18px; border: 1px solid var(--line); background: var(--card); box-shadow: 0 20px 50px rgba(0,0,0,.35); animation: ob-spring .5s cubic-bezier(.34, 1.56, .64, 1) both; }
+.tour-welcome { position: absolute; left: 50%; top: 50%; translate: -50% -50%; width: min(560px, calc(100% - 32px)); max-height: calc(100% - 32px); display: flex; flex-direction: column; z-index: 6; overflow: hidden; border-radius: 18px; border: 1px solid var(--line); background: var(--card); box-shadow: 0 20px 50px rgba(0,0,0,.35); animation: ob-spring .5s cubic-bezier(.34, 1.56, .64, 1) both; }
 .tour-welcome[hidden] { display: none; }
+.tw-art { flex: none; }
 .tw-art { background: color-mix(in srgb, var(--ok) 10%, var(--card)); border-bottom: 1px solid var(--line); padding: 10px 0; }
 .tw-art svg { display: block; width: 100%; height: 150px; }
 .tw-art rect { fill: color-mix(in srgb, var(--ok) 18%, var(--card)); }
@@ -928,11 +932,30 @@ body.topbar-hidden .topbar { display: none; }
 @keyframes tw-walk { to { stroke-dashoffset: -20; } }
 .tw-close { position: absolute; top: 14px; right: 14px; width: 34px; height: 34px; border-radius: 50%; border: none; background: rgba(0,0,0,.35); color: #fff; font-size: 18px; line-height: 1; cursor: pointer; }
 .tw-close:hover { background: rgba(0,0,0,.55); }
-.tw-body { padding: 22px 26px 24px; display: flex; flex-direction: column; gap: 10px; }
+.tw-body { padding: 22px 26px 24px; display: flex; flex-direction: column; gap: 10px; flex: 1 1 auto; min-height: 0; }
 .tw-body h2 { margin: 0; font-size: 22px; font-weight: 700; }
 .tw-body p { margin: 0; font-size: 14px; color: var(--muted); }
-.tw-actions { display: flex; align-items: center; margin-top: 10px; }
-.tw-choice { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+.tw-actions { display: flex; align-items: center; margin-top: 10px; flex: none; }
+/* Pergunta "Você já tem assinatura de IA?" (staging): sem a ilustração, e os cartões rolam por dentro do convite, para
+   o "Continuar" ficar sempre à vista em janela baixa. */
+.tw-choice { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; min-height: 0; overflow-y: auto; flex: 0 1 auto; padding-right: 2px; }
+.tour-welcome.tw-escolha .tw-art { display: none; }
+.tour-welcome.tw-escolha .tw-body { padding-top: 24px; }
+.tour-welcome.tw-escolha .tw-body h2 { padding-right: 40px; }
+.tw-choice .reply-cards { gap: 8px; }
+.tw-choice .reply-card { padding: 10px 14px; gap: 12px; }
+.tw-choice .reply-card p { font-size: 13px; }
+@media (max-height: 560px) { .tw-art { display: none; } }
+/* Janela baixa: a pergunta encolhe para as quatro opções caberem sem rolar (a rolagem fica só para o extremo). */
+@media (max-height: 720px) {
+  .tour-welcome.tw-escolha .tw-body { padding: 18px 22px 18px; gap: 8px; }
+  .tour-welcome.tw-escolha .tw-body h2 { font-size: 19px; }
+  .tour-welcome.tw-escolha .tw-body > p { font-size: 13px; }
+  .tw-choice .reply-cards { gap: 6px; }
+  .tw-choice .reply-card { padding: 8px 12px; }
+  .tw-choice .reply-card p { font-size: 12px; line-height: 1.35; }
+  .tour-welcome.tw-escolha .tw-actions { margin-top: 4px; }
+}
 .tw-choice .tw-links { display: flex; flex-wrap: wrap; gap: 8px; }
 .tw-skip { font: inherit; font-size: 14px; border: none; background: transparent; color: var(--muted); cursor: pointer; padding: 6px 0; }
 .tw-skip:hover { color: var(--fg); }

@@ -57,6 +57,7 @@ import { chooseReply, comPareamento, disconnectWhatsapp, fmtPhone, ligarAgenteWh
 import { cacheDrop, cacheRead, cacheWrite, getListMode, ligarConversas, paintArquivadas, paintListMode, paintWaSidebar, setListMode, waChatTitle } from "./whatsapp/conversas.js";
 import { TUT_GRUPOS, ligarGrupos, loadGrupoAlvo, refreshWaGroups, waGroupReplied, waGroupTitle, waGroups, waGroupsAt, waGroupsInflight, waGroupsSection } from "./whatsapp/grupos.js";
 import { ligarChat, openWaBranch, openWaChat, paintWaChatTab, renderWaChat, renderWaQuote, waBubble, waChatPages, waCopy, waMsgKey, waSkeleton } from "./whatsapp/chat.js";
+import { OLLAMA_TUTORIAL, enterOllama, ligarOllama, refreshOllamaLine, removerOllama } from "./agente/ollama-guia.js";
 import { ligarInicio, onboardEvent, playIntro, prefersReducedMotion, restEl, restartTour, showAiChoice, showTourWelcome, syncRest } from "./inicio/inicio.js";
 import { ligarEnvio, sendMessage, sendText } from "./conversa/envio.js";
 import { conferirBackend, ligarBackendFalta } from "./conversa/backend-falta.js";
@@ -143,6 +144,10 @@ const ctxImpl = {
   get ehVazia() { return ehVazia; },
   get enterClaude() { return enterClaude; },
   get enterXai() { return enterXai; },
+  get enterOllama() { return enterOllama; },
+  get refreshOllamaLine() { return refreshOllamaLine; },
+  get removerOllama() { return removerOllama; },
+  get OLLAMA_TUTORIAL() { return OLLAMA_TUTORIAL; },
   get FALLBACK_TUTORIAL() { return FALLBACK_TUTORIAL; },
   get financePage() { return financePage; },
   get financeState() { return financeState; },
@@ -1069,7 +1074,7 @@ document.addEventListener("click", (ev) => { if (!modeMenu.hidden && !(ev.target
 
 const modeToast = $<HTMLElement>("mode-toast");
 let modeToastTimer: ReturnType<typeof setTimeout> | null = null;
-const MODE_HUE: Record<string, number> = { agente: 145, claudecode: 220, "grok-4": 40, "rene-dm": 330, rene: 270 };
+const MODE_HUE: Record<string, number> = { agente: 145, claudecode: 220, "grok-4": 40, "ollama-local": 190, "rene-dm": 330, rene: 270 };
 /** Toast de modo (shot "telegram-copy-link-toast"): sobe acima da caixa com mola, o mascote-ícone nasce girando na cor do modo e pisca, e sai descendo 2 s depois. */
 function showModeToast(model: string): void {
   const opt = [...modelSelect.options].find((o) => o.value === model);
@@ -1227,7 +1232,7 @@ function buildPaletteItems(): PaletteItem[] {
     add({ id: "a:export-json", kind: "action", label: "Exportar conversa atual em JSON" }, () => exportConversation(cur.id, "json"));
     add({ id: "a:archive", kind: "action", label: "Arquivar conversa atual" }, () => archive(cur.id, true));
     add({ id: "a:close", kind: "action", label: "Fechar aba atual", detail: "Cmd+W" }, () => closeTab(cur.id));
-    for (const m of ["claudecode", "agente", "rene-dm", "rene", "grok-4"] as const) {
+    for (const m of ["claudecode", "agente", "rene-dm", "rene", "grok-4", "ollama-local"] as const) {
       add({ id: `a:model:${m}`, kind: "action", label: `Usar modelo ${m} nesta conversa` }, () => { if (cur.model !== m && !prefersReducedMotion) showModeToast(m); setTabModel(cur, m); void window.meuBot.setConversationModel(cur.id, m); });
     }
   }
@@ -1516,6 +1521,7 @@ function applySettings(view: SettingsView): void {
   syncComposer();
 }
 ligarContasAgente();
+ligarOllama();
 ligarPaginas();
 
 /** A Biblioteca do meu-bot (skills do Cloudflare) fica oculta até a pessoa pedir. */
@@ -2064,6 +2070,7 @@ void (async () => {
   void refreshClaudeLine();
   void conferirBackend();
   void refreshXaiLine();
+  void refreshOllamaLine();
   // O que a lista de Tutoriais e o selo precisam saber vem todo na abertura, em paralelo: guarda, licença (Pro),
   // Navegador e CRM antes só eram consultados ao abrir o guia, e até lá os cartões ficavam "pendentes" por engano.
   void refreshGuarda();

@@ -39,7 +39,7 @@ export function thresholdToWarn(pct: number | null, warned: number, thresholds: 
   return hit;
 }
 
-export const isClaudeModel = (model: string): boolean => model !== "grok-4";
+export const isClaudeModel = (model: string): boolean => model !== "grok-4" && model !== "ollama-local";
 
 export interface StatusInput {
   model: string;

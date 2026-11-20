@@ -28,6 +28,7 @@ import { pauseRuleSh } from "../whatsapp/whatsapp-pause";
 import { cancelClaudeLogin, claudeLogout, startClaudeLogin, submitClaudeLoginCode } from "../agente/claudeLogin";
 import { cancelXaiLogin, startXaiLogin, xaiLogout } from "../agente/xaiLogin";
 import { prepareGrokOauthLocal } from "../agente/xaiLocal";
+import { ollamaStatusLocal, prepareOllamaLocal, removerOllamaLocal, setOllamaLigadoLocal } from "../agente/ollamaLocal";
 import { cancelarConta, entrarConta, instalarGh, sairConta } from "../agente/contas-cli";
 import { isContaId } from "../agente/contas-cli-core";
 import { linkPublicoLista, linkPublicoNome, linkPublicoPublicar, linkPublicoRemover } from "../agente/link-publico";
@@ -583,6 +584,27 @@ export function registerClientIpc(): void {
     const w = pct(p.semanal); if (w !== undefined) l.semanal = w;
     if (p.estrategia === "ordem" || p.estrategia === "folga") l.estrategia = p.estrategia;
     return limiaresContasClaude(h.host, l);
+  });
+  // Modo grátis (tutorial 17): o Ollama do meu-bot só existe na máquina "local" (este Mac); nas outras, `null`.
+  const hostOllama = (event: Electron.IpcMainInvokeEvent): { win: Electron.BrowserWindow } | null => {
+    const h = hostFromEvent(event);
+    if (h === null) throw new Error("origem inválida");
+    return h.host === LOCAL_HOST ? h : null;
+  };
+  handleClient("ollama:status", (event) => (hostOllama(event) === null ? null : ollamaStatusLocal()));
+  handleClient("ollama:prepare", (event) => {
+    const h = hostOllama(event);
+    if (h === null) throw new Error("o modo grátis só roda neste Mac");
+    return prepareOllamaLocal((line) => { if (!h.win.isDestroyed()) h.win.webContents.send("ollama:event", { text: line }); });
+  });
+  handleClient("ollama:ligar", (event, payload) => {
+    if (hostOllama(event) === null) throw new Error("o modo grátis só roda neste Mac");
+    return setOllamaLigadoLocal((payload as { ligado?: unknown } | undefined)?.ligado === true);
+  });
+  handleClient("ollama:remover", (event) => {
+    const h = hostOllama(event);
+    if (h === null) throw new Error("o modo grátis só roda neste Mac");
+    return removerOllamaLocal((line) => { if (!h.win.isDestroyed()) h.win.webContents.send("ollama:event", { text: line }); });
   });
   handleClient("xai-login:start", (event) => {
     const h = hostFromEvent(event);

@@ -1,6 +1,6 @@
 /** Contrato IPC · A superfície exposta às telas (window.meuBot) e os eventos do main. Só tipos (nada é emitido); reexportado por src/shared/ipc.ts. */
 import type { BatimentoDepuracao, EstadoDepuracao, EventoDepuracao } from "./depuracao";
-import type { AccountStatus, AudioSetup, ClaudeAuthInfo, ClaudeLoginEvent, ContaEstado, ContaEvento, ContaId, ContasClaudeView, LinkPublicoInfo, LinkPublicoStatus, CotaInfo, LinkPublicoLista, LinkPublicoPublicado, FreedomLevel, LimiaresClaude, ObjectiveChoice, ObjectiveInfo, StatusLineSegments, XaiKeyStatus } from "./agente";
+import type { AccountStatus, AudioSetup, ClaudeAuthInfo, ClaudeLoginEvent, ContaEstado, ContaEvento, ContaId, ContasClaudeView, LinkPublicoInfo, LinkPublicoStatus, CotaInfo, LinkPublicoLista, LinkPublicoPublicado, FreedomLevel, LimiaresClaude, ObjectiveChoice, ObjectiveInfo, OllamaEvento, OllamaStatus, StatusLineSegments, XaiKeyStatus } from "./agente";
 import type { AlertPrefs, BackendModel, ClienteMcp, ControleRemotoView, DonoInfo, NetState, SettingsUpdate, SettingsView, WindowInfo, ZoomAction, ZoomState } from "./app";
 import type { ReleasePublicada, UpdateState } from "./atualizacao";
 import type { ContaView } from "./conta";
@@ -79,6 +79,8 @@ export interface MainEvents {
   "claude-login:event": ClaudeLoginEvent;
   /** Login OAuth da xAI em andamento (mesmo formato). */
   "xai-login:event": ClaudeLoginEvent;
+  /** Uma linha do preparo ou da remoção do modo grátis (Ollama, tutorial 17). */
+  "ollama:event": OllamaEvento;
   "contas:evento": ContaEvento;
   /** Conta meu-bot deste Mac mudou (entrou, saiu, erro no retorno do login, cópia relida). */
   "conta:changed": ContaView;
@@ -546,6 +548,14 @@ export interface MeuBotClientApi {
   xaiLogin(): Promise<void>;
   xaiLoginCancel(): Promise<void>;
   xaiLogout(): Promise<ClaudeAuthInfo | null>;
+  /** Modo grátis no Mac (tutorial 17): o Ollama do meu-bot; null = a máquina desta janela não é este Mac. */
+  ollamaStatus(): Promise<OllamaStatus | null>;
+  /** Baixa o programa (versão fixa, sha256), sobe o serve, baixa o modelo e aponta o backend; progresso em ollama:event. */
+  ollamaPrepare(): Promise<InstallBackendResult>;
+  /** "ligar"/"parar" o `ollama serve` (linha da lateral). */
+  ollamaLigar(ligado: boolean): Promise<OllamaStatus>;
+  /** Para o serve, tira o ollama-local do providers.json e apaga a pasta (programa e modelos). */
+  ollamaRemover(): Promise<InstallBackendResult>;
   /**
    * Login por SSH; o link vem em contas:evento (abrir no Navegador). `navegador` false = Cloudflare por código;
    * `trocar` = entrar com outra conta (a página não cai na conta que o Navegador já tem).
