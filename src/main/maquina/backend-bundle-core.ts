@@ -72,7 +72,7 @@ export const CLAUDE_GLOBAL_FILES = ["claude-global.js", "contas-claude.js", "acc
 export const SKILLS_LIB = "skills-lib.sh";
 /** Guarda do WhatsApp: o plugin (pasta guarda/) e os dois scripts. */
 export const GUARDA_FILES = ["install-guarda.sh", "uninstall-guarda.sh", SKILLS_LIB];
-export const GUARDA_PLUGIN_FILES = ["index.js", "regras.mjs", "memoria.mjs", "package.json", "openclaw.plugin.json", "vigia-gateway.sh"];
+export const GUARDA_PLUGIN_FILES = ["index.js", "regras.mjs", "memoria.mjs", "sugestoes.mjs", "package.json", "openclaw.plugin.json", "vigia-gateway.sh"];
 /** Tela do bot (painel Computador): o instalador e a pasta tela/. Instalada sob pedido pelo painel, sem atualização automática. */
 export const TELA_FILES = ["install-tela.sh", SKILLS_LIB];
 export const TELA_PLUGIN_FILES = ["tela.sh", "tela-agente.sh"];
