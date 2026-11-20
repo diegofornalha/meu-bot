@@ -1,7 +1,7 @@
 // Painel "Assinar o Pro" do console (public/console/plano-core.js): quando some e quando avisa do prazo atual.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addonsNaVisaoGeral, assinaturasDoItem, estadoDoItem, itemGa, resumoDeUso, semDevices, assinaturasAtivasDe, oQueAContaTem, pagoChegou, deParaDoExtra, avisoAddonPago, contagemRegressiva, diasAteOFim, estadoAssinaturaPro, fase, linhasDeMaquinas, ofertaDoProAparece, pedidoAssinar, promoNaTela, reaisCurto, semPrazo, podeAdicionarMaquina, vagaDoAssinar, voltaDoPagamento, vagasDeDevice, vagasDeMaquina } from "../public/console/plano-core.js";
+import { addonsNaVisaoGeral, buscaDaVolta, assinaturasDoItem, estadoDoItem, itemGa, resumoDeUso, semDevices, assinaturasAtivasDe, oQueAContaTem, pagoChegou, deParaDoExtra, avisoAddonPago, contagemRegressiva, diasAteOFim, estadoAssinaturaPro, fase, linhasDeMaquinas, ofertaDoProAparece, pedidoAssinar, promoNaTela, reaisCurto, semPrazo, podeAdicionarMaquina, vagaDoAssinar, voltaDoPagamento, vagasDeDevice, vagasDeMaquina } from "../public/console/plano-core.js";
 
 const pro = { plan: "pro", status: "active" };
 const ativa = { status: "ACTIVE", produto: null };
@@ -415,4 +415,14 @@ test("organização: resumo dos usuários, a vaga que chegou, quem gerencia, e o
   assert.equal(proPelaOrgTexto(null, d), null);
   assert.match(proPelaOrgTexto({ slug: "acme", nome: "Acme", ate: "2026-12-20T00:00:00.000Z" }, d), /^Você usa o Pro pela organização Acme, até 2026-12-20\. /);
   assert.match(proPelaOrgTexto({ slug: "acme", nome: "Acme", ate: null }, d), /^Você usa o Pro pela organização Acme\. /);
+});
+
+test("buscaDaVolta: o login no meio do caminho mantém só a marca de quem volta do pagamento", () => {
+  assert.equal(buscaDaVolta("?assinatura=paga&produto=extra-assento"), "?assinatura=paga&produto=extra-assento");
+  assert.equal(buscaDaVolta("?assinatura=paga"), "?assinatura=paga");
+  assert.equal(buscaDaVolta("?produto=extra-assento&assinatura=paga&x=1"), "?assinatura=paga&produto=extra-assento");
+  assert.equal(buscaDaVolta("?assinatura=paga&produto=%3Cscript%3E"), "?assinatura=paga");
+  assert.equal(buscaDaVolta("?assinatura=cancelada"), "");
+  assert.equal(buscaDaVolta(""), "");
+  assert.equal(buscaDaVolta(undefined), "");
 });
