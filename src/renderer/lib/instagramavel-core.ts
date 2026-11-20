@@ -9,9 +9,14 @@ export const MAX_CURSORES = 24;
 /** Sem organização (ou sem nome nenhum): os cursores levam o nome do app. */
 export const NOME_PADRAO = "meu-bot";
 
-/** Cor estável por nome (mesmo hash das máquinas no seletor): saturada e clara o bastante nos dois temas. */
-export function corDoNome(nome: string): string {
-  return `hsl(${hashHue(nome.toLowerCase())} 85% 55%)`;
+/**
+ * A cor do i-ésimo cursor: cada um de uma cor. A roda gira pelo ângulo áureo (~137,5°) a cada cursor, então os que
+ * estão na tela juntos nunca se parecem, mesmo com o mesmo nome (org pequena, ou "meu-bot" sem org); o nome só muda
+ * o ponto de partida. Saturada e clara o bastante nos dois temas.
+ */
+export function corDoCursor(nome: string, i: number): string {
+  const hue = Math.round(hashHue(nome.toLowerCase()) + i * 137.508) % 360;
+  return `hsl(${hue} 85% 55%)`;
 }
 /** O i-ésimo nome do rodízio; lista vazia → o nome do app. */
 export function proximoNome(nomes: readonly string[], i: number): string {

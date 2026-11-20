@@ -6,7 +6,7 @@
  */
 import type { ContaView, EventoDepuracao, SettingsView } from "../../shared/ipc";
 import { byId as $ } from "../lib/dom.js";
-import { MAX_CURSORES, corDoNome, pontoDeEntrada, pontoNaPagina, proximoNome } from "../lib/instagramavel-core.js";
+import { MAX_CURSORES, corDoCursor, pontoDeEntrada, pontoNaPagina, proximoNome } from "../lib/instagramavel-core.js";
 import { faixaLigada } from "./faixa.js";
 import { ctx } from "../app/ctx.js";
 
@@ -59,8 +59,9 @@ function mostrar(e: EventoDepuracao): void {
   if (!ligado || !faixaLigada() || vivos >= MAX_CURSORES) return;
   const fim = alvo(e);
   if (fim === null) return;
-  const nome = proximoNome(nomes, vez++);
-  const cor = corDoNome(nome);
+  const i = vez++;
+  const nome = proximoNome(nomes, i);
+  const cor = corDoCursor(nome, i);
   const el = document.createElement("div"); el.className = `insta-cursor${e.ok ? "" : " insta-erro"}`; el.style.color = cor;
   el.innerHTML = SETA;
   const etiqueta = document.createElement("span"); etiqueta.className = "insta-nome"; etiqueta.textContent = nome; etiqueta.style.background = cor;

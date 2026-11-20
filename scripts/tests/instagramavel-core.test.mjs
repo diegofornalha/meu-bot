@@ -1,13 +1,15 @@
 // Modo instagramável, a parte pura: cor por nome, rodízio dos nomes e a borda de onde cada cursor entra.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { MAX_CURSORES, NOME_PADRAO, corDoNome, pontoDeEntrada, pontoNaPagina, proximoNome } from "../../dist/renderer/lib/instagramavel-core.js";
+import { MAX_CURSORES, NOME_PADRAO, corDoCursor, pontoDeEntrada, pontoNaPagina, proximoNome } from "../../dist/renderer/lib/instagramavel-core.js";
 
-test("corDoNome: estável (sem diferenciar maiúsculas) e diferente entre nomes de uma org", () => {
-  assert.equal(corDoNome("Ana"), corDoNome("ana"));
-  assert.match(corDoNome("Ana"), /^hsl\(\d{1,3} 85% 55%\)$/);
-  const cores = new Set(["Ana", "Bruno", "Carla", "Diego", "Eva", "Fábio"].map(corDoNome));
-  assert.equal(cores.size, 6);
+test("corDoCursor: cada cursor de uma cor, mesmo com o mesmo nome; estável para o mesmo (nome, i)", () => {
+  assert.match(corDoCursor("Ana", 0), /^hsl\(\d{1,3} 85% 55%\)$/);
+  assert.equal(corDoCursor("Ana", 3), corDoCursor("ana", 3));
+  const hues = Array.from({ length: 24 }, (_, i) => Number(/hsl\((\d+)/.exec(corDoCursor("meu-bot", i))[1]));
+  assert.equal(new Set(hues).size, 24, "24 cursores na tela, 24 cores");
+  // Vizinhos (os que entram em sequência) ficam longe na roda: pelo menos 60° de diferença.
+  for (let i = 1; i < hues.length; i++) { const d = Math.abs(hues[i] - hues[i - 1]) % 360; assert.ok(Math.min(d, 360 - d) >= 60, `cursores ${i - 1} e ${i} parecidos`); }
 });
 
 test("proximoNome: rodízio que volta ao começo; sem nomes, o nome do app", () => {
