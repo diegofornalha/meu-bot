@@ -82,3 +82,61 @@ export function pickFeedback(rand: () => number = Math.random, previous?: Feedba
   if (previous?.kind === "none") return { kind: "icon", text: pick(ICONS) };
   return { kind: "none" };
 }
+
+// ---- Primeira abertura (staging): "Você já tem assinatura de IA?" antes do tour. Leva direto ao tutorial da conta
+// que a pessoa tem; quem não tem nenhuma vê como assinar (o modo grátis no Mac vem depois).
+
+export type AiChoice = "claude" | "grok" | "ambos" | "nenhuma";
+
+export interface AiChoiceOption { id: AiChoice; title: string; text: string }
+
+export const AI_CHOICE_INVITE = { title: "Você já tem assinatura de IA?", text: "O agente pensa com a sua conta de IA. Escolha a que você tem e eu te levo direto ao passo a passo dela." };
+
+export const AI_CHOICES: readonly AiChoiceOption[] = [
+  { id: "claude", title: "Tenho Claude", text: "Plano Pro ou Max da Anthropic. Você entra na sua conta e o agente já responde." },
+  { id: "grok", title: "Tenho Grok (xAI)", text: "Conta da xAI. Você prepara o Grok nesta máquina e entra na sua conta." },
+  { id: "ambos", title: "Tenho os dois", text: "Claude como principal e Grok como reserva: se um falhar, o outro assume." },
+  { id: "nenhuma", title: "Não tenho nenhuma", text: "Eu te mostro como assinar. Um modo grátis, rodando no seu Mac, está a caminho." },
+];
+
+/** Painel de quem escolheu "Não tenho nenhuma". */
+export const AI_NONE_INFO = {
+  title: "Para o agente responder, ele precisa de uma IA",
+  text: "Assine uma das duas e volte: a escolha fica em Tutoriais, no tutorial 1 (Claude) ou no 4 (Grok).",
+  soon: "Em breve: modo grátis no Mac. Ele sugere as respostas e você aprova antes de enviar.",
+  links: [
+    { label: "Assinar o Grok", url: "https://grok.com" },
+    { label: "Assinar o Claude", url: "https://claude.ai" },
+  ],
+} as const;
+
+/** Tutorial que abre para cada escolha. "ambos" começa pelo Claude: o 4 (Grok) e o fallback vêm depois dele. */
+export function tutorialDaEscolha(c: AiChoice): "claude-login" | "xai-login" | null {
+  if (c === "claude" || c === "ambos") return "claude-login";
+  if (c === "grok") return "xai-login";
+  return null;
+}
+
+/** Sem Grok possível nesta máquina (`false`), as opções que dependem dele somem; `null` (não consultado) mostra todas. */
+export function opcoesVisiveis(xaiPossible: boolean | null): readonly AiChoiceOption[] {
+  return xaiPossible === false ? AI_CHOICES.filter((o) => o.id !== "grok" && o.id !== "ambos") : AI_CHOICES;
+}
+
+export interface AiAccounts { claude: { loggedIn: boolean | null; global: boolean }; xai: { possible: boolean | null; loggedIn: boolean | null } }
+
+/** Com o Claude Code Global do admin a conta já existe (tutorial 1 concluído): a pergunta não aparece. */
+export const pularEscolhaIa = (a: AiAccounts): boolean => a.claude.global;
+
+/** Opção já marcada a partir das contas logadas; nada logado (ou não consultado) = nenhuma marcada. */
+export function preselecao(a: AiAccounts): AiChoice | null {
+  const claude = a.claude.loggedIn === true;
+  const xai = a.xai.possible !== false && a.xai.loggedIn === true;
+  if (claude && xai) return "ambos";
+  if (claude) return "claude";
+  if (xai) return "grok";
+  return null;
+}
+
+const AI_CHOICE_IDS: readonly string[] = AI_CHOICES.map((o) => o.id);
+/** Lê a escolha guardada (localStorage); qualquer outra coisa = sem escolha. */
+export const parseAiChoice = (raw: string | null): AiChoice | null => (raw !== null && AI_CHOICE_IDS.includes(raw) ? (raw as AiChoice) : null);

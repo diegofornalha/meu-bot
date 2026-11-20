@@ -932,6 +932,8 @@ body.topbar-hidden .topbar { display: none; }
 .tw-body h2 { margin: 0; font-size: 22px; font-weight: 700; }
 .tw-body p { margin: 0; font-size: 14px; color: var(--muted); }
 .tw-actions { display: flex; align-items: center; margin-top: 10px; }
+.tw-choice { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+.tw-choice .tw-links { display: flex; flex-wrap: wrap; gap: 8px; }
 .tw-skip { font: inherit; font-size: 14px; border: none; background: transparent; color: var(--muted); cursor: pointer; padding: 6px 0; }
 .tw-skip:hover { color: var(--fg); }
 @media (prefers-reduced-motion: reduce) { .tour-welcome { animation: none; } .tw-path { animation: none; } }

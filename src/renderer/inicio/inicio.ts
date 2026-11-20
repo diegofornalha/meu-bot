@@ -1,10 +1,10 @@
 import { byId as $, el } from "../lib/dom.js";
 import { planMascots } from "../lib/intro-mascots.js";
-import { type OnboardState, type Feedback, ONBOARD_STEPS, initialOnboardState, FINAL_MESSAGE, SKIPPED_MESSAGE, welcomeMessage, type OnboardEvent, advanceOnboard, pickFeedback, TOUR_INVITE } from "../lib/onboarding.js";
+import { type OnboardState, type Feedback, ONBOARD_STEPS, initialOnboardState, FINAL_MESSAGE, SKIPPED_MESSAGE, welcomeMessage, type OnboardEvent, advanceOnboard, pickFeedback, TOUR_INVITE, AI_CHOICE_INVITE, AI_NONE_INFO, type AiChoice, opcoesVisiveis, parseAiChoice, preselecao, pularEscolhaIa, tutorialDaEscolha } from "../lib/onboarding.js";
 import { hostLabel } from "../lib/probe-text.js";
 import { mountSnake } from "../snake.js";
 import type { Tab } from "../renderer.js";
-import { ctx } from "../app/ctx.js";
+import { ctx, ehRemoto } from "../app/ctx.js";
 
 // ---- Abertura (opcional, interruptor "Intro" do seletor): o topo se materializa em etapas e o túnel acende como clímax.
 const introEl = $<HTMLElement>("intro");
@@ -134,12 +134,97 @@ function paintOnboard(feedback?: Feedback): void {
 }
 
 // ---- Convite do tour (primeira abertura): "Iniciar tour" começa o onboarding; pular ou fechar marca pulado.
+// No staging, o mesmo cartão pergunta antes "Você já tem assinatura de IA?" (modo "ia") e, sem nenhuma, explica
+// como assinar (modo "nenhuma"). `twMode` diz o que o botão principal faz.
 const tourWelcomeEl = $<HTMLElement>("tour-welcome");
-export function showTourWelcome(): void { tourWelcomeEl.hidden = false; syncRest(); $<HTMLButtonElement>("tw-start").focus(); }
+const twTitle = $<HTMLElement>("tw-title");
+const twText = $<HTMLElement>("tw-text");
+const twChoice = $<HTMLElement>("tw-choice");
+const twStart = $<HTMLButtonElement>("tw-start");
+let twMode: "tour" | "ia" | "nenhuma" = "tour";
+let aiChoice: AiChoice | null = null;
+export function showTourWelcome(): void {
+  twMode = "tour"; twChoice.hidden = true; twChoice.replaceChildren();
+  twTitle.textContent = TOUR_INVITE.title; twText.textContent = TOUR_INVITE.text; twStart.textContent = "Iniciar tour"; twStart.disabled = false;
+  tourWelcomeEl.hidden = false; syncRest(); twStart.focus();
+}
 function closeTourWelcome(start: boolean): void {
   tourWelcomeEl.hidden = true;
   if (start) startOnboarding(); else void finishOnboarding("skipped");
   syncRest();
+}
+
+const aiChoiceKey = (): string => `escolhaIa:${ctx.windowHost}`;
+/**
+ * Staging: "Você já tem assinatura de IA?" no lugar do convite do tour. Confere as contas antes, para marcar a que
+ * já está logada; com o Claude Code Global do admin a conta já existe e segue direto para o convite do tour.
+ */
+export async function showAiChoice(): Promise<void> {
+  await Promise.allSettled([ctx.refreshClaudeLine(), ctx.refreshXaiLine()]);
+  const g = ctx.guideCtx();
+  if (pularEscolhaIa(g)) { showTourWelcome(); return; }
+  const opcoes = opcoesVisiveis(g.xai.possible);
+  let guardada: AiChoice | null = null;
+  try { guardada = parseAiChoice(localStorage.getItem(aiChoiceKey())); } catch { /* opcional */ }
+  const marcada = guardada ?? preselecao(g);
+  aiChoice = marcada !== null && opcoes.some((o) => o.id === marcada) ? marcada : null;
+  twMode = "ia";
+  twTitle.textContent = AI_CHOICE_INVITE.title; twText.textContent = AI_CHOICE_INVITE.text; twStart.textContent = "Continuar";
+  const paint = (): void => {
+    const cards = el("div", "reply-cards guide-cards"); cards.setAttribute("role", "radiogroup");
+    for (const o of opcoes) {
+      const on = aiChoice === o.id;
+      const card = el("button", `reply-card${on ? " on" : ""}`); card.type = "button";
+      card.setAttribute("role", "radio"); card.setAttribute("aria-checked", String(on));
+      const title = el("div", "reply-title"); title.append(el("strong", "", o.title));
+      const body = el("div", "reply-body"); body.append(title, el("p", "", o.text));
+      card.append(el("span", "reply-radio"), body);
+      card.addEventListener("click", () => { aiChoice = o.id; paint(); });
+      cards.append(card);
+    }
+    twChoice.replaceChildren(cards);
+    // Este Mac: o backend local ainda só sobe com o Claude Code logado; o Grok sozinho não liga o agente aqui.
+    if (aiChoice === "grok" && !ehRemoto()) twChoice.append(el("p", "hint", "Neste Mac o agente ainda precisa do Claude Code para ligar; o Grok entra como reserva."));
+    twStart.disabled = aiChoice === null;
+  };
+  paint();
+  twChoice.hidden = false; tourWelcomeEl.hidden = false; syncRest();
+}
+
+/** Encerra a primeira abertura sem o tour (ele continua em Tutoriais) e sem o cartão de "Tour pulado". */
+async function closeAiChoice(): Promise<void> {
+  tourWelcomeEl.hidden = true; twChoice.hidden = true; twChoice.replaceChildren(); twMode = "tour";
+  syncRest();
+  try { ctx.applySettings(await window.meuBot.setSettings({ onboarding: "skipped" })); } catch { /* fica pendente; volta na próxima vez */ }
+  ctx.reportProgress();
+}
+
+function showAiNone(): void {
+  twMode = "nenhuma";
+  twTitle.textContent = AI_NONE_INFO.title; twText.textContent = AI_NONE_INFO.text; twStart.textContent = "Entendi"; twStart.disabled = false;
+  const links = el("div", "tw-links");
+  for (const l of AI_NONE_INFO.links) {
+    const b = el("button", "btn btn-small", l.label); b.type = "button";
+    b.addEventListener("click", () => { void window.meuBot.openExternal(l.url); });
+    links.append(b);
+  }
+  twChoice.replaceChildren(links, el("p", "hint", AI_NONE_INFO.soon));
+}
+
+async function confirmAiChoice(): Promise<void> {
+  const c = aiChoice;
+  if (c === null) return;
+  try { localStorage.setItem(aiChoiceKey(), c); } catch { /* opcional */ }
+  const tut = tutorialDaEscolha(c);
+  if (tut === null) { showAiNone(); return; }
+  await closeAiChoice();
+  if (tut === "xai-login") ctx.enterXai(); else ctx.enterClaude();
+}
+
+function twPrimary(): void {
+  if (twMode === "ia") void confirmAiChoice();
+  else if (twMode === "nenhuma") void closeAiChoice();
+  else closeTourWelcome(true);
 }
 /** Começar/rever o tour a partir de Tutoriais ou da paleta: marca pendente e começa já. */
 export async function restartTour(): Promise<void> {
@@ -223,9 +308,9 @@ export function onboardEvent(ev: OnboardEvent): void {
 /** Liga eventos e o estado inicial desta parte; o renderer.ts chama uma vez, no ponto em que isto rodava antes. */
 export function ligarInicio(): void {
   tabPlus.addEventListener("click", () => { void ctx.newTab(); });
-  $<HTMLElement>("tw-title").textContent = TOUR_INVITE.title;
-  $<HTMLElement>("tw-text").textContent = TOUR_INVITE.text;
-  $<HTMLButtonElement>("tw-start").addEventListener("click", () => closeTourWelcome(true));
+  twTitle.textContent = TOUR_INVITE.title;
+  twText.textContent = TOUR_INVITE.text;
+  twStart.addEventListener("click", twPrimary);
   $<HTMLButtonElement>("tw-skip").addEventListener("click", () => closeTourWelcome(false));
   $<HTMLButtonElement>("tw-close").addEventListener("click", () => closeTourWelcome(false));
   obSkip.addEventListener("click", () => { void finishOnboarding("skipped"); });
