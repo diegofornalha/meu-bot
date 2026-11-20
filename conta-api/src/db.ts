@@ -273,9 +273,12 @@ export async function gravarCortesia(db: D1Database, contaId: string, p: { tipo:
   await db.prepare("INSERT INTO cortesias (id, conta_id, tipo, produto, org_id, quantidade, inicio, fim, motivo, por) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)").bind(c.id, contaId, c.tipo, c.produto, c.orgId, c.quantidade, c.inicio, c.fim, c.motivo, por).run();
   return c;
 }
-/** Renova uma cortesia não encerrada da conta até `fim`; devolve a cortesia renovada, ou null se não há. */
+/**
+ * Renova uma cortesia não encerrada da conta até `fim`, só para mais longe (vencida também volta a valer). Encurtar não
+ * é renovar: tirar antes do prazo é encerrar, que pede motivo e vai para o histórico. Devolve a renovada, ou null.
+ */
 export async function renovarCortesia(db: D1Database, contaId: string, id: string, fim: string): Promise<Cortesia | null> {
-  const r = await db.prepare("UPDATE cortesias SET fim = ?3 WHERE conta_id = ?1 AND id = ?2 AND encerrada_em IS NULL").bind(contaId, id, fim).run();
+  const r = await db.prepare("UPDATE cortesias SET fim = ?3 WHERE conta_id = ?1 AND id = ?2 AND encerrada_em IS NULL AND fim < ?3").bind(contaId, id, fim).run();
   if ((r.meta.changes ?? 0) === 0) return null;
   const l = await db.prepare("SELECT * FROM cortesias WHERE id = ?1").bind(id).first<CortesiaLinha>();
   return l === null ? null : cortesiaDaLinha(l);

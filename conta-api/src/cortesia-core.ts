@@ -1,6 +1,6 @@
 // Cortesias: o que o admin libera de graça (tabela `cortesias`, migração 0023), separado do que a pessoa paga. Toda
 // cortesia tem prazo (`fim`, até CORTESIA_DIAS_MAX dias), quem liberou e o motivo, e acaba sozinha no prazo. Puro (sem
-// D1): a gravação fica em db.ts, as rotas em rotas/admin.ts. A licença assinada que vai para a máquina não muda de
+// D1): a gravação fica em db.ts, as rotas em rotas/cortesias.ts. A licença assinada que vai para a máquina não muda de
 // formato: a cortesia entra pelos mesmos caminhos do que é pago (o Pro como um prazo, o add-on e as unidades como itens
 // com `expiresAt`), e só o `GET /conta` e a visão do admin dizem de onde cada coisa vem.
 

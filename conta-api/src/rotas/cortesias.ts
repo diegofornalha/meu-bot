@@ -42,7 +42,7 @@ export async function postRenovarCortesia(auth: Autenticado, env: Env, id: strin
   const fim = validaFimCortesia(corpo?.fim, Date.now());
   if (fim === null) return json({ erro: `fim: uma data no futuro, até ${CORTESIA_DIAS_MAX} dias a partir de hoje` }, 400);
   const c = await renovarCortesia(env.DB, id, cortesia, fim);
-  if (c === null) return json({ erro: "essa cortesia não existe nesta conta ou já foi encerrada" }, 404);
+  if (c === null) return json({ erro: "essa cortesia não existe nesta conta, já foi encerrada ou já vale além dessa data" }, 404);
   if (c.tipo === "device") { const conta = await contaPorId(env.DB, id); if (conta !== null) await promoverDevicesPendentes(env.DB, conta.id, (await limiteDeDevicesComExtras(env.DB, conta)).limite); }
   await auditar(env.DB, auth.conta.email, "cortesia.renovada", id, resumo(c));
   return json({ ok: true, cortesia: c });

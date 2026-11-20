@@ -130,6 +130,7 @@ test("rotas: o admin dá, renova e encerra cortesias; a pessoa vê de onde vem c
     r = await chamar("POST", `/admin/contas/${B}/cortesias/${pro.id}/renovar`, { fim: fim(60) }, ta);
     assert.equal(r.status, 200, r.corpo.erro);
     assert.equal((await contaB()).licenca.expiresAt, r.corpo.cortesia.fim);
+    assert.equal((await chamar("POST", `/admin/contas/${B}/cortesias/${pro.id}/renovar`, { fim: fim(20) }, ta)).status, 404, "renovar não encurta: tirar antes é encerrar");
     assert.equal((await chamar("POST", `/admin/contas/${B}/cortesias/${pro.id}/encerrar`, {}, ta)).status, 400);
     r = await chamar("POST", `/admin/contas/${B}/cortesias/${pro.id}/encerrar`, { motivo: "pedido-da-pessoa", detalhe: "não vai usar" }, ta);
     assert.equal(r.status, 200, r.corpo.erro);
