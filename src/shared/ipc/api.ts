@@ -233,6 +233,8 @@ export interface MeuBotSharedApi {
   contasStatus(): Promise<ContaEstado[] | null>;
   /** Conta meu-bot deste Mac (login no navegador do sistema, volta por deep link). `forcar` relê a conta na API. */
   contaGet(forcar?: boolean): Promise<ContaView>;
+  /** Modo instagramável: o primeiro nome dos membros ativos das organizações da conta ([] sem sessão, org ou rede). */
+  contaMembros(): Promise<string[]>;
   /** Abre a página de login no navegador; a sessão chega pelo deep link e vem em `conta:changed`. */
   contaEntrar(): Promise<ContaView>;
   contaCancelar(): Promise<ContaView>;

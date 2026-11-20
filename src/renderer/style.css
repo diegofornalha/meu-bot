@@ -1322,3 +1322,28 @@ table.fin-abc tr.fin-abc-C td.fin-abc-tag { color: #757575; }
 .modulo-pagina-aviso:empty { display: none; }
 .modulo-pagina-aviso { padding: 12px 16px; }
 .modulo-pagina-tela { flex: 1; min-height: 0; display: flex; }
+/* Modo instagramável (depuracao/instagramavel.ts): cursores com nomes voando até a faixa de depuração. O palco cobre a
+   janela sem pegar clique; cada cursor é posicionado por transform (Web Animations API). */
+.insta-palco { position: fixed; inset: 0; pointer-events: none; z-index: 9000; overflow: hidden; }
+.insta-cursor { position: absolute; left: 0; top: 0; will-change: transform; filter: drop-shadow(0 2px 4px rgb(0 0 0 / .35)); }
+.insta-cursor svg { display: block; }
+.insta-nome { position: absolute; left: 16px; top: 18px; padding: 2px 8px; border-radius: 999px; color: #fff; font: 600 11px/1.4 -apple-system, system-ui, sans-serif; white-space: nowrap; text-shadow: 0 1px 1px rgb(0 0 0 / .3); }
+.insta-erro .insta-nome { outline: 2px solid hsl(0 85% 55%); }
+.insta-particula { position: absolute; width: 7px; height: 7px; border-radius: 50%; }
+.insta-anel { position: absolute; width: 34px; height: 34px; border: 2px solid; border-radius: 50%; }
+@media (prefers-reduced-motion: reduce) { .insta-particula, .insta-anel { display: none; } }
+/* O balão do cursor: o que aquele log fez. Nasce pequeno acima do nome e cresce quando o cursor chega. */
+.insta-balao { position: absolute; left: 14px; bottom: 26px; max-width: 280px; padding: 5px 10px; border: 2px solid; border-radius: 14px 14px 14px 4px; background: var(--card); color: var(--fg); font: 500 12px/1.35 -apple-system, system-ui, sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: 0 4px 14px rgb(0 0 0 / .25); opacity: 0; transform: scale(.6); transform-origin: 0 100%; transition: opacity .18s, transform .22s cubic-bezier(.3,1.6,.5,1); }
+.insta-balao.on { opacity: 1; transform: scale(1); }
+@media (prefers-reduced-motion: reduce) { .insta-balao { transition: none; } }
+/* Cursor do agente (depuracao/cursor-agente.ts): um só, vai até onde a ação aconteceu de verdade na página. */
+.agente-cursor { position: fixed; left: 0; top: 0; z-index: 9001; pointer-events: none; color: #111; will-change: transform; filter: drop-shadow(0 2px 5px rgb(0 0 0 / .4)); transition: opacity .4s; }
+.agente-cursor svg { display: block; }
+.agente-cursor.some { opacity: 0; }
+.agente-nome { position: absolute; left: 18px; top: 20px; padding: 2px 8px; border-radius: 6px; background: #111; color: #fff; font: 600 11px/1.4 -apple-system, system-ui, sans-serif; white-space: nowrap; }
+.agente-cursor.agente-erro { color: hsl(0 85% 50%); } .agente-cursor.agente-erro .agente-nome { background: hsl(0 85% 45%); }
+.agente-anel { position: fixed; z-index: 9001; pointer-events: none; width: 30px; height: 30px; border: 2px solid #111; border-radius: 50%; }
+/* O corpo de cada cursor parado flutua devagar em volta da vaga (o ritmo é sorteado por cursor). */
+.insta-corpo { position: relative; animation: insta-flutua 6s ease-in-out infinite; }
+@keyframes insta-flutua { 0%, 100% { transform: translate(0, 0); } 25% { transform: translate(6px, -5px); } 50% { transform: translate(-4px, 4px); } 75% { transform: translate(5px, 3px); } }
+@media (prefers-reduced-motion: reduce) { .insta-corpo { animation: none; } }

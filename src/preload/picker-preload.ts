@@ -44,6 +44,7 @@ const clientApi: PickerClientApi = {
   removeHost: (host: string) => ipcRenderer.invoke("picker:remove-host", { host }),
   renameHost: (host: string, name: string): Promise<void> => ipcRenderer.invoke("picker:rename-host", { host, name }),
   setOpenDirect: (value: boolean): Promise<void> => ipcRenderer.invoke("picker:open-direct", { value }),
+  setInstagramavel: (value: boolean): Promise<void> => ipcRenderer.invoke("picker:instagramavel", { value }),
   setOnboardingDone: (value: boolean): Promise<void> => ipcRenderer.invoke("picker:onboarding-done", { value }),
   approveTailscale: (host: string): Promise<{ ok: boolean; detail: string }> => ipcRenderer.invoke("picker:approve-tailscale", { host }),
   saveTailscaleCredential: (clientId: string, clientSecret: string): Promise<TailscaleCredentialState> => ipcRenderer.invoke("picker:tailscale-credential-save", { clientId, clientSecret }),

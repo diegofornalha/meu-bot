@@ -129,6 +129,8 @@ export interface PickerInit {
   /** Apelidos das máquinas (host → nome mostrado). */
   names: Record<string, string>;
   openDirect: boolean;
+  /** O ✨ colado no Intro, no rodapé: cursores com nomes da organização no show da depuração. */
+  instagramavel: boolean;
   /** Primeira abertura do seletor nesta sessão do app: toca a chegada animada (logo que nasce grande e vai para o cabeçalho). */
   arrival: boolean;
   /** Caixinha "onboarding feito": marcada = respeita; desmarcada = força o onboarding na próxima janela. */

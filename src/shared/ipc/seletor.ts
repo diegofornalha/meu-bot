@@ -59,6 +59,8 @@ export interface PickerClientApi {
   renameHost(host: string, name: string): Promise<void>;
   /** Caixinha "abrir direto" do rodapé. */
   setOpenDirect(value: boolean): Promise<void>;
+  /** O ✨ colado no Intro, no rodapé (vale para todas as janelas). */
+  setInstagramavel(value: boolean): Promise<void>;
   /** Caixinha "onboarding feito" do rodapé. */
   setOnboardingDone(value: boolean): Promise<void>;
   /** Verificação do Tailscale SSH: abre um ssh que espera, leva o link ao navegador e resolve quando a pessoa aprovar. */

@@ -50,6 +50,19 @@ export function resumoAcao(origem: string, rota: string, corpo: Corpo, resultado
   const chaves = Object.keys(corpo).filter((k) => corpo[k] !== undefined);
   return chaves.length > 0 ? chaves.map((k) => `${k}=${str(corpo[k], 40)}`).join(" ") : "ok";
 }
+/**
+ * O ponto real da ação (o Navegador o devolve no resultado do /clicar e do /digitar), conferido: números finitos, dentro
+ * da área visível da página. Qualquer coisa fora disso → null (sem ponto, a janela usa o alvo de sempre).
+ */
+export function pontoDoResultado(resultado: unknown): { aba: number; x: number; y: number; vw: number; vh: number } | null {
+  const p = (resultado !== null && typeof resultado === "object" ? (resultado as Corpo)["ponto"] : null) as Corpo | null | undefined;
+  if (p === null || p === undefined || typeof p !== "object") return null;
+  const n = (k: string): number | null => (typeof p[k] === "number" && Number.isFinite(p[k]) ? (p[k] as number) : null);
+  const aba = n("aba"), x = n("x"), y = n("y"), vw = n("vw"), vh = n("vh");
+  if (aba === null || x === null || y === null || vw === null || vh === null || !Number.isInteger(aba) || vw <= 0 || vh <= 0) return null;
+  if (x < 0 || y < 0 || x > vw || y > vh) return null;
+  return { aba, x: Math.round(x), y: Math.round(y), vw: Math.round(vw), vh: Math.round(vh) };
+}
 /** O pedido, para o JSON da faixa: textos longos cortados; as rotas que carregam a página inteira ficam sem payload. */
 export function detalheSeguro(rota: string, corpo: Corpo): Corpo | null {
   if (rota === "/ler" || rota === "/print") return null;

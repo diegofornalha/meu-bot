@@ -122,6 +122,13 @@ export function setOnboardingDone(done: boolean): void {
   persist();
 }
 
+export const getInstagramavel = (): boolean => file.instagramavel;
+export function setInstagramavel(value: boolean): void {
+  if (file.instagramavel === value) return;
+  file.instagramavel = value;
+  persist();
+}
+
 export const getOpenDirect = (): boolean => file.openDirect;
 export function setOpenDirect(value: boolean): void {
   if (file.openDirect === value) return;
@@ -245,6 +252,7 @@ export const settingsView = (host?: string): SettingsView => ({
   notificacaoSom: file.notificacaoSom,
   aceleracaoHardware: file.aceleracaoHardware,
   depuracao: file.depuracao,
+  instagramavel: file.instagramavel,
   abaFixa: file.abaFixa,
   modulosRepo: file.modulosRepo,
 });
@@ -280,6 +288,7 @@ export function updateSettings(update: SettingsUpdate, host?: string): SettingsV
     if (update.backendPortForHost === file.backendPort) delete next[host]; else next[host] = update.backendPortForHost;
     file.backendPortByHost = next;
   }
+  if (update.instagramavel !== undefined) file.instagramavel = update.instagramavel === true;
   if (update.depuracao !== undefined) file.depuracao = update.depuracao === true ? true : update.depuracao === false ? false : null;
   if (update.theme !== undefined) {
     if (!isTheme(update.theme)) throw new Error("Tema inválido.");

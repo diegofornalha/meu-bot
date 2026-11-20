@@ -124,6 +124,7 @@ const sharedApi: MeuBotSharedApi = {
   xaiAuth: () => ipcRenderer.invoke("xai-login:auth", {}),
   contasStatus: () => ipcRenderer.invoke("contas:status", {}),
   contaGet: (forcar?: boolean) => ipcRenderer.invoke("conta:get", { forcar }),
+  contaMembros: (): Promise<string[]> => ipcRenderer.invoke("conta:membros", {}),
   contaEntrar: () => ipcRenderer.invoke("conta:entrar", {}),
   contaCancelar: () => ipcRenderer.invoke("conta:cancelar", {}),
   contaSair: () => ipcRenderer.invoke("conta:sair", {}),

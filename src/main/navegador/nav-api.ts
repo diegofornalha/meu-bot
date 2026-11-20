@@ -67,6 +67,9 @@ const READ_SCRIPT = `(() => {
   const text = (document.body ? document.body.innerText : "").replace(/\\n{3,}/g, "\\n\\n").trim();
   return { title: document.title, url: location.href, text: text.slice(0, 12000), truncated: text.length > 12000, elements: items };
 })()`;
+/** O ponto medido na página ganha o id da aba (a janela acha o webview por ele); o resto da conferência é do depuracao-core. */
+const comAba = (p: unknown, aba: number): unknown => (p !== null && typeof p === "object" ? { ...(p as object), aba } : null);
+const semPonto = (r: unknown): unknown => { if (r === null || typeof r !== "object" || !("ponto" in r)) return r; const { ponto: _p, ...resto } = r as Record<string, unknown>; return resto; };
 const pick = (n: number): string => `(() => { const e = (window.__meuBotEls || [])[${n - 1}]; if (!e) throw new Error("elemento ${n} não existe: use 'ler' de novo"); return e; })()`;
 
 interface Req { aba?: unknown; url?: unknown; nova?: unknown; n?: unknown; texto?: unknown; seletor?: unknown; enter?: unknown; tecla?: unknown; codigo?: unknown; titulo?: unknown; id?: unknown }
@@ -182,18 +185,18 @@ async function act(host: string, route: string, b: Req, dono: Dono | null): Prom
           : typeof b.texto === "string" ? `(() => { const q = ${JSON.stringify(b.texto)}.toLowerCase(); const all = [...document.querySelectorAll("a, button, [role=button], [role=link], [role=tab], [role=menuitem], input[type=submit], input[type=button], summary, label")]; const e = all.find((x) => (x.innerText || x.value || x.getAttribute("aria-label") || "").toLowerCase().trim() === q) || all.find((x) => (x.innerText || x.value || x.getAttribute("aria-label") || "").toLowerCase().includes(q)); if (!e) throw new Error("nenhum botão/link com esse texto"); return e; })()`
             : null;
       if (target === null) throw new Error("diga n (número do 'ler'), texto ou seletor");
-      await wc.executeJavaScript(`(() => { const e = ${target}; e.scrollIntoView({ block: "center" }); e.focus && e.focus(); e.click(); return true; })()`, true);
+      const ponto = await wc.executeJavaScript(`(() => { const e = ${target}; e.scrollIntoView({ block: "center" }); const r = e.getBoundingClientRect(); const ponto = { x: r.left + r.width / 2, y: r.top + r.height / 2, vw: innerWidth, vh: innerHeight }; e.focus && e.focus(); e.click(); return ponto; })()`, true) as unknown;
       await settle(500); await waitLoad(wc, 8_000);
-      return { ok: true, ...tabInfo(wc, browserActiveWcId(host)) };
+      return { ok: true, ...tabInfo(wc, browserActiveWcId(host)), ponto: comAba(ponto, wc.id) };
     });
     case "/digitar": return mexer(async (wc) => {
       if (typeof b.texto !== "string") throw new Error("falta texto");
       const target = typeof b.n === "number" ? pick(b.n) : typeof b.seletor === "string" ? `(() => { const e = document.querySelector(${JSON.stringify(b.seletor)}); if (!e) throw new Error("nada com o seletor"); return e; })()` : "document.activeElement";
       // Foca e limpa; o texto entra como digitação de verdade (insertText), que apps como o Gmail entendem.
-      await wc.executeJavaScript(`(() => { const e = ${target}; e.scrollIntoView({ block: "center" }); e.focus(); if ("value" in e && typeof e.value === "string") { e.select && e.select(); } else if (e.isContentEditable) { const r = document.createRange(); r.selectNodeContents(e); const s = getSelection(); s.removeAllRanges(); s.addRange(r); } return true; })()`, true);
+      const ponto = await wc.executeJavaScript(`(() => { const e = ${target}; e.scrollIntoView({ block: "center" }); const r = e.getBoundingClientRect(); const ponto = { x: r.left + r.width / 2, y: r.top + r.height / 2, vw: innerWidth, vh: innerHeight }; e.focus(); if ("value" in e && typeof e.value === "string") { e.select && e.select(); } else if (e.isContentEditable) { const r = document.createRange(); r.selectNodeContents(e); const s = getSelection(); s.removeAllRanges(); s.addRange(r); } return ponto; })()`, true) as unknown;
       await wc.insertText(b.texto);
       if (b.enter === true) { wc.sendInputEvent({ type: "keyDown", keyCode: "Return" }); wc.sendInputEvent({ type: "char", keyCode: "Return" }); wc.sendInputEvent({ type: "keyUp", keyCode: "Return" }); await settle(500); await waitLoad(wc, 8_000); }
-      return { ok: true };
+      return { ok: true, ponto: comAba(ponto, wc.id) };
     });
     case "/tecla": return mexer(async (wc) => {
       const k = typeof b.tecla === "string" ? b.tecla : "";
@@ -239,7 +242,8 @@ async function handle(host: string, req: http.IncomingMessage, res: http.ServerR
   // Primeira vez de cada conversa: registra quem é (no WhatsApp mostra se veio a chave da sessão ou um id por processo).
   if (dono !== null && !vistos.has(dono.id)) { vistos.add(dono.id); log(`[navegador ${host}] conversa nova usando o Navegador: ${dono.origem} · ${dono.id} · ${dono.rotulo}`); }
   const t0 = Date.now();
-  try { const r = await act(host, route, body, dono); send(200, r); registrarAcao({ origem: "navegador", dono, rota: route, corpo: body as Record<string, unknown>, t0, resultado: r }); }
+  // O `ponto` (onde a ação aconteceu na página) é só para a faixa de depuração: o agente recebe a resposta sem ele.
+  try { const r = await act(host, route, body, dono); send(200, semPonto(r)); registrarAcao({ origem: "navegador", dono, rota: route, corpo: body as Record<string, unknown>, t0, resultado: r }); }
   catch (e) {
     const st = (e as { status?: number }).status ?? 400;
     const msg = (e instanceof Error ? e.message : String(e)) || "a ação falhou sem mensagem (a aba pode ter mudado); chame 'abas' e tente de novo";

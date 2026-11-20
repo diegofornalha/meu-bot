@@ -62,6 +62,8 @@ export interface SettingsView {
   aceleracaoHardware: boolean;
   /** Modo de depuração gravado (null = o padrão da variante: ligado no staging). */
   depuracao: boolean | null;
+  /** Modo instagramável: com a depuração ligada, cada log vira um cursor com o nome de alguém da organização. */
+  instagramavel: boolean;
   /** Aba fixada (📌) que fica na frente ao abrir a janela. */
   abaFixa: AbaFixa;
   /** Repositório de módulos (só nos apps com módulos); "" = o padrão do produto. */
@@ -96,6 +98,7 @@ export interface SettingsUpdate {
   aceleracaoHardware?: boolean;
   abaFixa?: AbaFixa;  /** Modo de depuração: true/false grava; null volta ao padrão da variante. */
   depuracao?: boolean | null;
+  instagramavel?: boolean;
   modulosRepo?: string;
 }
 /** Avisos gravados na máquina (o backend envia pelo WhatsApp da própria pessoa): Mac novo, vigia da máquina e da box, cota de disco. */

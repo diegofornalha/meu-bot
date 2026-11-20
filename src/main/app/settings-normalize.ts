@@ -72,6 +72,8 @@ export interface SettingsFile {
   aceleracaoHardware: boolean;
   /** Modo de depuração: true/false gravado pela pessoa; null = o padrão da variante (ligado no staging). */
   depuracao: boolean | null;
+  /** Modo instagramável: com a depuração ligada, cada log vira um cursor colorido com o nome de alguém da organização (o ✨ colado no Intro do seletor, e a paleta). */
+  instagramavel: boolean;
   /** Aba fixada (📌) que fica na frente ao abrir; "padrao" até a pessoa escolher. */
   abaFixa: AbaFixa;
   /** Controle externo (MCP): servidor em 127.0.0.1 para um cliente MCP deste Mac controlar o app. Instalação nova nasce ligada (settings.ts loadSettings, 10 nov 2026); arquivo existente sem a chave fica desligado. */
@@ -175,7 +177,7 @@ const validHost = (v: unknown): string | null => (typeof v === "string" && isVal
 export const defaultSettings = (): SettingsFile => ({
   version: 1, lastHost: null, backendModel: DEFAULT_MODEL, defaultModelByHost: {}, backendPort: DEFAULT_PORT, backendPortByHost: {}, zoomLevel: 0,
   theme: "system", notifications: true, contextBudgetTokens: DEFAULT_BUDGET, memoryEveryTurns: DEFAULT_MEMORY_EVERY,
-  quickEntryEnabled: true, dadosNoDrive: true, quickEntryShortcut: DEFAULT_SHORTCUT, podHosts: [], navAgentHosts: [], navAgentDesligados: [], gmailAgentDesligados: [], navFavoritos: {}, onboarding: "pending", openDirect: true, hostNames: {}, navEspacos: {}, atualizarOcioso: true, corretorOrtografico: true, notificacaoSom: true, aceleracaoHardware: true, depuracao: null, abaFixa: "padrao",
+  quickEntryEnabled: true, dadosNoDrive: true, quickEntryShortcut: DEFAULT_SHORTCUT, podHosts: [], navAgentHosts: [], navAgentDesligados: [], gmailAgentDesligados: [], navFavoritos: {}, onboarding: "pending", openDirect: true, hostNames: {}, navEspacos: {}, atualizarOcioso: true, corretorOrtografico: true, notificacaoSom: true, aceleracaoHardware: true, depuracao: null, instagramavel: false, abaFixa: "padrao",
   // "Executar comandos e código" vem ligado (7 nov): o controle externo só existe com mcpLigado, e quem o liga quer o cliente agindo.
   mcpLigado: false, mcpExecucao: true, mcpPorta: null, mcpToken: "", modulosRepo: "",
 });
@@ -224,6 +226,7 @@ export function normalizeSettings(input: unknown): SettingsFile {
     notificacaoSom: typeof p["notificacaoSom"] === "boolean" ? p["notificacaoSom"] : true,
     aceleracaoHardware: typeof p["aceleracaoHardware"] === "boolean" ? p["aceleracaoHardware"] : true,
     depuracao: p["depuracao"] === true ? true : p["depuracao"] === false ? false : null,
+    instagramavel: p["instagramavel"] === true,
     abaFixa: isAbaFixa(p["abaFixa"]) ? p["abaFixa"] : "padrao",
     mcpLigado: p["mcpLigado"] === true,
     mcpExecucao: typeof p["mcpExecucao"] === "boolean" ? p["mcpExecucao"] : true,

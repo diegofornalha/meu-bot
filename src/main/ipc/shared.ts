@@ -45,7 +45,7 @@ import { agendaCriar, agendaProximos, gmailApagar, gmailLer, gmailListar, gmailR
 import { validaBusca, validaId, validaMax, validaPagina } from "../google/gmail-core";
 import { CONJUNTOS_DADOS } from "../google/google-core";
 import { gmailAgenteParar } from "../google/gmail-api";
-import { abrirConsole, atualizarConta, cancelarEntrada, contaView, entrar as contaEntrar, sair as contaSair } from "../conta/conta";
+import { abrirConsole, atualizarConta, cancelarEntrada, contaView, entrar as contaEntrar, nomesDosMembros, sair as contaSair } from "../conta/conta";
 import { changeWindowZoom, currentZoom } from "../app/zoom";
 import { parseZoomAction } from "../app/zoom-core";
 import { caps, compilacao } from "../app/variant";
@@ -109,6 +109,7 @@ export function registerSharedIpc(deps: SharedIpcDeps): void {
   handleShared("depuracao:estado", () => estadoDepuracao());
   // Conta meu-bot deste Mac (não é da máquina da janela): entrar abre o navegador; a sessão volta pelo deep link.
   handleShared("conta:get", (_event, payload: unknown) => ((payload as { forcar?: unknown } | null)?.forcar === true ? atualizarConta() : contaView()));
+  handleShared("conta:membros", () => nomesDosMembros());
   handleShared("conta:entrar", () => contaEntrar());
   handleShared("conta:cancelar", () => cancelarEntrada());
   handleShared("conta:sair", () => contaSair());
@@ -556,6 +557,7 @@ export function registerSharedIpc(deps: SharedIpcDeps): void {
       ...(typeof u.corretorOrtografico === "boolean" ? { corretorOrtografico: u.corretorOrtografico } : {}),
       ...(typeof u.notificacaoSom === "boolean" ? { notificacaoSom: u.notificacaoSom } : {}),
       ...(typeof u.aceleracaoHardware === "boolean" ? { aceleracaoHardware: u.aceleracaoHardware } : {}),
+      ...(typeof u.instagramavel === "boolean" ? { instagramavel: u.instagramavel } : {}),
       ...(typeof u.abaFixa === "string" ? { abaFixa: u.abaFixa as NonNullable<SettingsUpdate["abaFixa"]> } : {}),
       ...(typeof u.contextBudgetTokens === "number" ? { contextBudgetTokens: u.contextBudgetTokens } : {}),
       ...(typeof u.memoryEveryTurns === "number" ? { memoryEveryTurns: u.memoryEveryTurns } : {}),
