@@ -17,6 +17,7 @@ test("máquina extra: o webhook abre a vaga, a renovação estende, cada assinat
   const persist = mkdtempSync(join(tmpdir(), "conta-d1-"));
   const { getPlatformProxy } = req("wrangler");
   const px = await getPlatformProxy({ configPath: api + "/wrangler.toml", environment: "staging", persist: { path: persist } });
+  const canceladas = [], fetchReal = globalThis.fetch;
   try {
   const DB = px.env.DB;
   for (const f of readdirSync(api + "/migrations").sort()) {
@@ -95,14 +96,18 @@ test("máquina extra: o webhook abre a vaga, a renovação estende, cada assinat
 
   // Encerrada pelo admin (reembolso): a cobrança seguinte não a devolve, vira pedido de revisão.
   const tadm = await assinarJwt({ sub: A, sid: "s", dev: null, adm: "super", iat: s, exp: s + 3600 }, HMAC);
-  assert.equal((await chamar("POST", `/admin/contas/${A}/extras/subs_m2/encerrar`, {}, ta)).status, 403, "só admin encerra");
-  assert.equal((await chamar("POST", `/admin/contas/${A}/extras/subs_naoexiste/encerrar`, {}, tadm)).status, 404);
-  assert.equal((await chamar("POST", `/admin/contas/${B}/extras/subs_m2/encerrar`, {}, tadm)).status, 404, "a assinatura é de outra conta");
+  // A AbacatePay de mentira: o encerramento pede o cancelamento da assinatura antes de tirar o acesso.
+  globalThis.fetch = async (url, init) => { if (!String(url).startsWith("https://api.abacatepay.com/")) return fetchReal(url, init); canceladas.push(JSON.parse(init.body).id); return new Response(JSON.stringify({ success: true, data: { status: "CANCELLED" } }), { status: 200, headers: { "content-type": "application/json" } }); };
+  assert.equal((await chamar("POST", `/admin/contas/${A}/extras/subs_m2/encerrar`, { motivo: "reembolso" }, ta)).status, 403, "só admin encerra");
+  assert.equal((await chamar("POST", `/admin/contas/${A}/extras/subs_naoexiste/encerrar`, { motivo: "reembolso" }, tadm)).status, 404);
+  assert.equal((await chamar("POST", `/admin/contas/${B}/extras/subs_m2/encerrar`, { motivo: "reembolso" }, tadm)).status, 404, "a assinatura é de outra conta");
   r = await chamar("GET", "/admin/visao", undefined, tadm);
   assert.deepEqual(r.corpo.contas.find((x) => x.id === A).extrasPagos.map((x) => [x.assinaturaId, x.tipo]).sort(), [["subs_m1", "maquina"], ["subs_m2", "maquina"]]);
-  assert.equal((await chamar("POST", `/admin/contas/${A}/extras/subs_m2/encerrar`, {}, tadm)).status, 200);
+  assert.equal((await chamar("POST", `/admin/contas/${A}/extras/subs_m2/encerrar`, { motivo: "reembolso" }, tadm)).status, 200);
   assert.notEqual((await extra("subs_m2")).encerrado_em, null);
-  assert.equal((await chamar("POST", `/admin/contas/${A}/extras/subs_m2/encerrar`, {}, tadm)).status, 404, "já encerrada");
+  assert.deepEqual(canceladas, ["subs_m2"], "a cobrança parou na AbacatePay antes de tirar a vaga");
+  assert.equal((await DB.prepare("SELECT status FROM assinaturas WHERE id = 'subs_m2'").first()).status, "CANCELLED");
+  assert.equal((await chamar("POST", `/admin/contas/${A}/extras/subs_m2/encerrar`, { motivo: "reembolso" }, tadm)).status, 404, "já encerrada");
   await new Promise((ok) => setTimeout(ok, 5));
   w = await webhook({ evento: "subscription.renewed", ref: R2, subs: "subs_m2" });
   assert.match(w.resultado, /^revisar: cobrança de extra-maquina encerrado pelo admin/);
@@ -123,5 +128,5 @@ test("máquina extra: o webhook abre a vaga, a renovação estende, cada assinat
   c = await conta();
   assert.equal(c.assinaturas.find((a) => a.id === "subs_m1").status, "CANCELLED");
   assert.equal(c.maquinaLimite, 2);
-  } finally { await px.dispose(); rmSync(persist, { recursive: true, force: true }); }
+  } finally { globalThis.fetch = fetchReal; await px.dispose(); rmSync(persist, { recursive: true, force: true }); }
 });

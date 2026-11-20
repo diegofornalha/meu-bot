@@ -7,7 +7,7 @@
  *   no GitHub; www. redireciona para ela;
  * - conta.agentesgrok.com: a API (POST /sessao, POST /token, POST /sessao/sair, GET|PATCH|DELETE /conta, POST /conta/senha,
  *   GET /health; organizações GET|POST /orgs, GET /orgs/:slug/publico (sem login), GET|PATCH|DELETE /orgs/:slug, POST /orgs/:slug/membros, PATCH|DELETE /orgs/:slug/membros/:email;
- *   para admins GET /admin/visao, GET /admin/conta (uma conta, pela máquina, id ou e-mail: a página Suporte do admin-gestao), POST /admin/suporte (o admin-gestao envia o resumo de uma janela de suporte), GET /admin/suporte (só super: console /support-window), GET /admin/auditoria (só super: contas apagadas, vendas ocultadas e o registro de ações), POST /admin/vendas/(assinaturas|pagamentos)/:id/(ocultar|mostrar) (só super: tira da tela Assinaturas ou traz de volta), PATCH /admin/contas/:id/licenca, DELETE /admin/contas/:id (só super: apaga a conta), POST /admin/contas/:id/cortesias, POST /admin/contas/:id/cortesias/:c/(renovar|encerrar), POST /admin/contas/:id/devices/:device/liberar, DELETE /admin/contas/:id/devices/:device, POST|PUT /admin/contas/:id/senha, POST /admin/pedidos/:id/atender, PUT|DELETE /admin/perfis/:email, PATCH /admin/orgs/:slug).
+ *   para admins GET /admin/visao, GET /admin/conta (uma conta, pela máquina, id ou e-mail: a página Suporte do admin-gestao), POST /admin/suporte (o admin-gestao envia o resumo de uma janela de suporte), GET /admin/suporte (só super: console /support-window), GET /admin/auditoria (só super: contas apagadas, vendas ocultadas e o registro de ações), POST /admin/vendas/(assinaturas|pagamentos)/:id/(ocultar|mostrar) (só super: tira da tela Assinaturas ou traz de volta), PATCH /admin/contas/:id/licenca, DELETE /admin/contas/:id (só super: apaga a conta), POST /admin/contas/:id/(pro|addons/:produto|extras/:assinatura)/encerrar {motivo, detalhe}, POST /admin/contas/:id/cortesias, POST /admin/contas/:id/cortesias/:c/(renovar|encerrar), POST /admin/contas/:id/devices/:device/liberar, DELETE /admin/contas/:id/devices/:device, POST|PUT /admin/contas/:id/senha, POST /admin/pedidos/:id/atender, PUT|DELETE /admin/perfis/:email, PATCH /admin/orgs/:slug).
  * Código por visita (rotas/leads.ts): POST /lead-ref no host do site (sem login) e, na API, GET /leads/:codigo e
  * POST /leads/:codigo/qualificar (Bearer LEADS_TOKEN, sem login de conta).
  * Assinatura do Pro pela AbacatePay: POST /conta/assinatura (logado, devolve a url do pagamento), POST
@@ -19,10 +19,11 @@ import type { Env } from "./tipos.js";
 import { autenticar, cors, json } from "./http.js";
 import { postSair, postSessao, postSessaoConsole } from "./rotas/sessao.js";
 import { postToken } from "./rotas/token.js";
+import { postEncerrarAddon, postEncerrarExtra, postEncerrarPro } from "./rotas/encerrar.js";
 import { postCortesia, postEncerrarCortesia, postRenovarCortesia } from "./rotas/cortesias.js";
 import { deleteConta, getConta, patchConta, postSenha } from "./rotas/conta.js";
 import { getSuporteResumos, postSuporteResumo } from "./rotas/suporte.js";
-import { deleteAdminConta, deleteDevice, deletePerfil, getAdminAuditoria, postVendaOculta, postZerarAuditoria, getAdminConta, getAdminFirebase, getAdminVisao, patchLicenca, postAdminSenha, postAtenderPedido, postEncerrarAddon, postEncerrarExtra, postLiberarDevice, putAdminSenha, putPerfil, postAtribuirMaquina, deleteAtribuirMaquina } from "./rotas/admin.js";
+import { deleteAdminConta, deleteDevice, deletePerfil, getAdminAuditoria, postVendaOculta, postZerarAuditoria, getAdminConta, getAdminFirebase, getAdminVisao, patchLicenca, postAdminSenha, postAtenderPedido,  postLiberarDevice, putAdminSenha, putPerfil, postAtribuirMaquina, deleteAtribuirMaquina } from "./rotas/admin.js";
 import { downloadMac, downloadWindows, REPO } from "./release-github.js";
 import { GUIAS, lerReleases, novidadesHtml, sitemapXml } from "./novidades-core.js";
 import { CSP_ADS, CSP_GA, gaIds } from "./analytics-core.js";
@@ -137,6 +138,7 @@ async function api(req: Request, env: Env, url: URL, espera: (p: Promise<unknown
     const encerrarAddon = /^POST \/admin\/contas\/([A-Za-z0-9-]{1,40})\/addons\/([a-z0-9-]{1,40})\/encerrar$/.exec(rota);
     const cortesiaNova = /^POST \/admin\/contas\/([A-Za-z0-9-]{1,40})\/cortesias$/.exec(rota);
     const cortesiaAcao = /^POST \/admin\/contas\/([A-Za-z0-9-]{1,40})\/cortesias\/([A-Za-z0-9-]{1,40})\/(renovar|encerrar)$/.exec(rota);
+    const encerrarPro = /^POST \/admin\/contas\/([A-Za-z0-9-]{1,40})\/pro\/encerrar$/.exec(rota);
     const encerrarExtra = /^POST \/admin\/contas\/([A-Za-z0-9-]{1,40})\/extras\/(subs_[A-Za-z0-9_-]{1,90})\/encerrar$/.exec(rota);
     const liberarDevice = /^POST \/admin\/contas\/([A-Za-z0-9-]{1,40})\/devices\/([a-f0-9-]{12,36})\/liberar$/.exec(rota);
     const removerDevice = /^DELETE \/admin\/contas\/([A-Za-z0-9-]{1,40})\/devices\/([a-f0-9-]{12,36})$/.exec(rota);
@@ -186,10 +188,11 @@ async function api(req: Request, env: Env, url: URL, espera: (p: Promise<unknown
     else if (rota === "GET /admin/suporte") res = await getSuporteResumos(auth, env);
     else if (atender !== null) res = await postAtenderPedido(auth, env, atender[1]!);
     else if (licenca !== null) res = await patchLicenca(auth, env, licenca[1]!, req);
-    else if (encerrarAddon !== null) res = await postEncerrarAddon(auth, env, encerrarAddon[1]!, encerrarAddon[2]!);
+    else if (encerrarAddon !== null) res = await postEncerrarAddon(auth, env, encerrarAddon[1]!, encerrarAddon[2]!, req);
     else if (cortesiaNova !== null) res = await postCortesia(auth, env, cortesiaNova[1]!, req);
     else if (cortesiaAcao !== null) res = cortesiaAcao[3] === "renovar" ? await postRenovarCortesia(auth, env, cortesiaAcao[1]!, cortesiaAcao[2]!, req) : await postEncerrarCortesia(auth, env, cortesiaAcao[1]!, cortesiaAcao[2]!, req);
-    else if (encerrarExtra !== null) res = await postEncerrarExtra(auth, env, encerrarExtra[1]!, encerrarExtra[2]!);
+    else if (encerrarPro !== null) res = await postEncerrarPro(auth, env, encerrarPro[1]!, req);
+    else if (encerrarExtra !== null) res = await postEncerrarExtra(auth, env, encerrarExtra[1]!, encerrarExtra[2]!, req);
     else if (liberarDevice !== null) res = await postLiberarDevice(auth, env, liberarDevice[1]!, liberarDevice[2]!, req);
     else if (removerDevice !== null) res = await deleteDevice(auth, env, removerDevice[1]!, removerDevice[2]!);
     else if (apagarContaAdmin !== null) res = await deleteAdminConta(auth, env, apagarContaAdmin[1]!);

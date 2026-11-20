@@ -19,6 +19,8 @@ h1 { font-size: 20px; margin: 0; }
 h2 { font-size: 16px; margin: 0 0 8px; }
 .sub { color: var(--sub); font-size: 14px; margin: 6px 0 0; }
 .erro { color: var(--mau); background: var(--mau-fundo); border-radius: 8px; padding: 8px 12px; font-size: 14px; }
+/* O resultado de uma ação do admin que a pessoa precisa ler (ex.: o reembolso é feito no painel da AbacatePay). */
+.aviso-ok { color: var(--texto); background: var(--ok-fundo); border: 1px solid var(--borda); border-radius: 8px; padding: 8px 12px; font-size: 14px; }
 code { padding: 2px 6px; border-radius: 6px; background: var(--codigo); border: 1px solid var(--borda); font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; }
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--borda); background: var(--cartao); color: var(--texto); font: inherit; font-weight: 600; cursor: pointer; text-decoration: none; }
 .btn:disabled { opacity: .6; cursor: default; }
@@ -189,3 +191,6 @@ code { padding: 2px 6px; border-radius: 6px; background: var(--codigo); border: 
 .mk-titulo { font-size: 16px; margin: 22px 0 0; }
 .mk-cartao .btn { align-self: flex-start; margin-top: 10px; }
 div.mk-cartao:hover { border-color: var(--borda); }
+/* Encerrar com motivo (admin): o motivo, o detalhe e os botões ficam ao lado do Encerrar, e quebram linha quando falta espaço. */
+.encerrar-motivo { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0; }
+.encerrar-motivo input { min-width: 0; width: min(260px, 100%); }
