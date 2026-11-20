@@ -122,3 +122,23 @@ export type ContaEvento =
   | { kind: "url"; id: ContaId; url: string; codigo: string | null }
   | { kind: "log"; id: ContaId; text: string }
   | { kind: "done"; id: ContaId; ok: boolean; text: string; estado?: ContaEstado | null };
+
+/**
+ * Modo grátis no Mac (tutorial 17): o Ollama do meu-bot nesta máquina. `possivel` = este Mac com chip Apple (as outras
+ * máquinas e o Intel não têm); `modelo` = o que o providers.json usa (null = não preparado); `pronto` = o serve
+ * responde e já tem esse modelo baixado. `recomendado`/`necessarioMb` saem da memória e do espaço do Mac.
+ */
+export interface OllamaStatus {
+  possivel: boolean;
+  instalado: boolean;
+  rodando: boolean;
+  pronto: boolean;
+  modelo: string | null;
+  recomendado: { id: string; rotulo: string; downloadMb: number };
+  memMb: number | null;
+  livreMb: number | null;
+  necessarioMb: number;
+  versao: string;
+}
+/** Progresso do preparo/remoção do Ollama: uma linha do log. */
+export interface OllamaEvento { text: string }

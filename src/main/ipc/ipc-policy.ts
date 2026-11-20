@@ -54,6 +54,8 @@ export const CLIENT_CHANNELS = [
   // várias contas do Claude na máquina (rodízio no limite de uso)
   "contas-claude:listar", "contas-claude:criar", "contas-claude:entrar", "contas-claude:atualizar", "contas-claude:reordenar", "contas-claude:remover", "contas-claude:usar-agora", "contas-claude:conferir", "contas-claude:limiares",
   "xai-login:prepare", "xai-login:start", "xai-login:logout", "xai-login:cancel",
+  // modo grátis no Mac (tutorial 17): o Ollama do meu-bot
+  "ollama:status", "ollama:prepare", "ollama:ligar", "ollama:remover",
   "contas:entrar", "contas:cancelar", "contas:sair", "contas:instalar-gh",
   // link público da pessoa (tutorial 13): trocar o nome do subdomínio dela, ver o que está no ar, tirar do ar e publicar um arquivo deste Mac
   "link-publico:nome", "link-publico:lista", "link-publico:remover", "link-publico:publicar",

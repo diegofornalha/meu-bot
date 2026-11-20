@@ -34,6 +34,7 @@ class Sender {
 const MODEL_LABEL: Record<BackendModel, string> = {
   claudecode: "claudecode (Claude Code, chat)", agente: "agente (Claude Code com ferramentas, bypass)",
   "rene-dm": "rene-dm (agente René, Claude Code)", rene: "rene (agente René, Claude Code)", "grok-4": "grok-4 (Grok da xAI)",
+  "ollama-local": "ollama-local (modo grátis: Ollama neste Mac)",
 };
 /** Nota invisível na tela, enviada junto da próxima mensagem depois de trocar o modelo. */
 const switchNote = (from: BackendModel, to: BackendModel): string =>

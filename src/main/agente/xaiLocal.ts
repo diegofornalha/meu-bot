@@ -173,7 +173,7 @@ export async function prepareGrokOauthLocal(onLine?: (line: string) => void): Pr
   fs.mkdirSync(localBackendDir(), { recursive: true });
   const antes = lerProviders();
   if (antes !== null && !providersApontaProxy(antes, p)) { fs.writeFileSync(`${providersPath()}.antes-do-grok-oauth`, antes); say("providers.json anterior guardado em providers.json.antes-do-grok-oauth"); }
-  fs.writeFileSync(providersPath(), providersComGrokLocal(p));
+  fs.writeFileSync(providersPath(), providersComGrokLocal(p, antes));
   say(`grok-4 apontado para o proxy local (porta ${p})`);
 
   reiniciarProxy();

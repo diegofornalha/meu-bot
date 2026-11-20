@@ -6,6 +6,8 @@
  * app, e o proxy vira mais um, que nasce e morre com ele.
  */
 
+import { mesclarProvider } from "../maquina/providers-local-core";
+
 /** A mesma versão do install-grok-oauth.sh: o proxy da xAI é desta versão. */
 export const HERMES_VERSION_LOCAL = "0.22.2";
 
@@ -18,12 +20,12 @@ export const proxyPortaLocal = (portaBackend: number): number => portaBackend - 
 
 export const proxyUrlLocal = (porta: number): string => `http://127.0.0.1:${porta}/v1`;
 
-/** providers.json do backend local com o grok-4 pelo proxy (o mesmo conteúdo do install-grok-oauth.sh). */
-export function providersComGrokLocal(porta: number): string {
-  return `${JSON.stringify([
-    { name: "agente", type: "claude", priority: 0, description: "Claude Code com ferramentas, sem pedir permissão (bypass)" },
-    { name: "grok-4", type: "openai", priority: 1, base_url: proxyUrlLocal(porta), model: "grok-4", description: "Grok da xAI pelo proxy local do Hermes (login OAuth: hermes auth add xai-oauth)" },
-  ], null, 2)}\n`;
+/**
+ * providers.json do backend local com o grok-4 pelo proxy (o mesmo conteúdo do install-grok-oauth.sh), mesclado no
+ * arquivo atual: as outras entradas (o Ollama do modo grátis) ficam. Sem arquivo, nasce com o agente e o grok-4.
+ */
+export function providersComGrokLocal(porta: number, raw: string | null = null): string {
+  return mesclarProvider(raw, { name: "grok-4", type: "openai", priority: 1, base_url: proxyUrlLocal(porta), model: "grok-4", description: "Grok da xAI pelo proxy local do Hermes (login OAuth: hermes auth add xai-oauth)" });
 }
 
 /** O providers.json já aponta o grok-4 para o proxy desta porta (= o Grok está preparado neste app). */

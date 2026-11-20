@@ -19,16 +19,16 @@ test("tutoriais: ids únicos e cada passo com título, texto, alvo e regra de co
 test("selo: número, passos e minutos; sem número, só os dois", () => {
   assert.equal(tutorialBadge(t), "Tutorial 3 · 5 passos · 4 min");
   assert.equal(tutorialBadge({ ...t, minutes: 1, steps: [t.steps[0]] }, false), "1 passo · 1 min");
-  assert.equal(tutorialBadge(byId("statusline")), "Tutorial 17 · 4 passos · 3 min");
+  assert.equal(tutorialBadge(byId("statusline")), "Tutorial 18 · 4 passos · 3 min");
 });
 
 test("trilha numerada: números 1..N únicos na ordem; `after` aponta para um tutorial anterior; só o suporte exige o pacote", () => {
   // Renumerados em 31 out (e de novo em 3 nov, quando o "Ouvir áudios" saiu) na ordem da trilha (a lista aparece na
-  // ordem do array): os que podem entrar na lista são 1..16, sem buracos; os ocultos por decisão de produto ficam no
-  // fim (17 status line; 18 o CRM, em duas versões pela licença/motor, CRM no Gmail com o CRM próprio ou CRM pelo
+  // ordem do array): os que podem entrar na lista são 1..17 (o 17, modo grátis, entrou em 19 nov), sem buracos; os
+  // ocultos por decisão de produto ficam no fim (18 status line; 19 o CRM, em duas versões pela licença/motor, CRM no Gmail com o CRM próprio ou CRM pelo
   // Streak no resto, nunca juntas).
-  assert.deepEqual(TUTORIAIS.map((x) => x.number), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 18]);
-  assert.deepEqual(TUTORIAIS.filter((x) => x.oculto !== true).map((x) => x.number), Array.from({ length: 16 }, (_, i) => i + 1), "a lista sai 1, 2, 3… sem buraco");
+  assert.deepEqual(TUTORIAIS.map((x) => x.number), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 19]);
+  assert.deepEqual(TUTORIAIS.filter((x) => x.oculto !== true).map((x) => x.number), Array.from({ length: 17 }, (_, i) => i + 1), "a lista sai 1, 2, 3… sem buraco");
   for (let i = 1; i < TUTORIAIS.length; i++) assert.ok(TUTORIAIS[i - 1].number <= TUTORIAIS[i].number, `${TUTORIAIS[i].id} fora da ordem dos números`);
   for (const produto of [{ planoExigido: "free", crmProprio: false, crmStreak: true }, { planoExigido: "free", crmProprio: true, crmStreak: false }]) {
     const nums = visibleTutorials({ ...emptyContext(), produto }, () => true).map((x) => x.number);
@@ -37,7 +37,7 @@ test("trilha numerada: números 1..N únicos na ordem; `after` aponta para um tu
   assert.deepEqual(TUTORIAIS.slice(0, 8).map((x) => x.id), ["claude-login", "contas-claude", "whatsapp-openclaw", "xai-login", "fallback-contas", "suporte", "whatsapp-objetivo", "guarda-whatsapp"]);
   for (const x of TUTORIAIS) if (x.after !== undefined) { const prev = byId(x.after); assert.ok(prev && prev.number < x.number, `${x.id} depois de ${x.after}`); }
   assert.deepEqual(TUTORIAIS.filter((x) => x.needsSupport).map((x) => x.id), ["suporte"]);
-  assert.equal(tutorialNumber("statusline"), 17); assert.equal(tutorialNumber("nada"), null);
+  assert.equal(tutorialNumber("statusline"), 18); assert.equal(tutorialNumber("nada"), null);
 });
 
 test("visibleTutorials: 2 e 4 só depois do 1 concluído; 5 só depois do 4; sem pré-requisito, some em vez de ir para arquivados", () => {
@@ -51,6 +51,24 @@ test("visibleTutorials: 2 e 4 só depois do 1 concluído; 5 só depois do 4; sem
   assert.ok(!idsCrm.includes("crm-gmail") && !idsCrm.includes("crm-whatsapp"), "o 17 (CRM no Gmail) está oculto e, com o CRM próprio, o do Streak também não entra");
   assert.ok(ids((x) => x.id === "claude-login" || x.id === "xai-login").includes("fallback-contas"));
   assert.deepEqual(ids(), ids(() => false), "sem `finished`, nada da trilha destravado");
+});
+
+test("tutorial 17 · Modo grátis no Mac (Ollama): conferir → instalar → ollama-local respondeu; só onde é possível", () => {
+  const t17 = byId("ollama-local");
+  assert.equal(t17.number, 17); assert.equal(t17.needsOllama, true); assert.equal(t17.after, undefined);
+  const st = (over = {}) => ({ possivel: true, instalado: false, rodando: false, pronto: false, modelo: null, recomendado: { id: "qwen2.5:7b", rotulo: "Qwen 2.5 7B", downloadMb: 4700 }, memMb: 16384, livreMb: 50000, necessarioMb: 7300, versao: "0.40.15", ...over });
+  const c = (possible, status) => ({ ...emptyContext(), ollama: { possible, status } });
+  assert.equal(guideView(t17, null, emptyFlags(), c(true, null)).current, 0, "não consultado: conferir");
+  assert.equal(guideView(t17, null, emptyFlags(), c(true, st({ livreMb: 1000 }))).current, 0, "sem espaço: fica no conferir");
+  assert.equal(guideView(t17, null, emptyFlags(), c(true, st())).current, 1, "Mac ok: instalar");
+  assert.equal(guideView(t17, null, emptyFlags(), c(true, st({ instalado: true, rodando: true, pronto: true, modelo: "qwen2.5:7b", livreMb: 1000 }))).current, 2, "instalado: ver responder (o espaço já não importa)");
+  assert.equal(guideView(t17, null, { ...emptyFlags(), ollamaReplied: true }, c(true, st({ pronto: true, modelo: "qwen2.5:7b" }))).finished, true);
+  assert.equal(guideView(t17, null, { ...emptyFlags(), ollamaReplied: true }, c(true, st({ pronto: false, modelo: "qwen2.5:7b" }))).current, 1, "parou: volta ao instalar");
+  assert.deepEqual([t17.steps[0].body, t17.steps[1].body, t17.steps[2].target], ["ollama-check", "ollama-prepare", "chat"]);
+  const ids = (possible) => visibleTutorials(c(possible, null), () => false).map((x) => x.id);
+  assert.ok(ids(true).includes("ollama-local"));
+  assert.ok(!ids(null).includes("ollama-local"), "não consultado: esconde (como a guarda)");
+  assert.ok(!ids(false).includes("ollama-local"), "outra máquina, Intel ou fora do staging: some");
 });
 
 test("tutorial 1 · Entrar no Claude Code: login → e-mail (ou \"Vi minha conta\") → primeira resposta; sequencial", () => {
@@ -207,7 +225,7 @@ test("tutorial do suporte: some sem o pacote; passos pelo estado real; conclui q
 
 test("tutorial da status line: oculto da lista (o admin instala ao criar a conta); o guia continua existindo: instalar, depois os limites no rodapé", async () => {
   const sl = TUTORIAIS.find((x) => x.id === "statusline");
-  assert.equal(sl.number, 17); assert.equal(sl.oculto, true);
+  assert.equal(sl.number, 18); assert.equal(sl.oculto, true);
   assert.ok(!visibleTutorials(emptyContext()).includes(sl), "sem o 1 concluído não aparece");
   assert.ok(!visibleTutorials(emptyContext(), (x) => x.id === "claude-login").includes(sl), "nem com o 1 concluído: saiu da lista em 30 out");
   assert.ok(!visibleTutorials(emptyContext(), () => true).includes(sl));
