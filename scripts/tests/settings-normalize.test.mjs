@@ -128,3 +128,9 @@ test("modo de depuração: null por padrão (a variante decide); true/false grav
   assert.equal(normalizeSettings({ version: 1, depuracao: false }).depuracao, false);
   assert.equal(normalizeSettings({ version: 1, depuracao: "sim" }).depuracao, null);
 });
+
+test("instagramavel: desligado por padrão; só true liga", () => {
+  assert.equal(defaultSettings().instagramavel, false);
+  assert.equal(normalizeSettings({ instagramavel: true }).instagramavel, true);
+  for (const v of [false, "true", 1, null, undefined]) assert.equal(normalizeSettings({ instagramavel: v }).instagramavel, false);
+});

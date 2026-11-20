@@ -31,7 +31,7 @@ import { log } from "./backend";
 import { resumoDoInstalador } from "./backend-bundle-core";
 import { evento } from "../app/depuracao";
 import { atualizarModulos, temModulos } from "../modulos/modulos";
-import { settingsView, getBackendPort, getHostNames, getLastHost, getOpenDirect, isOnboardingDone, isPodHost, isValidHost, setBackendPortForHost, setHostName, setLastHost, setOnboardingDone, setOpenDirect, setPodHost, setApelidoMaquina } from "../app/settings";
+import { settingsView, getBackendPort, getHostNames, getLastHost, getInstagramavel, getOpenDirect, isOnboardingDone, isPodHost, isValidHost, setBackendPortForHost, setHostName, setLastHost, setInstagramavel, setOnboardingDone, setOpenDirect, setPodHost, setApelidoMaquina } from "../app/settings";
 import { isPort } from "../app/settings-normalize";
 import { closeTunnel } from "./tunnel";
 import { listSshHosts, sshEnderecos } from "./sshConfig";
@@ -274,6 +274,7 @@ function initPayload(): PickerInit {
     reliefShortcuts: caps().atalhosMesa ? hosts.filter(hasReliefShortcut) : [],
     caps: { atalhosMesa: caps().atalhosMesa, semaforoNaBarra: caps().semaforoNaBarra },
     openDirect: getOpenDirect(),
+    instagramavel: getInstagramavel(),
     names: getHostNames(),
     onboardingDone: isOnboardingDone(),
     error: lastError ?? (acessoDaGestao() === "sem-papel" ? SEM_PAPEL_GESTAO : null),
@@ -390,6 +391,12 @@ export const clientPickerSource: PickerSource = {
     handleClient("picker:open-direct", (event, payload: unknown) => {
       if (!fromPicker(event)) throw new Error("origem inválida");
       setOpenDirect((payload as { value?: unknown } | null)?.value === true);
+    });
+    handleClient("picker:instagramavel", (event, payload: unknown) => {
+      if (!fromPicker(event)) throw new Error("origem inválida");
+      setInstagramavel((payload as { value?: unknown } | null)?.value === true);
+      // As janelas abertas ligam ou desligam o show na hora.
+      broadcast("settings:changed", settingsView());
     });
     handleClient("picker:onboarding-done", (event, payload: unknown) => {
       if (!fromPicker(event)) throw new Error("origem inválida");

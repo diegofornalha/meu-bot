@@ -1299,3 +1299,13 @@ table.fin-abc tr.fin-abc-C td.fin-abc-tag { color: #757575; }
 .modulo-pagina-aviso:empty { display: none; }
 .modulo-pagina-aviso { padding: 12px 16px; }
 .modulo-pagina-tela { flex: 1; min-height: 0; display: flex; }
+/* Modo instagramável (depuracao/instagramavel.ts): cursores com nomes voando até a faixa de depuração. O palco cobre a
+   janela sem pegar clique; cada cursor é posicionado por transform (Web Animations API). */
+.insta-palco { position: fixed; inset: 0; pointer-events: none; z-index: 9000; overflow: hidden; }
+.insta-cursor { position: absolute; left: 0; top: 0; will-change: transform; filter: drop-shadow(0 2px 4px rgb(0 0 0 / .35)); }
+.insta-cursor svg { display: block; }
+.insta-nome { position: absolute; left: 16px; top: 18px; padding: 2px 8px; border-radius: 999px; color: #fff; font: 600 11px/1.4 -apple-system, system-ui, sans-serif; white-space: nowrap; text-shadow: 0 1px 1px rgb(0 0 0 / .3); }
+.insta-erro .insta-nome { outline: 2px solid hsl(0 85% 55%); }
+.insta-particula { position: absolute; width: 7px; height: 7px; border-radius: 50%; }
+.insta-anel { position: absolute; width: 34px; height: 34px; border: 2px solid; border-radius: 50%; }
+@media (prefers-reduced-motion: reduce) { .insta-particula, .insta-anel { display: none; } }

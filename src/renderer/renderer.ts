@@ -80,6 +80,7 @@ import { askAgentAbout, cancelAutoSend, goToChatFromGuide, preencherChat } from 
 import { activityPage, ligarAtividade } from "./conversa/atividade.js";
 import { ligarRede, net, paintNet, setNet } from "./app/rede.js";
 import { alternarDepuracao, faixaLigada, ligarFaixaDepuracao } from "./depuracao/faixa.js";
+import { alternarInstagramavel, instagramavelLigado, ligarInstagramavel } from "./depuracao/instagramavel.js";
 import { aceleracaoInput, atualizarOciosoInput, corretorInput, lastUpdate, ligarAtualizacao, notificacaoSomInput, notificacoesInput, paintUpdateState } from "./atualizacao/atualizacao.js";
 import { abrirAtalhos, abrirBusca, buscaAberta, ligarAlvoWebview, ligarBusca, pararBusca, usarTeclaCmd, type AlvoWebview } from "./busca/busca.js";
 import { dicaTeclas, ehDoShell, rotuloTeclas, temTeclaDoApp } from "./lib/teclas-core.js";
@@ -1200,6 +1201,7 @@ function buildPaletteItems(): PaletteItem[] {
   add({ id: "a:sidebar", kind: "action", label: "Mostrar ou ocultar lista de conversas", detail: "Cmd+B" }, () => toggleSidebar());
   add({ id: "a:topbar", kind: "action", label: "Recolher ou mostrar tudo (barra, atalhos, lista e barra de escrever)", detail: "Cmd+B" }, () => setInterfaceRecolhida(!interfaceRecolhida()));
   add({ id: "a:depuracao", kind: "action", label: faixaLigada() ? "Modo de depuração: desligar" : "Modo de depuração: ligar", detail: "faixa no topo com build, batimento do processo principal, túnel e o que chega de fora", keywords: ["debug", "depuração", "depuracao", "faixa", "log"] }, () => { void alternarDepuracao(); });
+  add({ id: "a:instagramavel", kind: "action", label: instagramavelLigado() ? "Modo instagramável: desligar" : "Modo instagramável: ligar", detail: "com a depuração ligada, cada log vira um cursor com o nome de alguém da organização", keywords: ["instagram", "instagramável", "instagramavel", "cursores", "show", "video"] }, () => { void alternarInstagramavel(); });
   add({ id: "a:composer", kind: "action", label: "Mostrar ou ocultar barra de escrever", detail: "alça ⌄ na barra", keywords: ["escrever", "caixa", "composer", "barra de baixo", "recolher"] }, () => setComposerHidden(!composerHidden(), { focar: true }));
   add({ id: "a:zoom-in", kind: "action", label: "Aumentar zoom da janela", detail: "Cmd+= (fora da página do Navegador)", keywords: ["zoom", "ampliar", "maior", "aumentar", "fonte"] }, () => zoomWindow({ action: "step", delta: 1 }));
   add({ id: "a:zoom-out", kind: "action", label: "Diminuir zoom da janela", detail: "Cmd+-", keywords: ["zoom", "reduzir", "menor", "diminuir", "fonte"] }, () => zoomWindow({ action: "step", delta: -1 }));
@@ -1882,6 +1884,7 @@ ligarAtividade();
 let hostLocalAddr = false;
 ligarRede();
 ligarFaixaDepuracao();
+ligarInstagramavel();
 ligarAtualizacao();
 ligarAlvoWebview(webviewDoNavegador);
 ligarBusca();

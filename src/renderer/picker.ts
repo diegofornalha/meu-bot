@@ -70,6 +70,9 @@ const cancelBtn = $<HTMLButtonElement>("pk-cancel");
 const syncBtn = $<HTMLButtonElement>("pk-sync");
 const directCheck = $<HTMLInputElement>("pk-direct");
 const onboardedCheck = $<HTMLInputElement>("pk-onboarded");
+const instaBtn = $<HTMLButtonElement>("pk-insta");
+/** O ✨ colado no Intro: aceso = modo instagramável ligado (aria-pressed). */
+const pintarInsta = (on: boolean): void => { instaBtn.classList.toggle("on", on); instaBtn.setAttribute("aria-pressed", String(on)); };
 
 interface Row { host: string; li: HTMLLIElement; badgeEl: HTMLSpanElement; shortcutBtn: HTMLButtonElement; relieveBtn: HTMLButtonElement }
 let shortcuts = new Map<string, string | null>();
@@ -606,6 +609,7 @@ function init(payload: PickerInit, keepSelected: string | null = null): void {
   // Interruptores "Intro" e "Onboarding": ligado = tem. O settings.json guarda o contrário (openDirect, onboarding done).
   directCheck.checked = !payload.openDirect;
   onboardedCheck.checked = !payload.onboardingDone;
+  pintarInsta(payload.instagramavel);
   errorEl.hidden = payload.error === null;
   errorEl.textContent = payload.error ?? "";
   pintarTipos();
@@ -796,6 +800,7 @@ openBtn.addEventListener("click", () => { void open(); });
 cancelBtn.addEventListener("click", () => window.picker.cancel());
 syncBtn.addEventListener("click", () => { void syncSsh(); });
 directCheck.addEventListener("change", () => { void window.picker.setOpenDirect(!directCheck.checked).catch((err: unknown) => showError("Intro", err)); });
+instaBtn.addEventListener("click", () => { const on = !instaBtn.classList.contains("on"); pintarInsta(on); void window.picker.setInstagramavel(on).catch((err: unknown) => { pintarInsta(!on); showError("Instagramável", err); }); });
 onboardedCheck.addEventListener("change", () => { void window.picker.setOnboardingDone(!onboardedCheck.checked).catch((err: unknown) => showError("Onboarding", err)); });
 document.addEventListener("keydown", (ev) => {
   // Digitando no formulário do Tailscale: Enter e setas não podem abrir máquina nem mover a seleção.
