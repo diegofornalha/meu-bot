@@ -58,3 +58,40 @@ test("boas-vindas: deslogado pede o login; logado ou desconhecido sugere o que f
     assert.doesNotMatch(on, /falta \*\*entrar/);
   }
 });
+
+import { AI_CHOICES, opcoesVisiveis, parseAiChoice, preselecao, pularEscolhaIa, tutorialDaEscolha } from "../../dist/renderer/lib/onboarding.js";
+
+const contas = (claude, xai, { global = false, possible = true } = {}) => ({ claude: { loggedIn: claude, global }, xai: { possible, loggedIn: xai } });
+
+test("escolha de IA: cada opção leva ao tutorial certo", () => {
+  assert.equal(tutorialDaEscolha("claude"), "claude-login");
+  assert.equal(tutorialDaEscolha("ambos"), "claude-login");
+  assert.equal(tutorialDaEscolha("grok"), "xai-login");
+  assert.equal(tutorialDaEscolha("nenhuma"), null);
+});
+
+test("escolha de IA: sem Grok possível, somem Grok e os dois; não consultado mostra todas", () => {
+  assert.deepEqual(opcoesVisiveis(false).map((o) => o.id), ["claude", "nenhuma"]);
+  assert.equal(opcoesVisiveis(null).length, AI_CHOICES.length);
+  assert.equal(opcoesVisiveis(true).length, AI_CHOICES.length);
+});
+
+test("escolha de IA: pré-seleção pelas contas logadas", () => {
+  assert.equal(preselecao(contas(null, null)), null);
+  assert.equal(preselecao(contas(false, false)), null);
+  assert.equal(preselecao(contas(true, false)), "claude");
+  assert.equal(preselecao(contas(false, true)), "grok");
+  assert.equal(preselecao(contas(true, true)), "ambos");
+  assert.equal(preselecao(contas(true, true, { possible: false })), "claude");
+});
+
+test("escolha de IA: Claude Global pula a pergunta", () => {
+  assert.equal(pularEscolhaIa(contas(true, null, { global: true })), true);
+  assert.equal(pularEscolhaIa(contas(true, null)), false);
+});
+
+test("escolha de IA: só aceita escolha guardada válida", () => {
+  assert.equal(parseAiChoice("grok"), "grok");
+  assert.equal(parseAiChoice("outra"), null);
+  assert.equal(parseAiChoice(null), null);
+});

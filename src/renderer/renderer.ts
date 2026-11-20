@@ -47,7 +47,7 @@ import { favLabel, favOf, favTitleFor } from "./lib/favoritos.js";
 import { rankPalette, type PaletteItem } from "./lib/palette-rank.js";
 import { ESPACO_THRESHOLDS, buildSegments, previewLine, SL_TEST_COMMAND, thresholdToWarn, timeUntil } from "./lib/status-line.js";
 import { advanceOnboard, FINAL_MESSAGE, SKIPPED_MESSAGE, TOUR_INVITE, initialOnboardState, pickFeedback, welcomeMessage, type Feedback, type OnboardEvent, type OnboardState } from "./lib/onboarding.js";
-import { firstReplyOnHost, FALLBACK_TUTORIAL, XAI_TUTORIAL, clAuth, enterClaude, ligarContasAgente, logoutClaude, logoutXai, navHostsIn, offerClaudeLogin, offerSkillFromTurn, refreshClaudeLine, refreshContasClaude, refreshXaiLine, renderContasClaude, contasClaudeView, xaiAuth, xaiKey } from "./agente/contas-agente.js";
+import { firstReplyOnHost, FALLBACK_TUTORIAL, XAI_TUTORIAL, clAuth, enterClaude, enterXai, ligarContasAgente, logoutClaude, logoutXai, navHostsIn, offerClaudeLogin, offerSkillFromTurn, refreshClaudeLine, refreshContasClaude, refreshXaiLine, renderContasClaude, contasClaudeView, xaiAuth, xaiKey } from "./agente/contas-agente.js";
 import { ctx, ehRemoto } from "./app/ctx.js";
 import { conferirPassos } from "./tutoriais/passos.js";
 import { abaFixaAtual, inserirAba, activatePage, closePage, deactivatePage, definePage, pintarFixada, ehVazia, ligarPaginas, openPage, pageActive, pagePrev, pageShown, pages, preencherEsquerda, relayoutSplit, restoreSplit, splitColunaVazia, splitOff, splitOn, splitOnAny, splitPages, toggleSplit } from "./app/paginas.js";
@@ -57,7 +57,7 @@ import { chooseReply, comPareamento, disconnectWhatsapp, fmtPhone, ligarAgenteWh
 import { cacheDrop, cacheRead, cacheWrite, getListMode, ligarConversas, paintArquivadas, paintListMode, paintWaSidebar, setListMode, waChatTitle } from "./whatsapp/conversas.js";
 import { TUT_GRUPOS, ligarGrupos, loadGrupoAlvo, refreshWaGroups, waGroupReplied, waGroupTitle, waGroups, waGroupsAt, waGroupsInflight, waGroupsSection } from "./whatsapp/grupos.js";
 import { ligarChat, openWaBranch, openWaChat, paintWaChatTab, renderWaChat, renderWaQuote, waBubble, waChatPages, waCopy, waMsgKey, waSkeleton } from "./whatsapp/chat.js";
-import { ligarInicio, onboardEvent, playIntro, prefersReducedMotion, restEl, restartTour, showTourWelcome, syncRest } from "./inicio/inicio.js";
+import { ligarInicio, onboardEvent, playIntro, prefersReducedMotion, restEl, restartTour, showAiChoice, showTourWelcome, syncRest } from "./inicio/inicio.js";
 import { ligarEnvio, sendMessage, sendText } from "./conversa/envio.js";
 import { conferirBackend, ligarBackendFalta } from "./conversa/backend-falta.js";
 import { ligarGuiaSecoes, paintSupport, refreshStatusLine, refreshSupportState, renderStatusLineSegments, renderStatusLineTest, renderSupportParts, repaintSupport } from "./tutoriais/guia-secoes.js";
@@ -140,6 +140,7 @@ const ctxImpl = {
   get disposeTerminal() { return disposeTerminal; },
   get ehVazia() { return ehVazia; },
   get enterClaude() { return enterClaude; },
+  get enterXai() { return enterXai; },
   get FALLBACK_TUTORIAL() { return FALLBACK_TUTORIAL; },
   get financePage() { return financePage; },
   get financeState() { return financeState; },
@@ -1479,7 +1480,8 @@ async function restoreTabs(): Promise<void> {
   // Onboarding pendente (primeira vez, ou interruptor "Onboarding" ligado no seletor): começa
   // sempre, com ou sem conversas; o passo "Novo" cria a conversa, então não se cria a automática.
   const pending = settings?.onboarding === "pending";
-  if (pending) showTourWelcome(); // convite; o tour só começa se a pessoa aceitar
+  // Convite; o tour só começa se a pessoa aceitar. No staging, antes dele vem "Você já tem assinatura de IA?".
+  if (pending) { if (caps.canal === "staging") void showAiChoice(); else showTourWelcome(); }
   if (asTabs.length === 0) {
     if (!pending) await newTab();
     else syncRest();
