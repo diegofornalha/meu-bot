@@ -9,7 +9,12 @@ export const MAX_CURSORES = 20;
 /** Intervalo mínimo entre dois cursores entrando: uma rajada de logs entra aos poucos, um de cada vez. */
 export const ENTRADA_MS = 450;
 /** Sem log nenhum por este tempo, os cursores parados começam a sair, para a tela não ficar cheia à toa. */
-export const SILENCIO_MS = 45_000;
+export const SILENCIO_MS = 20_000;
+/** A cada FORMACAO_MS o palco troca de formação: ninguém fica muito tempo na mesma arrumação. */
+export const FORMACAO_MS = 7_000;
+/** A coreografia, em ordem: depois da última volta para a primeira. */
+export const FORMACOES = ["grade", "onda", "roda", "colunas", "diagonal"] as const;
+export type Formacao = (typeof FORMACOES)[number];
 /** Na saída por silêncio, sai o mais antigo a cada SAIDA_MS (gradual, não todos de uma vez); um log novo interrompe. */
 export const SAIDA_MS = 2_500;
 /** Sem organização (ou sem nome nenhum): os cursores levam o nome do app. */
@@ -50,6 +55,8 @@ export function pontoNaPagina(r: { left: number; top: number; width: number; hei
   return { x: Math.round(r.left + r.width * f(sx)), y: Math.round(r.top + r.height * f(sy)) };
 }
 
+/** O espaço que o balão ocupa à direita da ponta do cursor (recuo de 14 px + até 280 px de texto + borda e sombra). */
+export const BALAO_LARGURA = 320;
 /** Quanto texto cabe no balão de cada cursor. */
 export const BALAO_MAX = 70;
 const EMAIL_RE = /[^\s@<>()"',;:]+@[^\s@<>()"',;:]+\.[a-z]{2,}/gi;
@@ -100,5 +107,23 @@ export function vagaDoCursor(i: number, area: { left: number; top: number; width
   const k = ((i % max) + max) % max, col = k % cols, lin = Math.floor(k / cols);
   const larg = area.width / cols, alt = area.height / linhas;
   const desloc = lin % 2 === 1 ? larg * 0.35 : 0;
-  return { x: Math.round(area.left + Math.min(col * larg + 16 + desloc, area.width - 280)), y: Math.round(area.top + lin * alt + Math.min(alt * 0.5, 40) + 26) };
+  return { x: Math.round(area.left + Math.min(col * larg + 16 + desloc, area.width - BALAO_LARGURA)), y: Math.round(area.top + lin * alt + Math.min(alt * 0.5, 40) + 26) };
+}
+
+/**
+ * Onde fica o cursor de idade k (0 = o mais novo) entre n parados, na formação pedida, dentro da área. A posição é a
+ * da ponta do cursor; o balão sai para a direita e para cima, então tudo fica a BALAO_LARGURA da borda direita.
+ * "grade" é a das vagas (vagaDoCursor); as outras espalham os n parados pela área inteira.
+ */
+export function posicaoNaFormacao(f: Formacao, k: number, n: number, area: { left: number; top: number; width: number; height: number }): { x: number; y: number } {
+  if (f === "grade") return vagaDoCursor(k, area);
+  const t = n <= 1 ? 0.5 : k / (n - 1);
+  const L = area.left + 16, T = area.top + 60, W = Math.max(40, area.width - BALAO_LARGURA - 16), H = Math.max(40, area.height - 100);
+  let x: number, y: number;
+  if (f === "onda") { x = L + t * W; y = T + H / 2 + Math.sin(t * Math.PI * 3) * H * 0.4; }
+  else if (f === "roda") { const a = (k / Math.max(1, n)) * Math.PI * 2 - Math.PI / 2; // por n, não n - 1: o último não cai em cima do primeiro
+    x = L + W / 2 + Math.cos(a) * W * 0.45; y = T + H / 2 + Math.sin(a) * H * 0.45; }
+  else if (f === "colunas") { const cols = Math.max(1, Math.min(4, Math.floor(area.width / 320))); const porCol = Math.ceil(n / cols); const c = Math.floor(k / porCol), l = k % porCol; x = L + (cols === 1 ? 0 : (c / (cols - 1)) * W); y = T + (porCol <= 1 ? 0 : (l / (porCol - 1)) * H); }
+  else { x = L + t * W; y = T + t * H; }
+  return { x: Math.round(x), y: Math.round(y) };
 }

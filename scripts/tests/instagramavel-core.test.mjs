@@ -73,7 +73,7 @@ test("vagaDoCursor: 20 vagas diferentes dentro da área; o 21º volta à vaga do
   const area = { left: 200, top: 100, width: 1200, height: 700 };
   const vagas = Array.from({ length: 20 }, (_, i) => vagaDoCursor(i, area));
   assert.equal(new Set(vagas.map((v) => `${v.x},${v.y}`)).size, 20);
-  for (const v of vagas) assert.ok(v.x >= area.left && v.x <= area.left + area.width - 280 && v.y >= area.top && v.y <= area.top + area.height, JSON.stringify(v));
+  for (const v of vagas) assert.ok(v.x >= area.left && v.x <= area.left + area.width - 320 && v.y >= area.top && v.y <= area.top + area.height, JSON.stringify(v));
   assert.deepEqual(vagaDoCursor(20, area), vagaDoCursor(0, area));
   // Janela estreita: uma coluna só, ainda 20 vagas distintas.
   assert.equal(new Set(Array.from({ length: 20 }, (_, i) => JSON.stringify(vagaDoCursor(i, { left: 0, top: 0, width: 400, height: 900 })))).size, 20);
@@ -83,4 +83,17 @@ test("textoDoBalao: /js e sondas não entram no palco (vazio)", async () => {
   const { textoDoBalao } = await import("../../dist/renderer/lib/instagramavel-core.js");
   assert.equal(textoDoBalao({ origem: "navegador", rota: "/js", ok: true, resumo: "js: 505 caracteres" }), "");
   assert.equal(textoDoBalao({ origem: "navegador", rota: "/abas", ok: true, resumo: "sonda: 3 aba(s)" }), "");
+});
+
+test("posicaoNaFormacao: toda formação põe os 20 em lugares diferentes, dentro da área e com espaço para o balão", async () => {
+  const { posicaoNaFormacao, FORMACOES, MAX_CURSORES } = await import("../../dist/renderer/lib/instagramavel-core.js");
+  const area = { left: 300, top: 120, width: 1100, height: 700 };
+  assert.deepEqual([...FORMACOES], ["grade", "onda", "roda", "colunas", "diagonal"]);
+  for (const f of FORMACOES) {
+    const ps = Array.from({ length: MAX_CURSORES }, (_, k) => posicaoNaFormacao(f, k, MAX_CURSORES, area));
+    assert.equal(new Set(ps.map((p) => `${p.x},${p.y}`)).size, MAX_CURSORES, f);
+    for (const p of ps) assert.ok(p.x >= area.left && p.x <= area.left + area.width - 320 && p.y >= area.top && p.y <= area.top + area.height, `${f} ${JSON.stringify(p)}`);
+  }
+  // Um só no palco: fica no meio da formação, sem dividir por zero.
+  for (const f of FORMACOES) { const p = posicaoNaFormacao(f, 0, 1, area); assert.ok(Number.isFinite(p.x) && Number.isFinite(p.y), f); }
 });

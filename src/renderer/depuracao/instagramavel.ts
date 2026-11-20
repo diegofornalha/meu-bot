@@ -3,13 +3,14 @@
  * colorido com o nome de alguém da organização da conta e um balão que diz o que aquele log fez. Ele entra por uma
  * borda, voa até onde a ação aconteceu (o ponto real, a página do Navegador ou a faixa de depuração) e "clica", com uma
  * explosão de partículas (erro treme e explode em vermelho). Depois entra na esteira: o mais novo na primeira vaga, os
- * outros deslizam uma vaga adiante, todos flutuando devagar para dar para ler. Entram um a um (ENTRADA_MS), acumulam
+ * outros deslizam uma vaga adiante, todos flutuando devagar para dar para ler; a cada FORMACAO_MS o palco inteiro
+ * troca de formação (grade, onda, roda, colunas, diagonal), para ninguém ficar muito tempo parado no mesmo lugar. Entram um a um (ENTRADA_MS), acumulam
  * até MAX_CURSORES e, sem logs, saem aos poucos (SAIDA_MS). Liga no seletor (o ✨ colado no Intro) ou na paleta; fica
  * gravado em `instagramavel` nas configurações.
  */
 import type { ContaView, EventoDepuracao, SettingsView } from "../../shared/ipc";
 import { byId as $ } from "../lib/dom.js";
-import { ENTRADA_MS, MAX_CURSORES, SAIDA_MS, SILENCIO_MS, corDoCursor, pontoDeEntrada, pontoNaPagina, proximoNome, textoDoBalao, vagaDoCursor } from "../lib/instagramavel-core.js";
+import { ENTRADA_MS, FORMACAO_MS, FORMACOES, MAX_CURSORES, SAIDA_MS, SILENCIO_MS, corDoCursor, pontoDeEntrada, pontoNaPagina, posicaoNaFormacao, proximoNome, textoDoBalao } from "../lib/instagramavel-core.js";
 import { faixaLigada } from "./faixa.js";
 import { pontoReal } from "./cursor-agente.js";
 import { ctx } from "../app/ctx.js";
@@ -28,6 +29,9 @@ let entrando: ReturnType<typeof setTimeout> | null = null;
 let silencio: ReturnType<typeof setTimeout> | null = null;
 /** A saída gradual em curso (um por SAIDA_MS); null = parada. */
 let saindo: ReturnType<typeof setInterval> | null = null;
+/** A formação atual da coreografia e o relógio que a troca (só anda com gente parada no palco). */
+let formacao = 0;
+let coreografia: ReturnType<typeof setInterval> | null = null;
 
 export const instagramavelLigado = (): boolean => ligado;
 const calmo = (): boolean => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -39,7 +43,8 @@ function aplicar(on: boolean): void {
   if (on === ligado) return;
   ligado = on;
   palco.hidden = !on;
-  if (on) void carregarNomes(); else { palco.replaceChildren(); parados.length = 0; fila.length = 0; if (saindo !== null) { clearInterval(saindo); saindo = null; } }
+  if (on) { void carregarNomes(); armarCoreografia(); } else {
+    if (coreografia !== null) { clearInterval(coreografia); coreografia = null; } palco.replaceChildren(); parados.length = 0; fila.length = 0; if (saindo !== null) { clearInterval(saindo); saindo = null; } }
 }
 /**
  * Para onde o cursor voa. Ação do Navegador (onde o show passa mais tempo, com o agente navegando): um ponto dentro da
@@ -88,7 +93,7 @@ function reorganizar(): void {
   const area = areaDoPalco();
   const prontos = parados.filter((el) => el.dataset["parado"] === "1");
   prontos.forEach((el, k) => {
-    const vaga = vagaDoCursor(prontos.length - 1 - k, area);
+    const vaga = posicaoNaFormacao(FORMACOES[formacao % FORMACOES.length]!, prontos.length - 1 - k, prontos.length, area);
     const de = { x: Number(el.dataset["x"]), y: Number(el.dataset["y"]) };
     if (de.x === vaga.x && de.y === vaga.y) return;
     // As animações anteriores viram estilo fixo e saem: sem acumular uma por reorganização.
@@ -96,6 +101,14 @@ function reorganizar(): void {
     el.dataset["x"] = String(vaga.x); el.dataset["y"] = String(vaga.y);
     el.animate([{ transform: `translate(${de.x}px, ${de.y}px)` }, { transform: `translate(${vaga.x}px, ${vaga.y}px)` }], { duration: calmo() ? 0 : 800 + k * 25, easing: "cubic-bezier(.3,.1,.2,1)", fill: "forwards" });
   });
+}
+/** A cada FORMACAO_MS, todos deslizam juntos para a próxima formação (grade, onda, roda, colunas, diagonal). */
+function armarCoreografia(): void {
+  if (coreografia !== null) return;
+  coreografia = setInterval(() => {
+    if (parados.filter((el) => el.dataset["parado"] === "1").length < 2 || calmo()) return;
+    formacao++; reorganizar();
+  }, FORMACAO_MS);
 }
 /** Depois de SILENCIO_MS sem log, os parados saem aos poucos: o mais antigo a cada SAIDA_MS, esmaecendo devagar. */
 function armarSilencio(): void {
