@@ -75,7 +75,7 @@ export interface Addon {
   semLicenca: boolean;
 }
 export const ADDONS: readonly Addon[] = [
-  { nome: "meu-bot-finance", rotulo: "Finanças", descricao: "O agente vira o financeiro da pessoa no WhatsApp e no chat; página Finanças e Curva ABC.", modulos: true, semLicenca: false },
+  { nome: "meu-bot-finance", rotulo: "Finanças", descricao: "O agente vira o financeiro da pessoa no WhatsApp e no chat; página Finanças e Curva ABC. É o módulo Finanças (página Módulos).", modulos: true, semLicenca: false },
   { nome: "meu-bot-diego", rotulo: "Módulos do Diego", descricao: "Os módulos do produto meu-bot-diego (Salvy, Sendfy…), baixados do repositório dele e ligados um a um na página Módulos, cada um com o seu tutorial.", modulos: false, semLicenca: true },
 ];
 /** Nomes na licença que não são add-on: o admin, e o meu-bot-crm (o CRM entrou no Pro em 22 out). */
@@ -83,7 +83,7 @@ export const NAO_ADDON: readonly string[] = ["meu-bot-admin", "meu-bot-crm"];
 /** O plano "personalizado" (removido em 22 out) liberava o Pro e estes add-ons; quem o tinha vira Pro com eles. */
 export const ADDONS_DO_PERSONALIZADO: readonly string[] = ["meu-bot-finance"];
 /** Páginas que um produto pode pôr na frente ao abrir (Produto.abreEm); o renderer sabe abrir cada uma. */
-export const PAGINAS_INICIAIS = ["financas", "inspector", "modulos"] as const;
+export const PAGINAS_INICIAIS = ["inspector", "modulos"] as const;
 export type PaginaInicial = (typeof PAGINAS_INICIAIS)[number];
 
 const PESSOA: Produto["caps"] = {
@@ -118,14 +118,8 @@ export const PRODUTOS: readonly Produto[] = [
   // meu-bot-admin). Sem seletor, sem chat; cria contas administrador com o meu-bot na mesa, muda o apelido e apaga.
   { variant: "admin-mac", nome: "meu-bot-admin-mac", bundleId: "local.meu-bot-admin-mac", icone: "assets/icon-admin-mac.icns", userData: "meu-bot-admin-mac", extensoes: [], canal: "estavel", licenca: "meu-bot-admin", herdaDe: null, portaLocal: 8790, portaMcp: 7834, fundeDe: null, addon: null, instalador: false, windows: false, abreEm: null, caps: { ...ADMIN, supportAdmin: false, usuariosMac: true },
     descricao: "As contas deste Mac: cria (administrador, senha mostrada uma vez, meu-bot na mesa), muda o apelido e apaga. O bot de cada pessoa roda numa VM." },
-  // meu-bot-finance-staging: o meu-bot em teste com o financeiro na frente (abre na página Finanças). O financeiro em si
-  // é liberado pela licença da máquina (produto meu-bot-finance), como o CRM próprio; o app só tem nome, ícone, dados
-  // e porta próprios para conviver com o meu-bot e o meu-bot-staging. Nasce como cópia dos dados do meu-bot-staging.
-  { ...staging(CLIENT, "finance-staging", 8792, 7832), nome: "meu-bot-finance-staging", bundleId: "local.meu-bot-finance.staging", icone: "assets/icon-finance-staging.icns", userData: "meu-bot-finance-staging", herdaDe: "meu-bot-staging", fundeDe: null, addon: "meu-bot-finance", instalador: false, abreEm: "financas",
-    descricao: "O meu-bot em teste com o Financeiro na frente (abre na página Finanças); o financeiro é liberado pelo add-on meu-bot-finance." },
   // meu-bot-inspector-staging: o meu-bot em teste com o MCP Inspector na frente (abre na página Inspector, que sobe a
-  // interface oficial do @modelcontextprotocol/inspector já ligada ao controle externo deste app). Mesmo molde do
-  // finance-staging: nome, ícone, dados e portas próprios; nasce como cópia dos dados do meu-bot-staging. Só staging.
+  // interface oficial do @modelcontextprotocol/inspector já ligada ao controle externo deste app). Nome, ícone, dados e portas próprios; nasce como cópia dos dados do meu-bot-staging. Só staging.
   { ...staging(CLIENT, "inspector-staging", 8793, 7835), nome: "meu-bot-inspector-staging", bundleId: "local.meu-bot-inspector.staging", icone: "assets/icon-inspector-staging.icns", userData: "meu-bot-inspector-staging", herdaDe: "meu-bot-staging", fundeDe: null, addon: null, instalador: false, abreEm: "inspector", caps: { ...PESSOA, inspector: true },
     descricao: "O meu-bot em teste com o MCP Inspector na frente (abre na página Inspector): a interface oficial do Inspector ligada ao controle externo (MCP) do próprio app." },
   // meu-bot-diego-staging: o meu-bot em teste com a página Módulos na frente. O app não leva módulo nenhum: baixa-os

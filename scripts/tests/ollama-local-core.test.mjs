@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 
-// Modo grátis no Mac (tutorial 17): o providers.json local com dono único (merge) e a parte pura do Ollama.
+// Modo grátis no Mac (tutorial 16): o providers.json local com dono único (merge) e a parte pura do Ollama.
 const req = createRequire(import.meta.url);
 const p = req("../../dist/main/maquina/providers-local-core.js");
 const o = req("../../dist/main/agente/ollamaLocal-core.js");

@@ -56,17 +56,17 @@ export const CLIENT_CHANNELS = [
   // várias contas do Claude na máquina (rodízio no limite de uso)
   "contas-claude:listar", "contas-claude:criar", "contas-claude:entrar", "contas-claude:atualizar", "contas-claude:reordenar", "contas-claude:remover", "contas-claude:usar-agora", "contas-claude:conferir", "contas-claude:limiares",
   "xai-login:prepare", "xai-login:start", "xai-login:logout", "xai-login:cancel",
-  // modo grátis no Mac (tutorial 17): o Ollama do meu-bot
+  // modo grátis no Mac (tutorial 16): o Ollama do meu-bot
   "ollama:status", "ollama:prepare", "ollama:ligar", "ollama:remover",
   "contas:entrar", "contas:cancelar", "contas:sair", "contas:instalar-gh",
-  // link público da pessoa (tutorial 13): trocar o nome do subdomínio dela, ver o que está no ar, tirar do ar e publicar um arquivo deste Mac
+  // link público da pessoa (tutorial 12): trocar o nome do subdomínio dela, ver o que está no ar, tirar do ar e publicar um arquivo deste Mac
   "link-publico:nome", "link-publico:lista", "link-publico:remover", "link-publico:publicar",
   // espaço da conta na máquina (Configurações › Espaço): a cota relida, o que dá para apagar, apagar e pedir mais ao admin
   "cota:status", "cota:maiores", "cota:apagar-item", "cota:pedir-mais",
   // instalar e configurar a máquina
   "backend:presente", "backend:install",
   "statusline:status", "statusline:install", "statusline:segments", "statusline:set-segments", "statusline:uninstall",
-  "guarda:status", "guarda:install", "guarda:uninstall", "navegador:status", "navegador:install", "gmail:agent", "gmail:status", "gmail:install", "finance:info", "finance:abc", "finance:importar-planilha", "finance:lancamentos", "finance:categorias", "finance:lancar", "finance:confirmar", "finance:descartar", "finance:corrigir", "finance:linha-salvar", "finance:linha-remover", "finance:comprovante", "finance:confirmar-todas", "finance:conta-criar", "finance:mes", "finance:fechar-mes", "finance:config-ler", "finance:config-salvar", "finance:install", "finance:pedir", "modulos:atualizar-fonte", "modulos:abrir-pagina", "modulos:planilha", "modulos:testar", "modulos:listar", "modulos:ligar", "modulos:desligar", "modulos:credenciais", "modulos:opcoes", "crm:info", "crm:local", "crm:pipeline-criar", "crm:pipeline-padrao", "crm:install", "crm:set", "crm:test", "crm:reset",
+  "guarda:status", "guarda:install", "guarda:uninstall", "navegador:status", "navegador:install", "gmail:agent", "gmail:status", "gmail:install", "modulos:atualizar-fonte", "modulos:abrir-pagina", "modulos:planilha", "modulos:testar", "modulos:listar", "modulos:ligar", "modulos:desligar", "modulos:credenciais", "modulos:opcoes", "crm:info", "crm:local", "crm:pipeline-criar", "crm:pipeline-padrao", "crm:install", "crm:set", "crm:test", "crm:reset",
   // aba Navegador (módulo Pro)
   "browser:open", "browser:permissao", "browser:permissoes-esquecer", "browser:agent-whatsapp", "browser:extensions", "browser:remove-extension", "browser:request-pro", "plano:avisar-pagamento", "plano:usar-da-conta", "plano:conferir-device", "plano:tirar-da-conta", "computador:status", "computador:acordar", "computador:instalar", "computador:url", "inspector:abrir", "browser:agent", "browser:active", "browser:favorite-add", "browser:favorite-remove", "browser:workspaces-set",
   "tailscale:disable-check", "tailscale:restore",

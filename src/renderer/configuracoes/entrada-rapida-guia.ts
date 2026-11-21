@@ -1,4 +1,4 @@
-/** Entrada rápida no guia (tutorial 14): o gravador de atalho e o botão que mostra a janela flutuante. */
+/** Entrada rápida no guia (tutorial 13): o gravador de atalho e o botão que mostra a janela flutuante. */
 import { el } from "../lib/dom.js";
 import { ipcErrorText } from "../lib/ipc-error.js";
 import { ctx } from "../app/ctx.js";
@@ -11,7 +11,7 @@ const quickStatusText = (): string => {
   return st === "registered" ? "✓ ativo" : st === "taken" ? "em uso por outro app: escolha outra combinação" : st === "invalid" ? "combinação inválida" : st === "disabled" ? "desligado" : "…";
 };
 let quickMsg: string | null = null;
-/** Tutorial 14, passo 1: o gravador de atalho (saiu das Configurações em 30 out). A combinação pressionada é salva na hora. */
+/** Tutorial 13, passo 1: o gravador de atalho (saiu das Configurações em 30 out). A combinação pressionada é salva na hora. */
 export function renderQuickAtalho(container: HTMLElement): void {
   const box = el("div", "audio-controls");
   const row = el("div", "audio-row");
@@ -41,7 +41,7 @@ export function renderQuickAtalho(container: HTMLElement): void {
   if (quickMsg !== null) box.append(el("p", "hint guide-pair-note", quickMsg));
   container.append(box);
 }
-/** Tutorial 14, passo 2: mostrar a janela flutuante daqui mesmo, para quem quer ver antes de decorar o atalho. */
+/** Tutorial 13, passo 2: mostrar a janela flutuante daqui mesmo, para quem quer ver antes de decorar o atalho. */
 export function renderQuickTestar(container: HTMLElement): void {
   const b = el("button", "btn btn-ghost btn-small", "Mostrar a janela flutuante"); b.type = "button";
   b.title = ctx.settings?.quickEntryShortcut ? `O mesmo que pressionar ${ctx.settings.quickEntryShortcut}` : "";

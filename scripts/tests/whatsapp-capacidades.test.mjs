@@ -58,7 +58,7 @@ test("PicoClaw: pareia e tem política de quem responde; o resto segue fora até
   const c = capacidadesDe("picoclaw", true, true);
   assert.ok(c.parear && c.politicaDm);
   assert.ok(!c.listarConversas && !c.grupos && !c.guarda);
-  assert.ok(!c.digitando, "o canal nativo do WhatsApp do PicoClaw não mostra \"digitando…\" (tutorial 17 some lá)");
+  assert.ok(!c.digitando, "o canal nativo do WhatsApp do PicoClaw não mostra \"digitando…\" (tutorial 16 some lá)");
 });
 
 test("gateway desconhecido não ganha capacidade por engano", () => {

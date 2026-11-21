@@ -12,11 +12,10 @@ import { conversationToMarkdown, conversationTitle, slugify } from "../conversa/
 import { atualizarContaClaude, conferirContaClaude, criarContaClaude, deleteBackendSession, fetchAccountStatus, fetchAlertPrefs, fetchBackendSession, fetchContasClaude, limiaresContasClaude, log, reapresentarMachine, removerContaClaude, reordenarContasClaude, runBackendTurn, saveAlertPrefs, usarAgoraContaClaude } from "../maquina/backend";
 import { lerLicenca, lerLicencaDaMaquina } from "../licenca/licenca-maquina";
 import { avisarMaquinaVista, avisoDaRenovacao, renovarSePreciso, tirarProDaConta, usarProDaConta } from "../licenca/licenca-conta";
-import { assertAcesso, assertFinance } from "../licenca/acesso";
+import { assertAcesso } from "../licenca/acesso";
 import { telaAcordar, telaStatus, telaUrl } from "../maquina/tela";
 import { abrirInspector } from "../inspector/inspector";
 import { esquecerPermissoes, responderPermissao } from "../navegador/nav-permissoes";
-import { financeAbc, financeImportarPlanilha, financeCategorias, financeComprovante, financeConfig, financeConfigLer, financeCorrigir, financeLinhaRemover, financeLinhaSalvar, financeConfirmar, financeConfirmarTodas, financeContaCriar, financeDescartar, financeFecharMes, financeInfo, financeLancamentos, financeLancar, financeMes } from "../financeiro/finance-local";
 import { navWhatsappInfo, setNavWhatsapp } from "../navegador/navegador-whatsapp";
 import { numerosOk } from "../navegador/navegador-whatsapp-hermes-core";
 import { crmCriarPipeline, crmDefinirPadrao, crmLocal } from "../crm/crm-local";
@@ -53,7 +52,7 @@ import { getHostNames, getNotificacaoSom, isBackendModel } from "../app/settings
 import { objectiveInfo, resetObjective, saveObjectiveSkill, setObjective } from "../agente/objetivo";
 import { crmInfo, crmTest, resetCrm, setCrm } from "../crm/crm";
 import { toggleQuickEntry } from "../app/quickEntry";
-import { gmailInstalled, guardaInstalled, installAudio, installCrm, installFinance, installGmail, installGuarda, installHermesPausa, installNavegador, installStatusLine, installTela, navegadorInstalled, prepareGrokOauth, statusLineInstalled, uninstallCrm, uninstallGuarda, uninstallStatusLine } from "../maquina/hostProbe";
+import { gmailInstalled, guardaInstalled, installAudio, installCrm, installGmail, installGuarda, installHermesPausa, installNavegador, installStatusLine, installTela, navegadorInstalled, prepareGrokOauth, statusLineInstalled, uninstallCrm, uninstallGuarda, uninstallStatusLine } from "../maquina/hostProbe";
 import { gmailAgente, gmailAgenteInfo, gmailAgenteReligar } from "../google/gmail-api";
 import { readSegments, writeSegments } from "../agente/statusLine";
 import { deliverNow, reportSupportProgress, resetSupport, setSupport, setSupportNameOnly, setSupportShare, supportCodeText, supportInfo } from "../client/support";
@@ -262,63 +261,7 @@ export function registerClientIpc(): void {
   handleClient("browser:permissao", (event, payload: unknown) => { ctxOf(event); const p = (payload ?? {}) as { id?: unknown; decisao?: unknown }; if (typeof p.id === "string" && (p.decisao === "sempre" || p.decisao === "agora" || p.decisao === "nunca")) responderPermissao(p.id, p.decisao); });
   handleClient("browser:permissoes-esquecer", (event, payload: unknown) => { const h = ctxOf(event); const o = (payload as { origem?: unknown } | null)?.origem; esquecerPermissoes(h.host, typeof o === "string" ? o : undefined); });
   handleClient("browser:request-pro", async (event) => { const h = ctxOf(event); const pedido = caps().planoExigido === "free" ? "pediu o plano Pro (aba Navegador)" : `pediu para liberar o ${caps().produto} (assinatura)`; await registrar(h.host, "plano.pedir", pedido); log(`[navegador] ${h.host}: ${pedido}`); });
-  // Tutorial 17 · CRM pelo WhatsApp (Pro): estado, instalar plugin, gravar chave/pipeline/regras, testar, refazer.
-  // Financeiro (produto meu-bot-finance): página Finanças e tutorial 12. Tudo passa pelo gate da licença (o backend confere de novo).
-  const fin = async (event: Electron.IpcMainInvokeEvent): Promise<string> => { const h = ctxOf(event); await assertFinance(h.host); return h.host; };
-  const txt = (v: unknown, max = 200): string | undefined => (typeof v === "string" && v.trim() !== "" ? v.trim().slice(0, max) : undefined);
-  const mesOk = (v: unknown): string => { if (typeof v !== "string" || !/^\d{4}-\d{2}$/.test(v)) throw new Error("mês inválido"); return v; };
-  const idOk = (v: unknown): string => { if (typeof v !== "string" || !/^[A-Za-z0-9_-]{2,80}$/.test(v)) throw new Error("lançamento inválido"); return v; };
-  handleClient("finance:info", async (event) => financeInfo(await fin(event)));
-  handleClient("finance:importar-planilha", async (event, payload: unknown) => {
-    const p = (payload ?? {}) as { link?: unknown; aba?: unknown; tipo?: unknown; simular?: unknown };
-    if (typeof p.link !== "string" || p.link.length > 500) throw new Error("link inválido");
-    const host = await fin(event);
-    const r = await financeImportarPlanilha(host, { link: p.link, ...(typeof p.aba === "string" ? { aba: p.aba } : {}), tipo: p.tipo === "venda" ? "venda" : "compra", simular: p.simular !== false });
-    if (!r.simulado && r.importadas > 0) void registrar(host, "financeiro.importar", `planilha ${r.planilha}`, `${r.importadas} lançamento(s)`);
-    return r;
-  });
-  handleClient("finance:abc", async (event, payload: unknown) => {
-    const p = (payload ?? {}) as { lado?: unknown; por?: unknown; meses?: unknown; ate?: unknown };
-    const lado = p.lado === "venda" ? "venda" : "compra"; const por = p.por === "categoria" ? "categoria" : p.por === "favorecido" ? "favorecido" : "produto";
-    const meses = Number.isInteger(p.meses) ? Math.min(24, Math.max(1, p.meses as number)) : 3;
-    return financeAbc(await fin(event), { lado, por, meses, ...(p.ate !== undefined ? { ate: mesOk(p.ate) } : {}) });
-  });
-  handleClient("finance:lancamentos", async (event, payload: unknown) => { const p = (payload ?? {}) as { mes?: unknown; status?: unknown; limite?: unknown }; return financeLancamentos(await fin(event), { ...(p.mes !== undefined ? { mes: mesOk(p.mes) } : {}), ...(p.status === "pendente" || p.status === "confirmado" ? { status: p.status } : {}), ...(typeof p.limite === "number" ? { limite: Math.min(500, Math.max(1, Math.trunc(p.limite))) } : {}) }); });
-  handleClient("finance:categorias", async (event) => financeCategorias(await fin(event)));
-  handleClient("finance:lancar", async (event, payload: unknown) => {
-    const p = (payload ?? {}) as Record<string, unknown>; const host = await fin(event);
-    const valor = txt(p.valor, 30); if (valor === undefined) throw new Error("diga o valor");
-    const l = await financeLancar(host, { valor, favorecido: txt(p.favorecido, 80) ?? "", ...(p.tipo === "renda" ? { tipo: "renda" as const } : {}), ...(p.retorno === "indireto" || p.retorno === "direto" ? { retorno: p.retorno } : {}), ...(txt(p.categoria) ? { categoria: txt(p.categoria)! } : {}), ...(txt(p.conta) ? { conta: txt(p.conta)! } : {}), ...(txt(p.data, 12) ? { data: txt(p.data, 12)! } : {}), ...(txt(p.notas, 500) ? { notas: txt(p.notas, 500)! } : {}) });
-    void registrar(host, "finance.lancar", `${l.valor} · ${l.categoriaNome}`); return l;
-  });
-  handleClient("finance:confirmar", async (event, payload: unknown) => { const p = (payload ?? {}) as { id?: unknown; categoria?: unknown }; return financeConfirmar(await fin(event), idOk(p.id), txt(p.categoria)); });
-  handleClient("finance:descartar", async (event, payload: unknown) => { const host = await fin(event); const id = idOk((payload as { id?: unknown } | null)?.id); await financeDescartar(host, id); void registrar(host, "finance.descartar", id); });
-  handleClient("finance:corrigir", async (event, payload: unknown) => {
-    const p = (payload ?? {}) as Record<string, unknown>; const host = await fin(event); const id = idOk(p.id);
-    const patch: Record<string, string | null> = {};
-    for (const [k, max] of [["valor", 30], ["favorecido", 80], ["categoria", 80], ["data", 12], ["notas", 500]] as const) if (typeof p[k] === "string") patch[k] = String(p[k]).slice(0, max);
-    if (p.linha === null || typeof p.linha === "string") patch.linha = p.linha === null || p.linha === "" ? null : String(p.linha).slice(0, 80);
-    if (p.conta === null || typeof p.conta === "string") patch.conta = p.conta === null || p.conta === "" ? null : String(p.conta).slice(0, 80);
-    if (Object.keys(patch).length === 0) throw new Error("nada para corrigir");
-    const l = await financeCorrigir(host, id, patch); void registrar(host, "finance.corrigir", `${l.valor} · ${l.categoriaNome}`); return l;
-  });
-  handleClient("finance:linha-salvar", async (event, payload: unknown) => {
-    const p = (payload ?? {}) as Record<string, unknown>; const host = await fin(event);
-    const nome = txt(p.nome, 80); if (nome === undefined) throw new Error("dê um nome à linha");
-    if (p.tipo !== "custo" && p.tipo !== "ganho-direto" && p.tipo !== "ganho-indireto") throw new Error("tipo de linha inválido");
-    const key = p.key === undefined ? undefined : idOk(p.key);
-    await financeLinhaSalvar(host, { ...(key ? { key } : {}), nome, tipo: p.tipo, valor: typeof p.valor === "string" && p.valor.trim() !== "" ? p.valor.slice(0, 30) : null, ...(typeof p.notas === "string" ? { notas: p.notas.slice(0, 500) } : {}) });
-    void registrar(host, "finance.linha", `${nome} (${p.tipo})`);
-  });
-  handleClient("finance:linha-remover", async (event, payload: unknown) => { const host = await fin(event); const key = idOk((payload as { key?: unknown } | null)?.key); await financeLinhaRemover(host, key); void registrar(host, "finance.linha", `removeu ${key}`); });
-  handleClient("finance:comprovante", async (event, payload: unknown) => { const sha = (payload as { sha256?: unknown } | null)?.sha256; if (typeof sha !== "string" || !/^[0-9a-f]{64}$/.test(sha)) throw new Error("comprovante inválido"); return financeComprovante(await fin(event), sha); });
-  handleClient("finance:confirmar-todas", async (event) => financeConfirmarTodas(await fin(event)));
-  handleClient("finance:conta-criar", async (event, payload: unknown) => { const p = (payload ?? {}) as Record<string, unknown>; const nome = txt(p.nome, 80); if (nome === undefined) throw new Error("dê um nome à conta"); return financeContaCriar(await fin(event), { nome, ...(txt(p.tipo, 20) ? { tipo: txt(p.tipo, 20)! } : {}), ...(txt(p.moeda, 8) ? { moeda: txt(p.moeda, 8)! } : {}), ...(txt(p.saldoInicial, 30) ? { saldoInicial: txt(p.saldoInicial, 30)! } : {}) }); });
-  handleClient("finance:config-ler", async (event) => financeConfigLer(await fin(event)));
-  handleClient("finance:config-salvar", async (event, payload: unknown) => { const p = (payload ?? {}) as Record<string, unknown>; const patch: { taxas?: Record<string, number>; moedaExibicao?: string } = {}; if (p.taxas && typeof p.taxas === "object") { const t: Record<string, number> = {}; for (const [k, v] of Object.entries(p.taxas as Record<string, unknown>)) if (typeof v === "number" && Number.isFinite(v) && v > 0) t[k] = v; patch.taxas = t; } if (txt(p.moedaExibicao, 8)) patch.moedaExibicao = txt(p.moedaExibicao, 8)!; return financeConfig(await fin(event), patch); });
-  handleClient("finance:mes", async (event, payload: unknown) => { const p = (payload ?? {}) as Record<string, unknown>; return financeMes(await fin(event), mesOk(p.mes), { ...(p.metaDireto === null || typeof p.metaDireto === "string" ? { metaDireto: p.metaDireto as string | null } : {}), ...(p.metaIndireto === null || typeof p.metaIndireto === "string" ? { metaIndireto: p.metaIndireto as string | null } : {}), ...(typeof p.metaNotas === "string" ? { metaNotas: p.metaNotas.slice(0, 500) } : {}), ...(p.orcamento === null || typeof p.orcamento === "string" ? { orcamento: p.orcamento as string | null } : {}), ...(p.rendaPrevista === null || typeof p.rendaPrevista === "string" ? { rendaPrevista: p.rendaPrevista as string | null } : {}), ...(typeof p.dinheiroInformado === "boolean" ? { dinheiroInformado: p.dinheiroInformado } : {}) }); });
-  handleClient("finance:fechar-mes", async (event, payload: unknown) => { const host = await fin(event); const mes = mesOk((payload as { mes?: unknown } | null)?.mes); await financeFecharMes(host, mes); void registrar(host, "finance.fechar-mes", mes); });
-  handleClient("finance:install", async (event) => { const h = ctxOf(event); await assertFinance(h.host); const r = await installFinance(h.host, (line) => { if (!h.win.isDestroyed()) (h.win.webContents.send("finance:progress", { line }), eventoHook("finance:progress", line)); }); if (r.ok) void registrar(h.host, "finance.instalar"); return r; });
+  // Tutorial 18 · CRM pelo WhatsApp (Pro): estado, instalar plugin, gravar chave/pipeline/regras, testar, refazer.
   // Módulos de produto (o fixo do app e os add-ons com módulos na licença da máquina): a licença do add-on de cada
   // módulo é conferida no main a cada ação e de novo pelo backend da máquina a cada turno.
   const modId = (p: unknown): string => { const id = p !== null && typeof p === "object" ? (p as { id?: unknown }).id : undefined; if (typeof id !== "string" || !/^[a-z][a-z0-9-]{1,40}$/.test(id) || !temModulos()) throw new Error("módulo inválido"); return id; };
@@ -377,9 +320,8 @@ export function registerClientIpc(): void {
   handleClient("cota:maiores", (event) => cotaMaiores(ctxOf(event).host));
   handleClient("cota:apagar-item", (event, payload: unknown) => cotaApagarItem(ctxOf(event).host, (payload as { caminho?: unknown } | null)?.caminho));
   handleClient("cota:pedir-mais", async (event, payload: unknown) => { const h = ctxOf(event); const pct = Number((payload as { pct?: unknown } | null)?.pct); await registrar(h.host, "cota.pedir-mais", Number.isFinite(pct) ? `${Math.round(pct)}%` : ""); log(`[cota] ${h.host}: pediu mais espaço${Number.isFinite(pct) ? ` (${Math.round(pct)}%)` : ""}`); });
-  handleClient("finance:pedir", async (event) => { const h = ctxOf(event); await registrar(h.host, "plano.pedir", "pediu para liberar o meu-bot-finance (financeiro)"); log(`[finance] ${h.host}: pediu o meu-bot-finance`); });
   handleClient("crm:info", (event) => crmInfo(ctxOf(event).host));
-  // Tutorial 17 (meu-bot-crm): o primeiro pipeline do CRM da máquina e qual é o do WhatsApp.
+  // Tutorial 18 (meu-bot-crm): o primeiro pipeline do CRM da máquina e qual é o do WhatsApp.
   handleClient("crm:local", (event) => crmLocal(ctxOf(event).host));
   handleClient("crm:pipeline-criar", async (event, payload: unknown) => {
     const h = ctxOf(event); await assertAcesso(h.host);
@@ -490,7 +432,7 @@ export function registerClientIpc(): void {
     if (policy === "list" && numbers.length === 0) throw new Error("a lista precisa de pelo menos um número");
     return setDmPolicy(h.host, policy, numbers).then((r) => { void registrar(h.host, "whatsapp.quem-responde", policy === "open" ? "todo mundo" : policy === "self" ? "só você" : `você e ${numbers.length} números`); return r; });
   });
-  // "Digitando…" do agente no WhatsApp: mostrar sempre ou nunca (tutorial 17); o motor decide se reinicia o gateway.
+  // "Digitando…" do agente no WhatsApp: mostrar sempre ou nunca (tutorial 16); o motor decide se reinicia o gateway.
   handleClient("whatsapp:typing", (event, payload: unknown) => {
     const h = hostFromEvent(event);
     if (h === null) throw new Error("origem inválida");
@@ -599,7 +541,7 @@ export function registerClientIpc(): void {
     if (p.estrategia === "ordem" || p.estrategia === "folga") l.estrategia = p.estrategia;
     return limiaresContasClaude(h.host, l);
   });
-  // Modo grátis (tutorial 17): o Ollama do meu-bot só existe na máquina "local" (este Mac); nas outras, `null`.
+  // Modo grátis (tutorial 16): o Ollama do meu-bot só existe na máquina "local" (este Mac); nas outras, `null`.
   const hostOllama = (event: Electron.IpcMainInvokeEvent): { win: Electron.BrowserWindow } | null => {
     const h = hostFromEvent(event);
     if (h === null) throw new Error("origem inválida");
@@ -635,9 +577,9 @@ export function registerClientIpc(): void {
     return entrarConta(h.host, p.id, p.navegador === true, p.trocar === true, (ev) => { if (!h.win.isDestroyed()) h.win.webContents.send("contas:evento", ev); });
   });
   handleClient("contas:instalar-gh", (event) => { const h = hostFromEvent(event); if (h === null) throw new Error("origem inválida"); return instalarGh(h.host); });
-  // Tutorial 13: a pessoa troca o nome do link público dela (o comando da máquina renomeia a pasta dela, sem root).
+  // Tutorial 12: a pessoa troca o nome do link público dela (o comando da máquina renomeia a pasta dela, sem root).
   handleClient("link-publico:nome", (event, payload: unknown) => { const h = hostFromEvent(event); if (h === null) throw new Error("origem inválida"); return linkPublicoNome(h.host, (payload as { nome?: unknown } | null)?.nome); });
-  // Tutorial 13: o que está no ar, tirar do ar e publicar um arquivo deste Mac (o diálogo abre no main; o renderer nunca manda caminho), tudo como ela.
+  // Tutorial 12: o que está no ar, tirar do ar e publicar um arquivo deste Mac (o diálogo abre no main; o renderer nunca manda caminho), tudo como ela.
   handleClient("link-publico:lista", (event) => { const h = hostFromEvent(event); if (h === null) throw new Error("origem inválida"); return linkPublicoLista(h.host); });
   handleClient("link-publico:remover", (event, payload: unknown) => { const h = hostFromEvent(event); if (h === null) throw new Error("origem inválida"); return linkPublicoRemover(h.host, (payload as { nome?: unknown } | null)?.nome); });
   handleClient("link-publico:publicar", (event, payload: unknown) => { const h = hostFromEvent(event); if (h === null) throw new Error("origem inválida"); return linkPublicoPublicar(h.host, h.win, (payload as { nome?: unknown } | null)?.nome); });

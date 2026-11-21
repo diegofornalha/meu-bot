@@ -8,7 +8,7 @@ import { join } from "node:path";
 /** ENV_FILE que o módulo resolve num HOME de mentira (o módulo lê os.homedir() na carga; por isso um processo por caso). */
 const resolve = (mod, home) => execFileSync(process.execPath, ["-e", `import("${mod}").then((m) => console.log(m.ENV_FILE))`], { env: { HOME: home, PATH: process.env.PATH }, encoding: "utf8" }).trim();
 
-for (const mod of ["backend-colima/crm/backend.mjs", "backend-colima/finance/backend.mjs"]) {
+for (const mod of ["backend-colima/crm/backend.mjs"]) {
   test(`${mod}: acha o backend do meu-bot pela mesma regra do app (própria, herdada só se é o nosso server.js)`, () => {
     const abs = join(process.cwd(), mod);
     const home = mkdtempSync(join(tmpdir(), "meu-bot-plugin-dir-"));

@@ -29,7 +29,7 @@ test("usoResumo: última versão de cada app, com o canal; aberturaTexto diz pro
   assert.equal(r.length, 2);
   assert.match(r[0].text, /^Staging \(meu-bot-staging\): versão 0\.80\.0-staging\.1 · conta mac1@gmail\.com · aberto há 1 h$/);
   assert.match(r[1].text, /^Produção \(meu-bot\): versão 0\.79\.3/);
-  assert.equal(canalDoProduto("meu-bot-finance-staging"), "staging");
+  assert.equal(canalDoProduto("meu-bot-inspector-staging"), "staging");
   assert.equal(canalDoProduto("meu-bot-inspector-staging"), "staging");
   assert.match(aberturaTexto(ab[2]), /meu-bot \(produção\) 0\.79\.2 · Mac box-mac$/);
   assert.match(aberturaTexto(ab[0]), /0\.80\.0-staging\.1 · mac1@gmail\.com · Mac box-mac$/);

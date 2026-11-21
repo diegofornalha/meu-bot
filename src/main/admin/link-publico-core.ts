@@ -4,7 +4,7 @@
  * 127.0.0.1 atrás de um Cloudflare Tunnel do root (a máquina não abre porta nenhuma; o TLS é da Cloudflare). O
  * domínio fica na conta Cloudflare do root (login uma vez, como o Claude Code Global); o agente de cada usuário dá
  * links com o comando `publicar`, ensinado por uma skill do Hermes e um bloco no CLAUDE.md. O nome do link a pessoa
- * troca sozinha (`link-publico-nome`, tutorial 13): a pasta é dela numa pasta com sticky bit, sem passar pelo root.
+ * troca sozinha (`link-publico-nome`, tutorial 12): a pasta é dela numa pasta com sticky bit, sem passar pelo root.
  */
 import type { LpAgente, LpAviso, LpEstado, LpItem } from "../../shared/ipc";
 import { NOME_USUARIO_RE } from "./usuarios-core";

@@ -1,4 +1,4 @@
-/** Link público da pessoa no guia (tutorial 13): ver o link, publicar e tirar do ar, trocar o nome. */
+/** Link público da pessoa no guia (tutorial 12): ver o link, publicar e tirar do ar, trocar o nome. */
 import type { LinkPublicoInfo, LinkPublicoItem } from "../../shared/ipc";
 import { el } from "../lib/dom.js";
 import { carregando, esperaOuFalha } from "../lib/carregando.js";
@@ -8,11 +8,11 @@ import { registrarFonte } from "../tutoriais/fontes.js";
 import { abrirLinkDoChat } from "../navegador/navegador-guia.js";
 import { registrarPassos } from "../tutoriais/passos.js";
 
-/** Tutorial 13: o link público da pessoa (null = desligado ou não consultado; `linkPublicoLido` separa os dois). */
+/** Tutorial 12: o link público da pessoa (null = desligado ou não consultado; `linkPublicoLido` separa os dois). */
 export let linkPublicoState: LinkPublicoInfo | null = null;
 export let linkPublicoLido = false;
 let linkPublicoErro: string | null = null;
-/** false = a janela é do root: sem link por desenho (o tutorial 13 some da lista). */
+/** false = a janela é do root: sem link por desenho (o tutorial 12 some da lista). */
 export let linkPublicoPossivel = true;
 /** A máquina tem o Link Público Global? Sem ele o passo diz que é o admin quem instala (não "ainda não ligou"). */
 export let linkPublicoGlobal = true;
@@ -44,12 +44,12 @@ function desarmarRemover(): void { linkRemoverArmado = null; if (linkRemoverTime
 export async function refreshLinkPublico(): Promise<void> {
   if (!ctx.caps.install || ctx.windowHost === "") return;
   // Este Mac: o link público é de uma conta numa máquina por SSH (nginx e túnel do Link Público Global, do admin);
-  // aqui não se aplica, e o tutorial 13 some (needsLinkPublico) em vez de ficar em "Consultando a máquina…".
+  // aqui não se aplica, e o tutorial 12 some (needsLinkPublico) em vez de ficar em "Consultando a máquina…".
   if (ctx.windowHost === "local") { linkPublicoState = null; linkPublicoPossivel = false; linkPublicoLido = true; ctx.paintGuide(); return; }
   try { const r = await window.meuBot.linkPublico(); linkPublicoState = r.info; linkPublicoPossivel = r.possivel; linkPublicoGlobal = r.global; linkPublicoLido = true; linkPublicoErro = null; } catch (err) { linkPublicoErro = ipcErrorText(err); /* fica o estado que havia */ }
   ctx.paintGuide();
 }
-/** Tutorial 13: o link (passo 1), o que está no ar (passo 2) ou o campo para trocar o nome (passo 3). */
+/** Tutorial 12: o link (passo 1), o que está no ar (passo 2) ou o campo para trocar o nome (passo 3). */
 export function renderLinkPublico(container: HTMLElement, parte: "ver" | "testar" | "nome"): void {
   const box = el("div", "audio-controls");
   const lp = linkPublicoState;

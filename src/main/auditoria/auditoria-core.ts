@@ -80,6 +80,8 @@ export const ACOES = {
   "whatsapp.digitando": (a: string) => `mudou o "digitando…" do agente no WhatsApp${a ? ` (${a})` : ""}`,
   "crm.guardar-conversa": (a: string) => `guardou no CRM a conversa do WhatsApp de ${a}`,
   "crm.instalar": () => "instalou o CRM pelo WhatsApp",
+  // O Financeiro saiu do app (módulo Finanças, #312). Os rótulos "finance.*" e o app meu-bot-finance-staging ficam: o registro
+  // de auditoria das máquinas guarda linhas antigas com eles, e sem o rótulo elas apareceriam só como o código da ação.
   "finance.instalar": () => "instalou o financeiro (WhatsApp e chat)",
   "modulo.ligar": (a: string) => `ligou o módulo ${a}`,
   "modulo.pagina": (a: string) => `abriu a página do módulo ${a}`,

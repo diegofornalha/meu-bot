@@ -1,5 +1,5 @@
 /**
- * Modo grátis no Mac (tutorial 17): o Ollama do meu-bot na máquina "local". No molde do xaiLocal.ts: o programa fica
+ * Modo grátis no Mac (tutorial 16): o Ollama do meu-bot na máquina "local". No molde do xaiLocal.ts: o programa fica
  * numa pasta do meu-bot (~/.local/share/meu-bot/ollama, na versão fixa, conferida pelo sha256; nada em /Applications e
  * sem mexer num Ollama que a pessoa já tenha), o `ollama serve` é um processo filho do app numa porta própria
  * (ollamaPortaLocal) e o providers.json do backend local ganha a entrada "ollama-local" (mesclada, sem apagar as outras).
@@ -219,7 +219,7 @@ async function reiniciarBackend(say: (l: string) => void, subir: boolean): Promi
 }
 
 let ocupado = false;
-/** Passo 2 do tutorial 17: baixa o programa (se preciso), sobe o serve, baixa o modelo e aponta o backend para ele. */
+/** Passo 2 do tutorial 16: baixa o programa (se preciso), sobe o serve, baixa o modelo e aponta o backend para ele. */
 export async function prepareOllamaLocal(onLine?: (line: string) => void): Promise<InstallBackendResult> {
   const lines: string[] = [];
   const say = (l: string): void => { lines.push(l); onLine?.(l); };

@@ -69,9 +69,6 @@ export interface HostProbe {
   /** CRM do meu-bot instalado na máquina (null = não consultado) e a versão do plugin. */
   crm: boolean | null;
   crmVersion: string | null;
-  /** Financeiro (produto meu-bot-finance) instalado na máquina (null = não consultado) e a versão do plugin. */
-  finance: boolean | null;
-  financeVersion: string | null;
   /** OpenClaw: o agente do WhatsApp entende áudio (transcritor configurado); null = sem OpenClaw. */
   audioIn: boolean | null;
   /** Agente de chat da máquina (openclaw tem preferência quando os dois existem). */

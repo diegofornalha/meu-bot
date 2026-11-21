@@ -1,1 +1,0 @@
-{ "id": "meu-bot-finance", "name": "meu-bot · Financeiro no WhatsApp", "activation": { "onStartup": true }, "configSchema": { "type": "object", "additionalProperties": false, "properties": {} } }

@@ -5,7 +5,7 @@
  * por variante: só por caps().planoExigido e caps().produto.
  */
 import { lerLicenca, lerLicencaDaMaquina } from "./licenca-maquina";
-import { acessoProduto, crmProprioOk, financeOk, proOk } from "./licenca";
+import { acessoProduto, crmProprioOk, proOk } from "./licenca";
 import { LOCAL_HOST } from "../maquina/localBackend";
 import { isValidHost } from "../app/settings";
 import { caps } from "../app/variant";
@@ -22,13 +22,6 @@ export async function assertAcesso(host: string): Promise<void> {
     return;
   }
   if (lic === null || !proOk(lic.license)) throw new Error("PRO_REQUIRED");
-}
-
-/** Financeiro nesta máquina: o add-on meu-bot-finance contratado e em vigor. "FINANCE_REQUIRED". */
-export async function assertFinance(host: string): Promise<void> {
-  if (host === LOCAL_HOST || !isValidHost(host)) throw new Error("FINANCE_REQUIRED");
-  const lic = await lerLicenca(host);
-  if (!financeOk(lic, host)) throw new Error("FINANCE_REQUIRED");
 }
 
 /**
