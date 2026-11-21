@@ -14,7 +14,7 @@ import type { ModuloPaginaAberta, ModuloPlanilhaResultado, ModuloResultado, Modu
 import type { BackendStatusEvent, InstallBackendResult, TailscaleSshResult } from "./maquina";
 import type { BrowserAgentState, BrowserExtensionInfo, BrowserOpenInfo, NavFavorito, NavWhatsappInfo, NavWorkspaces } from "./navegador";
 import type { MotorNovoUsuario, AdminAction, AdminHealth, AtribuirMaquinaResultado, AuditoriaVisao, UsuariosVisao, PrepararId, PrepararVisao, BackupIndiceView, BackupRestauracao, BotChat, BotMenuAction, BotMessage, ProdutoMvp, SupportInfo, SupportProgress, SupportShare, CgEstado, LpEstado, LpAviso } from "./suporte";
-import type { TypingChoice, WaMarkPatch, WhatsappAlvo, WhatsappArchive, WhatsappChat, WhatsappEvent, WhatsappGroupAgent, WhatsappGroupArchive, WhatsappGroupMenuAction, WhatsappGroupPatch, WhatsappGroups, WhatsappMenuAction, WhatsappAgente, WhatsappReplyChoice, WhatsappStatus, WhatsappThreadMessage } from "./whatsapp";
+import type { TypingChoice, WaMarkPatch, WhatsappAlvo, WhatsappArchive, WhatsappChat, WhatsappEvent, WhatsappGroupAgent, WhatsappGroupArchive, WhatsappGroupMenuAction, WhatsappGroupPatch, WhatsappGroups, WhatsappMenuAction, WhatsappAgente, WhatsappReplyChoice, WhatsappStatus, WhatsappSugestaoPedido, WhatsappSugestoes, WhatsappThreadMessage } from "./whatsapp";
 
 export interface MainEvents {
   /** Modo de depuração: tique de 1 s do main (para a faixa saber se ele está preso) e a última marca. */
@@ -200,6 +200,8 @@ export interface MeuBotSharedApi {
   showWhatsappGroupMenu(jid: string, state: { agente: WhatsappGroupAgent; deleted: boolean }): Promise<WhatsappGroupMenuAction | null>;
   /** Pausa (true) ou retoma (false) as respostas do agente a este contato; `horas` (2|24) só com a capacidade `pausaPrazo`. Os dois apps (no admin, registrado). */
   pauseWhatsapp(number: string, paused: boolean, horas?: 2 | 24): Promise<void>;
+  /** Modo "sugere e você aprova": o estado e as respostas que a guarda segurou nesta máquina. */
+  whatsappSugestoes(): Promise<WhatsappSugestoes>;
   /** O que limpar o histórico deste contato vai zerar: só sessões dele, ou também a principal (de todos). Os dois apps. */
   whatsappClearPlan(number: string): Promise<{ own: number; shared: number }>;
   /** meu-bot-crm: guarda a conversa no CRM (transcrição + resumo) antes de limpar/excluir. */
@@ -487,6 +489,8 @@ export interface MeuBotClientApi {
   whatsappTyping(mode: TypingChoice): Promise<WhatsappStatus>;
   /** Quem manda no agente (null = volta ao número pareado). Reaplica "quem responde" e, no Hermes, o home channel (reinicia o gateway). */
   whatsappSetDono(numero: string | null): Promise<WhatsappStatus>;
+  /** Liga/desliga o modo, aprova (com `texto`, a versão editada) ou descarta uma sugestão; devolve a fila depois. */
+  whatsappSugestao(pedido: WhatsappSugestaoPedido): Promise<WhatsappSugestoes>;
   /** Grava qual agente atende o WhatsApp desta máquina; trocar desconecta o número do agente anterior. */
   whatsappEscolherAgente(agente: WhatsappAgente): Promise<WhatsappStatus>;
   /** Conversa nova do meu-bot com a conversa do WhatsApp como contexto. */

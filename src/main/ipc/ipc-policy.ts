@@ -12,6 +12,8 @@ export const SHARED_CHANNELS = [
   "whatsapp:status", "whatsapp:chats", "whatsapp:thread", "whatsapp:export", "ui:wa-menu",
   // limpar o histórico, pausar o agente e arquivar/excluir por contato: a pessoa e o admin (no admin fica no registro da máquina dela)
   "whatsapp:clear-plan", "whatsapp:clear", "whatsapp:pause", "whatsapp:mark", "whatsapp:names",
+  // modo "sugere e você aprova": ler a fila que a guarda segurou (a pessoa e o admin veem; só a pessoa aprova)
+  "whatsapp:sugestoes",
   // meu-bot-crm: guardar a conversa no CRM antes de limpar (o handler recusa fora dele)
   "whatsapp:archive-crm",
   // grupos: ler, ligar/desligar o agente, quem aciona e reler a lista (a pessoa e o admin; mudanças na auditoria)
@@ -48,7 +50,7 @@ export const CLIENT_CHANNELS = [
   "ui:quick-toggle", "quick:submit", "quick:hide", "quick:ack",
   // WhatsApp: o que mexe na máquina ou no agente dela
   "whatsapp:pair", "whatsapp:audio", "whatsapp:typing", "whatsapp:logout", "whatsapp:dm-policy", "whatsapp:agente", "whatsapp:branch",
-  "whatsapp:cancel", "whatsapp:pausa-plugin", "whatsapp:dono",
+  "whatsapp:cancel", "whatsapp:pausa-plugin", "whatsapp:dono", "whatsapp:sugestao",
   // logins
   "claude-login:start", "claude-login:code", "claude-login:logout", "claude-login:cancel",
   // várias contas do Claude na máquina (rodízio no limite de uso)

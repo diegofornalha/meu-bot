@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webFrame } from "electron";
-import type { CrmPipelineExtras, BackupRestauroPedido, ClienteMcp, AdminAction, AlertPrefs, AudioSetup, BackendModel, SupportProgress, SupportShare, ConversationRef, ExportFormat, FreedomLevel, LicensePatch, MainEventChannel, MainEvents, MemoryView, ObjectiveChoice, MeuBotApi, MeuBotAdminApi, MeuBotClientApi, MeuBotSharedApi, SettingsUpdate, SettingsView, StoredConversationView, TabMenuAction, WaMarkPatch, WhatsappGroupAgent, WhatsappGroupPatch, TypingChoice, WindowInfo, StatusLineSegments, ContaId, ZoomAction, ZoomState, WhatsappAlvo } from "../shared/ipc";
+import type { CrmPipelineExtras, BackupRestauroPedido, ClienteMcp, AdminAction, AlertPrefs, AudioSetup, BackendModel, SupportProgress, SupportShare, ConversationRef, ExportFormat, FreedomLevel, LicensePatch, MainEventChannel, MainEvents, MemoryView, ObjectiveChoice, MeuBotApi, MeuBotAdminApi, MeuBotClientApi, MeuBotSharedApi, SettingsUpdate, SettingsView, StoredConversationView, TabMenuAction, WaMarkPatch, WhatsappGroupAgent, WhatsappGroupPatch, TypingChoice, WindowInfo, StatusLineSegments, ContaId, ZoomAction, ZoomState, WhatsappAlvo, WhatsappSugestaoPedido } from "../shared/ipc";
 
 // Preload roda em sandbox: não pode importar módulos do app, por isso a lista fica aqui.
 const MAIN_EVENT_CHANNELS: readonly MainEventChannel[] = [
@@ -108,6 +108,7 @@ const sharedApi: MeuBotSharedApi = {
   refreshWhatsappGroups: () => ipcRenderer.invoke("whatsapp:groups-refresh", {}),
   showWhatsappGroupMenu: (jid: string, state: { agente: WhatsappGroupAgent; deleted: boolean }) => ipcRenderer.invoke("ui:wa-group-menu", { jid, state }),
   pauseWhatsapp: (number: string, paused: boolean, horas?: 2 | 24) => ipcRenderer.invoke("whatsapp:pause", { number, paused, ...(horas === undefined ? {} : { horas }) }),
+  whatsappSugestoes: () => ipcRenderer.invoke("whatsapp:sugestoes", {}),
   whatsappClearPlan: (number: string) => ipcRenderer.invoke("whatsapp:clear-plan", { number }),
   whatsappGroupClearPlan: (jid: string) => ipcRenderer.invoke("whatsapp:group-clear-plan", { jid }),
   archiveWhatsappGroupToCrm: (jid: string) => ipcRenderer.invoke("whatsapp:group-archive-crm", { jid }),
@@ -283,6 +284,7 @@ const clientApi: MeuBotClientApi = {
   whatsappCancel: () => ipcRenderer.invoke("whatsapp:cancel", {}),
   whatsappSetDmPolicy: (policy: "self" | "open" | "list", numbers?: readonly string[]) => ipcRenderer.invoke("whatsapp:dm-policy", { policy, numbers: numbers ?? [] }),
   whatsappSetDono: (numero: string | null) => ipcRenderer.invoke("whatsapp:dono", { numero }),
+  whatsappSugestao: (pedido: WhatsappSugestaoPedido) => ipcRenderer.invoke("whatsapp:sugestao", pedido),
   whatsappEscolherAgente: (agente: "openclaw" | "hermes") => ipcRenderer.invoke("whatsapp:agente", { agente }),
   whatsappBranch: (number: string) => ipcRenderer.invoke("whatsapp:branch", { number }),
   claudeLogin: () => ipcRenderer.invoke("claude-login:start", {}),

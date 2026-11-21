@@ -154,6 +154,19 @@ export interface WhatsappThreadMessage {
   /** Chegou enquanto o contato estava pausado: o agente não a viu (whatsapp-pausados.jsonl do plugin meu-bot-pausa). */
   durantePausa?: true;
 }
+/** Uma resposta que o agente escreveu e a guarda segurou (modo "sugere e você aprova"). */
+export interface WhatsappSugestao {
+  id: string;
+  /** "+5511…" (contato) ou "<dígitos>@g.us" (grupo). */
+  para: string;
+  texto: string;
+  /** Quando o agente escreveu, em ISO. */
+  em: string;
+}
+/** O modo sugestão na máquina: `disponivel: false` = a guarda dela ainda não tem o modo (ou não há OpenClaw). */
+export interface WhatsappSugestoes { disponivel: boolean; ligado: boolean; desde: string | null; sugestoes: WhatsappSugestao[] }
+/** O que a tela pede sobre uma sugestão ou sobre o modo. */
+export type WhatsappSugestaoPedido = { acao: "ligar" } | { acao: "desligar" } | { acao: "aprovar"; id: string; texto?: string } | { acao: "descartar"; id: string };
 /** Como o agente fica num grupo: desligado, "só quando mencionado" (requireMention) ou "sempre". */
 export type WhatsappGroupAgent = "desligado" | "mencao" | "sempre";
 export interface WhatsappGroup {
