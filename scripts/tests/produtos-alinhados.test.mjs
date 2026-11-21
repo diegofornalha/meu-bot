@@ -98,7 +98,7 @@ test("backend da máquina (backend-colima/licenca.js) tem as mesmas listas de ad
   assert.deepEqual([...b.MODULOS_SEM_LICENCA].sort(), ADDONS.filter((a) => a.semLicenca).map((a) => a.nome).sort(), "MODULOS_SEM_LICENCA");
 });
 
-test("financeiro liberado: main, telas e backend da máquina decidem igual", async () => {
+test("add-on do Finanças (o que libera o módulo): main, telas e backend da máquina decidem igual", async () => {
   const main = req("../../dist/main/licenca/licenca.js");
   const tela = await import("../../dist/renderer/lib/pro.js");
   const back = req("../../backend-colima/licenca.js");
@@ -115,8 +115,8 @@ test("financeiro liberado: main, telas e backend da máquina decidem igual", asy
   for (const lic of casos) {
     const view = { license: lic, devices: [], activeCount: 1, pendingCount: 0, deviceLimit: 1 };
     const b = back.financeOk(lic, now);
-    assert.equal(main.financeOk(view, "agente-box", now), b, `main × backend: ${JSON.stringify(lic)}`);
-    assert.equal(tela.financeOk(view, "agente-box", now), b, `telas × backend: ${JSON.stringify(lic)}`);
+    assert.equal(main.acessoAddon(view, "agente-box", "meu-bot-finance", now) === "ok", b, `main × backend: ${JSON.stringify(lic)}`);
+    assert.equal(tela.acessoAddon(view, "agente-box", "meu-bot-finance", now) === "ok", b, `telas × backend: ${JSON.stringify(lic)}`);
   }
 });
 

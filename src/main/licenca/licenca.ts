@@ -108,12 +108,6 @@ export interface LicencaDaMaquina { view: LicenseView | null; viaBackend: boolea
  */
 export const crmDaMaquinaOk = (l: LicencaDaMaquina | null, host: string, now: number = Date.now()): boolean =>
   l !== null && l.viaBackend && crmProprioOk(l.view, host, now);
-/**
- * Financeiro nesta máquina: o add-on meu-bot-finance contratado, com ou sem o Pro (o Pro sozinho não libera). Mesma
- * regra do renderer (lib/pro.ts) e do backend (licenca.js financeOk).
- */
-export const financeOk = (view: LicenseView | null, host: string, now: number = Date.now()): boolean =>
-  host !== "local" && acessoAddon(view, host, "meu-bot-finance", now) === "ok";
 /** Licença vencida: status expired ou validade no passado (o plano free, sem validade, não está vencido). */
 const vencida = (l: License, now: number): boolean => l.status === "expired" || (l.expiresAt !== null && !Number.isNaN(Date.parse(l.expiresAt)) && Date.parse(l.expiresAt) < now);
 /**

@@ -5,7 +5,7 @@
  *
  * Usa ssh/scp avulsos (ControlMaster=no, sem o mux do túnel) para não interferir no túnel ativo.
  */
-import { BUNDLE_FILES, CLAUDE_GLOBAL_FILES, CRM_FILES, CRM_PLUGIN_FILES, FINANCE_FILES, FINANCE_PLUGIN_FILES, GUARDA_FILES, GUARDA_PLUGIN_FILES, NAVEGADOR_FILES, TELA_FILES, TELA_PLUGIN_FILES, TELA_SKILL_FILES, VOZ_FILES } from "./backend-bundle-core";
+import { BUNDLE_FILES, CLAUDE_GLOBAL_FILES, CRM_FILES, CRM_PLUGIN_FILES, GUARDA_FILES, GUARDA_PLUGIN_FILES, NAVEGADOR_FILES, TELA_FILES, TELA_PLUGIN_FILES, TELA_SKILL_FILES, VOZ_FILES } from "./backend-bundle-core";
 import { NAV_MCP_VERSAO } from "../navegador/navegador-whatsapp-core";
 import { GMAIL_MCP_VERSAO } from "../google/gmail-core";
 import { VOZES, isVozId } from "../whatsapp/vozes-core";
@@ -30,7 +30,7 @@ import { BACKEND_DIR_SH } from "./backend-dir-core";
 const REMOTE_STAGE = "~/.meu-bot-install";
 /**
  * Cada instalador vai para a própria subpasta (`~/.meu-bot-install/<componente>/`), junto com os arquivos que ele lê
- * da pasta dele: backend, audio, grok, navegador, crm, financeiro, guarda, statusline. Antes, tudo ia solto no mesmo
+ * da pasta dele: backend, audio, grok, navegador, crm, guarda, statusline. Antes, tudo ia solto no mesmo
  * nível (36 arquivos misturados).
  */
 const stageDe = (componente: string): string => `${REMOTE_STAGE}/${componente}`;
@@ -147,9 +147,6 @@ function probeScript(port: number): string {
     // CRM do meu-bot (plugin meu-bot-crm + crm-job): instalado? e a versão (o seletor atualiza a que estiver atrás).
     `[ -f "$HOME/.local/share/meu-bot/crm/index.js" ] && echo crm=1 || echo crm=0`,
     `echo "crmver=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("version",""))' "$HOME/.local/share/meu-bot/crm/package.json" 2>/dev/null)"`,
-    // Financeiro (produto meu-bot-finance: CLI finance.mjs + plugin meu-bot-finance): instalado? e a versão.
-    `[ -f "$HOME/.local/share/meu-bot/finance/finance.mjs" ] && echo finance=1 || echo finance=0`,
-    `echo "financever=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("version",""))' "$HOME/.local/share/meu-bot/finance/package.json" 2>/dev/null)"`,
     // Motor de chat (WhatsApp): a regra única do app (whatsapp-capacidades.ts › WA_MOTOR_SH): a escolha gravada manda; sem
     // ela, Hermes já configurado, senão o binário openclaw, hermes ou picoclaw (este só com ~/.picoclaw/config.json).
     // Antes a sondagem punha o OpenClaw na frente e ignorava a escolha, e o seletor discordava do status da janela.
@@ -199,7 +196,7 @@ export async function probeHost(host: string, port: number): Promise<HostProbe> 
   const base: HostProbe = {
     host, hostName: sshHostInfo(host)?.hostName ?? null, reachable: false, hostKeyChanged: false, user: null, apelido: null, os: null, arch: null, backendInstalled: false, backendForeign: false, backendListening: false, backendSumiu: false, backendUnitPort: null, backendVersion: null, backendBusy: null,
     appPort: port, backendPort: null, portBusy: false, freePort: null,
-    claudePath: null, claudeLoggedIn: false, node: null, diskTotalMb: null, diskFreeMb: null, memTotalMb: null, memFreeMb: null, swapTotalMb: null, swapFreeMb: null, backendAlerta: null, systemd: false, grokPod: false, tailscaleCheck: false, statusLine: false, guarda: null, guardaVersion: null, crm: null, crmVersion: null, finance: null, financeVersion: null, audioIn: null, gateway: null, models: [], error: null,
+    claudePath: null, claudeLoggedIn: false, node: null, diskTotalMb: null, diskFreeMb: null, memTotalMb: null, memFreeMb: null, swapTotalMb: null, swapFreeMb: null, backendAlerta: null, systemd: false, grokPod: false, tailscaleCheck: false, statusLine: false, guarda: null, guardaVersion: null, crm: null, crmVersion: null, audioIn: null, gateway: null, models: [], error: null,
   };
   const t0 = Date.now();
   // Falha rápida (o host respondeu "ainda não": sshd subindo, rota do Tailscale recém-negociada)
@@ -250,8 +247,6 @@ export async function probeHost(host: string, port: number): Promise<HostProbe> 
     hermesPausaVersion: kv.get("hpausaver") || null,
     crm: kv.get("crm") === "1",
     crmVersion: kv.get("crmver") || null,
-    finance: kv.get("finance") === "1",
-    financeVersion: kv.get("financever") || null,
     audioIn: kv.get("gateway") === "openclaw" ? kv.get("audioin") === "1" : null,
     gateway: kv.get("gateway") === "openclaw" ? "openclaw" : kv.get("gateway") === "hermes" ? "hermes" : kv.get("gateway") === "picoclaw" ? "picoclaw" : null,
     models: (kv.get("models") ?? "").split(",").map((m) => m.trim()).filter((m) => /^[a-z0-9-]+$/.test(m)),
@@ -296,7 +291,7 @@ function probeLocal(port: number): HostProbe {
   return {
     host: LOCAL_HOST, hostName: null, reachable: true, hostKeyChanged: false, user: os.userInfo().username, apelido: null, os: `macOS ${os.release()}`, arch: os.arch(),
     backendInstalled: true, backendForeign: false, backendListening: localBackendAlive(), backendSumiu: false, backendUnitPort: null, backendVersion: null, backendBusy: null, appPort: port, backendPort: null, portBusy: false, freePort: null, claudePath: claude, claudeLoggedIn: claude !== null && claudeLoggedIn(),
-    node: nodeVersion, ...medidasLocais(), backendAlerta: null, systemd: false, grokPod: false, tailscaleCheck: false, statusLine: localStatusLine(), guarda: null, guardaVersion: null, crm: null, crmVersion: null, finance: null, financeVersion: null, audioIn: null, gateway: null, models: ["claudecode", "agente"], error: node === null ? "Node.js não encontrado neste Mac" : null,
+    node: nodeVersion, ...medidasLocais(), backendAlerta: null, systemd: false, grokPod: false, tailscaleCheck: false, statusLine: localStatusLine(), guarda: null, guardaVersion: null, crm: null, crmVersion: null, audioIn: null, gateway: null, models: ["claudecode", "agente"], error: node === null ? "Node.js não encontrado neste Mac" : null,
   };
 }
 
@@ -304,7 +299,7 @@ function probeLocal(port: number): HostProbe {
 /**
  * Módulos de produto (src/main/modulos/modulos.ts): manda a pasta local de um módulo para o stage da máquina
  * (`~/.meu-bot-install/modulo-<id>/`) e roda `comando` lá dentro (o instalador ou o desinstalador), com o progresso
- * linha a linha. Mesmo molde de installFinance; o stage do módulo é limpo antes.
+ * linha a linha. Mesmo molde de installCrm; o stage do módulo é limpo antes.
  */
 export async function enviarModulo(host: string, id: string, pastaLocal: string, comando: string, onLine?: (line: string) => void): Promise<InstallBackendResult> {
   if (host === LOCAL_HOST) return { ok: false, log: ["os módulos moram numa máquina por SSH"] };
@@ -502,10 +497,6 @@ const WA_GRUPOS_SCRIPTS = ["habilitar.py", "listar.sh", "monitor.py", "wa-admin.
 export function bundledBackendVersion(): string | null {
   try { return fs.readFileSync(path.join(backendBundleDir(), "VERSION"), "utf8").trim() || null; } catch { return null; }
 }
-/** Versão do plugin do financeiro que vem neste app; o seletor atualiza máquinas que já o têm numa versão anterior. */
-export function bundledFinanceVersion(): string | null {
-  try { const j = JSON.parse(fs.readFileSync(path.join(backendBundleDir(), "finance", "package.json"), "utf8")) as { version?: unknown }; return typeof j.version === "string" ? j.version : null; } catch { return null; }
-}
 export function bundledCrmVersion(): string | null {
   try { const j = JSON.parse(fs.readFileSync(path.join(backendBundleDir(), "crm", "package.json"), "utf8")) as { version?: unknown }; return typeof j.version === "string" ? j.version : null; } catch { return null; }
 }
@@ -596,7 +587,7 @@ export async function installGmail(host: string, onLine?: (line: string) => void
   if (inst.code !== 0) return { ok: false, log: [...lines, `instalador saiu com código ${inst.code ?? "timeout"}`] };
   return { ok: true, log: lines };
 }
-/** Tutorial 17: instala o plugin meu-bot-crm + as CLIs (crm.mjs do CRM próprio, streak.mjs do Pro) + skills na máquina (molde da guarda). */
+/** Tutorial 18: instala o plugin meu-bot-crm + as CLIs (crm.mjs do CRM próprio, streak.mjs do Pro) + skills na máquina (molde da guarda). */
 export async function installCrm(host: string, onLine?: (line: string) => void): Promise<InstallBackendResult> {
   if (host === LOCAL_HOST) return { ok: false, log: ["o CRM pelo WhatsApp é do agente do WhatsApp (OpenClaw) de uma máquina por SSH"] };
   const lines: string[] = [];
@@ -611,27 +602,6 @@ export async function installCrm(host: string, onLine?: (line: string) => void):
   if (scp2.code !== 0) return { ok: false, log: [...lines, `scp falhou: ${lastLine(scp2.stderr)}`] };
   say("rodando o instalador…");
   const inst = await run("ssh", [...sshBase(host), "--", host, `bash ${stageDe("crm")}/install-crm.sh 2>&1`], 4 * 60_000, say);
-  if (inst.code !== 0) return { ok: false, log: [...lines, `instalador saiu com código ${inst.code ?? "timeout"}`] };
-  return { ok: true, log: lines };
-}
-/**
- * Financeiro (produto meu-bot-finance): instala a CLI finance.mjs do agente, a skill finance-api e o plugin
- * meu-bot-finance do WhatsApp na máquina. Os dados (finance/db) ficam no backend; o instalador nunca os apaga.
- */
-export async function installFinance(host: string, onLine?: (line: string) => void): Promise<InstallBackendResult> {
-  if (host === LOCAL_HOST) return { ok: false, log: ["o financeiro mora numa máquina por SSH (é onde ficam o agente do WhatsApp e os dados)"] };
-  const lines: string[] = [];
-  const say = (l: string): void => { lines.push(l); onLine?.(l); };
-  const dir = backendBundleDir();
-  say(`enviando o financeiro para ${host}:${stageDe("financeiro")}…`);
-  const mk = await run("ssh", [...sshBase(host), "--", host, `${limparStage("financeiro")}; mkdir -p ${stageDe("financeiro")}/finance`], 20_000);
-  if (mk.code !== 0) return { ok: false, log: [...lines, `falha ao preparar a pasta remota: ${lastLine(mk.stderr)}`] };
-  const scp1 = await run("scp", ["-q", ...sshBase(host), "--", ...FINANCE_FILES.map((f) => path.join(dir, f)), `${host}:${stageDe("financeiro")}/`], 60_000);
-  if (scp1.code !== 0) return { ok: false, log: [...lines, `scp falhou: ${lastLine(scp1.stderr)}`] };
-  const scp2 = await run("scp", ["-q", ...sshBase(host), "--", ...FINANCE_PLUGIN_FILES.map((f) => path.join(dir, "finance", f)), `${host}:${stageDe("financeiro")}/finance/`], 60_000);
-  if (scp2.code !== 0) return { ok: false, log: [...lines, `scp falhou: ${lastLine(scp2.stderr)}`] };
-  say("rodando o instalador…");
-  const inst = await run("ssh", [...sshBase(host), "--", host, `bash ${stageDe("financeiro")}/install-finance.sh 2>&1`], 4 * 60_000, say);
   if (inst.code !== 0) return { ok: false, log: [...lines, `instalador saiu com código ${inst.code ?? "timeout"}`] };
   return { ok: true, log: lines };
 }

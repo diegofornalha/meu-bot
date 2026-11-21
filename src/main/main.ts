@@ -39,7 +39,7 @@ import { parseLinkConfiguracoes } from "./conta/deep-link-core";
 import { aoRetornarAuth, aoRetorno, aoSair, contaEntrada, papelConfirmado } from "./conta/conta";
 
 // Cada produto além do meu-bot tem userData próprio (senão dividiria pasta e trava de instância). Antes de tudo.
-// O admin traz o pessoas.json antigo; um produto da pessoa (meu-bot-finance-staging…) nasce como cópia do meu-bot dela.
+// O admin traz o pessoas.json antigo; um produto da pessoa (meu-bot-inspector-staging…) nasce como cópia do meu-bot dela.
 { const ud = userDataName(); const de = produto().herdaDe; if (ud !== null) useVariantUserData(ud, caps().supportAdmin ? migrateAdminPessoas : de !== null ? herdarDe(de, produto().abreEm !== null) : undefined); }
 // O meu-bot adota a pasta do antigo meu-bot-crm (uma vez; a origem fica como backup). Depois de herdar, antes de ler qualquer coisa.
 { const fd = produto().fundeDe; if (fd !== null && !app.commandLine.hasSwitch("user-data-dir")) fundirDe(fd)(app.getPath("userData"), app.getPath("appData")); }
@@ -94,7 +94,7 @@ app.whenReady().then(() => {
   // Aviso único depois de adotar a pasta do antigo meu-bot-crm: o que veio e o que precisa ser refeito.
   if (relatorioFusao !== null) {
     const r = relatorioFusao;
-    void dialog.showMessageBox({ type: "info", title: "meu-bot", message: `Trouxe o que você tinha no ${r.origem}.`, detail: `${r.conversas} ${r.conversas === 1 ? "conversa veio" : "conversas vieram"} junto, com favoritos, memória e preferências. O CRM no Gmail abre com o seu plano. Só o login do Google (tutorial 15) e os logins do Navegador precisam ser refeitos uma vez. A pasta do ${r.origem} ficou intacta, como cópia de segurança.`, buttons: ["Entendi"] });
+    void dialog.showMessageBox({ type: "info", title: "meu-bot", message: `Trouxe o que você tinha no ${r.origem}.`, detail: `${r.conversas} ${r.conversas === 1 ? "conversa veio" : "conversas vieram"} junto, com favoritos, memória e preferências. O CRM no Gmail abre com o seu plano. Só o login do Google (tutorial 14) e os logins do Navegador precisam ser refeitos uma vez. A pasta do ${r.origem} ficou intacta, como cópia de segurança.`, buttons: ["Entendi"] });
   }
   installAppMenu({
     openPicker: () => { if (caps().usuariosMac) showUsuariosMac(); else showPicker(); },

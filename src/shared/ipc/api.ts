@@ -8,7 +8,6 @@ import type { TelaEndereco, TelaInstalacao, TelaStatus } from "./computador";
 import type { InspectorAbrir } from "./inspector";
 import type { ClaudeSessionRef, ContextEvent, ConversationRef, DoneEvent, ErrorEvent, ExportFormat, MemoryView, StoredConversationView, TabMenuAction, ToolEvent } from "./conversa";
 import type { CrmDiag, CrmInfo, CrmLocal, CrmPipelineExtras } from "./crm";
-import type { FinanceAbc, FinanceAbcLado, FinanceAbcPor, FinanceCategoria, FinanceConfig, FinanceConta, FinanceImportacao, FinanceInfo, FinanceLancamento, FinanceLancarInput, FinanceMoeda, FinanceTipoLinha } from "./financeiro";
 import type { AgendaEvento, BackupCopiasView, BackupDadosProgresso, BackupDadosView, BackupRestauroPedido, BackupRestauroProgresso, BackupRestauroResultado, GmailAgenteState, GmailApagado, GmailDetalhe, GmailLista, GoogleContaStatus, PlanilhaLeitura } from "./google";
 import type { LicensePatch, LicenseView, PlanoDaContaResultado } from "./licenca";
 import type { ModuloPaginaAberta, ModuloPlanilhaResultado, ModuloResultado, ModuloTeste, ModulosLista } from "./modulos";
@@ -63,10 +62,8 @@ export interface MainEvents {
   "gmail:progress": { line: string };
   /** Gmail: estado do "o agente pode usar" (socket + túnel reverso). */
   "gmail:agent": GmailAgenteState;
-  /** Instalação do CRM pelo WhatsApp (tutorial 17): uma linha de progresso. */
+  /** Instalação do CRM pelo WhatsApp (tutorial 16): uma linha de progresso. */
   "crm:progress": { line: string };
-  /** Instalação do financeiro na máquina, linha a linha (tutorial 12). */
-  "finance:progress": { line: string };
   /** Módulos de produto (meu-bot-diego): uma linha do instalador do módulo `id`. */
   "modulos:progress": { id: string; line: string };
   /** A página de um módulo pediu uma ação ao app (lista fechada: modulos-pagina-core.ts › lerAcao). */
@@ -79,7 +76,7 @@ export interface MainEvents {
   "claude-login:event": ClaudeLoginEvent;
   /** Login OAuth da xAI em andamento (mesmo formato). */
   "xai-login:event": ClaudeLoginEvent;
-  /** Uma linha do preparo ou da remoção do modo grátis (Ollama, tutorial 17). */
+  /** Uma linha do preparo ou da remoção do modo grátis (Ollama, tutorial 16). */
   "ollama:event": OllamaEvento;
   "contas:evento": ContaEvento;
   /** Conta meu-bot deste Mac mudou (entrou, saiu, erro no retorno do login, cópia relida). */
@@ -111,7 +108,7 @@ export interface MainEvents {
   /** Terminal: o controle local (term-api.ts) pede uma aba nova de terminal nesta janela. */
   "term:ask": { kind: "new" };
   /** Controle remoto (MCP), ferramenta `pagina_abrir`: põe esta página na frente da janela. */
-  "ui:abrir-pagina": { pagina: "tutoriais" | "acervo" | "financas" | "inspector" | "modulos" | "conta-google" | "gmail" | "computador" | "navegador" };
+  "ui:abrir-pagina": { pagina: "tutoriais" | "acervo" | "inspector" | "modulos" | "conta-google" | "gmail" | "computador" | "navegador" };
   /** Controle remoto (MCP) ligou/desligou, trocou de porta ou de token: a seção das Configurações repinta em todas as janelas. */
   "controle-remoto:changed": ControleRemotoView;
   /** Controle local (term-api.ts): mais uma coluna com a página à direita; juntar tira uma (id/pagina) ou todas. */
@@ -241,7 +238,7 @@ export interface MeuBotSharedApi {
   contaSair(): Promise<ContaView>;
   /** Abre o console da conta no navegador já entrado (código de uso único emitido com a sessão do app). */
   contaAbrirConsole(caminho: string): Promise<void>;
-  /** Link público desta pessoa na máquina (tutorial 13): `info` null = desligado, máquina fora ou este Mac; `possivel` false = conta root (sem link por desenho). */
+  /** Link público desta pessoa na máquina (tutorial 12): `info` null = desligado, máquina fora ou este Mac; `possivel` false = conta root (sem link por desenho). */
   linkPublico(): Promise<LinkPublicoStatus>;
   setSettings(update: SettingsUpdate): Promise<SettingsView>;
   /** Controle externo (MCP): estado, ligar/desligar (ligar gera o token na primeira vez; desligar o mantém), liberar execução de comandos/código, trocar a porta (1024–65535) e gerar outro token. Tudo vale na hora. */
@@ -440,34 +437,8 @@ export interface MeuBotClientApi {
   instalarGmail(): Promise<InstallBackendResult>;
   installGuarda(): Promise<InstallBackendResult>;
   uninstallGuarda(): Promise<InstallBackendResult>;
-  /** Tutorial 17 · CRM pelo WhatsApp (Pro): estado, instalar o plugin na máquina, gravar chave/pipeline/regras, testar a chave, refazer. */
+  /** Tutorial 18 · CRM pelo WhatsApp (Pro): estado, instalar o plugin na máquina, gravar chave/pipeline/regras, testar a chave, refazer. */
   crmInfo(): Promise<CrmInfo>;
-  /** Financeiro (produto meu-bot-finance): estado do módulo e dos números; lançamentos e ações da página Finanças. */
-  financeInfo(): Promise<FinanceInfo>;
-  financeLancamentos(filtro?: { mes?: string; status?: "pendente" | "confirmado"; limite?: number }): Promise<{ total: number; lancamentos: FinanceLancamento[] }>;
-  financeCategorias(): Promise<FinanceCategoria[]>;
-  financeLancar(input: FinanceLancarInput): Promise<FinanceLancamento>;
-  financeConfirmar(id: string, categoria?: string): Promise<FinanceLancamento>;
-  financeDescartar(id: string): Promise<void>;
-  /** Corrige um lançamento (o que vier muda; categoria/conta pelo nome ou chave, data dd/mm ou AAAA-MM-DD). */
-  financeCorrigir(id: string, patch: { valor?: string; favorecido?: string; categoria?: string; conta?: string | null; data?: string; notas?: string; linha?: string | null }): Promise<FinanceLancamento>;
-  /** Cria (sem key) ou edita uma linha da DRE prevista; valor "" ou null = a definir. */
-  financeLinhaSalvar(linha: { key?: string; nome: string; tipo: FinanceTipoLinha; valor: string | null; notas?: string }): Promise<void>;
-  financeLinhaRemover(key: string): Promise<void>;
-  /** A foto do comprovante de um lançamento (data URL), ou null se não está na máquina. */
-  financeComprovante(sha256: string): Promise<string | null>;
-  financeConfirmarTodas(): Promise<{ confirmados: number; restantes: number }>;
-  financeContaCriar(input: { nome: string; tipo?: FinanceConta["tipo"]; moeda?: FinanceMoeda; saldoInicial?: string }): Promise<FinanceConta>;
-  financeMes(mes: string, patch: { metaDireto?: string | null; metaIndireto?: string | null; metaNotas?: string; orcamento?: string | null; rendaPrevista?: string | null; dinheiroInformado?: boolean }): Promise<void>;
-  /** Config de moeda do sistema: taxas (unidades por 1 US$) e a moeda de exibição. */
-  financeConfigLer(): Promise<FinanceConfig>;
-  financeConfig(patch: { taxas?: Record<string, number>; moedaExibicao?: FinanceMoeda }): Promise<FinanceConfig>;
-  financeFecharMes(mes: string): Promise<void>;
-  /** Curva ABC: últimos `meses` (1–24) até `ate` (AAAA-MM, padrão o mês atual). */
-  financeAbc(filtro: { lado: FinanceAbcLado; por: FinanceAbcPor; meses: number; ate?: string }): Promise<FinanceAbc>;
-  /** Lê uma planilha do Google Sheets (link) com a Conta Google do app e importa as linhas no financeiro da máquina. */
-  financeImportarPlanilha(p: { link: string; aba?: string; tipo: FinanceAbcLado; simular: boolean }): Promise<FinanceImportacao>;
-  installFinance(): Promise<InstallBackendResult>;
   /**
    * Módulos de produto: o fixo do app (`caps.modulos`) e os add-ons com módulos na licença da máquina, uma lista por
    * produto, com o estado de cada módulo nesta máquina.
@@ -487,8 +458,6 @@ export interface MeuBotClientApi {
   modulosCredenciais(id: string, patch: Record<string, string>): Promise<ModulosLista[]>;
   /** Grava opções; com o módulo ligado, reinstala para valerem. */
   modulosOpcoes(id: string, patch: Record<string, string | number | boolean>): Promise<ModuloResultado>;
-  /** Pede ao admin para liberar o meu-bot-finance (fica no registro de auditoria). */
-  financePedir(): Promise<void>;
   installCrm(): Promise<InstallBackendResult>;
   setCrm(patch: { apiKey?: string; pipelineKey?: string | null; pipelineName?: string; silencioMin?: number; criarSemPerguntar?: boolean }): Promise<CrmInfo>;
   crmTest(): Promise<CrmDiag>;
@@ -548,7 +517,7 @@ export interface MeuBotClientApi {
   xaiLogin(): Promise<void>;
   xaiLoginCancel(): Promise<void>;
   xaiLogout(): Promise<ClaudeAuthInfo | null>;
-  /** Modo grátis no Mac (tutorial 17): o Ollama do meu-bot; null = a máquina desta janela não é este Mac. */
+  /** Modo grátis no Mac (tutorial 16): o Ollama do meu-bot; null = a máquina desta janela não é este Mac. */
   ollamaStatus(): Promise<OllamaStatus | null>;
   /** Baixa o programa (versão fixa, sha256), sobe o serve, baixa o modelo e aponta o backend; progresso em ollama:event. */
   ollamaPrepare(): Promise<InstallBackendResult>;
@@ -561,13 +530,13 @@ export interface MeuBotClientApi {
    * `trocar` = entrar com outra conta (a página não cai na conta que o Navegador já tem).
    */
   contasEntrar(id: ContaId, navegador: boolean, trocar: boolean): Promise<void>;
-  /** Tutorial 13: troca o nome do link público dela (`<nome>.<domínio>`); devolve o estado novo. */
+  /** Tutorial 12: troca o nome do link público dela (`<nome>.<domínio>`); devolve o estado novo. */
   linkPublicoNome(nome: string): Promise<LinkPublicoInfo>;
-  /** Tutorial 13: o que está no ar no link dela (`publicar --lista`, como ela); null = desligado, máquina fora ou este Mac. */
+  /** Tutorial 12: o que está no ar no link dela (`publicar --lista`, como ela); null = desligado, máquina fora ou este Mac. */
   linkPublicoLista(): Promise<LinkPublicoLista | null>;
-  /** Tutorial 13: tira um item do ar (`publicar --remover`, como ela); devolve a lista nova. */
+  /** Tutorial 12: tira um item do ar (`publicar --remover`, como ela); devolve a lista nova. */
   linkPublicoRemover(nome: string): Promise<LinkPublicoLista>;
-  /** Tutorial 13: escolhe um arquivo neste Mac (diálogo do main) e publica no link dela (um .md vira página; até 100 MB); `nome` = o nome no link, opcional. null = cancelou. */
+  /** Tutorial 12: escolhe um arquivo neste Mac (diálogo do main) e publica no link dela (um .md vira página; até 100 MB); `nome` = o nome no link, opcional. null = cancelou. */
   linkPublicoPublicar(nome?: string): Promise<LinkPublicoPublicado | null>;
   contasCancelar(): Promise<void>;
   contasSair(id: ContaId): Promise<ContaEstado[] | null>;

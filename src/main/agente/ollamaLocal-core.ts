@@ -1,5 +1,5 @@
 /**
- * Modo grátis no Mac (tutorial 17): a parte pura do ollamaLocal.ts. Versão e checksum fixos do Ollama, o modelo pela
+ * Modo grátis no Mac (tutorial 16): a parte pura do ollamaLocal.ts. Versão e checksum fixos do Ollama, o modelo pela
  * memória do Mac, a porta própria deste app e a entrada do providers.json. Testável com node --test.
  */
 import { mesclarProvider, providerPorNome, semProvider } from "../maquina/providers-local-core";
@@ -36,7 +36,7 @@ export const espacoNecessarioMb = (m: ModeloOllama): number => Math.ceil((OLLAMA
 
 /** Entrada do providers.json: openai local (sem chave), última na prioridade; timeout longo (modelo frio no Mac). */
 export function entradaOllama(porta: number, modelo: string): { name: string; type: "openai"; priority: number; base_url: string; model: string; timeout_ms: number; description: string } {
-  return { name: OLLAMA_PROVIDER, type: "openai", priority: 9, base_url: `${ollamaUrlLocal(porta)}/v1`, model: modelo, timeout_ms: 300_000, description: "Modo grátis: Ollama neste Mac (tutorial 17)" };
+  return { name: OLLAMA_PROVIDER, type: "openai", priority: 9, base_url: `${ollamaUrlLocal(porta)}/v1`, model: modelo, timeout_ms: 300_000, description: "Modo grátis: Ollama neste Mac (tutorial 16)" };
 }
 
 export const providersComOllama = (raw: string | null, porta: number, modelo: string): string => mesclarProvider(raw, entradaOllama(porta, modelo));

@@ -103,10 +103,8 @@ test("canal staging: as linhas saem da estável (nome, bundle, ícone, dados, po
   assert.notEqual(st.portaLocal, produtoDe("client").portaLocal);
 });
 
-test("meu-bot-finance-staging: cópia do staging com nome, ícone, dados e porta próprios; a licença continua a do meu-bot", () => {
-  const f = produtoDe("finance-staging");
-  assert.deepEqual([f.nome, f.bundleId, f.icone, f.userData, f.herdaDe, f.canal, f.licenca, f.fundeDe], ["meu-bot-finance-staging", "local.meu-bot-finance.staging", "assets/icon-finance-staging.icns", "meu-bot-finance-staging", "meu-bot-staging", "staging", "meu-bot", null]);
+test("os apps que abrem juntos têm portas diferentes (meu-bot, staging, inspector-staging…)", () => {
   const portas = PRODUTOS.filter((p) => p.caps.chat).map((p) => p.portaLocal);
-  assert.equal(new Set(portas).size, portas.length, "meu-bot, staging e finance-staging abrem juntos");
-  assert.deepEqual(f.caps, produtoDe("client").caps);
+  assert.equal(new Set(portas).size, portas.length);
+  assert.equal(PRODUTOS.some((p) => /finance/.test(p.nome)), false, "o Finanças é módulo (#312): não há app próprio");
 });

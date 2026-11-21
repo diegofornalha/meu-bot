@@ -1,4 +1,4 @@
-/** "Digitando…" do agente no WhatsApp (tutorial 16): dois cartões, mostrar sempre ou nunca; grava na máquina na hora. */
+/** "Digitando…" do agente no WhatsApp (tutorial 15): dois cartões, mostrar sempre ou nunca; grava na máquina na hora. */
 import type { TypingChoice, WhatsappStatus } from "../../shared/ipc";
 import { el } from "../lib/dom.js";
 import { ipcErrorText } from "../lib/ipc-error.js";

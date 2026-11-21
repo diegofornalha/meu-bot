@@ -32,7 +32,7 @@ export const hostLabel = (h: string): string => nicknames[h] ?? apelidosMaquina[
  * transcrição de áudio do agente do WhatsApp. A máquina abre igual; o seletor oferece instalar um por vez.
  */
 // Status line e transcrição de áudio não aparecem no seletor (nem aviso nem botão): o admin instala as duas ao criar a
-// conta (prepararUsuario; o tutorial 16 da status line ficou oculto em 30 out) e o app liga a transcrição sozinho (3 nov); aqui só repetiam (27 out).
+// conta (prepararUsuario; o tutorial 15 da status line ficou oculto em 30 out) e o app liga a transcrição sozinho (3 nov); aqui só repetiam (27 out).
 // A guarda também saiu (27 out): o tutorial 8 cuida dela. O seletor não oferece nem avisa nenhum opcional.
 const slNote = (_p: HostProbe): string => "";
 const slInstall = (_p: HostProbe): null => null;

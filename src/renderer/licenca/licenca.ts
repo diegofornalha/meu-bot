@@ -1,6 +1,6 @@
 import type { LicenseView } from "../../shared/ipc";
 import { byId as $ } from "../lib/dom.js";
-import { browserAccess, crmProprioOk, planoLiberaPro, financeOk } from "../lib/pro.js";
+import { browserAccess, crmProprioOk, planoLiberaPro } from "../lib/pro.js";
 import { ctx } from "../app/ctx.js";
 
 export let license: LicenseView | null = null;
@@ -22,10 +22,7 @@ export async function refreshLicense(): Promise<LicenseView | null> {
   try { license = await window.meuBot.getLicense(); } catch { /* backend antigo/fora do ar: fica o que havia */ }
   navLicenseAsked = true;
   setPlanBadge(license !== null && planoLiberaPro(license.license.plan));
-  ctx.paintFinanceLine();
   ctx.paintModulosLine();
   paintComputadorLine();
-  // Financeiro liberado agora (ou na abertura): lê o estado para a lateral e o tutorial 12.
-  if (ctx.financePage !== null && ((financeOk(license, ctx.windowHost) && ctx.financeState === null) || ctx.caps.addon === "meu-bot-finance")) void ctx.financePage.refresh();
   return license;
 }

@@ -6,7 +6,7 @@ import { ctx } from "../app/ctx.js";
 import { registrarFonte } from "../tutoriais/fontes.js";
 import { registrarPassos } from "../tutoriais/passos.js";
 
-// ---- Modo grátis no Mac (tutorial 17): o Ollama do meu-bot (ollamaLocal.ts no main). Linha na lateral abaixo da xAI,
+// ---- Modo grátis no Mac (tutorial 16): o Ollama do meu-bot (ollamaLocal.ts no main). Linha na lateral abaixo da xAI,
 // os passos "Conferir o seu Mac" e "Instalar" e a fonte `ollama` do guia. Só na janela "Este Mac", no staging.
 
 export const OLLAMA_TUTORIAL = TUTORIAIS.find((t) => t.id === "ollama-local") as Tutorial;
@@ -33,17 +33,17 @@ function paintOllamaLine(): void {
   ollamaLineBtn.disabled = st.toggling || st.preparing || st.removing;
 }
 
-/** Consulta o Ollama desta máquina; a lateral, o tutorial 17 e a primeira abertura seguem o resultado. */
+/** Consulta o Ollama desta máquina; a lateral, o tutorial 16 e a primeira abertura seguem o resultado. */
 export async function refreshOllamaLine(): Promise<void> {
   try { ollamaStatus = await window.meuBot.ollamaStatus(); } catch { ollamaStatus = null; }
   paintOllamaLine();
   if (ctx.tutorialsReady) { paintOllamaGuide(); ctx.paintGuide(); }
 }
 
-/** Porta única para o modo grátis: abre o tutorial 17 (a primeira abertura e o clique na linha). */
+/** Porta única para o modo grátis: abre o tutorial 16 (a primeira abertura e o clique na linha). */
 export function enterOllama(): void { ctx.tutNext = false; ctx.openGuide(OLLAMA_TUTORIAL); }
 
-// ---- passos do tutorial 17 ----
+// ---- passos do tutorial 16 ----
 const check = (() => {
   const box = el("div", "guide-login");
   const info = el("ul", "hint");
@@ -110,7 +110,7 @@ async function prepareOllama(): Promise<void> {
   finally { st.preparing = false; paintOllamaGuide(); paintOllamaLine(); ctx.paintGuide(); }
 }
 
-/** Remove o programa e os modelos (pede confirmação; o tamanho vem do status). Também o "Refazer do zero" do tutorial 17. */
+/** Remove o programa e os modelos (pede confirmação; o tamanho vem do status). Também o "Refazer do zero" do tutorial 16. */
 export async function removerOllama(confirmar = true): Promise<void> {
   if (st.preparing || st.removing) return;
   if (confirmar && !window.confirm(`Remover o modo grátis deste Mac? O ollama-local para de responder e o programa e o modelo (~${gb((ollamaStatus?.recomendado.downloadMb ?? 0) + 200)} GB) são apagados da pasta do meu-bot.`)) return;
