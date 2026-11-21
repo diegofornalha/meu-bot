@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
-const { SEM_PAPEL_GESTAO, acessoGestao, papelParaGestao, URLS, LOGIN_PENDENTE_MS, deveRenovar, erroDaApi, novoLogin, parseContaInfo, parseLoginPendente, parseNomesDaOrg, parsePrefs, parseSessao, retornoConfere, sessaoAcabou, urlDeLogin } = createRequire(import.meta.url)("../../dist/main/conta/conta-core.js");
+const { SEM_PAPEL_GESTAO, acessoGestao, papelParaGestao, URLS, LOGIN_PENDENTE_MS, deveRenovar, erroDaApi, novoLogin, parseContaInfo, parseLoginPendente, parsePrefs, parseSessao, retornoConfere, sessaoAcabou, urlDeLogin } = createRequire(import.meta.url)("../../dist/main/conta/conta-core.js");
 
 const AGORA = Date.parse("2026-11-07T12:00:00Z");
 const UUID = "077a1dd5-1fd3-45bc-9eef-506a7fd71201";
@@ -90,18 +90,4 @@ test("gestão: o papel confirmado agora pelo servidor vence o guardado; sem resp
   assert.equal(acessoGestao(papelParaGestao(null, { admin: "admin" })), "ok", "sem internet: vale o último confirmado");
   assert.equal(acessoGestao(papelParaGestao(null, { admin: null })), "sem-papel");
   assert.equal(acessoGestao(papelParaGestao(null, null)), "sem-conta");
-});
-
-test("parseNomesDaOrg (modo instagramável): só ativos, só o primeiro nome, sem nome ou com e-mail fica de fora, lixo → []", () => {
-  const org = { slug: "acme", membros: [
-    { email: "ana@acme.com", nome: "Ana Paula Souza", status: "ativo" },
-    { email: "bruno@acme.com", nome: "  Bruno   Lima ", status: "ativo" },
-    { email: "carla@acme.com", nome: "Carla", status: "convidado" },
-    { email: "sem@acme.com", nome: null, status: "ativo" },
-    { email: "x@acme.com", nome: "x@acme.com", status: "ativo" },
-    null, "lixo",
-  ] };
-  assert.deepEqual(parseNomesDaOrg(org), ["Ana", "Bruno"]);
-  assert.equal(parseNomesDaOrg({ membros: [{ nome: "Maximiliano".repeat(4), status: "ativo" }] })[0].length, 24);
-  for (const lixo of [null, undefined, "x", 1, {}, { membros: "x" }]) assert.deepEqual(parseNomesDaOrg(lixo), []);
 });

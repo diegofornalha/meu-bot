@@ -79,22 +79,6 @@ function parseOrg(raw: unknown): ContaOrg | null {
   const n = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0);
   return { id, slug, nome, papel: r.papel === "dona" || r.papel === "admin" ? r.papel : "membro", membros: n(r.membros), assentos: n(r.assentos) };
 }
-/**
- * Modo instagramável: os nomes que os cursores levam, de `GET /orgs/:slug` (`OrgApi.membros`). Só membros ativos e só
- * o primeiro nome (a tela vai parar em print e vídeo: e-mail nunca); quem não tem nome fica de fora. Lixo → [].
- */
-export function parseNomesDaOrg(raw: unknown): string[] {
-  const membros = raw !== null && typeof raw === "object" ? (raw as Record<string, unknown>).membros : null;
-  if (!Array.isArray(membros)) return [];
-  const nomes: string[] = [];
-  for (const m of membros) {
-    if (m === null || typeof m !== "object") continue;
-    const r = m as Record<string, unknown>;
-    const primeiro = r.status === "ativo" ? strOuNull(r.nome)?.trim().split(/\s+/)[0] ?? "" : "";
-    if (primeiro !== "" && !primeiro.includes("@")) nomes.push(primeiro.slice(0, 24));
-  }
-  return nomes;
-}
 const PROVEDOR_RE = /^(google\.com|password|emailLink)$/;
 /** O perfil editável, campo a campo; o que não vier (API antiga) fica null. */
 export function parsePerfil(raw: unknown): ContaPerfil {

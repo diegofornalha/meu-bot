@@ -63,6 +63,27 @@ export function pontoDoResultado(resultado: unknown): { aba: number; x: number; 
   if (x < 0 || y < 0 || x > vw || y > vh) return null;
   return { aba, x: Math.round(x), y: Math.round(y), vw: Math.round(vw), vh: Math.round(vh) };
 }
+/**
+ * As marcas de uma leitura (o Navegador as devolve no resultado do /ler): onde está, na área visível da página, cada
+ * elemento numerado. Conferidas como o ponto; item torto ou fora da área sai; no máximo MARCAS_MAX. Sem nenhuma → null.
+ */
+export const MARCAS_MAX = 60;
+export function marcasDoResultado(resultado: unknown): { aba: number; vw: number; vh: number; itens: { n: number; x: number; y: number; rotulo: string }[] } | null {
+  const m = (resultado !== null && typeof resultado === "object" ? (resultado as Corpo)["marcas"] : null) as Corpo | null | undefined;
+  if (m === null || m === undefined || typeof m !== "object" || !Array.isArray(m["itens"])) return null;
+  const fin = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  const aba = fin(m["aba"]), vw = fin(m["vw"]), vh = fin(m["vh"]);
+  if (aba === null || vw === null || vh === null || !Number.isInteger(aba) || vw <= 0 || vh <= 0) return null;
+  const itens: { n: number; x: number; y: number; rotulo: string }[] = [];
+  for (const i of m["itens"] as unknown[]) {
+    if (itens.length >= MARCAS_MAX) break;
+    if (i === null || typeof i !== "object") continue;
+    const r = i as Corpo; const n = fin(r["n"]), x = fin(r["x"]), y = fin(r["y"]);
+    if (n === null || x === null || y === null || !Number.isInteger(n) || n < 1 || x < 0 || y < 0 || x > vw || y > vh) continue;
+    itens.push({ n, x: Math.round(x), y: Math.round(y), rotulo: str(r["rotulo"], 40).replace(/\s+/g, " ").trim() });
+  }
+  return itens.length === 0 ? null : { aba, vw: Math.round(vw), vh: Math.round(vh), itens };
+}
 /** O pedido, para o JSON da faixa: textos longos cortados; as rotas que carregam a página inteira ficam sem payload. */
 export function detalheSeguro(rota: string, corpo: Corpo): Corpo | null {
   if (rota === "/ler" || rota === "/print") return null;

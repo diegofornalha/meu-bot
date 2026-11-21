@@ -1,45 +1,11 @@
-// Modo instagramável, a parte pura: cor por nome, rodízio dos nomes e a borda de onde cada cursor entra.
+// Modo instagramável, a parte pura: as marcas de uma leitura na tela, o rótulo e a cor delas, e o texto dos balões.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { MAX_CURSORES, NOME_PADRAO, corDoCursor, pontoDeEntrada, pontoNaPagina, proximoNome } from "../../dist/renderer/lib/instagramavel-core.js";
+import { MAX_CURSORES, corDaMarca, marcasNaTela, rotuloDaMarca } from "../../dist/renderer/lib/instagramavel-core.js";
 
-test("corDoCursor: cada cursor de uma cor, mesmo com o mesmo nome; estável para o mesmo (nome, i)", () => {
-  assert.match(corDoCursor("Ana", 0), /^hsl\(\d{1,3} 85% 55%\)$/);
-  assert.equal(corDoCursor("Ana", 3), corDoCursor("ana", 3));
-  const hues = Array.from({ length: 24 }, (_, i) => Number(/hsl\((\d+)/.exec(corDoCursor("meu-bot", i))[1]));
-  assert.equal(new Set(hues).size, 24, "24 cursores na tela, 24 cores");
-  // Vizinhos (os que entram em sequência) ficam longe na roda: pelo menos 60° de diferença.
-  for (let i = 1; i < hues.length; i++) { const d = Math.abs(hues[i] - hues[i - 1]) % 360; assert.ok(Math.min(d, 360 - d) >= 60, `cursores ${i - 1} e ${i} parecidos`); }
-});
 
-test("proximoNome: rodízio que volta ao começo; sem nomes, o nome do app", () => {
-  const nomes = ["Ana", "Bruno", "Carla"];
-  assert.deepEqual([0, 1, 2, 3, 4].map((i) => proximoNome(nomes, i)), ["Ana", "Bruno", "Carla", "Ana", "Bruno"]);
-  assert.equal(proximoNome([], 7), NOME_PADRAO);
-  assert.equal(proximoNome(nomes, -1), "Carla");
-});
 
-test("pontoDeEntrada: sempre fora da janela, numa das quatro bordas; o mesmo sorteio dá o mesmo ponto", () => {
-  const L = 1200, A = 800;
-  assert.deepEqual(pontoDeEntrada(L, A, 0.1), { x: 480, y: -40 });
-  assert.deepEqual(pontoDeEntrada(L, A, 0.3), { x: L + 40, y: 160 });
-  assert.deepEqual(pontoDeEntrada(L, A, 0.6), { x: 480, y: A + 40 });
-  assert.deepEqual(pontoDeEntrada(L, A, 0.85), { x: -40, y: 320 });
-  for (let i = 0; i < 200; i++) {
-    const p = pontoDeEntrada(L, A, i / 200);
-    assert.ok(p.x < 0 || p.x > L || p.y < 0 || p.y > A, `ponto dentro da janela: ${JSON.stringify(p)}`);
-  }
-  assert.deepEqual(pontoDeEntrada(L, A, 1), pontoDeEntrada(L, A, 0.999999));
-  assert.ok(MAX_CURSORES > 0);
-});
 
-test("pontoNaPagina: sempre dentro da página, com margem das bordas (a etiqueta do nome não sai dela)", () => {
-  const r = { left: 100, top: 50, width: 1000, height: 600 };
-  assert.deepEqual(pontoNaPagina(r, 0, 0), { x: 220, y: 122 });
-  assert.deepEqual(pontoNaPagina(r, 1, 1), { x: 980, y: 578 });
-  assert.deepEqual(pontoNaPagina(r, 0.5, 0.5), { x: 600, y: 350 });
-  assert.deepEqual(pontoNaPagina(r, -3, 9), pontoNaPagina(r, 0, 1));
-});
 
 test("textoDoBalao: o que o log fez, sem e-mail, URL só com o domínio, Gmail só a ação, erro com ✗, cortado", async () => {
   const { textoDoBalao, limparParaTela, BALAO_MAX } = await import("../../dist/renderer/lib/instagramavel-core.js");
@@ -67,17 +33,6 @@ test("pontoNaTela: converte o ponto da página para a janela com o zoom da aba; 
   assert.equal(rotuloDoDono(null), "agente");
 });
 
-test("vagaDoCursor: 20 vagas diferentes dentro da área; o 21º volta à vaga do 1º (o novo toma a do mais antigo)", async () => {
-  const { vagaDoCursor, MAX_CURSORES } = await import("../../dist/renderer/lib/instagramavel-core.js");
-  assert.equal(MAX_CURSORES, 20);
-  const area = { left: 200, top: 100, width: 1200, height: 700 };
-  const vagas = Array.from({ length: 20 }, (_, i) => vagaDoCursor(i, area));
-  assert.equal(new Set(vagas.map((v) => `${v.x},${v.y}`)).size, 20);
-  for (const v of vagas) assert.ok(v.x >= area.left && v.x <= area.left + area.width - 320 && v.y >= area.top && v.y <= area.top + area.height, JSON.stringify(v));
-  assert.deepEqual(vagaDoCursor(20, area), vagaDoCursor(0, area));
-  // Janela estreita: uma coluna só, ainda 20 vagas distintas.
-  assert.equal(new Set(Array.from({ length: 20 }, (_, i) => JSON.stringify(vagaDoCursor(i, { left: 0, top: 0, width: 400, height: 900 })))).size, 20);
-});
 
 test("textoDoBalao: /js e sondas não entram no palco (vazio)", async () => {
   const { textoDoBalao } = await import("../../dist/renderer/lib/instagramavel-core.js");
@@ -85,15 +40,31 @@ test("textoDoBalao: /js e sondas não entram no palco (vazio)", async () => {
   assert.equal(textoDoBalao({ origem: "navegador", rota: "/abas", ok: true, resumo: "sonda: 3 aba(s)" }), "");
 });
 
-test("posicaoNaFormacao: toda formação põe os 20 em lugares diferentes, dentro da área e com espaço para o balão", async () => {
-  const { posicaoNaFormacao, FORMACOES, MAX_CURSORES } = await import("../../dist/renderer/lib/instagramavel-core.js");
-  const area = { left: 300, top: 120, width: 1100, height: 700 };
-  assert.deepEqual([...FORMACOES], ["grade", "onda", "roda", "colunas", "diagonal"]);
-  for (const f of FORMACOES) {
-    const ps = Array.from({ length: MAX_CURSORES }, (_, k) => posicaoNaFormacao(f, k, MAX_CURSORES, area));
-    assert.equal(new Set(ps.map((p) => `${p.x},${p.y}`)).size, MAX_CURSORES, f);
-    for (const p of ps) assert.ok(p.x >= area.left && p.x <= area.left + area.width - 320 && p.y >= area.top && p.y <= area.top + area.height, `${f} ${JSON.stringify(p)}`);
-  }
-  // Um só no palco: fica no meio da formação, sem dividir por zero.
-  for (const f of FORMACOES) { const p = posicaoNaFormacao(f, 0, 1, area); assert.ok(Number.isFinite(p.x) && Number.isFinite(p.y), f); }
+test("corDaMarca: uma cor por número, estável, com vizinhos longe na roda", () => {
+  assert.match(corDaMarca(1), /^hsl\(\d{1,3} 85% 55%\)$/);
+  assert.equal(corDaMarca(7), corDaMarca(7));
+  const hues = Array.from({ length: 20 }, (_, i) => Number(/hsl\((\d+)/.exec(corDaMarca(i + 1))[1]));
+  assert.equal(new Set(hues).size, 20, "20 marcas na tela, 20 cores");
+  for (let i = 1; i < hues.length; i++) { const d = Math.abs(hues[i] - hues[i - 1]) % 360; assert.ok(Math.min(d, 360 - d) >= 60, `marcas ${i} e ${i + 1} parecidas`); }
+});
+
+test("rotuloDaMarca: número e texto do elemento, sem e-mail, URL só com o domínio, cortado; sem texto fica só o número", () => {
+  assert.equal(rotuloDaMarca(7, "Vendas"), "7 Vendas");
+  assert.equal(rotuloDaMarca(3, ""), "3");
+  assert.equal(rotuloDaMarca(4, "Conta de ana@acme.com"), "4 Conta de •••@•••");
+  assert.equal(rotuloDaMarca(5, "https://www.exemplo.com/a/b?c=1"), "5 exemplo.com");
+  const longo = rotuloDaMarca(12, "x".repeat(80));
+  assert.ok(longo.endsWith("…") && longo.length === "12 ".length + 28, longo);
+});
+
+test("marcasNaTela: converte com o zoom da aba, tira o que cai fora do webview, corta no teto e conta a sobra", () => {
+  const r = { left: 100, top: 50, width: 600, height: 400 };
+  const m = { vw: 1200, vh: 800, itens: [{ n: 1, x: 0, y: 0, rotulo: "A" }, { n: 2, x: 600, y: 400, rotulo: "B" }, { n: 3, x: 1300, y: 10, rotulo: "fora" }, { n: 4, x: 1200, y: 800, rotulo: "D" }] };
+  assert.deepEqual(marcasNaTela(m, r), { itens: [{ n: 1, x: 100, y: 50, rotulo: "1 A" }, { n: 2, x: 400, y: 250, rotulo: "2 B" }, { n: 4, x: 700, y: 450, rotulo: "4 D" }], fora: 0 });
+  const muitas = { vw: 1000, vh: 1000, itens: Array.from({ length: 33 }, (_, i) => ({ n: i + 1, x: i * 10, y: i * 10, rotulo: "" })) };
+  const t = marcasNaTela(muitas, r);
+  assert.equal(MAX_CURSORES, 20);
+  assert.equal(t.itens.length, 20); assert.equal(t.fora, 13); assert.equal(t.itens[19].n, 20);
+  assert.deepEqual(marcasNaTela(muitas, r, 2).itens.map((i) => i.n), [1, 2]);
+  assert.deepEqual(marcasNaTela({ vw: 0, vh: 0, itens: m.itens }, r), { itens: [], fora: 0 });
 });

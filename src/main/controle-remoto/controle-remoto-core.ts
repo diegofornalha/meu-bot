@@ -62,7 +62,7 @@ export const FERRAMENTAS: readonly Ferramenta[] = [
   { name: "nav_clicar", description: "Clica no elemento n (de nav_ler), ou por texto ou seletor CSS.", inputSchema: S({ ...MAQ, ...ABA, n: { type: "number" }, texto: { type: "string" }, seletor: { type: "string" } }), annotations: ACTION },
   { name: "nav_digitar", description: "Digita texto no campo n (ou seletor); enter=true confirma.", inputSchema: S({ ...MAQ, ...ABA, n: { type: "number" }, seletor: { type: "string" }, texto: { type: "string" }, enter: { type: "boolean" } }, ["texto"]), annotations: ACTION },
   { name: "nav_tecla", description: "Aperta uma tecla na página (enter, tab, esc, down, up…).", inputSchema: S({ ...MAQ, ...ABA, tecla: { type: "string" } }, ["tecla"]), annotations: ACTION },
-  { name: "nav_print", description: "Captura a aba como imagem.", inputSchema: S({ ...MAQ, ...ABA }), annotations: READ },
+  { name: "nav_print", description: "Captura a aba como imagem. marcas=true desenha na imagem o número de cada elemento da última leitura (nav_ler), o mesmo usado em nav_clicar e nav_digitar.", inputSchema: S({ ...MAQ, ...ABA, marcas: { type: "boolean" } }), annotations: READ },
   { name: "nav_recarregar", description: "Recarrega a aba.", inputSchema: S({ ...MAQ, ...ABA }), annotations: ACTION },
   { name: "nav_voltar", description: "Volta uma página.", inputSchema: S({ ...MAQ, ...ABA }), annotations: ACTION },
   { name: "nav_js", description: "Roda JavaScript na página e devolve o resultado (até 8000 caracteres).", inputSchema: S({ ...MAQ, ...ABA, codigo: { type: "string" } }, ["codigo"]), annotations: DESTRUCTIVE },
