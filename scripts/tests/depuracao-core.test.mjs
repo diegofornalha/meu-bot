@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { estadoBatimento, linhaEvento, rotuloBuild, rotuloReversos, rotuloTunel, textoSaude } from "../../dist/renderer/lib/depuracao-core.js";
 import { createRequire } from "node:module";
-const { pontoDoResultado, marcasDoResultado, MARCAS_MAX } = createRequire(import.meta.url)("../../dist/main/app/depuracao-core.js");
+const { pontoDoResultado, marcasDoResultado, MARCAS_MAX, abaDaAcao } = createRequire(import.meta.url)("../../dist/main/app/depuracao-core.js");
 
 test("batimento: ok até 3 s sem tique; depois conta os segundos; sem tique nenhum é 'não ok' com 0 s", () => {
   assert.deepEqual(estadoBatimento(10_000, 12_999), { ok: true, segundos: 2 });
@@ -51,4 +51,12 @@ test("marcasDoResultado: as marcas do /ler só passam conferidas; item torto ou 
   assert.equal(r.itens.length, MARCAS_MAX); assert.equal(r.itens[0].rotulo.length, 40);
   for (const lixo of [null, {}, { marcas: null }, { marcas: { aba: 7, vw: 10, vh: 10 } }, { marcas: { aba: 1.5, vw: 10, vh: 10, itens: [] } }, { marcas: { aba: 7, vw: 0, vh: 10, itens: [{ n: 1, x: 1, y: 1 }] } }, { marcas: { aba: 7, vw: 10, vh: 10, itens: [] } }, { marcas: { aba: 7, vw: 10, vh: 10, itens: [{ n: 1, x: 11, y: 1 }] } }])
     assert.equal(marcasDoResultado(lixo), null, JSON.stringify(lixo));
+});
+
+test("abaDaAcao: a aba da resposta, do ponto, das marcas ou a pedida, nessa ordem; sem nenhuma é null", () => {
+  assert.equal(abaDaAcao({ aba: 3 }, { ok: true, aba: 7 }), 7);
+  assert.equal(abaDaAcao({}, { ok: true, ponto: { aba: 5, x: 1, y: 1, vw: 10, vh: 10 } }), 5);
+  assert.equal(abaDaAcao({}, { title: "t", marcas: { aba: 9, vw: 10, vh: 10, itens: [] } }), 9);
+  assert.equal(abaDaAcao({ aba: 3 }, { ok: true }), 3);
+  for (const [c, r] of [[{}, { ok: true }], [{}, null], [{ aba: "3" }, {}], [{ aba: 1.5 }, {}], [{ aba: 0 }, {}]]) assert.equal(abaDaAcao(c, r), null, JSON.stringify([c, r]));
 });

@@ -13,7 +13,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { BatimentoDepuracao, EstadoDepuracao, EventoDepuracao } from "../../shared/ipc";
 import { caps } from "./variant";
-import { SONDAS, detalheSeguro, deveEmitirSonda, marcasDoResultado, podar as podarAnel, pontoDoResultado, resumoAcao, type Corpo } from "./depuracao-core";
+import { SONDAS, abaDaAcao, detalheSeguro, deveEmitirSonda, marcasDoResultado, podar as podarAnel, pontoDoResultado, resumoAcao, type Corpo } from "./depuracao-core";
 import { getDepuracaoGravado, updateSettings } from "./settings";
 import type { broadcast as Broadcast } from "./windows";
 
@@ -86,6 +86,9 @@ export function registrarAcao(p: { origem: EventoDepuracao["origem"]; dono: { ro
   // Onde está cada elemento que a leitura numerou: o modo instagramável põe uma marca em cada um.
   const marcas = erro === null && p.rota === "/ler" && p.origem === "navegador" ? marcasDoResultado(p.resultado) : null;
   if (marcas !== null) ev.marcas = marcas;
+  // Em que aba foi: as marcas guardadas daquela aba deixam de valer quando a ação mexe nela.
+  const aba = p.origem === "navegador" ? abaDaAcao(p.corpo, p.resultado) : null;
+  if (aba !== null) ev.aba = aba;
   if (SONDAS.has(p.rota) && erro === null) {
     const k = `${p.origem}${p.rota}`; const agora = Date.now();
     if (!deveEmitirSonda(sondas.get(k) ?? null, agora)) { logLinha(`${ev.origem} ${ev.rota} ok (sonda)`); return; }

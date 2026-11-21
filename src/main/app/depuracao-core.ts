@@ -64,6 +64,16 @@ export function pontoDoResultado(resultado: unknown): { aba: number; x: number; 
   return { aba, x: Math.round(x), y: Math.round(y), vw: Math.round(vw), vh: Math.round(vh) };
 }
 /**
+ * A aba do Navegador em que a ação aconteceu (id do webContents): a da resposta (as rotas devolvem `aba`), a do ponto
+ * ou das marcas, ou a pedida. Sem nenhuma → null (a janela não sabe qual foi).
+ */
+export function abaDaAcao(corpo: Corpo, resultado: unknown): number | null {
+  const r = (resultado !== null && typeof resultado === "object" ? resultado : {}) as Corpo;
+  const de = (v: unknown): unknown => (v !== null && typeof v === "object" ? (v as Corpo)["aba"] : undefined);
+  for (const v of [r["aba"], de(r["ponto"]), de(r["marcas"]), corpo["aba"]]) if (typeof v === "number" && Number.isInteger(v) && v > 0) return v;
+  return null;
+}
+/**
  * As marcas de uma leitura (o Navegador as devolve no resultado do /ler): onde está, na área visível da página, cada
  * elemento numerado. Conferidas como o ponto; item torto ou fora da área sai; no máximo MARCAS_MAX. Sem nenhuma → null.
  */
