@@ -16,6 +16,7 @@ import { HERMES_PIPER_VOICE, HERMES_PY_SH, HERMES_RESTART_SH, HERMES_VENV_PY_SH,
 import { sshHostInfo } from "./sshConfig";
 import { scriptLocal } from "../whatsapp/whatsapp-local-core";
 import { STATUSLINE_SH } from "./statusline-probe-core";
+import { memDisponivelMb, swapMb } from "./medidas-local-core";
 import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -274,6 +275,18 @@ function localStatusLine(): boolean {
   return fileHas(path.join(os.homedir(), ".claude", "statusline.sh"), "ratelimits.json");
 }
 
+/**
+ * Disco da home, memória e swap deste Mac, nos mesmos campos que a sondagem por SSH preenche. Cada medida que falhar
+ * fica null (a tela só mostra o que veio).
+ */
+function medidasLocais(): Pick<HostProbe, "diskTotalMb" | "diskFreeMb" | "memTotalMb" | "memFreeMb" | "swapTotalMb" | "swapFreeMb"> {
+  const saida = (cmd: string, args: string[]): string => { try { return spawnSync(cmd, args, { encoding: "utf8", timeout: 5000 }).stdout ?? ""; } catch { return ""; } };
+  let diskTotalMb: number | null = null, diskFreeMb: number | null = null;
+  try { const s = fs.statfsSync(os.homedir()); diskTotalMb = Math.round((s.blocks * s.bsize) / 1_048_576); diskFreeMb = Math.round((s.bavail * s.bsize) / 1_048_576); } catch { /* sem medida */ }
+  const total = os.totalmem();
+  return { diskTotalMb, diskFreeMb, memTotalMb: Number.isFinite(total) && total > 0 ? Math.round(total / 1_048_576) : null, memFreeMb: memDisponivelMb(saida("/usr/bin/vm_stat", [])), ...swapMb(saida("/usr/sbin/sysctl", ["-n", "vm.swapusage"])) };
+}
+
 /** "local": este Mac, sem SSH. O backend vai junto no app, então "instalado" é sempre verdade. */
 function probeLocal(port: number): HostProbe {
   const node = findNode();
@@ -283,7 +296,7 @@ function probeLocal(port: number): HostProbe {
   return {
     host: LOCAL_HOST, hostName: null, reachable: true, hostKeyChanged: false, user: os.userInfo().username, apelido: null, os: `macOS ${os.release()}`, arch: os.arch(),
     backendInstalled: true, backendForeign: false, backendListening: localBackendAlive(), backendSumiu: false, backendUnitPort: null, backendVersion: null, backendBusy: null, appPort: port, backendPort: null, portBusy: false, freePort: null, claudePath: claude, claudeLoggedIn: claude !== null && claudeLoggedIn(),
-    node: nodeVersion, diskTotalMb: null, diskFreeMb: null, memTotalMb: null, memFreeMb: null, swapTotalMb: null, swapFreeMb: null, backendAlerta: null, systemd: false, grokPod: false, tailscaleCheck: false, statusLine: localStatusLine(), guarda: null, guardaVersion: null, crm: null, crmVersion: null, finance: null, financeVersion: null, audioIn: null, gateway: null, models: ["claudecode", "agente"], error: node === null ? "Node.js não encontrado neste Mac" : null,
+    node: nodeVersion, ...medidasLocais(), backendAlerta: null, systemd: false, grokPod: false, tailscaleCheck: false, statusLine: localStatusLine(), guarda: null, guardaVersion: null, crm: null, crmVersion: null, finance: null, financeVersion: null, audioIn: null, gateway: null, models: ["claudecode", "agente"], error: node === null ? "Node.js não encontrado neste Mac" : null,
   };
 }
 
