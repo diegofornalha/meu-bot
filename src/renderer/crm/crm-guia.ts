@@ -11,7 +11,7 @@ import { registrarFonte } from "../tutoriais/fontes.js";
 import { registrarPassos } from "../tutoriais/passos.js";
 import { navInstState, renderNavOpen } from "../navegador/navegador-guia.js";
 
-// ---- Tutorial 16 · CRM pelo WhatsApp (Pro): estado na máquina, instalação, chave/pipeline/regras, teste.
+// ---- Tutorial 18 · CRM pelo WhatsApp (Pro): estado na máquina, instalação, chave/pipeline/regras, teste.
 export let crmState: CrmInfo | null = null;
 let crmErro: string | null = null;
 let crmBusy = false;

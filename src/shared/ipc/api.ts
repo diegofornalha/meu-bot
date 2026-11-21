@@ -437,7 +437,7 @@ export interface MeuBotClientApi {
   instalarGmail(): Promise<InstallBackendResult>;
   installGuarda(): Promise<InstallBackendResult>;
   uninstallGuarda(): Promise<InstallBackendResult>;
-  /** Tutorial 16 · CRM pelo WhatsApp (Pro): estado, instalar o plugin na máquina, gravar chave/pipeline/regras, testar a chave, refazer. */
+  /** Tutorial 18 · CRM pelo WhatsApp (Pro): estado, instalar o plugin na máquina, gravar chave/pipeline/regras, testar a chave, refazer. */
   crmInfo(): Promise<CrmInfo>;
   /**
    * Módulos de produto: o fixo do app (`caps.modulos`) e os add-ons com módulos na licença da máquina, uma lista por

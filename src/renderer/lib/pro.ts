@@ -37,7 +37,7 @@ export const acessoProduto = (view: LicenseView | null, host: string, exige: Pla
 
 /**
  * CRM próprio (no Gmail e no WhatsApp) nesta máquina: faz parte do plano Pro em vigor. Decide o que a janela mostra
- * (tutorial 16, home do Navegador, "guardar no CRM"); o main e o backend conferem de novo.
+ * (tutorial 18, home do Navegador, "guardar no CRM"); o main e o backend conferem de novo.
  */
 export const crmProprioOk = (view: LicenseView | null, host: string, now: number = Date.now()): boolean =>
   host !== "local" && view !== null && planoLiberaPro(view.license.plan) && (view.license.status === "active" || view.license.status === "trialing") && !vencida(view.license, now);

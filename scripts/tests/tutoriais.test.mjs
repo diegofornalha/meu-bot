@@ -306,7 +306,7 @@ test("tutorial 10 (grupos): escolher, quem aciona (nunca herdado), ligar e testa
   assert.equal(quemEscolhido(info({ quemAciona: ["5511999998888"], quemAcionaHerdado: true })), false);
 });
 
-test("tutorial 17 (CRM no Gmail): passo do primeiro pipeline antes do teste; conclui pelo pipeline padrão do WhatsApp", () => {
+test("tutorial 18 (CRM no Gmail): passo do primeiro pipeline antes do teste; conclui pelo pipeline padrão do WhatsApp", () => {
   const t10 = byId("crm-gmail");
   assert.deepEqual(t10.steps.map((s) => s.id), ["instalar", "gmail", "pipeline", "importar", "testar"]);
   const base = { ...emptyContext(), crm: { access: "ok", info: { installed: true }, local: null }, navegador: { ...emptyContext().navegador, extensaoEmbutida: true, tabs: 1 } };

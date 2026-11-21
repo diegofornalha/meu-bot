@@ -587,7 +587,7 @@ export async function installGmail(host: string, onLine?: (line: string) => void
   if (inst.code !== 0) return { ok: false, log: [...lines, `instalador saiu com código ${inst.code ?? "timeout"}`] };
   return { ok: true, log: lines };
 }
-/** Tutorial 16: instala o plugin meu-bot-crm + as CLIs (crm.mjs do CRM próprio, streak.mjs do Pro) + skills na máquina (molde da guarda). */
+/** Tutorial 18: instala o plugin meu-bot-crm + as CLIs (crm.mjs do CRM próprio, streak.mjs do Pro) + skills na máquina (molde da guarda). */
 export async function installCrm(host: string, onLine?: (line: string) => void): Promise<InstallBackendResult> {
   if (host === LOCAL_HOST) return { ok: false, log: ["o CRM pelo WhatsApp é do agente do WhatsApp (OpenClaw) de uma máquina por SSH"] };
   const lines: string[] = [];

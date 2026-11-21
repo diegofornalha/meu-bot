@@ -1,5 +1,5 @@
 /**
- * Variante: cliente. Tutorial 16 · CRM pelo WhatsApp (módulo Pro), lado do SSH: lê/grava crm.json na máquina e
+ * Variante: cliente. Tutorial 18 · CRM pelo WhatsApp (módulo Pro), lado do SSH: lê/grava crm.json na máquina e
  * roda o `streak.mjs diag` dela para conferir a chave e listar os pipelines (crm-core.ts tem a parte pura).
  * Gate aqui também (acesso.ts; o renderer bloqueia, o job na máquina recusa sem licença): três camadas, como o Navegador.
  */

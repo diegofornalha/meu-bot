@@ -1094,7 +1094,7 @@ body.topbar-hidden .topbar { display: none; }
 .nav-tab-id.dono { color: var(--accent); border-color: var(--accent); }
 .nav-tab-id.dono.whatsapp { color: var(--ok); border-color: var(--ok); }
 
-/* Tutorial 16: editor do primeiro pipeline do CRM. */
+/* Tutorial 18: editor do primeiro pipeline do CRM. */
 .crm-pipe-editor input, .crm-pipe-editor textarea { font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); resize: vertical; }
 /* Tutorial 11: código de dispositivo do login (GitHub; Cloudflare sem o Navegador). */
 .conta-codigo { font: 600 18px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.08em; padding: 4px 10px; border-radius: 6px; background: var(--panel-2, rgba(127,127,127,0.12)); user-select: all; }

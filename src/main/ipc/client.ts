@@ -259,7 +259,7 @@ export function registerClientIpc(): void {
   handleClient("browser:permissao", (event, payload: unknown) => { ctxOf(event); const p = (payload ?? {}) as { id?: unknown; decisao?: unknown }; if (typeof p.id === "string" && (p.decisao === "sempre" || p.decisao === "agora" || p.decisao === "nunca")) responderPermissao(p.id, p.decisao); });
   handleClient("browser:permissoes-esquecer", (event, payload: unknown) => { const h = ctxOf(event); const o = (payload as { origem?: unknown } | null)?.origem; esquecerPermissoes(h.host, typeof o === "string" ? o : undefined); });
   handleClient("browser:request-pro", async (event) => { const h = ctxOf(event); const pedido = caps().planoExigido === "free" ? "pediu o plano Pro (aba Navegador)" : `pediu para liberar o ${caps().produto} (assinatura)`; await registrar(h.host, "plano.pedir", pedido); log(`[navegador] ${h.host}: ${pedido}`); });
-  // Tutorial 16 · CRM pelo WhatsApp (Pro): estado, instalar plugin, gravar chave/pipeline/regras, testar, refazer.
+  // Tutorial 18 · CRM pelo WhatsApp (Pro): estado, instalar plugin, gravar chave/pipeline/regras, testar, refazer.
   // Módulos de produto (o fixo do app e os add-ons com módulos na licença da máquina): a licença do add-on de cada
   // módulo é conferida no main a cada ação e de novo pelo backend da máquina a cada turno.
   const modId = (p: unknown): string => { const id = p !== null && typeof p === "object" ? (p as { id?: unknown }).id : undefined; if (typeof id !== "string" || !/^[a-z][a-z0-9-]{1,40}$/.test(id) || !temModulos()) throw new Error("módulo inválido"); return id; };
@@ -319,7 +319,7 @@ export function registerClientIpc(): void {
   handleClient("cota:apagar-item", (event, payload: unknown) => cotaApagarItem(ctxOf(event).host, (payload as { caminho?: unknown } | null)?.caminho));
   handleClient("cota:pedir-mais", async (event, payload: unknown) => { const h = ctxOf(event); const pct = Number((payload as { pct?: unknown } | null)?.pct); await registrar(h.host, "cota.pedir-mais", Number.isFinite(pct) ? `${Math.round(pct)}%` : ""); log(`[cota] ${h.host}: pediu mais espaço${Number.isFinite(pct) ? ` (${Math.round(pct)}%)` : ""}`); });
   handleClient("crm:info", (event) => crmInfo(ctxOf(event).host));
-  // Tutorial 16 (meu-bot-crm): o primeiro pipeline do CRM da máquina e qual é o do WhatsApp.
+  // Tutorial 18 (meu-bot-crm): o primeiro pipeline do CRM da máquina e qual é o do WhatsApp.
   handleClient("crm:local", (event) => crmLocal(ctxOf(event).host));
   handleClient("crm:pipeline-criar", async (event, payload: unknown) => {
     const h = ctxOf(event); await assertAcesso(h.host);
