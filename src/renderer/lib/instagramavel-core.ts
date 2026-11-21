@@ -7,7 +7,9 @@
 export const MAX_CURSORES = 20;
 /** Quantos balões cabem na lista de logs sem lugar na página; o mais antigo sai quando chega outro. */
 export const LISTA_MAX = 6;
-/** Sem log nenhum por este tempo, as marcas saem e a lista começa a esvaziar, para a tela não ficar cheia à toa. */
+/** Por quanto tempo valem as marcas de uma leitura, por aba: depois disso a página pode ter mudado sem a janela ver. */
+export const MARCAS_MS = 60_000;
+/** Sem log nenhum por este tempo, a lista começa a esvaziar, para a tela não ficar cheia à toa. */
 export const SILENCIO_MS = 20_000;
 /** Na saída por silêncio, sai o balão mais antigo a cada SAIDA_MS; um log novo interrompe. */
 export const SAIDA_MS = 2_500;

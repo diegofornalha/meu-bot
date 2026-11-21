@@ -15,7 +15,7 @@ export interface PontoDepuracao { aba: number; x: number; y: number; vw: number;
  */
 export interface MarcasDepuracao { aba: number; vw: number; vh: number; itens: { n: number; x: number; y: number; rotulo: string }[] }
 /** Uma ação vinda de fora, como o main a viu. */
-export interface EventoDepuracao { em: number; origem: OrigemDepuracao; dono: string | null; rota: string; ok: boolean; ms: number | null; resumo: string; detalhe?: unknown; ponto?: PontoDepuracao; marcas?: MarcasDepuracao }
+export interface EventoDepuracao { em: number; origem: OrigemDepuracao; dono: string | null; rota: string; ok: boolean; ms: number | null; resumo: string; detalhe?: unknown; ponto?: PontoDepuracao; marcas?: MarcasDepuracao; /** A aba do Navegador da ação (id do webContents), quando se sabe. */ aba?: number }
 /** Tique de 1 s do main; `marca` = a última coisa síncrona que ele anunciou antes de fazer (Chaveiro, ssh). */
 export interface BatimentoDepuracao { em: number; marca: string | null; marcaEm: number | null }
 /** O que o empacotamento gravou em Resources/build.json; em dev, "dev". */

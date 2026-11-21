@@ -1,7 +1,7 @@
 /**
  * Cursor do agente (19 nov): com a depuração ligada, quando uma ação do Navegador acontece num lugar da página (clicar,
  * digitar), um cursor único anda até ESSE ponto (o main mede o elemento e manda em `EventoDepuracao.ponto`), com o nome
- * de quem age. Ele fica parado onde agiu e some depois de um tempo sem ação. Serve para ver de fora onde o agente mexe.
+ * de quem age. Ele fica parado onde agiu e some depois de um tempo sem ação, ou na hora se a aba dele sair da vista. Serve para ver de fora onde o agente mexe.
  * É o modo "real" do instagramável: enquanto ele está em cena, as marcas e a lista (instagramavel.ts) saem do palco e o que cada log
  * fez aparece no balão dele; o show só volta CENA_MS depois da última ação na página.
  */
@@ -44,17 +44,35 @@ function falar(e: EventoDepuracao): void {
 let ultimo: { x: number; y: number } | null = null;
 let sumir: ReturnType<typeof setTimeout> | null = null;
 let soltar: ReturnType<typeof setTimeout> | null = null;
+/** A aba onde o cursor está e o retângulo dela naquele momento: mudou (outra aba, outra tela, janela) → ele sai. */
+let onde: { aba: number; chave: string } | null = null;
+let vigia: ReturnType<typeof setInterval> | null = null;
+const chaveDe = (r: DOMRect): string => `${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)},${Math.round(r.height)}`;
+/** Tira o cursor da tela na hora e solta a cena (a aba dele saiu da vista: ele não pode ficar em cima de outra página). */
+function sair(): void {
+  if (sumir !== null) { clearTimeout(sumir); sumir = null; }
+  if (soltar !== null) { clearTimeout(soltar); soltar = null; }
+  if (vigia !== null) { clearInterval(vigia); vigia = null; }
+  if (el !== null) el.hidden = true;
+  balaoEl?.classList.remove("on");
+  ultimo = null; onde = null; cena(false);
+}
 
-/** O retângulo, na janela, do webview da aba (id do webContents), se ela está à vista; senão null. */
-export function retanguloDaAba(aba: number): DOMRect | null {
-  for (const w of document.querySelectorAll<WebviewComId>("webview")) {
-    let id: number | null = null;
-    try { id = w.getWebContentsId(); } catch { /* ainda não anexado */ }
-    if (id !== aba) continue;
-    const r = w.getBoundingClientRect();
-    return r.width > 0 && r.height > 0 ? r : null;
+/** O webview da aba (id do webContents) nesta janela, ou null. */
+function webviewDaAba(aba: number): (WebviewComId & { getURL(): string }) | null {
+  for (const w of document.querySelectorAll<WebviewComId & { getURL(): string }>("webview")) {
+    try { if (w.getWebContentsId() === aba) return w; } catch { /* ainda não anexado */ }
   }
   return null;
+}
+/** O retângulo, na janela, do webview da aba, se ela está à vista; senão null. */
+export function retanguloDaAba(aba: number): DOMRect | null {
+  const r = webviewDaAba(aba)?.getBoundingClientRect();
+  return r !== undefined && r.width > 0 && r.height > 0 ? r : null;
+}
+/** O endereço que a aba mostra agora ("" se não há): mudou desde a leitura → a página é outra. */
+export function urlDaAba(aba: number): string {
+  try { return webviewDaAba(aba)?.getURL() ?? ""; } catch { return ""; }
 }
 /** O ponto real na tela, se a aba da ação está à vista nesta janela. */
 export function pontoReal(p: PontoDepuracao | undefined): { x: number; y: number } | null {
@@ -94,9 +112,15 @@ function mover(e: EventoDepuracao): void {
     anel.animate([{ transform: "translate(-50%, -50%) scale(.3)", opacity: 1 }, { transform: "translate(-50%, -50%) scale(1.5)", opacity: 0 }], { duration: calmo ? 1 : 500, easing: "ease-out" }).onfinish = () => anel.remove();
   };
   ultimo = fim;
+  const r = e.ponto === undefined ? null : retanguloDaAba(e.ponto.aba);
+  onde = e.ponto === undefined || r === null ? null : { aba: e.ponto.aba, chave: chaveDe(r) };
+  vigia ??= setInterval(() => {
+    const agora = onde === null ? null : retanguloDaAba(onde.aba);
+    if (onde === null || agora === null || chaveDe(agora) !== onde.chave) sair();
+  }, 400);
   armarSumico();
   if (soltar !== null) clearTimeout(soltar);
-  soltar = setTimeout(() => { soltar = null; el?.classList.add("some"); ultimo = null; cena(false); }, CENA_MS);
+  soltar = setTimeout(sair, CENA_MS);
 }
 /** Esmaece depois de SOME_MS sem log; a cena continua dele até CENA_MS sem ação na página. */
 function armarSumico(): void {
@@ -107,10 +131,6 @@ function armarSumico(): void {
 export function ligarCursorAgente(): void {
   window.meuBot.on("depuracao:evento", mover);
   window.meuBot.on("depuracao:estado", (s: { ligado: boolean }) => {
-    if (s.ligado) return;
-    if (el !== null) el.hidden = true;
-    if (sumir !== null) { clearTimeout(sumir); sumir = null; }
-    if (soltar !== null) { clearTimeout(soltar); soltar = null; }
-    ultimo = null; cena(false);
+    if (!s.ligado) sair();
   });
 }
