@@ -1342,6 +1342,8 @@ table.fin-abc tr.fin-abc-C td.fin-abc-tag { color: #757575; }
 .agente-cursor.some { opacity: 0; }
 .agente-nome { position: absolute; left: 18px; top: 20px; padding: 2px 8px; border-radius: 6px; background: #111; color: #fff; font: 600 11px/1.4 -apple-system, system-ui, sans-serif; white-space: nowrap; }
 .agente-cursor.agente-erro { color: hsl(0 85% 50%); } .agente-cursor.agente-erro .agente-nome { background: hsl(0 85% 45%); }
+.agente-balao { position: absolute; left: 16px; bottom: 30px; max-width: 300px; padding: 5px 10px; border: 2px solid #111; border-radius: 14px 14px 14px 4px; background: var(--card); color: var(--fg); font: 500 12px/1.35 -apple-system, system-ui, sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: 0 4px 14px rgb(0 0 0 / .25); opacity: 0; transition: opacity .18s; }
+.agente-balao.on { opacity: 1; } .agente-balao.agente-balao-erro { border-color: hsl(0 85% 50%); }
 .agente-anel { position: fixed; z-index: 9001; pointer-events: none; width: 30px; height: 30px; border: 2px solid #111; border-radius: 50%; }
 /* O corpo de cada cursor parado flutua devagar em volta da vaga (o ritmo é sorteado por cursor). */
 .insta-corpo { position: relative; animation: insta-flutua 6s ease-in-out infinite; }
