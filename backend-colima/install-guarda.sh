@@ -12,7 +12,7 @@ command -v openclaw >/dev/null 2>&1 || { echo "esta máquina não tem OpenClaw; 
 . "$HERE/skills-lib.sh"
 SRC=$HOME/.local/share/meu-bot/guarda
 mkdir -p "$SRC"
-cp "$HERE/guarda/index.js" "$HERE/guarda/regras.mjs" "$HERE/guarda/memoria.mjs" "$HERE/guarda/package.json" "$HERE/guarda/openclaw.plugin.json" "$SRC/"
+cp "$HERE/guarda/index.js" "$HERE/guarda/regras.mjs" "$HERE/guarda/memoria.mjs" "$HERE/guarda/sugestoes.mjs" "$HERE/guarda/package.json" "$HERE/guarda/openclaw.plugin.json" "$SRC/"
 # Vigia do gateway: timer de usuário a cada minuto que religa o openclaw-gateway parado sem ninguém para religar
 # (ex.: wa-admin.sh morto no meio). Respeita o "disable" da migração de máquina; nunca desloga.
 if [ -f "$HERE/guarda/vigia-gateway.sh" ] && command -v systemctl >/dev/null 2>&1; then
