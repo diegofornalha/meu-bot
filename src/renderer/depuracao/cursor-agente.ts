@@ -2,7 +2,7 @@
  * Cursor do agente (19 nov): com a depuração ligada, quando uma ação do Navegador acontece num lugar da página (clicar,
  * digitar), um cursor único anda até ESSE ponto (o main mede o elemento e manda em `EventoDepuracao.ponto`), com o nome
  * de quem age. Ele fica parado onde agiu e some depois de um tempo sem ação. Serve para ver de fora onde o agente mexe.
- * É o modo "real" do instagramável: enquanto ele está em cena, o show (instagramavel.ts) sai do palco e o que cada log
+ * É o modo "real" do instagramável: enquanto ele está em cena, as marcas e a lista (instagramavel.ts) saem do palco e o que cada log
  * fez aparece no balão dele; o show só volta CENA_MS depois da última ação na página.
  */
 import type { EventoDepuracao, PontoDepuracao } from "../../shared/ipc";
@@ -45,17 +45,22 @@ let ultimo: { x: number; y: number } | null = null;
 let sumir: ReturnType<typeof setTimeout> | null = null;
 let soltar: ReturnType<typeof setTimeout> | null = null;
 
-/** O ponto real na tela, se a aba da ação está à vista nesta janela. */
-export function pontoReal(p: PontoDepuracao | undefined): { x: number; y: number } | null {
-  if (p === undefined) return null;
+/** O retângulo, na janela, do webview da aba (id do webContents), se ela está à vista; senão null. */
+export function retanguloDaAba(aba: number): DOMRect | null {
   for (const w of document.querySelectorAll<WebviewComId>("webview")) {
     let id: number | null = null;
     try { id = w.getWebContentsId(); } catch { /* ainda não anexado */ }
-    if (id !== p.aba) continue;
+    if (id !== aba) continue;
     const r = w.getBoundingClientRect();
-    return r.width > 0 && r.height > 0 ? pontoNaTela(p, r) : null;
+    return r.width > 0 && r.height > 0 ? r : null;
   }
   return null;
+}
+/** O ponto real na tela, se a aba da ação está à vista nesta janela. */
+export function pontoReal(p: PontoDepuracao | undefined): { x: number; y: number } | null {
+  if (p === undefined) return null;
+  const r = retanguloDaAba(p.aba);
+  return r === null ? null : pontoNaTela(p, r);
 }
 function criar(): HTMLDivElement {
   const d = document.createElement("div"); d.className = "agente-cursor"; d.setAttribute("aria-hidden", "true"); d.hidden = true;

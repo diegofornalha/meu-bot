@@ -26,7 +26,7 @@ export const SHARED_CHANNELS = [
   // modo de depuração (faixa no topo): estado e ligar/desligar
   "depuracao:estado", "depuracao:ligar",
   // conta meu-bot deste Mac (login no navegador + deep link): a pessoa e o admin entram
-  "conta:get", "conta:membros", "conta:entrar", "conta:cancelar", "conta:sair", "conta:console",
+  "conta:get", "conta:entrar", "conta:cancelar", "conta:sair", "conta:console",
   // controle externo (MCP) deste Mac: os dois apps têm terminal e janelas para um cliente MCP controlar
   "controle-remoto:status", "controle-remoto:ligar", "controle-remoto:execucao", "controle-remoto:porta", "controle-remoto:regenerar", "controle-remoto:instalar", "controle-remoto:remover",
   // seletor

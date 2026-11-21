@@ -1261,21 +1261,22 @@ table.fin-abc tr.fin-abc-C td.fin-abc-tag { color: #757575; }
 .modulo-pagina-aviso:empty { display: none; }
 .modulo-pagina-aviso { padding: 12px 16px; }
 .modulo-pagina-tela { flex: 1; min-height: 0; display: flex; }
-/* Modo instagramável (depuracao/instagramavel.ts): cursores com nomes voando até a faixa de depuração. O palco cobre a
-   janela sem pegar clique; cada cursor é posicionado por transform (Web Animations API). */
+/* Modo instagramável (depuracao/instagramavel.ts): marcas numeradas em cima dos elementos que o agente leu na página
+   e a lista dos logs sem lugar nela. Nada se mexe sozinho: aparecem, ficam paradas e saem. */
 .insta-palco { position: fixed; inset: 0; pointer-events: none; z-index: 9000; overflow: hidden; }
-.insta-cursor { position: absolute; left: 0; top: 0; will-change: transform; filter: drop-shadow(0 2px 4px rgb(0 0 0 / .35)); }
-.insta-cursor svg { display: block; }
-.insta-nome { position: absolute; left: 16px; top: 18px; padding: 2px 8px; border-radius: 999px; color: #fff; font: 600 11px/1.4 -apple-system, system-ui, sans-serif; white-space: nowrap; text-shadow: 0 1px 1px rgb(0 0 0 / .3); }
-.insta-erro .insta-nome { outline: 2px solid hsl(0 85% 55%); }
-.insta-particula { position: absolute; width: 7px; height: 7px; border-radius: 50%; }
-.insta-anel { position: absolute; width: 34px; height: 34px; border: 2px solid; border-radius: 50%; }
-@media (prefers-reduced-motion: reduce) { .insta-particula, .insta-anel { display: none; } }
-/* O balão do cursor: o que aquele log fez. Nasce pequeno acima do nome e cresce quando o cursor chega. */
-.insta-balao { position: absolute; left: 14px; bottom: 26px; max-width: 280px; padding: 5px 10px; border: 2px solid; border-radius: 14px 14px 14px 4px; background: var(--card); color: var(--fg); font: 500 12px/1.35 -apple-system, system-ui, sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: 0 4px 14px rgb(0 0 0 / .25); opacity: 0; transform: scale(.6); transform-origin: 0 100%; transition: opacity .18s, transform .22s cubic-bezier(.3,1.6,.5,1); }
-.insta-balao.on { opacity: 1; transform: scale(1); }
-@media (prefers-reduced-motion: reduce) { .insta-balao { transition: none; } }
-/* Cursor do agente (depuracao/cursor-agente.ts): um só, vai até onde a ação aconteceu de verdade na página. */
+.insta-marca { position: absolute; left: 0; top: 0; filter: drop-shadow(0 1px 3px rgb(0 0 0 / .35)); animation: insta-entra .18s ease-out; }
+.insta-marca svg { display: block; }
+.insta-rotulo { position: absolute; left: 13px; top: 14px; padding: 1px 6px; border-radius: 6px; color: #fff; font: 600 11px/1.4 -apple-system, system-ui, sans-serif; white-space: nowrap; text-shadow: 0 1px 1px rgb(0 0 0 / .35); }
+.insta-mais { position: absolute; padding: 2px 8px; border-radius: 6px; background: #111; color: #fff; font: 600 11px/1.4 -apple-system, system-ui, sans-serif; }
+.insta-lista { position: absolute; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; max-width: 360px; }
+.insta-item { display: flex; align-items: baseline; gap: 6px; max-width: 100%; padding: 4px 10px 4px 4px; border: 2px solid #111; border-radius: 10px; background: var(--card); color: var(--fg); font: 500 12px/1.35 -apple-system, system-ui, sans-serif; box-shadow: 0 4px 14px rgb(0 0 0 / .25); animation: insta-entra .18s ease-out; transition: opacity .6s; }
+.insta-item.insta-erro { border-color: hsl(0 85% 50%); }
+.insta-item.sai { opacity: 0; }
+.insta-nome { flex: none; padding: 1px 6px; border-radius: 6px; background: #111; color: #fff; font-weight: 600; font-size: 11px; white-space: nowrap; }
+.insta-fala { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@keyframes insta-entra { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .insta-marca, .insta-item { animation: none; } .insta-item { transition: none; } }
+
 .agente-cursor { position: fixed; left: 0; top: 0; z-index: 9001; pointer-events: none; color: #111; will-change: transform; filter: drop-shadow(0 2px 5px rgb(0 0 0 / .4)); transition: opacity .4s; }
 .agente-cursor svg { display: block; }
 .agente-cursor.some { opacity: 0; }
@@ -1284,7 +1285,3 @@ table.fin-abc tr.fin-abc-C td.fin-abc-tag { color: #757575; }
 .agente-balao { position: absolute; left: 16px; bottom: 30px; max-width: 300px; padding: 5px 10px; border: 2px solid #111; border-radius: 14px 14px 14px 4px; background: var(--card); color: var(--fg); font: 500 12px/1.35 -apple-system, system-ui, sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: 0 4px 14px rgb(0 0 0 / .25); opacity: 0; transition: opacity .18s; }
 .agente-balao.on { opacity: 1; } .agente-balao.agente-balao-erro { border-color: hsl(0 85% 50%); }
 .agente-anel { position: fixed; z-index: 9001; pointer-events: none; width: 30px; height: 30px; border: 2px solid #111; border-radius: 50%; }
-/* O corpo de cada cursor parado flutua devagar em volta da vaga (o ritmo é sorteado por cursor). */
-.insta-corpo { position: relative; animation: insta-flutua 6s ease-in-out infinite; }
-@keyframes insta-flutua { 0%, 100% { transform: translate(0, 0); } 25% { transform: translate(6px, -5px); } 50% { transform: translate(-4px, 4px); } 75% { transform: translate(5px, 3px); } }
-@media (prefers-reduced-motion: reduce) { .insta-corpo { animation: none; } }

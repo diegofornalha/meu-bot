@@ -19,7 +19,7 @@ import { log } from "../maquina/tunnel";
 import { refreshPickerIfOpen, sendToPicker } from "../maquina/picker";
 import { parseRetornoAuth } from "./deep-link-core";
 import { deviceIdentidade, devicePedido } from "./device";
-import { FOTO_MAX, URLS, deveRenovar, erroDaApi, novoLogin, parseContaInfo, parseLoginPendente, parsePrefs, parseSessao, retornoConfere, sessaoAcabou, urlDeLogin, type ContaPrefs, type LoginPendente, type SessaoGuardada, acessoGestao, parseAtribuicao, parseNomesDaOrg, parseContaDoAdmin, rotaDaContaAdmin, type PistasDaConta } from "./conta-core";
+import { FOTO_MAX, URLS, deveRenovar, erroDaApi, novoLogin, parseContaInfo, parseLoginPendente, parsePrefs, parseSessao, retornoConfere, sessaoAcabou, urlDeLogin, type ContaPrefs, type LoginPendente, type SessaoGuardada, acessoGestao, parseAtribuicao, parseContaDoAdmin, rotaDaContaAdmin, type PistasDaConta } from "./conta-core";
 
 const ARQ = (): string => path.join(app.getPath("userData"), "conta.bin");
 const ARQ_LOGIN = (): string => path.join(app.getPath("userData"), "conta-login.json");
@@ -224,23 +224,6 @@ export async function atualizarConta(): Promise<ContaView> {
   else if (sessaoAcabou(resp.status)) { apagarSessao(); erro = erroDaApi(resp.status, resp.corpo); log(`[conta] sessão acabou: ${erro}`); avisar(); saiu(); }
   else log(`[conta] GET /conta falhou (${resp.status}): ${erroDaApi(resp.status, resp.corpo)}`);
   return avisar();
-}
-/**
- * Modo instagramável: o primeiro nome dos membros ativos de cada organização da conta (`GET /orgs/:slug`), sem
- * repetir. Nunca lança; sem sessão, sem org ou sem rede devolve o que conseguiu (talvez []). Nada vai para disco.
- */
-export async function nomesDosMembros(): Promise<string[]> {
-  const orgs = lerSessao()?.conta.orgs ?? [];
-  if (orgs.length === 0) return [];
-  const tok = await tokenDeAcesso();
-  if (tok === null) return [];
-  const nomes = new Set<string>();
-  for (const o of orgs) {
-    const r = await api("GET", `/orgs/${o.slug}`, null, tok);
-    if (r.status === 200) for (const n of parseNomesDaOrg(r.corpo)) nomes.add(n);
-    else log(`[conta] membros da org não vieram (${r.status}): ${erroDaApi(r.status, r.corpo)}`);
-  }
-  return [...nomes];
 }
 /** Resposta das rotas `/conta/maquinas`: o arquivo assinado, ou o erro (com as máquinas que ocupam a vaga, se for isso). */
 export type LicencaDaApi = { ok: true; arquivo: unknown } | { ok: false; status: number; erro: string; ocupadas: string[] };

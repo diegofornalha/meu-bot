@@ -6,7 +6,7 @@
  * Navegador existem para o agente; a interface do app nunca.
  *
  * API (JSON): GET /abas · POST /abrir {url, nova?} · POST /ler {aba?} · POST /clicar {aba?, n?|texto?|seletor?}
- * · POST /digitar {aba?, n?|seletor?, texto, enter?} · POST /tecla {aba?, tecla} · POST /print {aba?}
+ * · POST /digitar {aba?, n?|seletor?, texto, enter?} · POST /tecla {aba?, tecla} · POST /print {aba?, marcas?}
  * · POST /voltar|/avancar|/recarregar {aba?} · POST /js {aba?, codigo}
  * · /favoritos · POST /favoritar {url, titulo?} · POST /desfavoritar {id?|url?}  (barra de favoritos da máquina)
  * · POST /fechar {aba?}  (só aba da própria conversa; as abas da pessoa no mesmo site recarregam sem cache)
@@ -53,7 +53,7 @@ export function stopNavApi(host: string): void {
 /** Texto e elementos interativos da página, numerados; o número é o que o agente usa em clicar/digitar. */
 const READ_SCRIPT = `(() => {
   const vis = (e) => { const r = e.getBoundingClientRect(); const s = getComputedStyle(e); return r.width > 0 && r.height > 0 && s.visibility !== "hidden" && s.display !== "none"; };
-  const items = []; window.__meuBotEls = [];
+  const items = []; const marcas = []; window.__meuBotEls = [];
   const sel = "a[href], button, input, textarea, select, [role=button], [role=link], [role=tab], [role=menuitem], [role=textbox], [contenteditable=true], summary";
   for (const e of document.querySelectorAll(sel)) {
     if (!vis(e) || items.length >= 400) continue;
@@ -62,17 +62,41 @@ const READ_SCRIPT = `(() => {
     const label = (e.getAttribute("aria-label") || e.getAttribute("placeholder") || e.getAttribute("title") || e.getAttribute("alt") || (e.labels && e.labels[0] && e.labels[0].innerText) || e.innerText || e.value || "").replace(/\\s+/g, " ").trim().slice(0, 80);
     const kind = tag === "a" ? "link" : tag === "input" ? (type === "checkbox" || type === "radio" ? type : type === "submit" || type === "button" ? "botão" : "campo") : tag === "textarea" || e.getAttribute("contenteditable") === "true" || e.getAttribute("role") === "textbox" ? "campo" : tag === "select" ? "seleção" : "botão";
     const n = window.__meuBotEls.push(e);
+    const r = e.getBoundingClientRect(); const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    if (marcas.length < 60 && cx >= 0 && cy >= 0 && cx <= innerWidth && cy <= innerHeight) marcas.push({ n, x: cx, y: cy, rotulo: label.slice(0, 40) });
     items.push(n + ". [" + kind + "] " + label + (tag === "a" && e.href ? "  → " + e.href.slice(0, 100) : "") + (kind === "campo" && e.value ? "  (valor: " + String(e.value).slice(0, 40) + ")" : ""));
   }
   const text = (document.body ? document.body.innerText : "").replace(/\\n{3,}/g, "\\n\\n").trim();
-  return { title: document.title, url: location.href, text: text.slice(0, 12000), truncated: text.length > 12000, elements: items };
+  return { title: document.title, url: location.href, text: text.slice(0, 12000), truncated: text.length > 12000, elements: items, marcas: { vw: innerWidth, vh: innerHeight, itens: marcas } };
 })()`;
+/**
+ * `/print` com `marcas`: desenha por um instante, na própria página, o número de cada elemento da última leitura que
+ * está à vista (o mesmo número do clicar/digitar), para ele sair na imagem. Shadow DOM fechado e sem eventos: a página
+ * não o estiliza nem o recebe em clique. Devolve quantos desenhou; DESMARCAR tira.
+ */
+const MARCAR_SCRIPT = `(() => {
+  const velho = document.getElementById("__meu-bot-marcas"); if (velho) velho.remove();
+  const host = document.createElement("div"); host.id = "__meu-bot-marcas"; host.style.cssText = "position:fixed;inset:0;pointer-events:none;z-index:2147483647";
+  const sombra = host.attachShadow({ mode: "closed" }); let k = 0;
+  (window.__meuBotEls || []).forEach((e, i) => {
+    if (!e.isConnected) return;
+    const r = e.getBoundingClientRect();
+    if (r.width <= 0 || r.height <= 0 || r.bottom < 0 || r.right < 0 || r.top > innerHeight || r.left > innerWidth) return;
+    const m = document.createElement("span"); m.textContent = String(i + 1);
+    m.style.cssText = "position:absolute;left:" + Math.max(0, r.left) + "px;top:" + Math.max(0, r.top) + "px;font:700 11px/1.2 -apple-system,system-ui,sans-serif;padding:1px 4px;border-radius:4px;color:#fff;outline:1px solid #fff;background:hsl(" + Math.round(((i + 1) * 137.508) % 360) + " 85% 38%)";
+    sombra.append(m); k++;
+  });
+  document.documentElement.append(host);
+  return k;
+})()`;
+const DESMARCAR_SCRIPT = `(() => { const m = document.getElementById("__meu-bot-marcas"); if (m) m.remove(); })()`;
 /** O ponto medido na página ganha o id da aba (a janela acha o webview por ele); o resto da conferência é do depuracao-core. */
 const comAba = (p: unknown, aba: number): unknown => (p !== null && typeof p === "object" ? { ...(p as object), aba } : null);
-const semPonto = (r: unknown): unknown => { if (r === null || typeof r !== "object" || !("ponto" in r)) return r; const { ponto: _p, ...resto } = r as Record<string, unknown>; return resto; };
+/** O que é só da faixa de depuração (`ponto` do clicar/digitar, `marcas` do ler) não vai na resposta ao agente. */
+const semDepuracao = (r: unknown): unknown => { if (r === null || typeof r !== "object" || !("ponto" in r || "marcas" in r)) return r; const { ponto: _p, marcas: _m, ...resto } = r as Record<string, unknown>; return resto; };
 const pick = (n: number): string => `(() => { const e = (window.__meuBotEls || [])[${n - 1}]; if (!e) throw new Error("elemento ${n} não existe: use 'ler' de novo"); return e; })()`;
 
-interface Req { aba?: unknown; url?: unknown; nova?: unknown; n?: unknown; texto?: unknown; seletor?: unknown; enter?: unknown; tecla?: unknown; codigo?: unknown; titulo?: unknown; id?: unknown }
+interface Req { aba?: unknown; url?: unknown; nova?: unknown; n?: unknown; texto?: unknown; seletor?: unknown; enter?: unknown; tecla?: unknown; codigo?: unknown; titulo?: unknown; id?: unknown; marcas?: unknown }
 
 /** Abas de página do Navegador: o popup de uma extensão (chrome-extension://…/popup.html) também é um webview da sessão, mas não é aba. */
 function tabsOf(host: string): WebContents[] { return browserWebContents(host).filter((w) => { try { return !w.getURL().startsWith("chrome-extension:"); } catch { return false; } }); }
@@ -176,8 +200,10 @@ async function act(host: string, route: string, b: Req, dono: Dono | null): Prom
     case "/ler": {
       const wc = ler(); await waitLoad(wc);
       // Páginas pesadas (Gmail + extensões) às vezes falham na primeira leitura logo após navegar; uma segunda tentativa resolve.
-      try { return await alive(wc).executeJavaScript(READ_SCRIPT, true); }
-      catch (e) { log(`[navegador ${host}] ler falhou (1ª): ${e instanceof Error ? e.message : String(e)}`); await settle(600); return await alive(wc).executeJavaScript(READ_SCRIPT, true); }
+      // As marcas (onde está cada elemento à vista) ganham o id da aba: a janela acha o webview por ele.
+      const lido = async (): Promise<unknown> => { const r = await alive(wc).executeJavaScript(READ_SCRIPT, true) as Record<string, unknown>; return { ...r, marcas: comAba(r["marcas"], wc.id) }; };
+      try { return await lido(); }
+      catch (e) { log(`[navegador ${host}] ler falhou (1ª): ${e instanceof Error ? e.message : String(e)}`); await settle(600); return await lido(); }
     }
     case "/clicar": return mexer(async (wc) => {
       const target = typeof b.n === "number" ? pick(b.n)
@@ -207,7 +233,16 @@ async function act(host: string, route: string, b: Req, dono: Dono | null): Prom
       await settle(300);
       return { ok: true };
     });
-    case "/print": { const wc = ler(); const img = await wc.capturePage(); return { png_base64: img.resize({ width: Math.min(1280, img.getSize().width) }).toPNG().toString("base64") }; }
+    case "/print": {
+      const wc = ler(); const marcar = b.marcas === true;
+      if (marcar) {
+        const n = await wc.executeJavaScript(MARCAR_SCRIPT, true) as unknown;
+        if (n === 0) { await wc.executeJavaScript(DESMARCAR_SCRIPT, true); throw new Error("sem elementos numerados à vista: leia a página antes (nav_ler)"); }
+        await settle(120); // um quadro para as marcas serem pintadas
+      }
+      try { const img = await wc.capturePage(); return { png_base64: img.resize({ width: Math.min(1280, img.getSize().width) }).toPNG().toString("base64") }; }
+      finally { if (marcar) await wc.executeJavaScript(DESMARCAR_SCRIPT, true).catch(() => undefined); }
+    }
     case "/voltar": return mexer(async (wc) => { if (wc.navigationHistory.canGoBack()) wc.navigationHistory.goBack(); await settle(300); await waitLoad(wc); return tabInfo(wc, active); });
     case "/avancar": return mexer(async (wc) => { if (wc.navigationHistory.canGoForward()) wc.navigationHistory.goForward(); await settle(300); await waitLoad(wc); return tabInfo(wc, active); });
     case "/recarregar": return mexer(async (wc) => { wc.reload(); await settle(300); await waitLoad(wc); return tabInfo(wc, active); });
@@ -242,8 +277,8 @@ async function handle(host: string, req: http.IncomingMessage, res: http.ServerR
   // Primeira vez de cada conversa: registra quem é (no WhatsApp mostra se veio a chave da sessão ou um id por processo).
   if (dono !== null && !vistos.has(dono.id)) { vistos.add(dono.id); log(`[navegador ${host}] conversa nova usando o Navegador: ${dono.origem} · ${dono.id} · ${dono.rotulo}`); }
   const t0 = Date.now();
-  // O `ponto` (onde a ação aconteceu na página) é só para a faixa de depuração: o agente recebe a resposta sem ele.
-  try { const r = await act(host, route, body, dono); send(200, semPonto(r)); registrarAcao({ origem: "navegador", dono, rota: route, corpo: body as Record<string, unknown>, t0, resultado: r }); }
+  // O `ponto` (onde a ação aconteceu) e as `marcas` (onde está cada elemento lido) são só para a faixa de depuração.
+  try { const r = await act(host, route, body, dono); send(200, semDepuracao(r)); registrarAcao({ origem: "navegador", dono, rota: route, corpo: body as Record<string, unknown>, t0, resultado: r }); }
   catch (e) {
     const st = (e as { status?: number }).status ?? 400;
     const msg = (e instanceof Error ? e.message : String(e)) || "a ação falhou sem mensagem (a aba pode ter mudado); chame 'abas' e tente de novo";

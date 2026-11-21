@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { estadoBatimento, linhaEvento, rotuloBuild, rotuloReversos, rotuloTunel, textoSaude } from "../../dist/renderer/lib/depuracao-core.js";
 import { createRequire } from "node:module";
-const { pontoDoResultado } = createRequire(import.meta.url)("../../dist/main/app/depuracao-core.js");
+const { pontoDoResultado, marcasDoResultado, MARCAS_MAX } = createRequire(import.meta.url)("../../dist/main/app/depuracao-core.js");
 
 test("batimento: ok até 3 s sem tique; depois conta os segundos; sem tique nenhum é 'não ok' com 0 s", () => {
   assert.deepEqual(estadoBatimento(10_000, 12_999), { ok: true, segundos: 2 });
@@ -41,4 +41,14 @@ test("pontoDoResultado: o ponto real do clicar/digitar só passa inteiro e dentr
   for (const r of [null, {}, { ponto: null }, { ponto: { aba: 7, x: 1, y: 1, vw: 0, vh: 10 } }, { ponto: { aba: 7, x: -1, y: 1, vw: 10, vh: 10 } },
     { ponto: { aba: 7, x: 11, y: 1, vw: 10, vh: 10 } }, { ponto: { aba: 1.5, x: 1, y: 1, vw: 10, vh: 10 } }, { ponto: { aba: 7, x: "1", y: 1, vw: 10, vh: 10 } }, { ponto: { aba: 7, x: NaN, y: 1, vw: 10, vh: 10 } }])
     assert.equal(pontoDoResultado(r), null, JSON.stringify(r));
+});
+
+test("marcasDoResultado: as marcas do /ler só passam conferidas; item torto ou fora da área sai; teto de MARCAS_MAX", () => {
+  const ok = { aba: 7, vw: 1200, vh: 800, itens: [{ n: 1, x: 10.4, y: 20.6, rotulo: "  Fechar \n agora " }, { n: 2, x: 1300, y: 5, rotulo: "fora" }, { n: 0, x: 1, y: 1, rotulo: "n inválido" }, { n: 3, x: "1", y: 1, rotulo: "x torto" }, null, { n: 4, x: 1200, y: 800 }] };
+  assert.deepEqual(marcasDoResultado({ title: "t", marcas: ok }), { aba: 7, vw: 1200, vh: 800, itens: [{ n: 1, x: 10, y: 21, rotulo: "Fechar agora" }, { n: 4, x: 1200, y: 800, rotulo: "" }] });
+  const cheio = { aba: 7, vw: 100, vh: 100, itens: Array.from({ length: 90 }, (_, i) => ({ n: i + 1, x: 1, y: 1, rotulo: "x".repeat(90) })) };
+  const r = marcasDoResultado({ marcas: cheio });
+  assert.equal(r.itens.length, MARCAS_MAX); assert.equal(r.itens[0].rotulo.length, 40);
+  for (const lixo of [null, {}, { marcas: null }, { marcas: { aba: 7, vw: 10, vh: 10 } }, { marcas: { aba: 1.5, vw: 10, vh: 10, itens: [] } }, { marcas: { aba: 7, vw: 0, vh: 10, itens: [{ n: 1, x: 1, y: 1 }] } }, { marcas: { aba: 7, vw: 10, vh: 10, itens: [] } }, { marcas: { aba: 7, vw: 10, vh: 10, itens: [{ n: 1, x: 11, y: 1 }] } }])
+    assert.equal(marcasDoResultado(lixo), null, JSON.stringify(lixo));
 });

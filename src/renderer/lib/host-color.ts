@@ -3,7 +3,7 @@
 const LOCAL_HUE = 210;
 
 /** FNV-1a espalhado pela razão áurea: nomes parecidos caem longe um do outro na roda de cores. */
-export function hashHue(s: string): number {
+function hashHue(s: string): number {
   let h = 2166136261;
   for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
   return Math.round(((h * 0.6180339887) % 1) * 360) % 360;

@@ -1,213 +1,137 @@
 /**
- * Modo instagramável (19 nov): com a depuração ligada, cada log que chega de fora (depuracao:evento) vira um cursor
- * colorido com o nome de alguém da organização da conta e um balão que diz o que aquele log fez. Ele entra por uma
- * borda, voa até onde a ação aconteceu (o ponto real, a página do Navegador ou a faixa de depuração) e "clica", com uma
- * explosão de partículas (erro treme e explode em vermelho). Depois entra na esteira: o mais novo na primeira vaga, os
- * outros deslizam uma vaga adiante, todos flutuando devagar para dar para ler; a cada FORMACAO_MS o palco inteiro
- * troca de formação (grade, onda, roda, colunas, diagonal), para ninguém ficar muito tempo parado no mesmo lugar. Entram um a um (ENTRADA_MS), acumulam
- * até MAX_CURSORES e, sem logs, saem aos poucos (SAIDA_MS). Liga no seletor (o ✨ colado no Intro) ou na paleta; fica
- * gravado em `instagramavel` nas configurações.
- *
- * Dois modos (20 nov): o REAL (cursor-agente.ts, o cursor único que anda até onde a ação aconteceu) e o SHOW (este
- * arquivo). O show só entra quando o real não está em cena: log com ponto real, ou que chega com o real à vista, fica
- * com o real; quando o real entra, quem está no palco sai, e o show só volta depois de um tempo sem ação na página
- * (CENA_MS em cursor-agente.ts), para os dois modos não se intercalarem.
+ * Modo instagramável: com a depuração ligada, mostra na janela o que o agente está vendo no Navegador.
+ *  - Marcas: quando o agente lê uma página (/ler), cada elemento numerado que está à vista ganha uma seta colorida com
+ *    o número e o texto dele, o mesmo número do clicar/digitar. Valem até a página mudar: outro log do Navegador que
+ *    mexe nela, a aba sair da vista, a área dela mudar de tamanho, ou SILENCIO_MS sem log.
+ *  - Lista: os logs sem lugar na página (nota, abrir aba, terminal) ficam numa coluna fixa no canto de baixo, à direita, com quem
+ *    agiu e o que fez; saem aos poucos depois de SILENCIO_MS.
+ * O cursor do agente (cursor-agente.ts, o modo "real") tem a cena: enquanto ele está nela, marcas e lista saem.
+ * Nada aqui se mexe sozinho. Liga no seletor (o ✨ colado no Intro) ou na paleta; gravado em `instagramavel`.
  */
-import type { ContaView, EventoDepuracao, SettingsView } from "../../shared/ipc";
+import type { EventoDepuracao, MarcasDepuracao, SettingsView } from "../../shared/ipc";
 import { byId as $ } from "../lib/dom.js";
-import { ENTRADA_MS, FORMACAO_MS, FORMACOES, MAX_CURSORES, SAIDA_MS, SILENCIO_MS, corDoCursor, pontoDeEntrada, pontoNaPagina, posicaoNaFormacao, proximoNome, textoDoBalao } from "../lib/instagramavel-core.js";
+import { LISTA_MAX, MAX_CURSORES, SAIDA_MS, SILENCIO_MS, corDaMarca, marcasNaTela, rotuloDoDono, textoDoBalao } from "../lib/instagramavel-core.js";
 import { faixaLigada } from "./faixa.js";
-import { aoMudarCena, pontoReal, realEmCena } from "./cursor-agente.js";
+import { aoMudarCena, pontoReal, realEmCena, retanguloDaAba } from "./cursor-agente.js";
 import { ctx } from "../app/ctx.js";
 
 const palco = $<HTMLElement>("insta-palco");
-const SETA = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 2l16 11.5-7 1.2 4.2 7.3-3 1.7-4.2-7.3L5 21z" fill="currentColor" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg>';
-const ERRO = "hsl(0 85% 55%)";
+const SETA = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 2l16 11.5-7 1.2 4.2 7.3-3 1.7-4.2-7.3L5 21z" fill="currentColor" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg>';
+/** Logs do Navegador que não mudam a página: as marcas continuam valendo depois deles. */
+const NAO_MEXE = new Set(["/ler", "/print", "/js", "/abas", "/diag"]);
 let ligado = false;
-let nomes: string[] = [];
-let vez = 0;
-/** Os cursores parados na tela, do mais antigo ao mais novo (no máximo MAX_CURSORES). */
-const parados: HTMLElement[] = [];
-/** Logs esperando a vez de entrar (rajada entra aos poucos); só os MAX_CURSORES mais novos esperam. */
-const fila: EventoDepuracao[] = [];
-let entrando: ReturnType<typeof setTimeout> | null = null;
+const marcasEl = Object.assign(document.createElement("div"), { className: "insta-marcas" });
+const listaEl = Object.assign(document.createElement("div"), { className: "insta-lista" });
+/** As marcas na tela: de que aba são e o retângulo dela quando foram postas (mudou → já não valem). */
+let marcadas: { aba: number; chave: string } | null = null;
+let vigia: ReturnType<typeof setInterval> | null = null;
 let silencio: ReturnType<typeof setTimeout> | null = null;
-/** A saída gradual em curso (um por SAIDA_MS); null = parada. */
+/** A saída gradual da lista em curso (um balão por SAIDA_MS); null = parada. */
 let saindo: ReturnType<typeof setInterval> | null = null;
-/** A formação atual da coreografia e o relógio que a troca (só anda com gente parada no palco). */
-let formacao = 0;
-let coreografia: ReturnType<typeof setInterval> | null = null;
 
 export const instagramavelLigado = (): boolean => ligado;
-const calmo = (): boolean => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const chaveDe = (r: { left: number; top: number; width: number; height: number }): string => `${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)},${Math.round(r.height)}`;
 
-async function carregarNomes(): Promise<void> {
-  try { nomes = await window.meuBot.contaMembros(); } catch { nomes = []; }
+function limparMarcas(): void {
+  marcasEl.replaceChildren(); marcadas = null;
+  if (vigia !== null) { clearInterval(vigia); vigia = null; }
+}
+function limparLista(): void {
+  listaEl.replaceChildren();
+  if (saindo !== null) { clearInterval(saindo); saindo = null; }
 }
 function aplicar(on: boolean): void {
   if (on === ligado) return;
   ligado = on;
   palco.hidden = !on;
-  if (on) { void carregarNomes(); armarCoreografia(); } else {
-    if (coreografia !== null) { clearInterval(coreografia); coreografia = null; } palco.replaceChildren(); parados.length = 0; fila.length = 0; if (saindo !== null) { clearInterval(saindo); saindo = null; } }
+  if (on) { palco.replaceChildren(marcasEl, listaEl); return; }
+  limparMarcas(); limparLista();
+  if (silencio !== null) { clearTimeout(silencio); silencio = null; }
+}
+/** Põe uma marca em cada elemento que a leitura numerou e que está à vista na janela; devolve se pôs alguma. */
+function marcar(m: MarcasDepuracao): boolean {
+  const r = retanguloDaAba(m.aba);
+  if (r === null) return false;
+  const { itens, fora } = marcasNaTela(m, r, MAX_CURSORES);
+  if (itens.length === 0) return false;
+  limparMarcas();
+  for (const i of itens) {
+    const cor = corDaMarca(i.n);
+    const el = document.createElement("div"); el.className = "insta-marca"; el.style.color = cor; el.style.transform = `translate(${i.x}px, ${i.y}px)`;
+    el.innerHTML = SETA;
+    const rotulo = document.createElement("span"); rotulo.className = "insta-rotulo"; rotulo.textContent = i.rotulo; rotulo.style.background = cor;
+    el.append(rotulo); marcasEl.append(el);
+  }
+  if (fora > 0) {
+    const mais = document.createElement("span"); mais.className = "insta-mais"; mais.textContent = `+${fora} elementos à vista`;
+    mais.style.left = `${Math.round(r.left + 12)}px`; mais.style.top = `${Math.round(r.top + 8)}px`;
+    marcasEl.append(mais);
+  }
+  marcadas = { aba: m.aba, chave: chaveDe(r) };
+  // A aba saiu da vista ou a área dela mudou (outra aba, painel aberto, janela redimensionada): as marcas já não batem.
+  vigia = setInterval(() => {
+    const agora = marcadas === null ? null : retanguloDaAba(marcadas.aba);
+    if (marcadas === null || agora === null || chaveDe(agora) !== marcadas.chave) limparMarcas();
+  }, 500);
+  return true;
 }
 /**
- * Para onde o cursor voa. Ação do Navegador (onde o show passa mais tempo, com o agente navegando): um ponto dentro da
- * página visível, como se alguém clicasse nela. O resto: o fluxo da faixa de depuração, onde o log aparece.
+ * A lista fica no canto de baixo, à direita, da página do Navegador à vista (o menu e a maioria das marcas ficam à
+ * esquerda); sem página, no canto de baixo da janela.
  */
-function alvo(e: EventoDepuracao): { x: number; y: number } | null {
-  if (e.origem === "navegador") {
-    const pagina = [...document.querySelectorAll("webview")].map((w) => w.getBoundingClientRect()).find((r) => r.width > 80 && r.height > 80);
-    if (pagina !== undefined) return pontoNaPagina(pagina, Math.random(), Math.random());
-  }
-  const r = document.getElementById("dep-feed")?.getBoundingClientRect();
-  if (r === undefined || r.width === 0) return null;
-  return { x: r.left + Math.min(r.width / 2, 160), y: r.top + r.height / 2 };
-}
-function explodir(x: number, y: number, cor: string): void {
-  const n = 10;
-  for (let i = 0; i < n; i++) {
-    const p = document.createElement("span"); p.className = "insta-particula"; p.style.background = cor; p.style.left = `${x}px`; p.style.top = `${y}px`;
-    const ang = (i / n) * Math.PI * 2, dist = 28 + Math.random() * 22;
-    palco.append(p);
-    p.animate([{ transform: "translate(-50%, -50%) scale(1)", opacity: 1 }, { transform: `translate(calc(-50% + ${Math.cos(ang) * dist}px), calc(-50% + ${Math.sin(ang) * dist}px)) scale(.3)`, opacity: 0 }], { duration: 520, easing: "cubic-bezier(.2,.7,.3,1)" }).onfinish = () => p.remove();
-  }
-  const anel = document.createElement("span"); anel.className = "insta-anel"; anel.style.borderColor = cor; anel.style.left = `${x}px`; anel.style.top = `${y}px`;
-  palco.append(anel);
-  anel.animate([{ transform: "translate(-50%, -50%) scale(.2)", opacity: 1 }, { transform: "translate(-50%, -50%) scale(1.6)", opacity: 0 }], { duration: 480, easing: "ease-out" }).onfinish = () => anel.remove();
-}
-/** A área onde os cursores ficam parados: a página do Navegador à vista, senão a janela abaixo das barras. */
-function areaDoPalco(): { left: number; top: number; width: number; height: number } {
+function posicionarLista(): void {
   const pagina = [...document.querySelectorAll("webview")].map((w) => w.getBoundingClientRect()).find((r) => r.width > 300 && r.height > 200);
-  if (pagina !== undefined) return pagina;
-  const topo = document.getElementById("depuracao-bar")?.getBoundingClientRect().bottom ?? 80;
-  return { left: 0, top: topo + 40, width: window.innerWidth, height: window.innerHeight - topo - 120 };
+  const dir = pagina?.right ?? window.innerWidth, base = pagina?.bottom ?? window.innerHeight - 120;
+  listaEl.style.right = `${Math.round(window.innerWidth - dir + 12)}px`; listaEl.style.bottom = `${Math.round(window.innerHeight - base + 12)}px`;
 }
-/** O mais antigo sai (esmaece e sobe um pouco); a vaga dele fica para quem está chegando. */
-function tirar(el: HTMLElement, devagar = false): void {
-  el.animate([{ opacity: 1 }, { opacity: 0, translate: "0 -12px" }], { duration: devagar ? 1200 : 500, easing: "ease-in", fill: "forwards" }).onfinish = () => el.remove();
+function listar(e: EventoDepuracao): void {
+  const fala = textoDoBalao(e);
+  if (fala === "") return; // sem nada a dizer (js, sonda): fica só na faixa
+  const item = document.createElement("div"); item.className = `insta-item${e.ok ? "" : " insta-erro"}`;
+  const nome = Object.assign(document.createElement("span"), { className: "insta-nome", textContent: rotuloDoDono(e.dono) });
+  const texto = Object.assign(document.createElement("span"), { className: "insta-fala", textContent: fala });
+  item.append(nome, texto);
+  posicionarLista();
+  listaEl.append(item);
+  while (listaEl.children.length > LISTA_MAX) listaEl.firstElementChild?.remove();
 }
-/**
- * O palco se reorganiza: cada cursor parado vai para a vaga da sua idade (o mais novo na primeira), deslizando de onde
- * está. Chamado quando alguém chega e quando alguém sai: a esteira anda e a tela nunca fica parada.
- */
-function reorganizar(): void {
-  const area = areaDoPalco();
-  const prontos = parados.filter((el) => el.dataset["parado"] === "1");
-  prontos.forEach((el, k) => {
-    const vaga = posicaoNaFormacao(FORMACOES[formacao % FORMACOES.length]!, prontos.length - 1 - k, prontos.length, area);
-    const de = { x: Number(el.dataset["x"]), y: Number(el.dataset["y"]) };
-    if (de.x === vaga.x && de.y === vaga.y) return;
-    // As animações anteriores viram estilo fixo e saem: sem acumular uma por reorganização.
-    for (const an of el.getAnimations()) { an.commitStyles(); an.cancel(); }
-    el.dataset["x"] = String(vaga.x); el.dataset["y"] = String(vaga.y);
-    el.animate([{ transform: `translate(${de.x}px, ${de.y}px)` }, { transform: `translate(${vaga.x}px, ${vaga.y}px)` }], { duration: calmo() ? 0 : 800 + k * 25, easing: "cubic-bezier(.3,.1,.2,1)", fill: "forwards" });
-  });
-}
-/** A cada FORMACAO_MS, todos deslizam juntos para a próxima formação (grade, onda, roda, colunas, diagonal). */
-function armarCoreografia(): void {
-  if (coreografia !== null) return;
-  coreografia = setInterval(() => {
-    if (parados.filter((el) => el.dataset["parado"] === "1").length < 2 || calmo()) return;
-    formacao++; reorganizar();
-  }, FORMACAO_MS);
-}
-/** Depois de SILENCIO_MS sem log, os parados saem aos poucos: o mais antigo a cada SAIDA_MS, esmaecendo devagar. */
+/** Depois de SILENCIO_MS sem log, as marcas saem e a lista esvazia aos poucos: o mais antigo a cada SAIDA_MS. */
 function armarSilencio(): void {
   if (silencio !== null) clearTimeout(silencio);
-  if (saindo !== null) { clearInterval(saindo); saindo = null; } // chegou log: a saída para, o palco volta a encher
+  if (saindo !== null) { clearInterval(saindo); saindo = null; } // chegou log: a saída para
   silencio = setTimeout(() => {
+    limparMarcas();
     saindo = setInterval(() => {
-      const el = parados.shift();
-      if (el === undefined) { if (saindo !== null) clearInterval(saindo); saindo = null; return; }
-      tirar(el, true); reorganizar();
+      const el = listaEl.querySelector<HTMLElement>(".insta-item:not(.sai)");
+      if (el === null) { if (saindo !== null) clearInterval(saindo); saindo = null; return; }
+      el.classList.add("sai"); setTimeout(() => el.remove(), 600);
     }, SAIDA_MS);
   }, SILENCIO_MS);
 }
-/** O real entrou em cena: a fila esvazia e quem está no palco sai de uma vez (esmaecendo), para o real ficar sozinho. */
-function sairDeCena(): void {
-  fila.length = 0;
-  if (silencio !== null) { clearTimeout(silencio); silencio = null; }
-  if (saindo !== null) { clearInterval(saindo); saindo = null; }
-  for (const el of parados.splice(0)) tirar(el);
-}
 function mostrar(e: EventoDepuracao): void {
   if (!ligado || !faixaLigada()) return;
-  if (realEmCena() || pontoReal(e.ponto) !== null) return; // é do real: o show só entra com o real fora de cena
-  if (textoDoBalao(e) === "") return; // sem nada a dizer (js, sonda): fica só na faixa
-  fila.push(e);
-  if (fila.length > MAX_CURSORES) fila.splice(0, fila.length - MAX_CURSORES);
+  // É do real (ação com lugar na página, ou qualquer log com ele em cena): marcas e lista só com o real fora de cena.
+  if (realEmCena() || pontoReal(e.ponto) !== null) return;
   armarSilencio();
-  if (entrando === null) proximo();
-}
-/** Tira o próximo da fila e agenda o seguinte: um cursor a cada ENTRADA_MS. */
-function proximo(): void {
-  const e = fila.shift();
-  if (e === undefined) { entrando = null; return; }
-  entrar(e);
-  entrando = setTimeout(proximo, ENTRADA_MS);
-}
-function entrar(e: EventoDepuracao): void {
-  if (realEmCena()) return; // o real chegou enquanto este esperava na fila
-  const fim = alvo(e);
-  if (fim === null) return;
-  const i = vez++;
-  const nome = proximoNome(nomes, i);
-  const cor = corDoCursor(nome, i);
-  const el = document.createElement("div"); el.className = `insta-cursor${e.ok ? "" : " insta-erro"}`; el.style.color = cor;
-  // O corpo flutua em volta da vaga (CSS, ritmo próprio): parado na tela, mas nunca imóvel.
-  const corpo = document.createElement("div"); corpo.className = "insta-corpo"; corpo.innerHTML = SETA;
-  corpo.style.animationDuration = `${5 + Math.random() * 3}s`; corpo.style.animationDelay = `-${Math.random() * 5}s`;
-  el.append(corpo);
-  const etiqueta = document.createElement("span"); etiqueta.className = "insta-nome"; etiqueta.textContent = nome; etiqueta.style.background = cor;
-  corpo.append(etiqueta);
-  // O balão: o que este log fez (limpo para a tela). Aparece no clique e fica, para dar para ler.
-  const fala = textoDoBalao(e);
-  const balao = fala === "" ? null : Object.assign(document.createElement("span"), { className: "insta-balao", textContent: fala });
-  if (balao !== null) { balao.style.borderColor = e.ok ? cor : ERRO; corpo.append(balao); }
-  palco.append(el);
-  // Cheio: o mais antigo sai enquanto este entra (o novo toma a cena).
-  parados.push(el);
-  while (parados.length > MAX_CURSORES) tirar(parados.shift()!);
-  // Depois do clique, entra na esteira: ocupa a primeira vaga e empurra os outros uma vaga adiante.
-  const ficar = (): void => { el.dataset["x"] = String(fim.x); el.dataset["y"] = String(fim.y); el.dataset["parado"] = "1"; reorganizar(); };
-  if (calmo()) {
-    el.style.transform = `translate(${fim.x}px, ${fim.y}px)`;
-    ficar();
-    balao?.classList.add("on");
-    el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300 });
-    return;
+  if (e.origem === "navegador") {
+    if (e.rota === "/ler" && e.ok && e.marcas !== undefined && marcar(e.marcas)) return;
+    if (!NAO_MEXE.has(e.rota)) limparMarcas(); // a página mudou: os números de antes já não valem
   }
-  const ini = pontoDeEntrada(window.innerWidth, window.innerHeight, Math.random());
-  // Um ponto no meio do caminho desviado para o lado: o voo faz uma curva em vez de uma reta.
-  const meio = { x: (ini.x + fim.x) / 2 + (Math.random() - 0.5) * 220, y: (ini.y + fim.y) / 2 + (Math.random() - 0.5) * 160 };
-  el.animate([
-    { transform: `translate(${ini.x}px, ${ini.y}px)` },
-    { transform: `translate(${meio.x}px, ${meio.y}px)`, offset: 0.55 },
-    { transform: `translate(${fim.x}px, ${fim.y}px)` },
-  ], { duration: 850 + Math.random() * 250, easing: "cubic-bezier(.45,.05,.25,1)", fill: "forwards" }).onfinish = () => {
-    // O clique: o cursor afunda um pouco e volta; com erro, treme. Depois desliza para a vaga e fica.
-    const quadros = e.ok
-      ? [{ transform: `translate(${fim.x}px, ${fim.y}px) scale(1)` }, { transform: `translate(${fim.x}px, ${fim.y}px) scale(.82)` }, { transform: `translate(${fim.x}px, ${fim.y}px) scale(1)` }]
-      : [-6, 6, -4, 4, 0].map((d) => ({ transform: `translate(${fim.x + d}px, ${fim.y}px)` }));
-    explodir(fim.x, fim.y, e.ok ? cor : ERRO);
-    balao?.classList.add("on");
-    el.animate(quadros, { duration: e.ok ? 220 : 320, fill: "forwards" }).onfinish = () => setTimeout(ficar, 500);
-  };
+  listar(e);
 }
 /** Liga eventos e o estado inicial; o renderer.ts chama uma vez, depois de ligarFaixaDepuracao. */
 export function ligarInstagramavel(): void {
   void window.meuBot.getSettings().then((s) => aplicar(s.instagramavel)).catch(() => undefined);
   window.meuBot.on("settings:changed", (s: SettingsView) => aplicar(s.instagramavel));
-  window.meuBot.on("conta:changed", (_c: ContaView) => { if (ligado) void carregarNomes(); });
   window.meuBot.on("depuracao:evento", mostrar);
-  aoMudarCena((emCena) => { if (emCena) sairDeCena(); });
+  window.meuBot.on("depuracao:estado", (s: { ligado: boolean }) => { if (!s.ligado) { limparMarcas(); limparLista(); } });
+  aoMudarCena((emCena) => { if (emCena) { limparMarcas(); limparLista(); } });
 }
 /** Paleta: liga ou desliga (vale para todas as janelas e para o interruptor do seletor). */
 export async function alternarInstagramavel(): Promise<void> {
   const ligar = !ligado;
   aplicar((await window.meuBot.setSettings({ instagramavel: ligar })).instagramavel);
   ctx.showTextToast(ligar ? "Modo instagramável ligado" : "Modo instagramável desligado",
-    !ligar ? "Os cursores param; a faixa de depuração continua como estava."
-      : faixaLigada() ? "Cada log que chega vira um cursor com o nome de alguém da sua organização." : "O show começa quando a depuração estiver ligada (selo DEPURAÇÃO ao lado do PRO).");
+    !ligar ? "As marcas e a lista saem; a faixa de depuração continua como estava."
+      : faixaLigada() ? "Cada elemento que o agente ler numa página ganha uma marca com o número dele." : "As marcas aparecem quando a depuração estiver ligada (selo DEPURAÇÃO ao lado do PRO).");
 }
