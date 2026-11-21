@@ -10,6 +10,8 @@
  *    a mesma coisa num grupo (vaivém com outro agente); solta sozinho. Config: grupoMaxRespostas, grupoJanelaMin.
  * 4. Memória do dono (memoria.mjs): no chat do dono consigo mesmo, "lembre que …", "esquece que …" e "o que você
  *    lembra?" gravam/leem ~/.local/share/meu-bot/memoria-dono.md; a memória entra no prompt dos turnos do dono.
+ * 5. Modo "sugere e você aprova" (sugestoes.mjs): com o modo ligado, a resposta do agente não sai; vira sugestão na
+ *    fila (~/.local/share/meu-bot/whatsapp-sugestoes.jsonl) e a pessoa aprova ou descarta pelo app.
  */
 import { spawn } from "node:child_process";
 import fs from "node:fs";
@@ -17,6 +19,7 @@ import os from "node:os";
 import path from "node:path";
 import { GroupBrake, GRUPO_PADRAO, LoopTracker, autoPauseNoteText, closureVerdict, isOperationalNotice, loopVerdict } from "./regras.mjs";
 import * as memoria from "./memoria.mjs";
+import * as sugestoes from "./sugestoes.mjs";
 
 const PLUGIN_ID = "meu-bot-guarda";
 const MEMORIA_DONO = path.join(os.homedir(), ".local", "share", "meu-bot", "memoria-dono.md");
@@ -103,6 +106,19 @@ export default {
       if (isOperationalNotice(text)) {
         logger.info(`${PLUGIN_ID}: nota operacional não entregue a ${event.to}: ${text.slice(0, 80)}`);
         return { cancel: true, cancelReason: `${PLUGIN_ID}: nota operacional do OpenClaw` };
+      }
+      // Modo "sugere e você aprova" (sugestoes.mjs): nada sai sozinho; a resposta vira sugestão na fila que o app
+      // mostra. Passa só a conversa do dono consigo mesmo e o que a pessoa aprovou (passe de uso único).
+      try {
+        const d = sugestoes.decidir(sugestoes.DIR_PADRAO, { to: event.to, texto: text, sessao: typeof ctx?.sessionKey === "string" ? ctx.sessionKey : null, dono: donoDoNumero() });
+        if (d.acao === "segurar") {
+          logger.info(`${PLUGIN_ID}: modo sugestão: resposta a ${event.to} guardada para aprovação${d.sugestao ? ` (${d.sugestao.id})` : " (destino ilegível, não guardada)"}`);
+          return { cancel: true, cancelReason: `${PLUGIN_ID}: modo sugestão (a pessoa aprova antes de enviar)` };
+        }
+        if (d.aprovado) { logger.info(`${PLUGIN_ID}: modo sugestão: envio aprovado pela pessoa para ${event.to}`); return; }
+      } catch (e) {
+        // Fila ilegível ou ocupada com o modo ligado: na dúvida, não manda sozinho.
+        if (sugestoes.modoLigado()) { logger.error(`${PLUGIN_ID}: modo sugestão: ${e instanceof Error ? e.message : String(e)}; envio a ${event.to} cancelado`); return { cancel: true, cancelReason: `${PLUGIN_ID}: modo sugestão (fila indisponível)` }; }
       }
       const grupo = grupoDe(event, ctx);
       if (grupo !== null) {
