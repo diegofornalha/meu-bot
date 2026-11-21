@@ -37,14 +37,11 @@ export const acessoProduto = (view: LicenseView | null, host: string, exige: Pla
 
 /**
  * CRM próprio (no Gmail e no WhatsApp) nesta máquina: faz parte do plano Pro em vigor. Decide o que a janela mostra
- * (tutorial 17, home do Navegador, "guardar no CRM"); o main e o backend conferem de novo.
+ * (tutorial 18, home do Navegador, "guardar no CRM"); o main e o backend conferem de novo.
  */
 export const crmProprioOk = (view: LicenseView | null, host: string, now: number = Date.now()): boolean =>
   host !== "local" && view !== null && planoLiberaPro(view.license.plan) && (view.license.status === "active" || view.license.status === "trialing") && !vencida(view.license, now);
 
-/** Financeiro: o add-on meu-bot-finance contratado, com ou sem o Pro. Mesma regra do main e do backend. */
-export const financeOk = (view: LicenseView | null, host: string, now: number = Date.now()): boolean =>
-  host !== "local" && acessoAddon(view, host, "meu-bot-finance", now) === "ok";
 
 /**
  * Página Módulos por licença: algum add-on com módulos (caps.addons[].modulos) liberado nesta máquina. O app com produto
@@ -63,10 +60,9 @@ export function browserAccess(view: LicenseView | null, host: string, exige: Pla
 }
 
 /** Texto do bloqueio, por situação. */
-export type ProModule = "navegador" | "crm" | "finance" | "google" | "computador";
+export type ProModule = "navegador" | "crm" | "google" | "computador";
 const MODULE_TEXT: Record<ProModule, { name: string; pitch: string; back: string }> = {
   navegador: { name: "Navegador", pitch: "Um navegador dentro do meu-bot, com abas, cookies separados por máquina e extensões do Chrome (como o Streak CRM no Gmail). E o agente da conversa pode navegar por você.", back: "a aba volta a abrir" },
-  finance: { name: "Finanças", pitch: "Seu financeiro no WhatsApp: o agente lança os gastos que você conta ou fotografa, categoriza sozinho e só pede o que depende de você.", back: "a página Finanças abre" },
   google: { name: "Conta Google", pitch: "A conta Google da máquina dentro do meu-bot: o agente lê o Gmail, a Agenda e as planilhas por você, e o backup dos seus dados vai para o seu Drive.", back: "a página Conta Google abre" },
   computador: { name: "Computador", pitch: "A tela da máquina do seu bot, ao vivo dentro do meu-bot: você vê o que o agente está fazendo, sem abrir nada.", back: "a tela aparece aqui" },
   crm: { name: "CRM pelo WhatsApp", pitch: "O agente da máquina anota no seu Streak CRM, pela API, o que acontece nas conversas do WhatsApp: cria e atualiza boxes, campos e comentários, e pede sua confirmação antes de mudar de etapa.", back: "o tutorial continua" },

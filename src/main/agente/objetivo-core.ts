@@ -16,7 +16,7 @@ export const OBJECTIVE_SKILL = "objetivo-whatsapp";
  * "aprendidas": listadas no Acervo assim que a pessoa entrava, mostravam Cloudflare, Streak, CRM e 2FA a quem nunca foi
  * apresentado a isso. As do Cloudflare seguem na Biblioteca do meu-bot (oculta até pedir).
  */
-export const SKILLS_DO_APP: readonly string[] = ["cloudflare-token", "crm-api", "finance-api", "google-2fa-autenticador", "streak-crm-api", "streak-crm-navegador", "subir-site-cloudflare"];
+export const SKILLS_DO_APP: readonly string[] = ["cloudflare-token", "crm-api", "google-2fa-autenticador", "streak-crm-api", "streak-crm-navegador", "subir-site-cloudflare"];
 export const OBJECTIVE_FILE = "$HOME/.local/share/meu-bot/objetivo.json";
 
 /** O que um contato que não é o dono nunca pode usar (a mesma trava do pareamento, whatsapp.ts). */

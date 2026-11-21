@@ -3,7 +3,7 @@
  * `https://<nome>.<domínio>/` servido pela pasta dele, atrás de um Cloudflare Tunnel do root (sem abrir porta). A gestão
  * é só daqui: instalar (nginx + cloudflared com o domínio), entrar na Cloudflare (o link abre no navegador deste Mac;
  * esta aba confirma sozinha), subir o túnel e ligar ou desligar o link por usuário. O nome do link cada pessoa troca
- * no meu-bot dela (tutorial 13). Fábrica como claude-global-page.ts; o main confere tudo como root.
+ * no meu-bot dela (tutorial 12). Fábrica como claude-global-page.ts; o main confere tudo como root.
  */
 import type { LpAgente, LpAviso, LpEstado, LpItem, LpUsuario, MeuBotApi } from "../../shared/ipc";
 import { el } from "../lib/dom.js";
@@ -107,7 +107,7 @@ export function mountLinkPublicoPage(deps: LinkPublicoPageDeps): { open: () => v
     const panel = page.panel; panel.replaceChildren();
     const head = el("div", "guide-head"); const hb = el("div", "tut-body");
     hb.append(el("span", "tut-badge", "link público global"), el("h2", "", `Link Público Global · ${deps.who}`),
-      el("p", "", "Cada usuário desta máquina ganha um link público próprio (https://<nome>.<domínio>/) servido pela pasta ~/publico dele, atrás de um túnel da Cloudflare do root: a máquina não abre porta nenhuma. O agente de cada um dá links com o comando `publicar`; o nome do link a pessoa troca no meu-bot dela (tutorial 13)."));
+      el("p", "", "Cada usuário desta máquina ganha um link público próprio (https://<nome>.<domínio>/) servido pela pasta ~/publico dele, atrás de um túnel da Cloudflare do root: a máquina não abre porta nenhuma. O agente de cada um dá links com o comando `publicar`; o nome do link a pessoa troca no meu-bot dela (tutorial 12)."));
     head.append(hb); panel.append(head);
     if (estado === null) { panel.append(erro !== null ? el("p", "hint bad-hint", `✗ ${erro}`) : espera("Lendo o Link Público Global…")); return; }
     const e = estado; const etapa = etapaLp(e);

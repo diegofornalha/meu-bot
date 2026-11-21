@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webFrame } from "electron";
-import type { CrmPipelineExtras, BackupRestauroPedido, ClienteMcp, FinanceAbcLado, FinanceAbcPor, AdminAction, AlertPrefs, AudioSetup, BackendModel, SupportProgress, SupportShare, ConversationRef, ExportFormat, FreedomLevel, LicensePatch, MainEventChannel, MainEvents, MemoryView, ObjectiveChoice, MeuBotApi, MeuBotAdminApi, MeuBotClientApi, MeuBotSharedApi, SettingsUpdate, SettingsView, StoredConversationView, TabMenuAction, WaMarkPatch, WhatsappGroupAgent, WhatsappGroupPatch, TypingChoice, WindowInfo, StatusLineSegments, ContaId, ZoomAction, ZoomState, FinanceConta, FinanceMoeda, FinanceLancarInput, FinanceTipoLinha, WhatsappAlvo } from "../shared/ipc";
+import type { CrmPipelineExtras, BackupRestauroPedido, ClienteMcp, AdminAction, AlertPrefs, AudioSetup, BackendModel, SupportProgress, SupportShare, ConversationRef, ExportFormat, FreedomLevel, LicensePatch, MainEventChannel, MainEvents, MemoryView, ObjectiveChoice, MeuBotApi, MeuBotAdminApi, MeuBotClientApi, MeuBotSharedApi, SettingsUpdate, SettingsView, StoredConversationView, TabMenuAction, WaMarkPatch, WhatsappGroupAgent, WhatsappGroupPatch, TypingChoice, WindowInfo, StatusLineSegments, ContaId, ZoomAction, ZoomState, WhatsappAlvo } from "../shared/ipc";
 
 // Preload roda em sandbox: não pode importar módulos do app, por isso a lista fica aqui.
 const MAIN_EVENT_CHANNELS: readonly MainEventChannel[] = [
@@ -26,7 +26,6 @@ const MAIN_EVENT_CHANNELS: readonly MainEventChannel[] = [
   "gmail:progress",
   "gmail:agent",
   "crm:progress",
-  "finance:progress",
   "modulos:progress",
   "modulos:acao",
   "admin:backup-progress",
@@ -255,25 +254,6 @@ const clientApi: MeuBotClientApi = {
   instalarGmail: () => ipcRenderer.invoke("gmail:install", {}),
   installGuarda: () => ipcRenderer.invoke("guarda:install", {}),
   crmInfo: () => ipcRenderer.invoke("crm:info", {}),
-  financeInfo: () => ipcRenderer.invoke("finance:info", {}),
-  financeLancamentos: (filtro?: { mes?: string; status?: "pendente" | "confirmado"; limite?: number }) => ipcRenderer.invoke("finance:lancamentos", filtro ?? {}),
-  financeCategorias: () => ipcRenderer.invoke("finance:categorias", {}),
-  financeLancar: (input: FinanceLancarInput) => ipcRenderer.invoke("finance:lancar", input),
-  financeConfirmar: (id: string, categoria?: string) => ipcRenderer.invoke("finance:confirmar", { id, categoria }),
-  financeDescartar: (id: string) => ipcRenderer.invoke("finance:descartar", { id }),
-  financeCorrigir: (id: string, patch: { valor?: string; favorecido?: string; categoria?: string; conta?: string | null; data?: string; notas?: string; linha?: string | null }) => ipcRenderer.invoke("finance:corrigir", { id, ...patch }),
-  financeLinhaSalvar: (linha: { key?: string; nome: string; tipo: FinanceTipoLinha; valor: string | null; notas?: string }) => ipcRenderer.invoke("finance:linha-salvar", linha),
-  financeLinhaRemover: (key: string) => ipcRenderer.invoke("finance:linha-remover", { key }),
-  financeComprovante: (sha256: string) => ipcRenderer.invoke("finance:comprovante", { sha256 }),
-  financeConfirmarTodas: () => ipcRenderer.invoke("finance:confirmar-todas", {}),
-  financeContaCriar: (input: { nome: string; tipo?: FinanceConta["tipo"]; moeda?: FinanceMoeda; saldoInicial?: string }) => ipcRenderer.invoke("finance:conta-criar", input),
-  financeMes: (mes: string, patch: { metaDireto?: string | null; metaIndireto?: string | null; metaNotas?: string; orcamento?: string | null; rendaPrevista?: string | null; dinheiroInformado?: boolean }) => ipcRenderer.invoke("finance:mes", { mes, ...patch }),
-  financeConfigLer: () => ipcRenderer.invoke("finance:config-ler", {}),
-  financeConfig: (patch: { taxas?: Record<string, number>; moedaExibicao?: FinanceMoeda }) => ipcRenderer.invoke("finance:config-salvar", patch),
-  financeFecharMes: (mes: string) => ipcRenderer.invoke("finance:fechar-mes", { mes }),
-  financeAbc: (filtro: { lado: FinanceAbcLado; por: FinanceAbcPor; meses: number; ate?: string }) => ipcRenderer.invoke("finance:abc", filtro),
-  financeImportarPlanilha: (p: { link: string; aba?: string; tipo: FinanceAbcLado; simular: boolean }) => ipcRenderer.invoke("finance:importar-planilha", p),
-  installFinance: () => ipcRenderer.invoke("finance:install", {}),
   modulosAtualizarFonte: () => ipcRenderer.invoke("modulos:atualizar-fonte", {}),
   modulosTestar: (id: string) => ipcRenderer.invoke("modulos:testar", { id }),
   modulosAbrirPagina: (id: string) => ipcRenderer.invoke("modulos:abrir-pagina", { id }),
@@ -283,7 +263,6 @@ const clientApi: MeuBotClientApi = {
   modulosDesligar: (id: string) => ipcRenderer.invoke("modulos:desligar", { id }),
   modulosCredenciais: (id: string, patch: Record<string, string>) => ipcRenderer.invoke("modulos:credenciais", { id, patch }),
   modulosOpcoes: (id: string, patch: Record<string, string | number | boolean>) => ipcRenderer.invoke("modulos:opcoes", { id, patch }),
-  financePedir: () => ipcRenderer.invoke("finance:pedir", {}),
   installCrm: () => ipcRenderer.invoke("crm:install", {}),
   setCrm: (patch: { apiKey?: string; pipelineKey?: string | null; pipelineName?: string; silencioMin?: number; criarSemPerguntar?: boolean }) => ipcRenderer.invoke("crm:set", patch),
   crmTest: () => ipcRenderer.invoke("crm:test", {}),

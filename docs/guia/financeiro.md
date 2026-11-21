@@ -59,3 +59,25 @@ etapa). `financeApi.sincronizarExternos` é idempotente: sem diferença não gra
 que sai da etapa tira o lançamento. O server.js dispara a cada mudança do CRM (debounce 2 s) e 15 s depois de subir,
 só com CRM e financeiro liberados. A skill crm-api diz ao agente para registrar a venda no CRM e não também no
 financeiro. Teste: `scripts/tests/crm-finance-vendas.test.mjs`. Backend 1.1.4.
+
+## O Financeiro saiu do app: é o módulo Finanças (21 nov, issue #312)
+
+O Financeiro passou a existir só como **módulo**, no repositório `meu-bot-finance` (página Módulos do app). Tudo o que
+este arquivo descreve acima é o desenho de antes; o código mudou de casa, com as mesmas regras.
+
+- **Saiu deste repositório:** a página Finanças e os 20 canais `finance:*` (com o preload e os tipos de
+  `shared/ipc/financeiro.ts`); `finance-local.ts`, `assertFinance`, `installFinance` e `ensureFinanceAtual`; no
+  `backend-colima`, `finance-api.js`, `finance-modelo.js`, `finance-store.js`, as pontes `finance-crm-sync.js` e
+  `crm-finance-vendas.js`, o plugin `finance/`, o `install-finance.sh` e a skill; o tutorial 12 e o CSS; a variante
+  `finance-staging` (produto, ícone, atalho `dist:finance-staging`, lista da release).
+- **Ficou:** o add-on `meu-bot-finance` em `ADDONS` (app e backend) e no `conta-api`, porque é o que se compra e é o
+  que libera o módulo; o backup no Drive, que continua levando `finance/db`; os rótulos `finance.*` e o app
+  `meu-bot-finance-staging` na auditoria, para as linhas antigas do registro continuarem legíveis.
+- **Backend 1.17.0:** `/v1/finance/*` responde sempre `409 finance_modulo`, com a frase que manda ligar o módulo. É o
+  que um plugin antigo ainda instalado numa máquina recebe; o agente repassa a frase à pessoa.
+- **Dados:** continuam em `~/.local/share/meu-bot/finance/db`, sem migração; o módulo grava na mesma pasta.
+- **Tutoriais renumerados:** sem o 12, os de 13 a 19 desceram um (link público 12, entrada rápida 13, Gmail 14,
+  digitando 15, modo grátis 16, status line 17, CRM 18). Os números citados nas entradas mais antigas deste diário são
+  os da época.
+- **Quem tinha o Financeiro antigo e ainda não ligou o módulo:** a página some do app na atualização; os dados ficam.
+  Liga-se o módulo em Módulos › Finanças e ele abre com os mesmos lançamentos.

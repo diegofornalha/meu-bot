@@ -44,6 +44,10 @@ Issue #312, cartão no quadro e este arquivo.
 - Só segue com o OK do usuário. Aqui o `modulos: true` do `meu-bot-finance` é ligado.
 
 ### 4. O meu-bot tira o Finanças antigo (`financas-sai-do-app`)
+> **Feita em 21/11**, com o OK do usuário ("finanças tem que sair do app, ficar só via módulo"). Diferenças para a lista
+> abaixo: os rótulos de auditoria `finance.*` ficaram (o registro das máquinas guarda linhas antigas com eles) e o
+> backend responde `409 finance_modulo` em `/v1/finance/*`, para um plugin antigo ainda instalado dizer onde o
+> Financeiro está.
 - **Sai:**
   - a página, os 21 canais `finance:*` e o preload;
   - `finance-local.ts`, `assertFinance`, `installFinance` e `ensureFinanceAtual`;

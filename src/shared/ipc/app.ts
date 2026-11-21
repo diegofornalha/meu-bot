@@ -70,10 +70,10 @@ export interface SettingsView {
   modulosRepo: string;
 }
 /**
- * Aba que fica na frente ao abrir: "padrao" = a do produto (Finanças no finance-staging, Inspector no inspector-staging, Tutoriais nos outros, para
+ * Aba que fica na frente ao abrir: "padrao" = a do produto (Inspector no inspector-staging, Tutoriais nos outros, para
  * quem chega leigo); "conversa" = sem alfinete, a última conversa; o resto é o id de uma página.
  */
-export type AbaFixa = "padrao" | "conversa" | "tutoriais" | "acervo" | "conta-google" | "gmail" | "computador" | "financas" | "inspector" | "modulos" | "navegador" | "usuarios";
+export type AbaFixa = "padrao" | "conversa" | "tutoriais" | "acervo" | "conta-google" | "gmail" | "computador" | "inspector" | "modulos" | "navegador" | "usuarios";
 
 export interface SettingsUpdate {
   backendModel?: BackendModel;
@@ -137,7 +137,7 @@ export type ClienteMcp = "claude-code" | "cursor";
  * Qual produto é este app: meu-bot (de cada pessoa, com o CRM próprio liberado pela licença), meu-bot-admin (suporte)
  * e os staging. Tabela em src/main/variant-core.ts.
  */
-export type AppVariant = "client" | "admin" | "client-staging" | "finance-staging" | "inspector-staging" | "admin-mac" | "diego-staging";
+export type AppVariant = "client" | "admin" | "client-staging" | "inspector-staging" | "admin-mac" | "diego-staging";
 /** Canal do app: estável (só o aprovado) ou staging (o que está em teste), como VS Code e VS Code Insiders. */
 export type Canal = "estavel" | "staging";
 /**
@@ -192,7 +192,7 @@ export interface Capabilities {
   titulo: string;
   /** Add-on que é a razão deste app (a entrada dele fica sempre à vista); null = nenhum. Tabela em variant-core.ts. */
   addon: string | null;
-  /** Página que fica na frente quando a janela abre ("financas", "inspector"); null = as abas de conversa. */
+  /** Página que fica na frente quando a janela abre ("inspector", "modulos"); null = as abas de conversa. */
   abreEm: string | null;
   /** Catálogo de add-ons (nome e rótulo para ler), para as telas não escreverem nomes à mão. */
   /** `modulos`: o add-on chega como módulos (página Módulos) quando está na licença da máquina. */

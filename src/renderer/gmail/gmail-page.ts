@@ -17,7 +17,7 @@ import { ipcErrorText } from "../lib/ipc-error.js";
 import { ehContaDesconectada, erroGoogleTexto, statusAposErro } from "../lib/erro-google.js";
 import { blocosDoCorpo } from "../lib/email-texto-core.js";
 
-/** O que a página conta ao guia (tutorial 15): a pessoa leu uma mensagem, buscou, mandou para a lixeira, desfez. */
+/** O que a página conta ao guia (tutorial 14): a pessoa leu uma mensagem, buscou, mandou para a lixeira, desfez. */
 export type GmailFato = "lido" | "buscou" | "lixeira" | "desfez";
 
 export interface GmailDeps {

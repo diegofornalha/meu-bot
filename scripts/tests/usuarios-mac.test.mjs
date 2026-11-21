@@ -64,7 +64,7 @@ test("apagar e apelido: nomes e textos que não quebram o script", () => {
 test("variante meu-bot-admin-mac: só a janela das contas; canais próprios, só no preload dela", () => {
   const c = capsFor("admin-mac");
   assert.deepEqual([c.usuariosMac, c.chat, c.supportAdmin, c.tunnel], [true, false, false, false]);
-  for (const v of ["client", "client-staging", "finance-staging", "inspector-staging", "admin"]) assert.equal(capsFor(v).usuariosMac, false, v);
+  for (const v of ["client", "client-staging", "inspector-staging", "admin"]) assert.equal(capsFor(v).usuariosMac, false, v);
   assert.equal(produtoDe("admin-mac").nome, "meu-bot-admin-mac");
   assert.ok(nomesReservados().has("meu-bot-admin-mac"));
   for (const ch of MAC_CHANNELS) assert.ok(!ADMIN_CHANNELS.includes(ch) && !CLIENT_CHANNELS.includes(ch), ch);

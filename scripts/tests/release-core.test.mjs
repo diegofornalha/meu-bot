@@ -28,15 +28,15 @@ test("app com módulos de repositório privado (meu-bot-diego) não vai para a r
 
 test("componentesSemVersao: componente que mudou exige versão nova; o que não mudou passa", () => {
   const C = [
-    { nome: "backend", arquivos: ["backend-colima/server.js", "backend-colima/finance-api.js"], versao: "backend-colima/VERSION" },
-    { nome: "financeiro", arquivos: ["backend-colima/finance/index.js"], versao: "backend-colima/finance/package.json" },
+    { nome: "backend", arquivos: ["backend-colima/server.js", "backend-colima/crm-api.js"], versao: "backend-colima/VERSION" },
+    { nome: "guarda", arquivos: ["backend-colima/guarda/index.js"], versao: "backend-colima/guarda/package.json" },
   ];
-  const r = componentesSemVersao(C, ["backend-colima/finance-api.js", "src/main/x.ts"], { backend: { antes: "1.0.0", agora: "1.0.0" } });
-  assert.equal(r.length, 1); assert.match(r[0], /^backend: mudou \(backend-colima\/finance-api\.js\).*1\.0\.0; suba a versão/);
-  assert.deepEqual(componentesSemVersao(C, ["backend-colima/finance-api.js"], { backend: { antes: "1.0.0", agora: "1.1.0" } }), [], "subiu: passa");
+  const r = componentesSemVersao(C, ["backend-colima/crm-api.js", "src/main/x.ts"], { backend: { antes: "1.0.0", agora: "1.0.0" } });
+  assert.equal(r.length, 1); assert.match(r[0], /^backend: mudou \(backend-colima\/crm-api\.js\).*1\.0\.0; suba a versão/);
+  assert.deepEqual(componentesSemVersao(C, ["backend-colima/crm-api.js"], { backend: { antes: "1.0.0", agora: "1.1.0" } }), [], "subiu: passa");
   assert.deepEqual(componentesSemVersao(C, ["src/main/x.ts", ""], {}), [], "nada de componente mudou");
-  assert.match(componentesSemVersao(C, ["backend-colima/finance/index.js"], { financeiro: { antes: null, agora: null } })[0], /sem versão/);
-  assert.deepEqual(componentesSemVersao(C, ["backend-colima/finance/index.js"], { financeiro: { antes: null, agora: "1.0.0" } }), [], "componente novo, com versão");
+  assert.match(componentesSemVersao(C, ["backend-colima/guarda/index.js"], { guarda: { antes: null, agora: null } })[0], /sem versão/);
+  assert.deepEqual(componentesSemVersao(C, ["backend-colima/guarda/index.js"], { guarda: { antes: null, agora: "1.0.0" } }), [], "componente novo, com versão");
 });
 
 test("lerVersao: VERSION em texto, package.json pelo campo version", () => {
@@ -67,11 +67,11 @@ test("notasDaRelease: sem a seção, ou com ela vazia, devolve null (o release c
   assert.equal(notasDaRelease("## ainda não lançado\n\n- x\n"), null, "o título é exatamente esse, com maiúscula");
 });
 
-test("instalador .dmg: só o app das pessoas, nos dois canais (nem admin nem finance-staging)", async () => {
-  const P = [{ nome: "meu-bot", canal: "estavel", instalador: true }, { nome: "meu-bot-admin", canal: "estavel", instalador: false }, { nome: "meu-bot-staging", canal: "staging", instalador: true }, { nome: "meu-bot-finance-staging", canal: "staging", instalador: false }, { nome: "sem-campo", canal: "estavel" }];
+test("instalador .dmg: só o app das pessoas, nos dois canais (nem admin nem inspector-staging)", async () => {
+  const P = [{ nome: "meu-bot", canal: "estavel", instalador: true }, { nome: "meu-bot-admin", canal: "estavel", instalador: false }, { nome: "meu-bot-staging", canal: "staging", instalador: true }, { nome: "meu-bot-inspector-staging", canal: "staging", instalador: false }, { nome: "sem-campo", canal: "estavel" }];
   assert.deepEqual(produtosComInstalador(P, "estavel").map((p) => p.nome), ["meu-bot"]);
   assert.deepEqual(produtosComInstalador(P, "staging").map((p) => p.nome), ["meu-bot-staging"]);
-  // A tabela de verdade (dist/): o cliente e o staging dele levam; os admin e o financeiro, não.
+  // A tabela de verdade (dist/): o cliente e o staging dele levam; os admin e o inspector, não.
   const { PRODUTOS } = await import("../produtos.mjs");
   assert.deepEqual(PRODUTOS.filter((p) => p.instalador).map((p) => p.variant).sort(), ["client", "client-staging"]);
 });

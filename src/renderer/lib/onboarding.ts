@@ -110,7 +110,7 @@ export const AI_NONE_INFO = {
   ],
 } as const;
 
-/** "Não tenho nenhuma" quando o modo grátis (tutorial 17) existe nesta janela: leva direto à instalação. */
+/** "Não tenho nenhuma" quando o modo grátis (tutorial 16) existe nesta janela: leva direto à instalação. */
 export const AI_NONE_GRATIS: AiChoiceOption = { id: "nenhuma", title: "Não tenho nenhuma", text: "Comece de graça: eu instalo um modelo que roda no seu Mac. Dá para assinar Claude ou Grok depois." };
 
 /** As opções com o texto certo do "Não tenho nenhuma" (com o modo grátis, ele instala; sem, mostra como assinar). */

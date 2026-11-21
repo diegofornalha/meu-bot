@@ -28,7 +28,7 @@ cliente (um `claude mcp add` ou um trecho de `mcp.json`); o app só gera o texto
   Desligado, elas nem aparecem em `tools/list` e a chamada volta `isError`. A chave **fica guardada ao desligar**
   (religar não obriga a reconfigurar os clientes); "Gerar outra" é o que invalida.
 - **Configuração** (`settings.json`: `mcpLigado`, `mcpExecucao`, `mcpPorta` null = padrão da variante, `mcpToken`) e
-  porta por produto (`Produto.portaMcp`: 7830 meu-bot, 7831 staging, 7832 finance-staging, 7833 admin, 7834 admin-mac, 7835 inspector-staging;
+  porta por produto (`Produto.portaMcp`: 7830 meu-bot, 7831 staging, 7833 admin, 7834 admin-mac, 7835 inspector-staging;
   fora da 7822 do Rambox). IPC `controle-remoto:status|ligar|execucao|porta|regenerar` (shared);
   `controle-remoto:changed` repinta as outras janelas.
 - **Tela** (`renderer/configuracoes/controle-remoto.ts`, grupo `#mcp-group`): os dois interruptores, status, chave
@@ -448,7 +448,7 @@ mudou no meu-bot (o texto acima segue valendo onde não é contradito):
   cada componente de `COMPONENTES` (`src/main/backend-bundle-core.ts`, a mesma lista que o `hostProbe.ts` instala):
   backend → `VERSION`; financeiro, CRM e guarda → o `package.json` do plugin. Mudou sem subir, sai com 64.
 
-**Fluxo de trabalho:** desenvolver e testar com `dist:staging`/`dist:finance-staging` (build local, versão do
+**Fluxo de trabalho:** desenvolver e testar com `dist:staging` (build local, versão do
 `package.json` sem sufixo, que vence o staging publicado) → `npm run release:staging` (os staging instalados se
 atualizam) → testar → `npm run release` no mesmo commit (os meu-bot dos usuários baixam, verificam e aplicam; na
 abertura seguinte o seletor atualiza backend e plugins das máquinas) → subir a versão base no `package.json`.

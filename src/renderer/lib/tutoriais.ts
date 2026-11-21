@@ -4,7 +4,7 @@
  * estilo do onboarding: cada passo é uma ação da pessoa, o botão certo pulsa, e o passo se marca concluído
  * sozinho pelo estado real da máquina (QR já lido = concluído). Puro: as regras ficam aqui, testáveis.
  */
-import type { ContaEstado, CrmLocal, ObjectiveInfo, OllamaStatus, QuickEntryStatus, StatusLineSegments, SupportInfo, WhatsappGroups, WhatsappStatus, CrmInfo, FinanceInfo, LinkPublicoInfo } from "../../shared/ipc";
+import type { ContaEstado, CrmLocal, ObjectiveInfo, OllamaStatus, QuickEntryStatus, StatusLineSegments, SupportInfo, WhatsappGroups, WhatsappStatus, CrmInfo, LinkPublicoInfo } from "../../shared/ipc";
 import { type FallbackProvider, FALLBACK_PRIMARIES } from "./fallback.js";
 import { grupoAlvo, nomeDoGrupo, quemEscolhido, quemResumo } from "./whatsapp-grupos.js";
 
@@ -25,7 +25,7 @@ export interface GuideContext {
   xai: { possible: boolean | null; pronto: boolean | null; loggedIn: boolean | null; label: string | null };
   /** Guarda do WhatsApp: `possible` = o agente da máquina aceita a guarda (capacidade `guarda`; null = sem status ainda); `installed` = está lá? (null = não consultado). */
   guarda: { installed: boolean | null; possible: boolean | null };
-  /** Tutorial 16: o agente da máquina aceita ligar/desligar o "digitando…" (capacidade `digitando`; null = sem status ainda). */
+  /** Tutorial 15: o agente da máquina aceita ligar/desligar o "digitando…" (capacidade `digitando`; null = sem status ainda). */
   digitando: { possible: boolean | null };
   /**
    * Navegador (módulo Pro): `access` = acesso pela licença (null = não consultado); `installed` = lado da máquina
@@ -38,13 +38,13 @@ export interface GuideContext {
    */
   fallback: { primary: string | null; chain: readonly FallbackProvider[] | null };
   /**
-   * Tutorial 17 · modo grátis no Mac: `possible` = este Mac com chip Apple, no canal que já o oferece (false esconde o
+   * Tutorial 16 · modo grátis no Mac: `possible` = este Mac com chip Apple, no canal que já o oferece (false esconde o
    * tutorial e a linha; null = não consultado); `status` = o Ollama do meu-bot nesta máquina (null = não consultado).
    */
   ollama: { possible: boolean | null; status: OllamaStatus | null };
   /** Tutorial 7: objetivo e nível gravados na máquina e a skill salva (null = ainda não consultado). */
   objective: ObjectiveInfo | null;
-  /** Tutorial 18 (Pro): acesso pela licença (como o Navegador) e o estado na máquina (null = não consultado). */
+  /** Tutorial 17 (Pro): acesso pela licença (como o Navegador) e o estado na máquina (null = não consultado). */
   crm: { access: "ok" | "free" | "expired" | "unknown" | "assinatura" | null; info: CrmInfo | null; /** meu-bot-crm: pipelines do CRM da máquina e o padrão do WhatsApp (null = ainda não lido). */ local: CrmLocal | null };
   /**
    * Tutorial 10: grupos da máquina (null = não consultado), o grupo que a pessoa escolheu (jid; null = nenhum) e se
@@ -53,22 +53,17 @@ export interface GuideContext {
   grupos: { info: WhatsappGroups | null; alvo: string | null; respondeu: boolean };
   /** Tutorial 11: contas de CLI desta máquina (Cloudflare, GitHub); null = ainda não consultado. */
   contas: readonly ContaEstado[] | null;
-  /** Tutorial 13: o link público da pessoa nesta máquina (null = desligado pelo admin, máquina fora ou este Mac). */
+  /** Tutorial 12: o link público da pessoa nesta máquina (null = desligado pelo admin, máquina fora ou este Mac). */
   linkPublico: LinkPublicoInfo | null;
-  /** Tutorial 13: false = esta conta não tem link por desenho (a janela é do root: o link é das contas de usuário); o tutorial some. */
+  /** Tutorial 12: false = esta conta não tem link por desenho (a janela é do root: o link é das contas de usuário); o tutorial some. */
   linkPublicoPossivel: boolean;
   /**
-   * Tutorial 12 (produto meu-bot-finance): `access` = a licença da máquina libera o financeiro (null = não lida);
-   * `info` = o módulo na máquina e os números do backend (null = ainda não consultado).
-   */
-  finance: { access: boolean | null; info: FinanceInfo | null };
-  /**
-   * Tutorial 15 (Pro): `access` pela licença (como o Navegador; null = não lida); a Conta Google da máquina
+   * Tutorial 14 (Pro): `access` pela licença (como o Navegador; null = não lida); a Conta Google da máquina
    * (`conectado` já desconta `precisaReconectar`; `gmailEscreve` null = sem status) e os fatos que a página Gmail conta
    * ao guia (leu, buscou, mandou para a lixeira, desfez), que viram `lembrar` nos passos.
    */
   gmail: { access: "ok" | "free" | "expired" | "unknown" | "assinatura" | null; conectado: boolean; precisaReconectar: boolean; gmailEscreve: boolean | null; lido: boolean; buscou: boolean; lixeira: boolean; desfez: boolean };
-  /** Tutorial 14: o atalho global da entrada rápida e se está registrado (null = as configurações ainda não chegaram). */
+  /** Tutorial 13: o atalho global da entrada rápida e se está registrado (null = as configurações ainda não chegaram). */
   quickEntry: { status: QuickEntryStatus | null; shortcut: string };
   /**
    * O que esta janela oferece de CRM, pela licença da máquina (não pela variante): `crmProprio` = o CRM próprio no Gmail
@@ -82,9 +77,9 @@ export interface GuideContext {
   known: Record<GuideSource, boolean>;
 }
 /** De onde vêm os fatos que concluem passos; cada tutorial declara as suas em `needs`. */
-export type GuideSource = "whatsapp" | "claude" | "statusline" | "xai" | "fallback" | "support" | "objective" | "guarda" | "navegador" | "crm" | "grupos" | "contas" | "finance" | "linkpublico" | "quickentry" | "google" | "ollama";
-export const GUIDE_SOURCES: readonly GuideSource[] = ["whatsapp", "claude", "statusline", "xai", "fallback", "support", "objective", "guarda", "navegador", "crm", "grupos", "contas", "finance", "linkpublico", "quickentry", "google", "ollama"];
-const noneKnown = (): Record<GuideSource, boolean> => ({ whatsapp: false, claude: false, statusline: false, xai: false, fallback: false, support: false, objective: false, guarda: false, navegador: false, crm: false, grupos: false, contas: false, finance: false, linkpublico: false, quickentry: false, google: false, ollama: false });
+export type GuideSource = "whatsapp" | "claude" | "statusline" | "xai" | "fallback" | "support" | "objective" | "guarda" | "navegador" | "crm" | "grupos" | "contas" | "linkpublico" | "quickentry" | "google" | "ollama";
+export const GUIDE_SOURCES: readonly GuideSource[] = ["whatsapp", "claude", "statusline", "xai", "fallback", "support", "objective", "guarda", "navegador", "crm", "grupos", "contas", "linkpublico", "quickentry", "google", "ollama"];
+const noneKnown = (): Record<GuideSource, boolean> => ({ whatsapp: false, claude: false, statusline: false, xai: false, fallback: false, support: false, objective: false, guarda: false, navegador: false, crm: false, grupos: false, contas: false, linkpublico: false, quickentry: false, google: false, ollama: false });
 export const emptyContext = (): GuideContext => ({
   support: null,
   statusLine: { installed: null, limits: false, segments: null },
@@ -102,7 +97,6 @@ export const emptyContext = (): GuideContext => ({
   contas: null,
   linkPublico: null,
   linkPublicoPossivel: true,
-  finance: { access: null, info: null },
   gmail: { access: null, conectado: false, precisaReconectar: false, gmailEscreve: null, lido: false, buscou: false, lixeira: false, desfez: false },
   produto: { planoExigido: "free", crmProprio: false, crmStreak: true },
   known: noneKnown(),
@@ -113,13 +107,13 @@ export const emptyContext = (): GuideContext => ({
 export type GuideTarget = "wa-line" | "wa-agent" | "wa-pair" | "wa-policy" | "chat" | "none";
 
 /** O que a pessoa marcou à mão (o app não tem como ver uma mensagem de teste chegar). */
-export interface GuideFlags { policyChosen: boolean; tested: boolean; statusTested: boolean; claudeSeen: boolean; grokReplied: boolean; fallbackChosen: boolean; fallbackSeen: boolean; guardaSeen: boolean; navAgentUsed: boolean; crmSeen: boolean; crmImportSeen: boolean; claudeReplied: boolean; gruposTested: boolean; githubPulado: boolean; cloudflareLogado: boolean; financeFotoPulada: boolean; contasOrdemVista: boolean; contasTrocaVista: boolean; linkNomeVisto: boolean; quickUsado: boolean; digitandoVisto: boolean; gmailLido: boolean; gmailBuscou: boolean; gmailLixeira: boolean; ollamaReplied: boolean; /** Passos `lembrar` já vistos concluídos (fato que não se desfaz: abas fechadas não reabrem o tutorial). */ feitos?: string[]; number: string | null }
-export const emptyFlags = (): GuideFlags => ({ policyChosen: false, tested: false, statusTested: false, claudeSeen: false, grokReplied: false, fallbackChosen: false, fallbackSeen: false, guardaSeen: false, navAgentUsed: false, crmSeen: false, crmImportSeen: false, claudeReplied: false, gruposTested: false, githubPulado: false, cloudflareLogado: false, financeFotoPulada: false, contasOrdemVista: false, contasTrocaVista: false, linkNomeVisto: false, quickUsado: false, digitandoVisto: false, gmailLido: false, gmailBuscou: false, gmailLixeira: false, ollamaReplied: false, number: null });
+export interface GuideFlags { policyChosen: boolean; tested: boolean; statusTested: boolean; claudeSeen: boolean; grokReplied: boolean; fallbackChosen: boolean; fallbackSeen: boolean; guardaSeen: boolean; navAgentUsed: boolean; crmSeen: boolean; crmImportSeen: boolean; claudeReplied: boolean; gruposTested: boolean; githubPulado: boolean; cloudflareLogado: boolean; contasOrdemVista: boolean; contasTrocaVista: boolean; linkNomeVisto: boolean; quickUsado: boolean; digitandoVisto: boolean; gmailLido: boolean; gmailBuscou: boolean; gmailLixeira: boolean; ollamaReplied: boolean; /** Passos `lembrar` já vistos concluídos (fato que não se desfaz: abas fechadas não reabrem o tutorial). */ feitos?: string[]; number: string | null }
+export const emptyFlags = (): GuideFlags => ({ policyChosen: false, tested: false, statusTested: false, claudeSeen: false, grokReplied: false, fallbackChosen: false, fallbackSeen: false, guardaSeen: false, navAgentUsed: false, crmSeen: false, crmImportSeen: false, claudeReplied: false, gruposTested: false, githubPulado: false, cloudflareLogado: false, contasOrdemVista: false, contasTrocaVista: false, linkNomeVisto: false, quickUsado: false, digitandoVisto: false, gmailLido: false, gmailBuscou: false, gmailLixeira: false, ollamaReplied: false, number: null });
 /**
  * Marcações que um passo pode pedir ("Testei, funcionou") ou que o app grava sozinho (`grokReplied`: resposta com
  * X-Provider grok-4; `fallbackChosen`: a pessoa escolheu o primário; `fallbackSeen`: uma resposta veio da reserva).
  */
-export type GuideFlagName = "policyChosen" | "tested" | "statusTested" | "claudeSeen" | "grokReplied" | "fallbackChosen" | "fallbackSeen" | "guardaSeen" | "navAgentUsed" | "crmSeen" | "crmImportSeen" | "claudeReplied" | "gruposTested" | "githubPulado" | "cloudflareLogado" | "financeFotoPulada" | "contasOrdemVista" | "contasTrocaVista" | "linkNomeVisto" | "quickUsado" | "digitandoVisto" | "gmailLido" | "gmailBuscou" | "gmailLixeira" | "ollamaReplied";
+export type GuideFlagName = "policyChosen" | "tested" | "statusTested" | "claudeSeen" | "grokReplied" | "fallbackChosen" | "fallbackSeen" | "guardaSeen" | "navAgentUsed" | "crmSeen" | "crmImportSeen" | "claudeReplied" | "gruposTested" | "githubPulado" | "cloudflareLogado" | "contasOrdemVista" | "contasTrocaVista" | "linkNomeVisto" | "quickUsado" | "digitandoVisto" | "gmailLido" | "gmailBuscou" | "gmailLixeira" | "ollamaReplied";
 
 export interface GuideStep {
   id: string;
@@ -128,7 +122,7 @@ export interface GuideStep {
   text: string;
   target: GuideTarget;
   /** Corpo especial do passo no guia: cartões de quem responder, áudio, suporte ou a status line. */
-  body?: "contas-claude" | "agent-choice" | "reply-choice" | "support-name" | "support-switch" | "support-delivery" | "statusline-install" | "statusline-segments" | "statusline-test" | "claude-login" | "xai-prepare" | "xai-login" | "fallback-order" | "objective-choice" | "objective-level" | "objective-skill" | "guarda-install" | "digitando-escolher" | "navegador-pro" | "navegador-install" | "navegador-open" | "crm-pro" | "crm-install" | "crm-config" | "crm-test" | "crm-gmail" | "crm-importar" | "grupos-escolher" | "grupos-quem" | "grupos-modo" | "grupos-teste" | "crm-pipeline" | "cloudflare-entrar" | "conta-cloudflare" | "conta-github" | "finance-install" | "finance-contas" | "finance-renda" | "finance-testar" | "finance-foto" | "finance-pendencias" | "link-publico-ver" | "link-publico-testar" | "link-publico-nome" | "quick-atalho" | "quick-testar" | "gmail-pro" | "gmail-conectar" | "gmail-ler" | "gmail-buscar" | "gmail-lixeira" | "ollama-check" | "ollama-prepare";
+  body?: "contas-claude" | "agent-choice" | "reply-choice" | "support-name" | "support-switch" | "support-delivery" | "statusline-install" | "statusline-segments" | "statusline-test" | "claude-login" | "xai-prepare" | "xai-login" | "fallback-order" | "objective-choice" | "objective-level" | "objective-skill" | "guarda-install" | "digitando-escolher" | "navegador-pro" | "navegador-install" | "navegador-open" | "crm-pro" | "crm-install" | "crm-config" | "crm-test" | "crm-gmail" | "crm-importar" | "grupos-escolher" | "grupos-quem" | "grupos-modo" | "grupos-teste" | "crm-pipeline" | "cloudflare-entrar" | "conta-cloudflare" | "conta-github" | "link-publico-ver" | "link-publico-testar" | "link-publico-nome" | "quick-atalho" | "quick-testar" | "gmail-pro" | "gmail-conectar" | "gmail-ler" | "gmail-buscar" | "gmail-lixeira" | "ollama-check" | "ollama-prepare";
   /** Concluído pelo estado real; `null` de status = ainda não consultado. */
   done: (status: WhatsappStatus | null, flags: GuideFlags, ctx: GuideContext) => boolean;
   /** Passo que a pessoa conclui com um botão no próprio cartão ("Testei, funcionou"). */
@@ -182,15 +176,13 @@ export interface Tutorial {
   needsCrmStreak?: true;
   /** Só quando o CRM próprio no Gmail está liberado pela licença (plano Pro) e é o motor em uso. */
   needsCrmProprio?: true;
-  /** Só quando a licença da máquina libera o financeiro (add-on meu-bot-finance). */
-  needsFinance?: true;
   /** Só numa conta que pode ter link público (some na janela do root: o link é das contas de usuário). */
   needsLinkPublico?: true;
   /** Só onde o agente da máquina aceita a guarda (capacidade `guarda`); some numa máquina com outro agente. */
   needsGuarda?: true;
   /** Só onde o agente aceita ligar/desligar o "digitando…" (capacidade `digitando`); some no PicoClaw, que não mostra. */
   needsDigitando?: true;
-  /** Só no Mac com chip Apple, no canal que já oferece o modo grátis (tutorial 17); null (não consultado) esconde. */
+  /** Só no Mac com chip Apple, no canal que já oferece o modo grátis (tutorial 16); null (não consultado) esconde. */
   needsOllama?: true;
   /** Trilha em ordem: só aparece depois que este tutorial (id) foi concluído. */
   after?: string;
@@ -566,53 +558,8 @@ export const TUTORIAIS: readonly Tutorial[] = [
     ],
   },
   {
-    id: "financeiro",
-    number: 12,
-    needs: ["finance"],
-    after: "claude-login",
-    needsFinance: true,
-    title: "Seu financeiro no WhatsApp",
-    short: "Financeiro",
-    summary: "O agente vira o seu financeiro: você conta o gasto (ou manda a foto do comprovante) e ele lança, categoriza e só pede o que depende de você.",
-    minutes: 5,
-    icon: "target",
-    steps: [
-      {
-        id: "ativar", title: "Ativar o financeiro nesta máquina", target: "none", body: "finance-install",
-        text: "Instala na máquina a ferramenta do agente e o financeiro do WhatsApp. Seus números ficam só nela.",
-        done: (_st, _f, c) => c.finance.info?.modulo === true,
-      },
-      {
-        id: "contas", title: "Cadastrar suas contas", target: "none", body: "finance-contas",
-        text: "Diga quais contas você usa: o banco, o cartão de crédito e o dinheiro vivo. O agente lança em cada uma pelo jeito de pagar (\"no crédito\", \"em dinheiro\").",
-        done: (_st, _f, c) => (c.finance.info?.estado?.contas.length ?? 0) > 0,
-      },
-      {
-        id: "orcamento", title: "Dizer quanto quer gastar no mês", target: "none", body: "finance-renda",
-        text: "Só você decide o orçamento: quanto quer gastar no mês. O agente acompanha os gastos contra ele e avisa aos 80% e se estourar. No mês seguinte ele continua o mesmo até você mudar.",
-        done: (_st, _f, c) => c.finance.info?.estado?.orcamentoDefinido === true, lembrar: true,
-      },
-      {
-        id: "primeiro", title: "Lançar o primeiro gasto pelo agente", target: "none", body: "finance-testar",
-        text: "Mande no WhatsApp, para você mesmo, ou aqui no chat: \"gastei 48 no mercado\". O agente lança, categoriza e responde.",
-        done: (_st, _f, c) => { const o = c.finance.info?.estado?.porOrigem ?? {}; return (o.whatsapp ?? 0) + (o.agente ?? 0) + (o.chat ?? 0) + (o.foto ?? 0) > 0; }, lembrar: true,
-      },
-      {
-        id: "foto", title: "Mandar a foto de um comprovante", target: "none", body: "finance-foto",
-        text: "Tire foto de uma nota ou comprovante e mande para o agente no WhatsApp. Ele lê o valor, a data e o lugar e deixa para você confirmar.",
-        done: (_st, f, c) => (c.finance.info?.estado?.porOrigem.foto ?? 0) > 0 || f.financeFotoPulada, lembrar: true,
-        manual: { label: "Pular por agora", flag: "financeFotoPulada" },
-      },
-      {
-        id: "pendencias", title: "Confirmar o que ficou pendente", target: "none", body: "finance-pendencias",
-        text: "Quando o agente fica na dúvida (categoria nova, foto, possível repetição), o lançamento espera você. Confirme na página Finanças: ele aprende e da próxima vez acerta sozinho.",
-        done: (_st, _f, c) => { const e = c.finance.info?.estado; return e !== undefined && e !== null && e.pendencias === 0 && e.totalLancamentos > 0; },
-      },
-    ],
-  },
-  {
     id: "link-publico",
-    number: 13,
+    number: 12,
     needs: ["linkpublico"],
     after: "claude-login",
     needsXai: true,
@@ -647,7 +594,7 @@ export const TUTORIAIS: readonly Tutorial[] = [
   {
     // Saiu das Configurações (30 out): a janela flutuante é sempre ativa; aqui a pessoa escolhe o atalho e experimenta.
     id: "entrada-rapida",
-    number: 14,
+    number: 13,
     needs: ["quickentry"],
     after: "claude-login",
     title: "Entrada rápida",
@@ -672,7 +619,7 @@ export const TUTORIAIS: readonly Tutorial[] = [
   },
   {
     id: "gmail",
-    number: 15,
+    number: 14,
     needs: ["google"],
     after: "claude-login",
     title: "Gmail (Pro)",
@@ -716,7 +663,7 @@ export const TUTORIAIS: readonly Tutorial[] = [
     // `platforms.whatsapp.typing_indicator`, com reinício); vazio = a
     // regra automática do motor, que a pessoa não vê. O tutorial pede uma escolha explícita: mostrar sempre ou nunca.
     id: "digitando-whatsapp",
-    number: 16,
+    number: 15,
     needs: ["whatsapp"],
     after: "whatsapp-openclaw",
     needsDigitando: true,
@@ -743,7 +690,7 @@ export const TUTORIAIS: readonly Tutorial[] = [
     // Modo grátis: o Ollama do meu-bot neste Mac (ollamaLocal.ts), para quem não tem Claude nem Grok. Sem `after`: é a
     // porta de entrada de quem respondeu "Não tenho nenhuma" na primeira abertura.
     id: "ollama-local",
-    number: 17,
+    number: 16,
     needs: ["ollama"],
     needsOllama: true,
     title: "Modo grátis no Mac (Ollama)",
@@ -772,7 +719,7 @@ export const TUTORIAIS: readonly Tutorial[] = [
   },
   {
     id: "statusline",
-    number: 18,
+    number: 17,
     needs: ["statusline"],
     after: "claude-login",
     title: "Status line do Claude",
@@ -809,7 +756,7 @@ export const TUTORIAIS: readonly Tutorial[] = [
   },
   {
     id: "crm-gmail",
-    number: 19,
+    number: 18,
     needs: ["crm", "navegador"],
     after: "navegador",
     needsCrmProprio: true,
@@ -852,7 +799,7 @@ export const TUTORIAIS: readonly Tutorial[] = [
   },
   {
     id: "crm-whatsapp",
-    number: 19,
+    number: 18,
     needs: ["crm"],
     after: "navegador",
     needsCrmStreak: true,
@@ -970,7 +917,6 @@ export function visibleTutorials(ctx: GuideContext, finished: (t: Tutorial) => b
     if (t.needsLinkPublico === true && !ctx.linkPublicoPossivel) return false;
     if (t.needsCrmStreak === true && !ctx.produto.crmStreak) return false;
     if (t.needsCrmProprio === true && !ctx.produto.crmProprio) return false;
-    if (t.needsFinance === true && ctx.finance.access !== true) return false;
     // Só quando a máquina já confirmou que o agente aceita a guarda: com null (ainda consultando) o cartão aparecia e
     // sumia assim que a resposta dizia "sem guarda" (Hermes).
     if (t.needsGuarda === true && ctx.guarda.possible !== true) return false;

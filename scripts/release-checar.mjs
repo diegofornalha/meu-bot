@@ -1,5 +1,5 @@
 // Confere, já no PR, o que faria a release recusar (e a release automática travar): componente da máquina (backend,
-// financeiro, CRM, guarda) que mudou desde a última release sem subir a versão. Também avisa (sem falhar) quando o PR
+// CRM, guarda) que mudou desde a última release sem subir a versão. Também avisa (sem falhar) quando o PR
 // muda o app sem escrever o item dele em docs/changelog/<branch>.md (que vira as notas da release), ou quando escreve
 // direto em "Ainda não lançado" do docs/CHANGELOG.md, onde toda PR mexe nas mesmas linhas e dá conflito.
 //   node scripts/release-checar.mjs            (precisa do dist/main: rode depois do `npm run build`)

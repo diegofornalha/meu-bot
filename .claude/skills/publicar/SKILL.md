@@ -1,6 +1,6 @@
 ---
 name: publicar
-description: Leva uma mudança do meu-bot (app, financeiro, CRM, backend) do desenvolvimento até o usuário final pelo caminho staging → estável, com releases assinadas. Use quando o usuário disser "publica", "solta no staging", "manda pro estável", "lança a versão", "faz a release", "aprovado, pode publicar", ou perguntar como uma mudança chega aos usuários.
+description: Leva uma mudança do meu-bot (app, CRM, backend) do desenvolvimento até o usuário final pelo caminho staging → estável, com releases assinadas. Use quando o usuário disser "publica", "solta no staging", "manda pro estável", "lança a versão", "faz a release", "aprovado, pode publicar", ou perguntar como uma mudança chega aos usuários.
 ---
 
 # Publicar o meu-bot (staging → estável)
@@ -49,13 +49,14 @@ Publique do checkout principal só se ele estiver limpo e no `origin/main`; sen�
    release nunca sobrescreve o que está em desenvolvimento.
 2. **Subir a versão do que muda na máquina da pessoa** (senão as máquinas nunca recebem a mudança, porque só
    atualizam para cima; o release recusa se você esquecer):
-   - backend (`server.js`, `finance-api.js`, `licenca.js`… a lista é `COMPONENTES` em `src/main/backend-bundle-core.ts`)
+   - backend (`server.js`, `crm-api.js`, `licenca.js`… a lista é `COMPONENTES` em `src/main/backend-bundle-core.ts`)
      → `backend-colima/VERSION`;
-   - plugin do financeiro → `backend-colima/finance/package.json`; CRM → `crm/package.json`; guarda → `guarda/package.json`.
+   - CRM → `crm/package.json`; guarda → `guarda/package.json`. O Finanças é módulo em repositório próprio
+     (`meu-bot-finance`): a versão dele sobe lá.
 3. **Commitar tudo**: o release exige árvore limpa e `gh` logado (`gh auth status`; se expirou, o usuário roda
    `! gh auth refresh -h github.com`).
 4. **`npm run release:staging`**: publica a pre-release `v<versão>-staging.N` com os apps staging (meu-bot-staging,
-   meu-bot-finance-staging, meu-bot-inspector-staging), cada zip com o `.sig`. Os staging instalados a partir de release atualizam calados ao fechar.
+   meu-bot-inspector-staging), cada zip com o `.sig`. Os staging instalados a partir de release atualizam calados ao fechar.
    O app das pessoas (meu-bot, meu-bot-staging: campo `instalador` em `variant-core.ts`) sai também como instalador
    `.dmg` (`scripts/dmg.mjs`, Python do sistema; o ambiente fica em `build/.venv-dmg`), que é o que o site entrega; o
    atualizador segue no `.zip` + `.sig`.
@@ -107,5 +108,5 @@ Publique do checkout principal só se ele estiver limpo e no `origin/main`; sen�
   atualização › Versões publicadas e instala a anterior; ela fica fixada até "Voltar a atualizar sozinho". Numa versão
   anterior ao seletor, a fixação dura só até fechar o app (o código velho não a conhece).
 - Máquina não atualizou: a versão do componente não subiu, o backend estava ocupado (tenta na próxima sondagem) ou
-  o instalador falhou (log `[backend]`/`[finance]` no mesmo arquivo).
+  o instalador falhou (log `[backend]`/`[crm]` no mesmo arquivo).
 - Versão nova não abre: depois de 3 aberturas sem ficar 30 s de pé, o app volta sozinho para a anterior.

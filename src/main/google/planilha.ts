@@ -1,6 +1,6 @@
 /**
  * Leitura de uma planilha do Google Sheets com a Conta Google da máquina (escopo de planilhas; a planilha precisa estar
- * compartilhada com essa conta). Um dono só para o Financeiro de antes (finance-local.ts) e para a página de um módulo
+ * compartilhada com essa conta). Quem usa é a página de um módulo
  * (modulos.ts › planilhaParaModulo, sempre depois da confirmação da pessoa). Erros viram frases para a tela.
  */
 import { planilhaLer } from "./apis";

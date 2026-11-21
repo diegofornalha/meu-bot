@@ -1,7 +1,7 @@
 /**
  * Página "Conta Google" (login + backup no Drive; os e-mails têm página própria, "E-mail", desde 31 out) no visual do meu-bot. A conta mora neste Mac (token cifrado
  * no Keychain, via main › conta-google.ts); aqui só se conecta, lê e escreve. A verificação de telefone/QR, quando o
- * Google pede, é feita pela pessoa na tela oficial. Fábrica com dependências explícitas, como finance-page.ts.
+ * Google pede, é feita pela pessoa na tela oficial. Fábrica com dependências explícitas, como modulos-page.ts.
  */
 import type { BackupCopiaOrigem, BackupCopiasView, BackupDadosProgresso, BackupDadosView, BackupRestauroProgresso, BackupRestauroResultado, GoogleContaStatus, MeuBotApi } from "../../shared/ipc";
 import type { LicenseView, PlanName } from "../../shared/ipc";

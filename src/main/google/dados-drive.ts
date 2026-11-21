@@ -1,7 +1,7 @@
 /**
  * Cópia diária dos dados da máquina no Drive do dono (CRM e financeiro), para ninguém ficar preso a uma VM.
  *
- * A VM já guarda 7 cópias diárias locais de cada conjunto (`db/backup/<data>`, em crm-store.js e finance-store.js):
+ * A VM já guarda 7 cópias diárias locais de cada conjunto (`db/backup/<data>`, em crm-store.js e no finance-store.js do módulo Finanças):
  * aquilo resolve "o dado estragou". Esta cópia resolve "a máquina morreu", e por isso mora fora dela. Quem envia é
  * o Mac, com o token de Contatos do CRM e escopo `drive.file` (o app só enxerga o que ele mesmo criou): a VM não
  * ganha credencial nenhuma, o que importa porque é lá que o agente atende terceiros pelo WhatsApp.

@@ -56,7 +56,7 @@ function pedir(socketPath, route, body) {
   });
 }
 const S = (props, required = []) => ({ type: 'object', properties: props, required });
-const APP = { app: { type: 'string', description: 'qual app (meu-bot, meu-bot-finance-staging, meu-bot-inspector-staging…); opcional se só um está aberto' } };
+const APP = { app: { type: 'string', description: 'qual app (meu-bot, meu-bot-staging, meu-bot-inspector-staging…); opcional se só um está aberto' } };
 const MAQ = { maquina: { type: 'string', description: 'máquina da janela (ex.: agente-box-lv); opcional se só uma' } };
 const ABA = { aba: { type: 'number', description: 'id da aba do Navegador (veja nav_abas); sem ele, a aba desta conversa' } };
 const TOOLS = [
@@ -85,7 +85,7 @@ const TOOLS = [
   // O app em si (rotas /app, /janela, /pagina, /tema, /print do term.sock; 6 nov).
   { name: 'app', description: 'Este app: nome, versão, tema, as janelas de máquina abertas (qual em foco) e as máquinas conhecidas.', inputSchema: S(APP) },
   { name: 'janela_abrir', description: 'Abre (ou traz à frente) a janela de uma máquina do ~/.ssh/config, ou "local" para este Mac.', inputSchema: S({ ...APP, maquina: { type: 'string' } }, ['maquina']) },
-  { name: 'pagina_abrir', description: 'Põe uma página na frente da janela: tutoriais, acervo, financas, inspector, conta-google, gmail, computador, navegador.', inputSchema: S({ ...APP, ...MAQ, pagina: { type: 'string', enum: ['tutoriais', 'acervo', 'financas', 'inspector', 'conta-google', 'gmail', 'computador', 'navegador'] } }, ['pagina']) },
+  { name: 'pagina_abrir', description: 'Põe uma página na frente da janela: tutoriais, acervo, inspector, modulos, conta-google, gmail, computador, navegador.', inputSchema: S({ ...APP, ...MAQ, pagina: { type: 'string', enum: ['tutoriais', 'acervo', 'inspector', 'modulos', 'conta-google', 'gmail', 'computador', 'navegador'] } }, ['pagina']) },
   { name: 'tema', description: 'Troca o tema do app (system, light, dark); vale para todas as janelas.', inputSchema: S({ ...APP, tema: { type: 'string', enum: ['system', 'light', 'dark'] } }, ['tema']) },
   { name: 'print_janela', description: 'Captura a janela inteira do app (a da máquina pedida, ou a em foco) como imagem.', inputSchema: S({ ...APP, ...MAQ }) },
 ];
