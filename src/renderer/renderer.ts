@@ -56,7 +56,7 @@ import { chooseReply, comPareamento, disconnectWhatsapp, fmtPhone, ligarAgenteWh
 import { cacheDrop, cacheRead, cacheWrite, getListMode, ligarConversas, paintArquivadas, paintListMode, paintWaSidebar, setListMode, waChatTitle } from "./whatsapp/conversas.js";
 import { TUT_GRUPOS, ligarGrupos, loadGrupoAlvo, refreshWaGroups, waGroupReplied, waGroupTitle, waGroups, waGroupsAt, waGroupsInflight, waGroupsSection } from "./whatsapp/grupos.js";
 import { ligarChat, openWaBranch, openWaChat, paintWaChatTab, renderWaChat, renderWaQuote, waBubble, waChatPages, waCopy, waMsgKey, waSkeleton } from "./whatsapp/chat.js";
-import { OLLAMA_TUTORIAL, enterOllama, ligarOllama, refreshOllamaLine, removerOllama } from "./agente/ollama-guia.js";
+import { OLLAMA_TUTORIAL, enterOllama, ligarOllama, ollamaNoMenu, refreshOllamaLine, removerOllama } from "./agente/ollama-guia.js";
 import { ligarInicio, onboardEvent, playIntro, prefersReducedMotion, restEl, restartTour, showAiChoice, showTourWelcome, syncRest } from "./inicio/inicio.js";
 import { ligarEnvio, sendMessage, sendText } from "./conversa/envio.js";
 import { conferirBackend, ligarBackendFalta } from "./conversa/backend-falta.js";
@@ -701,6 +701,13 @@ const hostModels = new Map<string, string[]>();
 function applyModelAvailability(select: HTMLSelectElement, host: string | null): void {
   const avail = host === null ? undefined : hostModels.get(host);
   for (const opt of select.options) {
+    // O ollama-local segue o estado do Ollama, não a sondagem (que é anterior à instalação dele).
+    if (opt.value === "ollama-local") {
+      const o = ollamaNoMenu(active()?.model === "ollama-local");
+      opt.hidden = !o.mostrar; opt.disabled = !o.disponivel;
+      opt.textContent = `${o.texto}${o.disponivel ? "" : " · não existe nesta máquina"}`;
+      continue;
+    }
     const off = avail !== undefined && avail.length > 0 && !avail.includes(opt.value);
     opt.disabled = off;
     opt.textContent = `${opt.textContent?.replace(/ · não existe nesta máquina$/, "") ?? opt.value}${off ? " · não existe nesta máquina" : ""}`;
@@ -1055,6 +1062,7 @@ function paintModeButton(): void {
 function paintModeMenu(): void {
   modeList.replaceChildren();
   for (const opt of modelSelect.options) {
+    if (opt.hidden) continue;
     const label = (opt.textContent ?? opt.value).replace(/ · não existe nesta máquina$/, "");
     const [name, ...rest] = label.split(" · ");
     const li = el("li", `mode-item${opt.disabled ? " off" : ""}${opt.value === modelSelect.value ? " current" : ""}`);

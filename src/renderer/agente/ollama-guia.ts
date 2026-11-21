@@ -3,6 +3,7 @@ import { TUTORIAIS, type Tutorial } from "../lib/tutoriais.js";
 import { ipcErrorText } from "../lib/ipc-error.js";
 import type { OllamaEvento, OllamaStatus } from "../../shared/ipc";
 import { ctx } from "../app/ctx.js";
+import { modoOllama, type ModoOllama } from "../lib/modo-ollama.js";
 import { registrarFonte } from "../tutoriais/fontes.js";
 import { registrarPassos } from "../tutoriais/passos.js";
 
@@ -20,6 +21,8 @@ const st = { preparing: false, removing: false, toggling: false, status: "", log
 
 /** O modo grátis é oferecido nesta janela: este Mac com chip Apple e, por enquanto, só no canal de staging. */
 const oferecido = (): boolean => ctx.caps.canal === "staging" && ctx.windowHost === "local" && ollamaStatus?.possivel === true;
+/** O que o menu "Modos do agente" mostra para o ollama-local nesta janela. */
+export const ollamaNoMenu = (emUso: boolean): ModoOllama => modoOllama({ oferecido: oferecido(), instalado: ollamaStatus?.instalado === true, modelo: ollamaStatus?.modelo ?? null, emUso });
 const gb = (mb: number): string => (mb / 1024).toFixed(1).replace(".", ",");
 
 function paintOllamaLine(): void {
@@ -37,6 +40,8 @@ function paintOllamaLine(): void {
 export async function refreshOllamaLine(): Promise<void> {
   try { ollamaStatus = await window.meuBot.ollamaStatus(); } catch { ollamaStatus = null; }
   paintOllamaLine();
+  // O menu de modos acompanha: o ollama-local aparece, fica escolhível ou some conforme o estado.
+  ctx.syncComposer();
   if (ctx.tutorialsReady) { paintOllamaGuide(); ctx.paintGuide(); }
 }
 
