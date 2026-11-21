@@ -24,6 +24,8 @@ import { eventoHook } from "../app/depuracao";
 import { disableSshCheck, restoreLastPolicy } from "../maquina/tailscale";
 import { cancelPairing, esquecerWhatsapp, pairingInProgress, runSsh, setDmPolicy, setTypingMode, startPairing, whatsappBranch, whatsappEscolherAgente, whatsappLogout, whatsappSetDono, whatsappStatus } from "../whatsapp/whatsapp";
 import { pauseRuleSh } from "../whatsapp/whatsapp-pause";
+import { whatsappSugestaoAcao } from "../whatsapp/whatsapp-sugestoes";
+import { parseSugestaoComando } from "../whatsapp/whatsapp-sugestoes-core";
 import { cancelClaudeLogin, claudeLogout, startClaudeLogin, submitClaudeLoginCode } from "../agente/claudeLogin";
 import { cancelXaiLogin, startXaiLogin, xaiLogout } from "../agente/xaiLogin";
 import { prepareGrokOauthLocal } from "../agente/xaiLocal";
@@ -446,6 +448,18 @@ export function registerClientIpc(): void {
     const numero = raw === null ? null : typeof raw === "string" ? raw.replace(/\D/g, "") : undefined;
     if (numero === undefined || (numero !== null && !/^\d{8,15}$/.test(numero))) throw new Error("número inválido (só dígitos, com DDI, 8 a 15)");
     return whatsappSetDono(h.host, numero).then((r) => { void registrar(h.host, "whatsapp.dono", numero === null ? "este número" : `+${numero}`); return r; });
+  });
+  // Modo "sugere e você aprova": ligar/desligar, aprovar (como está ou editada) e descartar. Só no canal staging por enquanto.
+  handleClient("whatsapp:sugestao", (event, payload: unknown) => {
+    const h = hostFromEvent(event);
+    if (h === null) throw new Error("origem inválida");
+    if (caps().canal !== "staging") throw new Error("o modo sugestão ainda não está disponível nesta versão");
+    const c = parseSugestaoComando(payload);
+    if (c === null || c.acao === "listar") throw new Error("pedido inválido");
+    return whatsappSugestaoAcao(h.host, c).then((r) => {
+      void registrar(h.host, c.acao === "ligar" ? "whatsapp.sugestao.ligar" : c.acao === "desligar" ? "whatsapp.sugestao.desligar" : c.acao === "aprovar" ? "whatsapp.sugestao.aprovar" : "whatsapp.sugestao.descartar", c.acao === "aprovar" ? (c.texto !== undefined ? "editada" : "") : c.acao === "descartar" && c.id === "todas" ? "todas" : "", "id" in c ? c.id : "");
+      return r;
+    });
   });
   handleClient("whatsapp:agente", (event, payload: unknown) => {
     const h = hostFromEvent(event);

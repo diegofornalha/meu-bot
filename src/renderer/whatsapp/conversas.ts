@@ -8,6 +8,7 @@ import { acaoTerminou, segurarConexao } from "./agente-whatsapp.js";
 import { hostLabel } from "../lib/probe-text.js";
 import { waReferenceText } from "../lib/reference.js";
 import { normalize, groupByDate, shortDate } from "../lib/sidebar.js";
+import { numeroDoDestino, pintarContadorSugestoes, refreshSugestoes, sugestoesSection } from "./sugestoes.js";
 import { ctx } from "../app/ctx.js";
 
 // ---- Conversas do WhatsApp (espelho só leitura, OpenClaw). Seletor `[ meu-bot | WhatsApp ]` acima da busca;
@@ -63,6 +64,7 @@ export function paintListMode(): void {
   listModeBtn.classList.toggle("on", mode === "whatsapp");
   listModeBtn.title = mode === "whatsapp" ? "Mostrando o WhatsApp; clique para ver as conversas do meu-bot" : "Mostrando o meu-bot; clique para ver o WhatsApp";
   for (const b of listModeEl.querySelectorAll<HTMLButtonElement>("button")) { const on = b.dataset["mode"] === mode; b.classList.toggle("on", on); b.setAttribute("aria-selected", String(on)); }
+  pintarContadorSugestoes();
   paintArquivadas();
   ctx.sidebarSearch.placeholder = mode === "whatsapp" ? "Buscar no WhatsApp…" : "Buscar conversas…";
   if (mode === "whatsapp" && waChatsInflight === null && waChatsTimer === null) void refreshWaChats();
@@ -99,6 +101,7 @@ function refreshWaChats(): Promise<void> {
   // Primeira leitura: a lista da última vez aparece na hora (cache desta janela) e a leitura real troca por baixo.
   // Grupos em paralelo (não esperam a lista de conversas), no máximo a cada minuto.
   if (Date.now() - ctx.waGroupsAt > 60_000) void ctx.refreshWaGroups();
+  void refreshSugestoes();
   if (ctx.waChats.length === 0 && !waChatsFromCache) { waChatsFromCache = true; const c = cacheRead<WhatsappChat[]>("waChats"); if (c !== null && c.value.length > 0) { ctx.waChats = c.value; if (getListMode() === "whatsapp") ctx.renderSidebar(); } }
   waChatsInflight = (async () => {
     try { ctx.waChats = await window.meuBot.whatsappChats(); waChatsErr = null; await migrateWaMarks(); cacheWrite("waChats", ctx.waChats); void learnMissingWaNames(); }
@@ -441,6 +444,13 @@ async function excluirSelecionadas(numbers: string[]): Promise<void> {
   } catch (err) { ctx.sidebarList.prepend(el("div", "sidebar-empty wa-menu-err", `Não deu para excluir: ${ipcErrorText(err)}`)); }
   ctx.renderSidebar();
 }
+/** Para quem vai a sugestão: o nome da conversa na lista, o número formatado, ou "grupo". */
+function tituloDoDestino(para: string): string {
+  const numero = numeroDoDestino(para);
+  if (numero === null) return "um grupo";
+  const c = ctx.waChats.find((x) => x.number === numero);
+  return c !== undefined ? waChatTitle(c) : ctx.fmtPhone(numero);
+}
 export function paintWaSidebar(query: string): void {
   ctx.sidebarList.replaceChildren();
   const q = normalize(query.trim());
@@ -448,14 +458,18 @@ export function paintWaSidebar(query: string): void {
   // Excluir é só tirar da vista da pessoa: no meu-bot-admin o interruptor mostra também as excluídas (para restaurar).
   const showDeleted = showHidden && ctx.caps.supportAdmin;
   const rows = ctx.waChats.filter((c) => (showDeleted || !isWaDeleted(c)) && (showHidden || !isWaArchived(c)) && (q === "" || normalize(`${c.alias ?? ""} ${c.name ?? ""} ${c.number} ${ctx.fmtPhone(c.number)}`).includes(q)));
+  // Modo "sugere e você aprova": o que o agente escreveu e espera a pessoa fica no topo, fora da busca.
+  const sugestoes = q === "" ? sugestoesSection(tituloDoDestino) : [];
   if (rows.length === 0) {
     const msg = waChatsErr !== null && ctx.waChats.length === 0 ? `Não consegui ler as conversas: ${waChatsErr}`
       : waChatsInflight !== null && ctx.waChats.length === 0 ? "Carregando conversas do WhatsApp…"
       : q !== "" ? "Nada encontrado." : "Nenhuma conversa do WhatsApp ainda.";
+    ctx.sidebarList.append(...sugestoes);
     ctx.sidebarList.appendChild(msg === "Carregando conversas do WhatsApp…" ? carregando(msg) : el("div", "sidebar-empty", msg));
     ctx.sidebarList.append(...ctx.waGroupsSection(q));
     return;
   }
+  ctx.sidebarList.append(...sugestoes);
   ctx.sidebarList.appendChild(waSelecaoBar(rows));
   if (waLimpeza !== null) ctx.sidebarList.appendChild(waLimpezaBox(waLimpeza));
   for (const group of groupByDate(rows)) {

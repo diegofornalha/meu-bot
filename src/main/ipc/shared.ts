@@ -8,6 +8,8 @@ import path from "node:path";
 import type { ControleRemotoView, SettingsUpdate, SettingsView, WhatsappGroupMenuAction, WhatsappGroupPatch, WhatsappMenuAction, WhatsappStatus } from "../../shared/ipc";
 import { slugify } from "../conversa/export";
 import { log } from "../maquina/backend";
+import { whatsappSugestoes } from "../whatsapp/whatsapp-sugestoes";
+import { SEM_SUGESTOES } from "../whatsapp/whatsapp-sugestoes-core";
 import { whatsappChats, whatsappClearPlan, whatsappClearSessions, whatsappKeepPaused, whatsappExportBody, whatsappLearnNames, whatsappPause, whatsappSetMarks, whatsappStatus, whatsappThread, whatsappGroups, whatsappGroupClear, whatsappGroupClearPlan, whatsappGroupThread, whatsappRefreshGroups, whatsappSetGroup, whatsappGatewayOf, whatsappPausaModoOf } from "../whatsapp/whatsapp";
 import { JID_RE } from "../whatsapp/whatsapp-grupos-core";
 import { setNavWhatsapp } from "../navegador/navegador-whatsapp";
@@ -433,6 +435,13 @@ export function registerSharedIpc(deps: SharedIpcDeps): void {
     const horas = paused && (h0 === 2 || h0 === 24) ? h0 : undefined;
     await whatsappPause(h.host, waNumber(payload), paused, caps().supportAdmin ? "admin" : "dono", horas);
     void registrar(h.host, paused ? "whatsapp.pausar" : "whatsapp.retomar", `+${waNumber(payload)}`, paused ? (horas === undefined ? "até retomar" : `por ${horas} h`) : "");
+  });
+
+  // Modo "sugere e você aprova": o estado e a fila que a guarda segurou. Por enquanto só no canal staging (fora dele, vazio).
+  handleShared("whatsapp:sugestoes", (event) => {
+    const h = hostFromEvent(event);
+    if (h === null) throw new Error("origem inválida");
+    return caps().canal === "staging" ? whatsappSugestoes(h.host) : SEM_SUGESTOES;
   });
 
   // Arquivar/desarquivar/excluir conversas: a marcação mora na máquina (whatsapp-lista.json), então o meu-bot da
