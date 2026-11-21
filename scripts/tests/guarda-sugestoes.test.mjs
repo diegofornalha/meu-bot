@@ -3,10 +3,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { alvoDe, aprovar, decidir, estado, gastarPasse, guardar, lerLinha, listar, MAX_FILA, mudarModo, PASSE_MS, tirar } from "../../backend-colima/guarda/sugestoes.mjs";
+import { pathToFileURL } from "node:url";
+import { alvoDe, aprovar, darPasse, decidir, estado, gastarPasse, guardar, lerLinha, listar, MAX_FILA, mudarModo, PASSE_MS, tirar } from "../../backend-colima/guarda/sugestoes.mjs";
 
 const pasta = () => mkdtempSync(join(tmpdir(), "sugestoes-"));
 const DONO = "+5521999990000", ANA = "+5511988887777";
@@ -70,7 +71,6 @@ test("aprovar: o envio aprovado passa uma vez (como está ou editado), sai da fi
     assert.equal(listar(d).length, 1, "o envio falhou: a sugestão continua na fila");
     assert.equal(gastarPasse(d, ANA, "terceira"), false, "e o passe do envio que falhou foi recolhido");
     // Passe vencido não vale.
-    const { darPasse } = await import("../../backend-colima/guarda/sugestoes.mjs");
     darPasse(d, ANA, "terceira", 1000);
     assert.equal(gastarPasse(d, ANA, "terceira", 1000 + PASSE_MS + 1), false);
   } finally { rmSync(d, { recursive: true, force: true }); }
@@ -93,4 +93,38 @@ test("fila: linhas estragadas caem, a fila tem teto e a CLI fala JSON", () => {
     assert.deepEqual(cli("estado").pendentes, 0);
     assert.equal(cli("desligar").ligado, false);
   } finally { rmSync(d, { recursive: true, force: true }); }
+});
+
+// O gancho de verdade (index.js), com a pasta da pessoa trocada por uma temporária: o plugin lê ~/.local/share/meu-bot.
+test("gancho message_sending: desligado passa, ligado segura, e fila indisponível com o modo ligado cancela", () => {
+  const casa = pasta(), d = join(casa, ".local", "share", "meu-bot");
+  mkdirSync(d, { recursive: true });
+  const plugin = pathToFileURL(join(import.meta.dirname, "..", "..", "backend-colima", "guarda", "index.js")).href;
+  const roteiro = `
+    import fs from "node:fs";
+    const { default: guarda } = await import(${JSON.stringify(plugin)});
+    const ganchos = {}, log = () => {};
+    guarda.register({ logger: { info: log, warn: log, error: log }, pluginConfig: {}, on: (nome, f) => { (ganchos[nome] ??= []).push(f); } });
+    const enviar = (to, content, ctx = { channelId: "whatsapp" }) => ganchos.message_sending[0]({ to, content }, ctx);
+    const saida = {};
+    saida.desligado = await enviar("5511988887777@s.whatsapp.net", "oi") ?? null;
+    fs.writeFileSync(${JSON.stringify(join(d, "whatsapp-sugerir.json"))}, JSON.stringify({ ligado: true, desde: "2026-11-20T00:00:00Z" }));
+    saida.ligado = await enviar("5511988887777@s.whatsapp.net", "oi") ?? null;
+    saida.semSessao = await enviar("5511988887777@s.whatsapp.net", "de novo", { channelId: "whatsapp", sessionKey: undefined }) ?? null;
+    saida.outroCanal = await enviar("123", "oi", { channelId: "telegram" }) ?? null;
+    fs.rmSync(${JSON.stringify(join(d, "whatsapp-sugestoes.jsonl"))}, { force: true });
+    fs.mkdirSync(${JSON.stringify(join(d, "whatsapp-sugestoes.jsonl"))});
+    saida.filaQuebrada = await enviar("5511988887777@s.whatsapp.net", "terceira") ?? null;
+    console.log(JSON.stringify(saida));
+  `;
+  try {
+    const s = JSON.parse(execFileSync(process.execPath, ["--input-type=module", "-e", roteiro], { env: { ...process.env, HOME: casa }, encoding: "utf8" }).trim().split("\n").pop());
+    assert.equal(s.desligado, null, "modo desligado: a guarda não mexe no envio");
+    assert.equal(s.ligado.cancel, true);
+    assert.match(s.ligado.cancelReason, /a pessoa aprova/);
+    assert.equal(s.semSessao.cancel, true, "contexto sem chave de sessão não derruba o gancho");
+    assert.equal(s.outroCanal, null);
+    assert.equal(s.filaQuebrada.cancel, true, "na dúvida, não manda sozinho");
+    assert.match(s.filaQuebrada.cancelReason, /fila indisponível/);
+  } finally { rmSync(casa, { recursive: true, force: true }); }
 });

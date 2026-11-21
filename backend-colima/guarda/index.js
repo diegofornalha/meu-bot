@@ -110,7 +110,7 @@ export default {
       // Modo "sugere e você aprova" (sugestoes.mjs): nada sai sozinho; a resposta vira sugestão na fila que o app
       // mostra. Passa só a conversa do dono consigo mesmo e o que a pessoa aprovou (passe de uso único).
       try {
-        const d = sugestoes.decidir(sugestoes.DIR_PADRAO, { to: event.to, texto: text, sessao: typeof ctx.sessionKey === "string" ? ctx.sessionKey : null, dono: donoDoNumero() });
+        const d = sugestoes.decidir(sugestoes.DIR_PADRAO, { to: event.to, texto: text, sessao: typeof ctx?.sessionKey === "string" ? ctx.sessionKey : null, dono: donoDoNumero() });
         if (d.acao === "segurar") {
           logger.info(`${PLUGIN_ID}: modo sugestão: resposta a ${event.to} guardada para aprovação${d.sugestao ? ` (${d.sugestao.id})` : " (destino ilegível, não guardada)"}`);
           return { cancel: true, cancelReason: `${PLUGIN_ID}: modo sugestão (a pessoa aprova antes de enviar)` };
