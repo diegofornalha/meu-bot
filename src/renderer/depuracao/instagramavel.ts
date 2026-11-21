@@ -7,12 +7,16 @@
  * troca de formação (grade, onda, roda, colunas, diagonal), para ninguém ficar muito tempo parado no mesmo lugar. Entram um a um (ENTRADA_MS), acumulam
  * até MAX_CURSORES e, sem logs, saem aos poucos (SAIDA_MS). Liga no seletor (o ✨ colado no Intro) ou na paleta; fica
  * gravado em `instagramavel` nas configurações.
+ *
+ * Dois modos (20 nov): o REAL (cursor-agente.ts, o cursor único que anda até onde a ação aconteceu) e o SHOW (este
+ * arquivo). O show só entra quando o real não está em cena: log com ponto real, ou que chega com o real à vista, fica
+ * com o real; quando o real entra, quem está no palco sai, e o show volta sozinho depois que o real some.
  */
 import type { ContaView, EventoDepuracao, SettingsView } from "../../shared/ipc";
 import { byId as $ } from "../lib/dom.js";
 import { ENTRADA_MS, FORMACAO_MS, FORMACOES, MAX_CURSORES, SAIDA_MS, SILENCIO_MS, corDoCursor, pontoDeEntrada, pontoNaPagina, posicaoNaFormacao, proximoNome, textoDoBalao } from "../lib/instagramavel-core.js";
 import { faixaLigada } from "./faixa.js";
-import { pontoReal } from "./cursor-agente.js";
+import { aoMudarCena, pontoReal, realEmCena } from "./cursor-agente.js";
 import { ctx } from "../app/ctx.js";
 
 const palco = $<HTMLElement>("insta-palco");
@@ -51,9 +55,6 @@ function aplicar(on: boolean): void {
  * página visível, como se alguém clicasse nela. O resto: o fluxo da faixa de depuração, onde o log aparece.
  */
 function alvo(e: EventoDepuracao): { x: number; y: number } | null {
-  // Onde a ação aconteceu de verdade (clicar, digitar): a multidão vai ao mesmo ponto do cursor do agente.
-  const real = pontoReal(e.ponto);
-  if (real !== null) return real;
   if (e.origem === "navegador") {
     const pagina = [...document.querySelectorAll("webview")].map((w) => w.getBoundingClientRect()).find((r) => r.width > 80 && r.height > 80);
     if (pagina !== undefined) return pontoNaPagina(pagina, Math.random(), Math.random());
@@ -122,8 +123,16 @@ function armarSilencio(): void {
     }, SAIDA_MS);
   }, SILENCIO_MS);
 }
+/** O real entrou em cena: a fila esvazia e quem está no palco sai de uma vez (esmaecendo), para o real ficar sozinho. */
+function sairDeCena(): void {
+  fila.length = 0;
+  if (silencio !== null) { clearTimeout(silencio); silencio = null; }
+  if (saindo !== null) { clearInterval(saindo); saindo = null; }
+  for (const el of parados.splice(0)) tirar(el);
+}
 function mostrar(e: EventoDepuracao): void {
   if (!ligado || !faixaLigada()) return;
+  if (realEmCena() || pontoReal(e.ponto) !== null) return; // é do real: o show só entra com o real fora de cena
   if (textoDoBalao(e) === "") return; // sem nada a dizer (js, sonda): fica só na faixa
   fila.push(e);
   if (fila.length > MAX_CURSORES) fila.splice(0, fila.length - MAX_CURSORES);
@@ -138,6 +147,7 @@ function proximo(): void {
   entrando = setTimeout(proximo, ENTRADA_MS);
 }
 function entrar(e: EventoDepuracao): void {
+  if (realEmCena()) return; // o real chegou enquanto este esperava na fila
   const fim = alvo(e);
   if (fim === null) return;
   const i = vez++;
@@ -190,6 +200,7 @@ export function ligarInstagramavel(): void {
   window.meuBot.on("settings:changed", (s: SettingsView) => aplicar(s.instagramavel));
   window.meuBot.on("conta:changed", (_c: ContaView) => { if (ligado) void carregarNomes(); });
   window.meuBot.on("depuracao:evento", mostrar);
+  aoMudarCena((emCena) => { if (emCena) sairDeCena(); });
 }
 /** Paleta: liga ou desliga (vale para todas as janelas e para o interruptor do seletor). */
 export async function alternarInstagramavel(): Promise<void> {
