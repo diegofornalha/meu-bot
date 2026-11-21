@@ -1,7 +1,7 @@
 # Modo grátis no Mac, etapa 2: o agente sugere e você aprova
 
 Cartão "Modo grátis no Mac (Ollama): sugere e você aprova" (quadro, Project #6). A etapa 1 já está na main (#443 e
-#445, só no staging): a pergunta "Você já tem assinatura de IA?" e o tutorial 17, que instala o Ollama neste Mac e
+#445, só no staging): a pergunta "Você já tem assinatura de IA?" e o tutorial 16 (era o 17 até o Financeiro sair da trilha), que instala o Ollama neste Mac e
 deixa o chat do app responder por ele.
 
 ## Por quê
