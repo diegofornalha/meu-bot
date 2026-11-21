@@ -16,7 +16,6 @@ O app é organizado por **domínio**: cada pasta é dona de um assunto, com as r
 | `navegador/` | Aba Navegador: webviews, permissões, abas por conversa, API do agente, Navegador do agente do WhatsApp |
 | `whatsapp/` | WhatsApp do agente: a fachada `whatsapp.ts` monta os scripts por motor e despacha pelo contrato `MotorWhatsapp` (`whatsapp-motor.ts`); adaptadores `whatsapp-openclaw(-core)`, `whatsapp-hermes`, `whatsapp-picoclaw`; pareamento (`whatsapp-pair`), conversas, grupos, marcas, pausa, capacidades, áudio |
 | `crm/` | CRM pelo WhatsApp e CRM próprio (pelo túnel), guardar conversa no CRM |
-| `financeiro/` | Financeiro da máquina pelo túnel (inclui Curva ABC e importação de planilha) |
 | `google/` | Conta Google por máquina (OAuth), Gmail/Agenda/Planilhas, Contatos do CRM, backup no Drive |
 | `licenca/` | Licença da máquina e os portões dos módulos pagos |
 | `agente/` | Contas e ferramentas do agente na máquina: login do Claude Code, CLIs, xAI, objetivo do WhatsApp, status line |
@@ -34,7 +33,7 @@ Regras:
 
 ## Outras partes
 - `src/preload/` — pontes de IPC por janela. `src/shared/ipc/` — contrato entre main e telas, só tipos, um arquivo por
-  domínio (app, agente, maquina, whatsapp, crm, financeiro, google, navegador, conversa, suporte, licenca, atualizacao,
+  domínio (app, agente, maquina, whatsapp, crm, google, navegador, conversa, suporte, licenca, atualizacao,
   seletor) e `api.ts` com a superfície `window.meuBot` e os eventos do main; `src/shared/ipc.ts` só reexporta.
 - `src/renderer/` — telas (ES modules sem bundler). `renderer.ts` é a raiz de composição: elementos e estado da
   janela (abas de conversa, lateral, paleta, modo, zoom) e a ligação das páginas. Cada assunto tem sua pasta:
@@ -47,7 +46,7 @@ Regras:
 | `whatsapp/` | `agente-whatsapp.ts` (linha, pareamento, política, voz), `conversas.ts` (lista e marcas), `grupos.ts` (área Grupos e os passos do tutorial), `guarda-guia.ts`, `chat.ts` |
 | `tutoriais/` | Só o motor: `tutoriais.ts` (guia ao vivo), `catalogo.ts` (página Tutoriais, os cartões), `passos.ts` (registro body → quem desenha o passo), `fontes.ts` (registro fonte → fatia do `GuideContext`; `montarGuideCtx()` junta), `guia-secoes.ts` (passos e fontes sem domínio: suporte, status line) |
 | `crm/` | Passo do CRM no guia (instalação, chave, pipeline, teste) |
-| `finance/`, `conta-google/`, `gmail/`, `admin/` | Finanças (e o passo dela no guia), Conta Google, Gmail (`gmail-page.ts` e `gmail-guia.ts`, o tutorial 15), páginas do meu-bot-admin |
+| `conta-google/`, `gmail/`, `admin/` | Conta Google, Gmail (`gmail-page.ts` e `gmail-guia.ts`, o tutorial 15), páginas do meu-bot-admin |
 | `navegador/`, `terminal/` | Aba Navegador (abas, espaços, favoritos, notificações, zoom; `navegador-guia.ts` = passos do tutorial e `abrirLinkDoChat`) e abas de terminal |
 | `conversa/` | Envio e streaming (`envio.ts`), voltar ao chat (`ponte-chat.ts`), ferramentas em uso (`atividade.ts`) |
 | `inicio/`, `acervo/`, `licenca/` | Abertura/onboarding/tour, Acervo de skills e objetivo, plano e licença |
@@ -63,46 +62,39 @@ Regras do renderer:
 - **A tela de um passo de tutorial mora em `<domínio>/<x>-guia.ts`**, junto do estado e do `refresh…` que ela lê, e o
   módulo registra os seus bodies no próprio `ligar<X>Guia()` (`registrarPassos`, de `tutoriais/passos.ts`). Em
   `tutoriais/` fica só o motor; em `renderer.ts`, só a chamada `ligar<X>Guia()`.
-- `backend-colima/` — o backend que roda em cada máquina (Node puro): `server.js` (rotas), `crm-*` e `finance-*`
-  (modelo puro + API), pontes `finance-crm-sync.js` e `crm-finance-vendas.js`, plugins `crm/` e `finance/`.
+- `backend-colima/` — o backend que roda em cada máquina (Node puro): `server.js` (rotas), `crm-*`
+  (modelo puro + API) e o plugin `crm/`. O Financeiro não mora mais aqui: é o módulo Finanças, no repositório
+  `meu-bot-finance` (issue #312).
 - `scripts/tests/` — um teste por módulo puro, importando de `dist/`.
 - `docs/guia/` — o diário técnico por assunto (índice em `docs/GUIA.md`). Mudança nova: uma seção datada no fim do guia
   do assunto dela; `docs/guia/historia.md` é o começo (REA do Grok Bot, 13–14 out) e não recebe coisa nova.
 
 ## Como criar um MVP (produto novo derivado do meu-bot)
-> **Direção desde 17/11 (issue #312):** add-on novo chega como **módulos em repositório próprio** (página Módulos, no
-> molde do `meu-bot-diego`; add-on com `modulos: true` em `ADDONS`), não como app e código neste repositório. O roteiro
-> abaixo é o modelo antigo, que vale enquanto o Finanças migra (`docs/planos/financas-modulo.md`).
+> **Desde 17/11 (issue #312):** add-on novo chega como **módulos em repositório próprio** (página Módulos; add-on com
+> `modulos: true` em `ADDONS`), não como app nem como código neste repositório. O Finanças foi o primeiro a sair
+> (21/11): o repositório `meu-bot-finance` é o molde (`modulos.json`, `instalar.sh`, `desinstalar.sh`, `testar.sh`, o
+> serviço na máquina e a página que o app abre num `<webview>`).
 
-Exemplo de referência: o financeiro (add-on `meu-bot-finance`, app `meu-bot-finance-staging`). Nome do exemplo
-abaixo: `meu-bot-fit`.
+Nome do exemplo abaixo: `meu-bot-fit`.
 
-1. **Registrar a ideia no meu-bot-admin** (janela Produtos: "◆ Produtos ↗" no seletor): pitch, público, módulos. O checklist dessa página é este
-   mesmo roteiro (`src/main/admin/produtos-core.ts` › `checklist`).
-2. **Linha na tabela** `PRODUTOS` (`src/main/app/variant-core.ts`) e o id em `AppVariant` (`src/shared/ipc/app.ts`). Um app
-   de teste sai de `staging(CLIENT, "<id>", <porta livre>)`; declare `addon` (a razão do app) e `abreEm` (página na
-   frente, de `PAGINAS_INICIAIS`; página nova lá precisa de um `caps.abreEm === "<página>"` no `renderer.ts`).
-3. **Add-on no catálogo**: `ADDONS` em `variant-core.ts` (nome, rótulo, descrição) e a cópia `ADDONS` em
-   `backend-colima/licenca.js`, com a regra `<x>Ok` (molde `financeOk`). Rótulo, candidatos no admin e nomes
-   reservados saem do catálogo sozinhos.
-4. **Ícone**: `assets/icon-<id>.svg` e `npm run icons`. **Auditoria**: o nome do app em `APPS`
-   (`src/main/auditoria/auditoria-core.ts`).
-5. **Módulo, no molde do financeiro**:
-   - máquina: `backend-colima/<x>-modelo.js` (regra pura, com teste) e `<x>-api.js` (rotas `/v1/<x>/*`, montadas no
-     `server.js` atrás do portão da licença); skill para o agente usar as rotas;
-   - main: `src/main/<domínio>/<x>-local.ts` (pelo túnel, como `financeiro/finance-local.ts`) e os canais em
-     `ipc/client.ts`, `ipc/ipc-policy.ts`, `preload/preload.ts` e `shared/ipc.ts`;
-   - telas: `src/renderer/<domínio>/<x>-page.ts` com `mount<X>Page(deps)` (molde `finance/finance-page.ts`) e, se
-     fizer sentido, um tutorial (seção "Como adicionar um tutorial", abaixo).
-6. **Conferir**: `npm test`. O `produtos-alinhados.test.mjs` diz o que faltou (ícone, add-on fora do catálogo,
-   auditoria, backend desalinhado, tipo `AppVariant`, atalho de build).
-7. **Empacotar**: `npm run dist -- --variant <id>` (sem entrada nova no `package.json`; um atalho `dist:<id>` é
-   opcional e precisa chamar `scripts/dist.mjs`).
-8. **Liberar**: no meu-bot-admin, Suporte › Conta e licença › `＋ <rótulo>` na máquina da pessoa.
+1. **Registrar a ideia no meu-bot-admin** (janela Produtos: "◆ Produtos ↗" no seletor): pitch, público, módulos. O
+   checklist dessa página é este mesmo roteiro (`src/main/admin/produtos-core.ts` › `checklist`).
+2. **Add-on no catálogo**: `ADDONS` em `variant-core.ts` (nome, rótulo, descrição, `modulos: true`) e a cópia `ADDONS`
+   em `backend-colima/licenca.js`. Rótulo, candidatos no admin e nomes reservados saem do catálogo sozinhos.
+3. **Repositório do módulo**, no molde do `meu-bot-finance`: o `produto` do `modulos.json` é o nome do add-on; o
+   serviço confere a licença perguntando ao backend da máquina (`GET /v1/meu-bot/license`); os dados ficam em
+   `~/.local/share/meu-bot/<x>/` e o `desinstalar.sh` nunca os apaga.
+4. **Conferir**: `npm test` aqui (o `produtos-alinhados.test.mjs` diz o que faltou no catálogo) e os testes do
+   repositório do módulo.
+5. **Liberar**: no meu-bot-admin, Suporte › Conta e licença › `＋ <rótulo>` na máquina da pessoa; a página Módulos
+   aparece no app dela.
+
+Um app de teste próprio (linha em `PRODUTOS`, id em `AppVariant`, ícone, `APPS` da auditoria) só se justifica quando o
+produto muda o próprio app, como o `meu-bot-inspector-staging`.
 
 ## Como adicionar um tutorial
 
-Um tutorial toca três arquivos (quatro com o teste). Molde: `finance/financeiro-guia.ts` + a entrada `financeiro` em
+Um tutorial toca três arquivos (quatro com o teste). Molde: `whatsapp/guarda-guia.ts` + a entrada `guarda-whatsapp` em
 `lib/tutoriais.ts`.
 
 1. **`src/renderer/lib/tutoriais.ts`** (puro): a entrada em `TUTORIAIS` (número = o próximo da trilha; os `oculto`

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { acessoAddon, acessoProduto, browserAccess, crmProprioOk, displayUrl, financeOk, modulosNaLicenca, pagamentoDoBloqueio, planoLiberaPro, proBlockText, tabLabel, fraseDaLicencaDaConta } from "../../dist/renderer/lib/pro.js";
+import { acessoAddon, acessoProduto, browserAccess, crmProprioOk, displayUrl, modulosNaLicenca, pagamentoDoBloqueio, planoLiberaPro, proBlockText, tabLabel, fraseDaLicencaDaConta } from "../../dist/renderer/lib/pro.js";
 
 const lic = (over) => ({ license: { plan: "free", status: "free", interval: null, memberSince: "2026-10-18T00:00:00Z", trialEnd: null, expiresAt: null, deviceLimit: 1, produtos: [], updatedAt: "2026-10-18T00:00:00Z", updatedBy: "admin", ...over }, devices: [] });
 
@@ -29,8 +29,8 @@ test("add-on (meu-bot-finance…): acumulativo por cima do plano, com ou sem o P
   assert.equal(acessoAddon(lic({ produtos: [P], expiresAt: "2020-01-01T00:00:00Z" }), "agente-box", P), "expirada");
   assert.equal(acessoAddon(null, "agente-box", P), "unknown");
   assert.equal(acessoAddon(lic({ produtos: [P] }), "local", P), "unknown");
-  assert.equal(financeOk(lic({ produtos: [P] }), "agente-box"), true);
-  assert.equal(financeOk(lic({ plan: "pro", status: "active" }), "agente-box"), false);
+  assert.equal(acessoAddon(lic({ produtos: [P] }), "agente-box", P) === "ok", true);
+  assert.equal(acessoAddon(lic({ plan: "pro", status: "active" }), "agente-box", P) === "ok", false);
   assert.equal(acessoProduto(lic({}), "agente-box", "free", "meu-bot"), "ok", "app free nunca bloqueia");
   // App que exigisse mais que o free: ou tudo aberto, ou "assinatura" (uma tela só).
   assert.equal(browserAccess(lic({ produtos: ["meu-bot-fit"] }), "agente-box", "pro", "meu-bot-fit"), "ok");
@@ -51,7 +51,7 @@ test("proBlockText: a pessoa assina pelo site; só pede ao admin quando ele grav
   const e = proBlockText("expired", lic({ plan: "pro", status: "expired", expiresAt: "2026-09-30T12:00:00Z" }));
   assert.equal(e.askAdmin, false); assert.match(e.text, /venceu em \d{2}\/\d{2}\/\d{4}/); assert.match(e.text, /Renove pelo site/);
   assert.equal(proBlockText("expired", lic({ plan: "pro", status: "expired", ...PIX })).askAdmin, true);
-  const ad = proBlockText("assinatura", lic({}), "finance", "meu-bot-finance");
+  const ad = proBlockText("assinatura", lic({}), "crm", "meu-bot-finance");
   assert.equal(ad.askAdmin, false); assert.match(ad.text, /Assine pelo site/);
 });
 

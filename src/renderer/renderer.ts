@@ -1,4 +1,4 @@
-import type { FinanceInfo, ZoomAction, ZoomState, BrowserAgentState, BrowserExtensionInfo, NavFavorito, NavService, NavWorkspace, NavWorkspaces, CrmInfo, CrmDiag, CrmLocal, LicenseView, NetState, UpdateState, AccountStatus, ClaudeAuthInfo, ClaudeLoginEvent, ContasClaudeView, ObjectiveChoice, ObjectiveInfo, WaMarkPatch, WhatsappChat, WhatsappEvent, WhatsappReplyChoice, WhatsappStatus, WhatsappThreadMessage, WhatsappMenuAction, WhatsappGroup, WhatsappGroups, WhatsappGroupMenuAction, WhatsappGroupPatch, WhatsappOrigin, WhatsappArchive, AudioSetup, VoiceReplyMode, VozId, SupportInfo, SupportShare, Capabilities, XaiKeyStatus, ToolEvent, BackendModel, BackendStatusEvent, ContextEvent, DoneEvent, ErrorEvent, ExportFormat, MemoryView, SettingsView, StoredConversationView, TabMenuAction, Theme, StatusLineSegments, ContaEstado, ContaEvento, ContaId , DonoInfo } from "../shared/ipc";
+import type { ZoomAction, ZoomState, BrowserAgentState, BrowserExtensionInfo, NavFavorito, NavService, NavWorkspace, NavWorkspaces, CrmInfo, CrmDiag, CrmLocal, LicenseView, NetState, UpdateState, AccountStatus, ClaudeAuthInfo, ClaudeLoginEvent, ContasClaudeView, ObjectiveChoice, ObjectiveInfo, WaMarkPatch, WhatsappChat, WhatsappEvent, WhatsappReplyChoice, WhatsappStatus, WhatsappThreadMessage, WhatsappMenuAction, WhatsappGroup, WhatsappGroups, WhatsappGroupMenuAction, WhatsappGroupPatch, WhatsappOrigin, WhatsappArchive, AudioSetup, VoiceReplyMode, VozId, SupportInfo, SupportShare, Capabilities, XaiKeyStatus, ToolEvent, BackendModel, BackendStatusEvent, ContextEvent, DoneEvent, ErrorEvent, ExportFormat, MemoryView, SettingsView, StoredConversationView, TabMenuAction, Theme, StatusLineSegments, ContaEstado, ContaEvento, ContaId , DonoInfo } from "../shared/ipc";
 import { hostAccent } from "./lib/host-color.js";
 import { byId as $, el } from "./lib/dom.js";
 import { deviceLine, licenseSummary } from "./lib/admin-view.js";
@@ -32,8 +32,7 @@ import { conversationReferenceText, grupoReferenceText, waReferenceText } from "
 import { providerLabel } from "./lib/provider-label.js";
 import { updateBlockerText, updateStateText } from "./lib/update-text.js";
 import { offlineBarText } from "./lib/offline-text.js";
-import { browserAccess, displayUrl, planoLiberaPro, proBlockText, tabLabel, type ProAccess, crmProprioOk, financeOk, modulosNaLicenca } from "./lib/pro.js";
-import { mountFinancePage } from "./finance/finance-page.js";
+import { browserAccess, displayUrl, planoLiberaPro, proBlockText, tabLabel, type ProAccess, crmProprioOk, modulosNaLicenca } from "./lib/pro.js";
 import { mountModulosPage } from "./modulos/modulos-page.js";
 import { paginaModulos } from "./modulos/modulos-crm.js";
 import { mountContaGoogle } from "./conta-google/conta-google-page.js";
@@ -73,7 +72,6 @@ import { ligarObjetivoGuia, objectiveBusy, objectiveDo, objectiveDraft, objectiv
 import { ligarCatalogo, setTutNext, tutNext, tutoriaisPage } from "./tutoriais/catalogo.js";
 import { aoMudarCrm, crmAfterAgentKey, crmLocalState, crmSituacao, crmState, instalarCrm, ligarCrmGuia, refreshCrm } from "./crm/crm-guia.js";
 import { crmProprio, license, motorCrm, navLicenseAsked, refreshLicense, setPlanBadge } from "./licenca/licenca.js";
-import { ligarFinanceiroGuia, paintFinanceLine } from "./finance/financeiro-guia.js";
 import { NAV_TUTORIAL, disposeNav, ligarNavegador, navAccess, navCurrent, navCurrentHost, navDonoView, navEstavaAberto, navExtensions, navFavsShown, navMarcarAberto, navPage, navPartition, navServicosCount, navTabs, navReavaliar, navZoomStep, openNavTab, origemNome, paintNav, toggleFavsBar } from "./navegador/navegador.js";
 import { cssVar, disposeTerminal, ligarTerminal, openTerminalTab, rethemeTerminals, runInTerminal, terminals, themeNow, xtermClass } from "./terminal/terminal.js";
 import type { XTermCtor } from "./terminal/terminal.js";
@@ -149,8 +147,6 @@ const ctxImpl = {
   get removerOllama() { return removerOllama; },
   get OLLAMA_TUTORIAL() { return OLLAMA_TUTORIAL; },
   get FALLBACK_TUTORIAL() { return FALLBACK_TUTORIAL; },
-  get financePage() { return financePage; },
-  get financeState() { return financeState; },
   get firstReplyOnHost() { return firstReplyOnHost; },
   get flushRender() { return flushRender; },
   get fmtPhone() { return fmtPhone; },
@@ -219,7 +215,6 @@ const ctxImpl = {
   get pageShown() { return pageShown; },
   get paintAcervoCount() { return paintAcervoCount; },
   get paintContext() { return paintContext; },
-  get paintFinanceLine() { return paintFinanceLine; },
   get paintModulosLine() { return paintModulosLine; },
   get paintGuide() { return paintGuide; },
   get paintGuideTargets() { return paintGuideTargets; },
@@ -945,7 +940,7 @@ function setAtalhosAbertos(abertos: boolean, opts: { lembrar: boolean } = { lemb
 /**
  * Recolhido, pendencia la dentro vira um ponto no chevron, para a faixa fina nao virar ruido.
  *
- * So conta o que esta marcado com `data-pendencia` no HTML (Financas e Tutoriais, que sao "N para confirmar" e
+ * So conta o que esta marcado com `data-pendencia` no HTML (Tutoriais, que sao "N para confirmar" e
  * "N para fazer"). Os outros contadores sao estado, nao pendencia: "33 skills" do Acervo, "2 abertos" do
  * Terminal, "1 aba" do Navegador. Somar todos dava 35 onde o certo era 2.
  */
@@ -1705,7 +1700,7 @@ async function handleQuickSubmit(correlationId: string, text: string): Promise<v
     let tab = active();
     if (tab === null || tab.busy) tab = await newTab();
     window.meuBot.quickAck(correlationId, true);
-    // Tutorial 14: uma mensagem chegou pela janela flutuante; a flag lembra, senão o passo "desfaz" ao recarregar.
+    // Tutorial 13: uma mensagem chegou pela janela flutuante; a flag lembra, senão o passo "desfaz" ao recarregar.
     const tq = TUTORIAIS.find((x) => x.id === "entrada-rapida");
     if (tq !== undefined && !loadGuideFlags(tq).quickUsado) { saveGuideFlag(tq, "quickUsado"); paintGuide(); }
     await sendText(tab, text);
@@ -1820,7 +1815,6 @@ let supportState: SupportInfo | null = null;
 /** Segmentos escolhidos (arquivo na máquina); null = todos. O rodapé e a barra do terminal seguem a mesma escolha. */
 let statusLineSegs: StatusLineSegments | null = null;
 ligarCrmGuia();
-ligarFinanceiroGuia();
 /** O agente rodou o `chave-set`? Quando o resultado chegar, consulta o CRM e segue (teste da chave, pipeline único). */
 let crmKeyFromAgent = false;
 ligarGuiaSecoes();
@@ -1836,8 +1830,6 @@ ligarBackendFalta();
 let navAskedPro = false;
 let navAgent: BrowserAgentState = { on: false, state: "down", port: null };
 
-/* ---------- Financeiro (produto meu-bot-finance): página Finanças, lateral e tutorial 12 ---------- */
-let financePage: ReturnType<typeof mountFinancePage> | null = null;
 /** Página Gmail (31 out): montada na abertura, como a Conta Google; a paleta e a aba fixada a alcançam por aqui. */
 let gmailPage: ReturnType<typeof mountGmail> | null = null;
 let contaGooglePage: ReturnType<typeof mountContaGoogle> | null = null;
@@ -1856,7 +1848,6 @@ function paintModulosLine(): void {
   $<HTMLElement>("modulos-count").textContent = caps.planoExigido === "free" && m.temProdutos ? "Custom" : "";
   modulosPage.repintarLista();
 }
-let financeState: FinanceInfo | null = null;
 ligarNavegador();
 ligarTerminal();
 // Controle local pedindo a tela dividida: a página vai para a direita, como arrastar a aba.
@@ -1876,7 +1867,6 @@ window.meuBot.on("ui:split", (msg) => {
 window.meuBot.on("ui:abrir-pagina", ({ pagina }) => {
   if (pagina === "tutoriais") openPage(tutoriaisPage);
   else if (pagina === "acervo") openPage(acervoPage);
-  else if (pagina === "financas") financePage?.open();
   else if (pagina === "inspector") inspectorPage?.open();
   else if (pagina === "modulos") modulosPage?.open();
   else if (pagina === "conta-google") contaGooglePage?.open();
@@ -2017,13 +2007,6 @@ void (async () => {
   $<HTMLElement>("conta-google-count").textContent = caps.planoExigido === "free" ? "Pro" : "";
   $<HTMLElement>("gmail-count").textContent = caps.planoExigido === "free" ? "Pro" : "";
   $<HTMLElement>("computador-count").textContent = caps.planoExigido === "free" ? "Pro" : "";
-  // Módulos e Finanças são do pacote sob medida, não do Pro: etiqueta "Custom" (pintadas em paintModulosLine e paintFinanceLine).
-  financePage = mountFinancePage({
-    panelsEl, definePage, openPage, armConfirm, api: window.meuBot, host: () => windowHost, license: () => license, licenseKnown: () => navLicenseAsked,
-    goToChat: goToChatFromGuide, onInfo: (i) => { financeState = i; paintFinanceLine(); paintGuide(); },
-    abrirModulos: caps.modulos !== null || caps.addons.some((a) => a.modulos) ? () => modulosPage?.open() : null,
-  });
-  $<HTMLButtonElement>("financas-line").addEventListener("click", () => financePage?.open());
   // Módulos de produto: o fixo do app (caps.modulos, como no meu-bot-diego-staging) e os add-ons com módulos na licença
   // da máquina; e, nas máquinas por SSH, o CRM que já vem no meu-bot. A página é montada no app que pode ter módulos ou
   // instalar numa máquina; o botão segue a licença e a máquina da janela (paintModulosLine).
@@ -2051,8 +2034,6 @@ void (async () => {
     });
     paintModulosLine();
   }
-  // O app cujo add-on é o financeiro mostra o botão sempre (sem licença, a página diz como liberar).
-  if (caps.addon === "meu-bot-finance") paintFinanceLine();
   // Inspector: por capacidade (só o meu-bot-inspector-staging); nos outros produtos o botão fica escondido e a página nem é montada.
   if (caps.inspector && caps.controleRemoto) {
     inspectorPage = mountInspector({ panelsEl, definePage, openPage, api: window.meuBot });
@@ -2078,7 +2059,7 @@ void (async () => {
   void refreshLinkPublico();
   void refreshGmailGuia();
   /** A licença da janela pode ter mudado: relê e repinta toda tela que mostra bloqueio de plano. */
-  const relerLicenca = async (): Promise<void> => { await refreshLicense(); paintGuide(); contaGoogle.repintar(); gmail.repintar(); computador?.repintar(); navReavaliar(); if (financePage !== null) void financePage.refresh(); };
+  const relerLicenca = async (): Promise<void> => { await refreshLicense(); paintGuide(); contaGoogle.repintar(); gmail.repintar(); computador?.repintar(); navReavaliar(); };
   void relerLicenca();
   // O aviso de plano sabe quem é a conta e a máquina: é ele que oferece "Usar o meu Pro nesta máquina".
   ligarAvisoPlano({ conta: contaAtual, remoto: ehRemoto, origem: () => license?.origem, aoLiberar: relerLicenca });
@@ -2096,11 +2077,10 @@ void (async () => {
   renderSidebar();
   tabsReady = true;
   // A aba fixada (📌) fica na frente depois de restaurar as conversas: Tutoriais por padrão (quem chega leigo começa
-  // pelo passo a passo), Finanças no finance-staging, Inspector no inspector-staging; desafixar volta a abrir na conversa.
+  // pelo passo a passo), Inspector no inspector-staging; desafixar volta a abrir na conversa.
   const fixa = abaFixaAtual();
   if (fixa === "tutoriais") openPage(tutoriaisPage);
   else if (fixa === "acervo") openPage(acervoPage);
-  else if (fixa === "financas") financePage?.open();
   else if (fixa === "inspector") inspectorPage?.open();
   else if (fixa === "modulos") modulosPage?.open();
   else if (fixa === "conta-google") contaGoogle.open();

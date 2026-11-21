@@ -14,7 +14,7 @@
  * faltava, e as quatro VMs caíram em MODULE_NOT_FOUND no reinício seguinte.
  */
 export const BACKEND_RUNTIME_FILES = [
-  "server.js", "session-map.js", "nivel-ferramentas.js", "modulos.js", "providers.js", "providers.json", "account-status.js", "contas-claude.js", "tool-events.js", "navegador.js", "navegador-whatsapp.js", "gmail.js", "pontes.js", "licenca.js", "crm-modelo.js", "crm-store.js", "crm-api.js", "finance-modelo.js", "finance-store.js", "finance-api.js", "finance-crm-sync.js", "crm-finance-vendas.js", "autenticador.js", "saude-maquina.js", "cota.js", "faxina.js", "auditoria.py",
+  "server.js", "session-map.js", "nivel-ferramentas.js", "modulos.js", "providers.js", "providers.json", "account-status.js", "contas-claude.js", "tool-events.js", "navegador.js", "navegador-whatsapp.js", "gmail.js", "pontes.js", "licenca.js", "crm-modelo.js", "crm-store.js", "crm-api.js", "autenticador.js", "saude-maquina.js", "cota.js", "faxina.js", "auditoria.py",
   // Porteiro do claude (rodízio de contas para o OpenClaw/WhatsApp e o Terminal): mora na pasta do backend e puxa contas-claude.js.
   "claude-porteiro.js",
   // Regra única do motor do WhatsApp (espelho em JS de WA_MOTOR_SH): o server.js decide por ela por onde mandar mensagem.
@@ -79,12 +79,10 @@ export const TELA_PLUGIN_FILES = ["tela.sh", "tela-agente.sh"];
 export const TELA_SKILL_FILES = ["SKILL.md"];
 export const CRM_FILES = ["install-crm.sh", "uninstall-crm.sh", "skill-streak-crm-api.md", "skill-crm-api.md", SKILLS_LIB];
 export const CRM_PLUGIN_FILES = ["index.js", "regras.mjs", "licenca-crm.mjs", "crm-job.mjs", "backend.mjs", "crm.mjs", "streak.mjs", "importar-streak.mjs", "package.json", "openclaw.plugin.json"];
-export const FINANCE_FILES = ["install-finance.sh", "skill-finance-api.md", SKILLS_LIB];
 /** Navegador do agente (módulo Pro): o servidor MCP (um arquivo), o instalador e as skills semente dos sites. */
 export const NAVEGADOR_FILES = ["navegador-mcp.mjs", "install-navegador-mcp.sh", "skill-streak-crm-navegador.md", "skill-cloudflare-token.md", "skill-subir-site-cloudflare.md", "skill-google-2fa-autenticador.md", SKILLS_LIB];
 /** Voz das respostas (install-voz.sh): a skill voz-das-respostas vai dentro do script; a biblioteca vai ao lado. */
 export const VOZ_FILES = ["install-voz.sh", SKILLS_LIB];
-export const FINANCE_PLUGIN_FILES = ["index.js", "regras.mjs", "backend.mjs", "finance.mjs", "package.json", "openclaw.plugin.json"];
 /** Plugin de pausa por contato do Hermes (hermes-plugins/meu-bot-pausa/): vai inline por SSH, a versão é a do plugin.yaml. */
 export const HERMES_PAUSA_FILES = ["__init__.py", "plugin.yaml"];
 /** Plugin do Navegador para o WhatsApp no Hermes (hermes-plugins/meu-bot-navegador/): instalado ao ligar o 📱, a versão é a do plugin.yaml. */
@@ -101,7 +99,6 @@ const B = (f: string): string => `backend-colima/${f}`;
 /** Os componentes que o seletor atualiza sozinho nas máquinas (picker.ts › ensure*), cada um com a sua versão. */
 export const COMPONENTES: readonly ComponenteVersionado[] = [
   { nome: "backend", arquivos: BUNDLE_FILES.filter((f) => f !== "VERSION").map(B), versao: B("VERSION") },
-  { nome: "financeiro", arquivos: [...FINANCE_FILES.map(B), ...FINANCE_PLUGIN_FILES.map((f) => B(`finance/${f}`))], versao: B("finance/package.json") },
   { nome: "crm", arquivos: [...CRM_FILES.map(B), ...CRM_PLUGIN_FILES.map((f) => B(`crm/${f}`))], versao: B("crm/package.json") },
   { nome: "guarda", arquivos: [...GUARDA_FILES.map(B), ...GUARDA_PLUGIN_FILES.map((f) => B(`guarda/${f}`))], versao: B("guarda/package.json") },
   { nome: "hermes-navegador", arquivos: HERMES_NAV_FILES.map((f) => B(`hermes-plugins/meu-bot-navegador/${f}`)), versao: B("hermes-plugins/meu-bot-navegador/plugin.yaml") },

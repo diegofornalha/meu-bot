@@ -90,7 +90,7 @@ export function checklist(p: ProdutoMvp): string[] {
     `Registrar o add-on ${p.nome} em ADDONS (src/main/app/variant-core.ts) e em backend-colima/licenca.js`,
     `Desenhar assets/icon-${variant}.svg e rodar npm run icons`,
     p.modulos.crm ? "Templates do pipeline em produtos/" + p.nome + "/ (etapas e campos iniciais)" : "",
-    "Módulo no molde do financeiro: backend-colima/<x>-api.js + modelo puro com teste, ponte em src/main/<domínio>/, página em src/renderer/<domínio>/",
+    "Módulo em repositório próprio, no molde do meu-bot-finance: modulos.json, instalar.sh, desinstalar.sh, testar.sh e a página servida pelo próprio módulo",
     `Liberar pela licença: o add-on ${p.nome} em Suporte › Conta e licença (com ou sem o Pro)`,
     `Empacotar: npm run dist -- --variant ${variant}`,
   ].filter((x) => x !== "");

@@ -3,7 +3,7 @@
 //   npm run dist -- --variant <id>      (sem --variant: o meu-bot)
 // `--plataforma win32` (só os produtos marcados `windows` na tabela) troca o fim: em vez de assinar e instalar neste
 // Mac, sai o instalador out/<nome>-<versão>-x64-setup.exe (scripts/instalador-win.mjs), para levar a um Windows.
-// Os atalhos dist:staging, dist:finance-staging, dist:inspector-staging, dist:diego-staging e dist:admin só chamam este script com o id.
+// Os atalhos dist:staging, dist:inspector-staging, dist:diego-staging e dist:admin só chamam este script com o id.
 import { spawnSync } from "node:child_process";
 
 const passo = (cmd, args) => {

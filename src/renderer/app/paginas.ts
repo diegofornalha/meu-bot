@@ -16,7 +16,7 @@ export let pageActive: PageTab | null = null;
 export let pagePrev: string | null = null;
 
 /** Páginas que aceitam o 📌 (abrir na frente quando a janela abre); terminal, guias e WhatsApp não. */
-const FIXAVEIS = new Set(["tutoriais", "acervo", "conta-google", "gmail", "computador", "financas", "inspector", "modulos", "navegador", "usuarios"]);
+const FIXAVEIS = new Set(["tutoriais", "acervo", "conta-google", "gmail", "computador", "inspector", "modulos", "navegador", "usuarios"]);
 /** A aba que abre na frente: a escolhida, ou a do produto enquanto a pessoa não escolheu (Tutoriais para quem chega). */
 export function abaFixaAtual(): string {
   const v = ctx.settings?.abaFixa ?? "padrao";

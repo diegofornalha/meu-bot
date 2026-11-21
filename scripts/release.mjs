@@ -1,6 +1,6 @@
 // Publica uma release no GitHub com os produtos de um canal zipados (tabela em src/main/app/variant-core.ts): é daí que a
 // atualização automática (src/main/atualizacao/updater.ts) baixa. Dois modos (regras em release-core.mjs):
-//   npm run release:staging  → pre-release v<versão>-staging.N com os apps staging (meu-bot-staging, meu-bot-finance-staging, meu-bot-inspector-staging);
+//   npm run release:staging  → pre-release v<versão>-staging.N com os apps staging (meu-bot-staging, meu-bot-inspector-staging);
 //                              N = próximo pelas tags que já existem. Os staging instalados atualizam sozinhos.
 //   npm run release -- --conferir (ou release:staging -- --conferir) → só confere tudo, sem empacotar nem publicar.
 //   npm run release          → promoção: release v<versão> com os estáveis (meu-bot, meu-bot-admin), SÓ
@@ -14,7 +14,7 @@
 // cada .sig é conferido com UPDATE_PUBLIC_KEYS do build antes do upload: o app só instala o que confere com uma delas,
 // como o SUPublicEDKey do Sparkle no Brave. Emergência (principal perdida ou vazada, troca de chave):
 // `-- --emergencia --chave-arquivo <arquivo>` assina com a reserva (scripts/chave-release.mjs, skill publicar).
-// Antes de empacotar, recusa publicar um componente da máquina (backend, financeiro, CRM, guarda) que mudou desde a
+// Antes de empacotar, recusa publicar um componente da máquina (backend, CRM, guarda) que mudou desde a
 // última release sem subir a versão: o seletor só atualiza para cima, então a mudança nunca chegaria às máquinas.
 import { sign } from "node:crypto";
 import { execFileSync, execSync } from "node:child_process";

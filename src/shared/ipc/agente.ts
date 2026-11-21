@@ -107,7 +107,7 @@ export type ClaudeLoginEvent =
 export type ContaId = "cloudflare" | "github";
 /** `presente` = a ferramenta existe na máquina; `amplo` = logada com mais acesso que o necessário (refazer limita). */
 export interface ContaEstado { id: ContaId; presente: boolean; conectado: boolean; conta: string | null; amplo: boolean }
-/** Link público da pessoa (tutorial 13): a URL, o nome (subdomínio), o domínio e quantos arquivos estão no ar. */
+/** Link público da pessoa (tutorial 12): a URL, o nome (subdomínio), o domínio e quantos arquivos estão no ar. */
 export interface LinkPublicoInfo { url: string; nome: string; dominio: string; arquivos: number; /** O nome de login dela (o nome inicial do link). */ usuario: string }
 /** Estado do link dela: `info` null = desligado, máquina fora ou este Mac; `possivel` false = esta conta não tem link por desenho (o root: o link é das contas de usuário). */
 export interface LinkPublicoStatus { info: LinkPublicoInfo | null; possivel: boolean; /** A máquina tem o Link Público Global (instalado pelo admin); false = nem o admin instalou ainda. */ global: boolean }
@@ -124,7 +124,7 @@ export type ContaEvento =
   | { kind: "done"; id: ContaId; ok: boolean; text: string; estado?: ContaEstado | null };
 
 /**
- * Modo grátis no Mac (tutorial 17): o Ollama do meu-bot nesta máquina. `possivel` = este Mac com chip Apple (as outras
+ * Modo grátis no Mac (tutorial 16): o Ollama do meu-bot nesta máquina. `possivel` = este Mac com chip Apple (as outras
  * máquinas e o Intel não têm); `modelo` = o que o providers.json usa (null = não preparado); `pronto` = o serve
  * responde e já tem esse modelo baixado. `recomendado`/`necessarioMb` saem da memória e do espaço do Mac.
  */

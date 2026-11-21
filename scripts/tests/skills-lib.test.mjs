@@ -8,12 +8,12 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // A skill do agente nos dois destinos (Claude Code e Hermes): a biblioteca backend-colima/skills-lib.sh e os seis
-// instaladores que a carregam. Nada aqui toca systemd, apt, pip nem rede: crm, finance, navegador e voz (modo off)
+// instaladores que a carregam. Nada aqui toca systemd, apt, pip nem rede: crm, navegador e voz (modo off)
 // rodam inteiros numa máquina de mentira; a guarda e a tela fazem muito mais do que a skill, então delas roda só a
 // linha `skill_semente …` tirada do próprio instalador, e o resto é conferido no texto.
 const BACKEND = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "backend-colima");
 const bundle = createRequire(import.meta.url)("../../dist/main/maquina/backend-bundle-core.js");
-const { SKILLS_LIB, CRM_FILES, FINANCE_FILES, GUARDA_FILES, TELA_FILES, NAVEGADOR_FILES, VOZ_FILES } = bundle;
+const { SKILLS_LIB, CRM_FILES, GUARDA_FILES, TELA_FILES, NAVEGADOR_FILES, VOZ_FILES } = bundle;
 const LIB = join(BACKEND, SKILLS_LIB);
 
 /**
@@ -139,8 +139,6 @@ const soALinha = (script, nome) => (m) => m.bash(["-c", `set -euo pipefail; HERE
 const INSTALADORES = [
   { script: "install-crm.sh", lista: CRM_FILES, skills: { "crm-api": "skill-crm-api.md", "streak-crm-api": "skill-streak-crm-api.md" }, legado: "mantida",
     preparar: (m) => m.copiar("crm", ...CRM_FILES), rodar: (m) => m.bash([join(m.stage, "install-crm.sh")]), guardada: ".local/share/meu-bot/crm/skill-crm-api.md" },
-  { script: "install-finance.sh", lista: FINANCE_FILES, skills: { "finance-api": "skill-finance-api.md" }, legado: "marcador",
-    preparar: (m) => m.copiar("finance", ...FINANCE_FILES), rodar: (m) => m.bash([join(m.stage, "install-finance.sh")]), guardada: ".local/share/meu-bot/skills-semente/finance-api.md" },
   { script: "install-navegador-mcp.sh", lista: NAVEGADOR_FILES, legado: "mantida",
     skills: Object.fromEntries(NAVEGADOR_FILES.filter((f) => /^skill-.*\.md$/.test(f)).map((f) => [f.replace(/^skill-|\.md$/g, ""), f])),
     preparar: (m) => m.copiar(...NAVEGADOR_FILES), rodar: (m) => m.bash([join(m.stage, "install-navegador-mcp.sh")]), guardada: ".local/share/meu-bot/skills-semente/streak-crm-navegador.md" },
@@ -247,7 +245,7 @@ for (const inst of INSTALADORES) {
     // openclaw de mentira para todos: a guarda e a voz saem com 2 sem ele, antes de chegar à biblioteca.
     const m = maquina({ hermes: true, openclaw: true });
     try {
-      m.copiar(inst.script, ...{ "install-crm.sh": ["crm"], "install-finance.sh": ["finance"], "install-navegador-mcp.sh": ["navegador-mcp.mjs"], "install-guarda.sh": ["guarda"], "install-tela.sh": ["tela"], "install-voz.sh": [] }[inst.script]);
+      m.copiar(inst.script, ...{ "install-crm.sh": ["crm"], "install-navegador-mcp.sh": ["navegador-mcp.mjs"], "install-guarda.sh": ["guarda"], "install-tela.sh": ["tela"], "install-voz.sh": [] }[inst.script]);
       const r = m.bash([join(m.stage, inst.script), ...(inst.script === "install-voz.sh" ? ["off"] : [])]);
       assert.equal(r.status, 1, r.stdout + r.stderr);
       assert.match(r.stdout, /skills-lib\.sh não está ao lado deste script.*nada foi alterado nesta máquina/);
@@ -271,7 +269,7 @@ test("instaladores: nenhum install-*.sh instala skill fora da biblioteca, e todo
   // O hostProbe.ts não manda nenhum desses instaladores solto: só pelas listas.
   const probe = readFileSync(join(BACKEND, "..", "src", "main", "maquina", "hostProbe.ts"), "utf8");
   for (const s of usam) assert.ok(!probe.includes(`backendBundleDir(), "${s}")`), `${s} é enviado sem a biblioteca`);
-  for (const l of ["CRM_FILES", "FINANCE_FILES", "GUARDA_FILES", "TELA_FILES", "NAVEGADOR_FILES", "VOZ_FILES"]) assert.match(probe, new RegExp(`\\b${l}\\b[^\\n]*\\.map\\(`), `o hostProbe.ts envia a ${l}`);
+  for (const l of ["CRM_FILES", "GUARDA_FILES", "TELA_FILES", "NAVEGADOR_FILES", "VOZ_FILES"]) assert.match(probe, new RegExp(`\\b${l}\\b[^\\n]*\\.map\\(`), `o hostProbe.ts envia a ${l}`);
 });
 
 test("install-voz.sh: a cópia que fica na máquina para o agente chamar leva a biblioteca ao lado", () => {

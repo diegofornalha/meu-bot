@@ -87,7 +87,7 @@ export interface SettingsFile {
   /** URL do repositório de módulos escolhida em Configurações; "" = a padrão do produto (modulos-fonte-core.ts). */
   modulosRepo: string;
 }
-export const ABAS_FIXAVEIS: readonly AbaFixa[] = ["padrao", "conversa", "tutoriais", "acervo", "conta-google", "gmail", "computador", "financas", "inspector", "modulos", "navegador", "usuarios"];
+export const ABAS_FIXAVEIS: readonly AbaFixa[] = ["padrao", "conversa", "tutoriais", "acervo", "conta-google", "gmail", "computador", "inspector", "modulos", "navegador", "usuarios"];
 export const isAbaFixa = (v: unknown): v is AbaFixa => typeof v === "string" && (ABAS_FIXAVEIS as readonly string[]).includes(v);
 export const MAX_ESPACOS = 20;
 export const MAX_SERVICOS = 30;

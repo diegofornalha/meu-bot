@@ -29,7 +29,7 @@ test("estados do local", () => {
   assert.equal(hostLabel("colima"), "colima");
 });
 
-test("status line do Claude: o seletor não oferece nem avisa (o tutorial 16 instala)", () => {
+test("status line do Claude: o seletor não oferece nem avisa (o tutorial 15 instala)", () => {
   const up = { ...base, backendInstalled: true, backendListening: true, models: ["claudecode"] };
   assert.deepEqual(pick(describeProbe(up)), { kind: "ok", install: null, canOpen: true });
   const sem = describeProbe({ ...up, statusLine: false });

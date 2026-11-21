@@ -47,7 +47,7 @@ test("openDirect: true por padrão, respeita false", () => {
 test("abaFixa: padrão até escolher (Tutoriais ou a do produto); conversa desafixa; lixo volta ao padrão", () => {
   assert.equal(normalizeSettings({}).abaFixa, "padrao");
   assert.equal(defaultSettings().abaFixa, "padrao");
-  for (const v of ["conversa", "tutoriais", "acervo", "conta-google", "financas", "inspector", "navegador"]) assert.equal(normalizeSettings({ abaFixa: v }).abaFixa, v);
+  for (const v of ["conversa", "tutoriais", "acervo", "conta-google", "inspector", "navegador"]) assert.equal(normalizeSettings({ abaFixa: v }).abaFixa, v);
   assert.equal(normalizeSettings({ abaFixa: "terminal" }).abaFixa, "padrao");
   assert.equal(normalizeSettings({ abaFixa: 3 }).abaFixa, "padrao");
 });
@@ -135,7 +135,7 @@ test("instagramavel: desligado por padrão; só true liga", () => {
   for (const v of [false, "true", 1, null, undefined]) assert.equal(normalizeSettings({ instagramavel: v }).instagramavel, false);
 });
 
-test("modelo padrão por máquina aceita o ollama-local (modo grátis, tutorial 17)", () => {
+test("modelo padrão por máquina aceita o ollama-local (modo grátis, tutorial 16)", () => {
   const s = normalizeSettings({ defaultModelByHost: { local: "ollama-local", colima: "grok-4" } });
   assert.deepEqual(s.defaultModelByHost, { local: "ollama-local", colima: "grok-4" });
 });

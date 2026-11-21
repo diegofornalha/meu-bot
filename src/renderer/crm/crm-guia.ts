@@ -11,7 +11,7 @@ import { registrarFonte } from "../tutoriais/fontes.js";
 import { registrarPassos } from "../tutoriais/passos.js";
 import { navInstState, renderNavOpen } from "../navegador/navegador-guia.js";
 
-// ---- Tutorial 17 · CRM pelo WhatsApp (Pro): estado na máquina, instalação, chave/pipeline/regras, teste.
+// ---- Tutorial 16 · CRM pelo WhatsApp (Pro): estado na máquina, instalação, chave/pipeline/regras, teste.
 export let crmState: CrmInfo | null = null;
 let crmErro: string | null = null;
 let crmBusy = false;
@@ -29,13 +29,13 @@ export const crmSituacao = (): { erroConsulta: string | null; instalando: boolea
   ({ erroConsulta: crmErro, instalando: crmInstalando, log: crmLog, erroInstalacao: crmInstErro });
 let crmDiag: CrmDiag | null = null;
 let crmKeyDraft = "";
-/** meu-bot-crm: pipelines do CRM da máquina e o padrão do WhatsApp (tutorial 17, passo "Criar o primeiro pipeline"). */
+/** meu-bot-crm: pipelines do CRM da máquina e o padrão do WhatsApp (tutorial 16, passo "Criar o primeiro pipeline"). */
 export let crmLocalState: CrmLocal | null = null;
 let crmPipeDraft: { modelo: string; nome: string; etapas: string } | null = null;
 let crmPipeNovo = false;
 let crmPipeBusy = false;
 let crmPipeMsg: { text: string; bad: boolean } | null = null;
-/** Tutorial 17: escolher um modelo (ou do meu jeito), ajustar nome e etapas e criar; com vários e nenhum padrão, escolher. */
+/** Tutorial 16: escolher um modelo (ou do meu jeito), ajustar nome e etapas e criar; com vários e nenhum padrão, escolher. */
 export function renderCrmPipeline(container: HTMLElement): void {
   const st = crmLocalState;
   if (crmPipeMsg !== null) container.append(el("p", `hint${crmPipeMsg.bad ? " guide-pair-note" : ""}`, crmPipeMsg.text));

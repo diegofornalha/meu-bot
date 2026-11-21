@@ -1,6 +1,6 @@
 /**
  * Registro dos corpos de passo do guia. Cada módulo de domínio registra os seus no próprio `ligar…()` (CRM em
- * crm-guia, grupos em grupos, finanças em financeiro-guia, login em contas-agente…), e o guia (tutoriais.ts) só
+ * crm-guia, grupos em grupos, login em contas-agente…), e o guia (tutoriais.ts) só
  * pergunta "quem desenha este body?". Aqui não entra import de módulo de domínio, para não haver ciclo:
  * tutoriais.ts → passos.ts ← domínio.
  */

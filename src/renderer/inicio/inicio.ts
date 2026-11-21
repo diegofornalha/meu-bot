@@ -217,7 +217,7 @@ async function confirmAiChoice(): Promise<void> {
   try { localStorage.setItem(aiChoiceKey(), c); } catch { /* opcional */ }
   const tut = tutorialDaEscolha(c);
   if (tut === null) {
-    // Com o modo grátis nesta janela (tutorial 17), "Não tenho nenhuma" vai direto à instalação; sem ele, como assinar.
+    // Com o modo grátis nesta janela (tutorial 16), "Não tenho nenhuma" vai direto à instalação; sem ele, como assinar.
     if (ctx.guideCtx().ollama.possible === true) { await closeAiChoice(); ctx.enterOllama(); return; }
     showAiNone(); return;
   }

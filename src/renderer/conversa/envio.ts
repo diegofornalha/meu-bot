@@ -86,7 +86,7 @@ export function ligarEnvio(): void {
       // Tutorial 4: a prova de que o grok-4 responde é o X-Provider da resposta, não o que o modelo diz de si.
       const grokNow = done.provider === "grok-4" && !ctx.loadGuideFlags(ctx.XAI_TUTORIAL).grokReplied;
       if (grokNow) ctx.saveGuideFlag(ctx.XAI_TUTORIAL, "grokReplied");
-      // Tutorial 17: idem, a resposta veio do ollama-local (o Ollama deste Mac).
+      // Tutorial 16: idem, a resposta veio do ollama-local (o Ollama deste Mac).
       const ollamaNow = done.provider === "ollama-local" && !ctx.loadGuideFlags(ctx.OLLAMA_TUTORIAL).ollamaReplied;
       if (ollamaNow) ctx.saveGuideFlag(ctx.OLLAMA_TUTORIAL, "ollamaReplied");
       // A reserva assumiu de verdade: o passo 3 do tutorial 5 se marca sozinho.

@@ -109,7 +109,7 @@ export function ligarConfiguracoes(): void {
     ev.preventDefault();
     ctx.settingsError.hidden = true;
     // Conexão, Aparência, Entrada rápida e Inicialização saíram daqui (30 out): o modelo muda no seletor da caixa de
-    // texto, o zoom pelo menu Visualizar, o atalho da entrada rápida no tutorial 14. Salvar só confirma o que ficou.
+    // texto, o zoom pelo menu Visualizar, o atalho da entrada rápida no tutorial 13. Salvar só confirma o que ficou.
     const update = {};
     void saveAlertPrefs();
     window.meuBot.setSettings(update).then(

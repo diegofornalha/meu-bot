@@ -38,9 +38,6 @@ const { readClaudeStatus, refreshRateLimits } = require('./account-status');
 const contasClaude = require('./contas-claude');
 const licenca = require('./licenca');
 const { createCrmApi } = require('./crm-api');
-const { createFinanceApi } = require('./finance-api');
-const { sincronizarInvestimentos } = require('./finance-crm-sync');
-const { sincronizarVendas } = require('./crm-finance-vendas');
 const saudeMaquina = require('./saude-maquina');
 const cotaMod = require('./cota');
 const { faxinar } = require('./faxina');
@@ -117,15 +114,6 @@ function appMinima() {
 /** CRM próprio: rotas /v1/crm/* sobre ~/.local/share/meu-bot/crm/db (crm-api.js); exige o plano Pro (licenca.crmOk). */
 const CRM_CONFIG = path.join(MEU_BOT_DIR, 'crm.json');
 const CRM_DB = process.env.MEU_BOT_CRM_DB || path.join(MEU_BOT_DIR, 'crm', 'db');
-/** Financeiro (produto meu-bot-finance): rotas /v1/finance/* sobre ~/.local/share/meu-bot/finance/db (finance-api.js). */
-const FINANCE_DB = process.env.MEU_BOT_FINANCE_DB || path.join(MEU_BOT_DIR, 'finance', 'db');
-/**
- * Marcador do módulo `financas` (repositório meu-bot-finance, issue #312): ligado o módulo, o serviço dele é o único dono
- * de finance/db. A API daqui deixa de gravar (o store guarda tudo em memória e gravaria por cima do módulo) e as pontes
- * com o CRM param; o instalador antigo (install-finance.sh) também não roda.
- */
-const FINANCE_MODULO = path.join(MEU_BOT_DIR, 'finance', 'MODULO');
-const financeEhModulo = () => fs.existsSync(FINANCE_MODULO);
 const readJson = (f, fallback) => { try { const v = JSON.parse(fs.readFileSync(f, 'utf8')); return v && typeof v === 'object' ? v : fallback; } catch (_) { return fallback; } };
 function writeJson(f, v) { fs.mkdirSync(MEU_BOT_DIR, { recursive: true, mode: 0o700 }); const tmp = `${f}.tmp`; fs.writeFileSync(tmp, JSON.stringify(v, null, 1), { mode: 0o600 }); fs.renameSync(tmp, f); }
 const alertPrefs = () => { const a = readJson(ALERTS_FILE, {}); return { whatsapp: a.whatsapp !== false }; };
@@ -257,43 +245,8 @@ function iaTexto(prompt, convId) {
 function crmApi() {
   if (crmApiInst === null) {
     crmApiInst = createCrmApi({ dir: CRM_DB, configFile: CRM_CONFIG, licenseOk: () => licenca.crmOk(ensureLicense()), readJson, writeJson, json, readBody, log, iaTexto, semearIndicacao: true });
-    crmApiInst.store.onChange(() => agendarSyncVendas());
   }
   return crmApiInst;
-}
-let financeApiInst = null;
-/** Instância única da API do financeiro (abre o db na 1ª chamada). */
-function financeApi() {
-  if (financeApiInst === null) financeApiInst = createFinanceApi({ dir: FINANCE_DB, licenseOk: () => licenca.financeOk(ensureLicense()), json, readBody, log });
-  return financeApiInst;
-}
-// Sincronização financeiro → CRM, com debounce: depois de uma rajada de escritas do financeiro, um upsert no pipeline
-// "Investimentos & ROI". Só quando o financeiro e o CRM estão liberados. Falha de sync nunca atrapalha o financeiro.
-// Sincronização CRM → financeiro (vendas): box que chega a "Vendido" num pipeline de vendas vira entrada com produto e
-// peças (crm-finance-vendas.js). Disparada por qualquer mudança do CRM, com debounce; sem diferença, não grava nada.
-let syncVendasTimer = null;
-function agendarSyncVendas(espera = 2000) {
-  if (syncVendasTimer !== null) return;
-  syncVendasTimer = setTimeout(() => {
-    syncVendasTimer = null;
-    let lic; try { lic = ensureLicense(); } catch { return; }
-    if (!licenca.financeOk(lic) || !licenca.crmOk(lic) || financeEhModulo()) return;
-    Promise.resolve().then(() => sincronizarVendas(crmApi(), financeApi())).then((r) => {
-      if (r.criados || r.atualizados || r.removidos || r.pipelineCriado || r.erros.length) log(`sync crm→financeiro (vendas): ${r.criados} novas, ${r.atualizados} atualizadas, ${r.removidos} removidas${r.pipelineCriado ? `; pipeline ${r.pipelineCriado} criado` : ''}${r.erros.length ? `; erros: ${r.erros.slice(0, 3).map((e) => `${e.ref} ${e.motivo}`).join('; ')}` : ''}`);
-    }).catch((e) => log(`sync crm→financeiro (vendas) falhou: ${e.message}`));
-  }, espera);
-  if (typeof syncVendasTimer.unref === 'function') syncVendasTimer.unref();
-}
-let syncCrmTimer = null;
-function agendarSyncInvestimentos() {
-  if (syncCrmTimer !== null) return;
-  syncCrmTimer = setTimeout(() => {
-    syncCrmTimer = null;
-    let lic; try { lic = ensureLicense(); } catch { return; }
-    if (!licenca.financeOk(lic) || !licenca.crmOk(lic) || financeEhModulo()) return;
-    Promise.resolve().then(() => sincronizarInvestimentos(financeApi(), crmApi())).catch((e) => log(`sync financeiro→crm falhou: ${e.message}`));
-  }, 1500);
-  if (typeof syncCrmTimer.unref === 'function') syncCrmTimer.unref();
 }
 async function announceMachine(m) {
   const machines = readJson(MACHINES_FILE, null);
@@ -991,8 +944,9 @@ const server = http.createServer(async (req, res) => {
   // Licença e devices da conta: o app mostra o próprio painel (plano/status/membro desde) e a tabela de máquinas.
   if (url.pathname === '/v1/meu-bot/license' && req.method === 'GET') return json(res, 200, licenseView());
   // CRM próprio (meu-bot-crm): extensão do Gmail (pelo app), agente (crm.mjs), job do WhatsApp e importador.
-  if ((url.pathname.startsWith('/v1/finance/') || url.pathname === '/v1/finance') && financeEhModulo()) return json(res, 409, { error: { code: 'finance_modulo', type: 'invalid_request_error', message: 'o Financeiro desta máquina agora é o módulo Finanças: abra pela página Módulos (ou desligue o módulo para voltar a esta página)' } });
-  if (url.pathname.startsWith('/v1/finance/') || url.pathname === '/v1/finance') { const mut = req.method === 'POST' || req.method === 'PUT'; financeApi().handle(req, res, url).then(() => { if (mut) agendarSyncInvestimentos(); }, (e) => { log(`finance falhou: ${e.stack || e.message}`); if (!res.headersSent) json(res, 500, { error: { message: e.message, type: 'server_error' } }); }); return; }
+  // O Financeiro saiu do backend (issue #312): é o módulo Finanças, com serviço próprio na máquina. Quem ainda chama aqui
+  // (um plugin antigo que ficou instalado) recebe a frase que diz onde ele está.
+  if (url.pathname.startsWith('/v1/finance/') || url.pathname === '/v1/finance') return json(res, 409, { error: { code: 'finance_modulo', type: 'invalid_request_error', message: 'o Financeiro desta máquina agora é o módulo Finanças: ligue-o e abra-o pela página Módulos do meu-bot' } });
   if (url.pathname.startsWith('/v1/crm/') || url.pathname === '/v1/crm') { crmApi().handle(req, res, url, papelDe(req)).catch((e) => { log(`crm falhou: ${e.stack || e.message}`); if (!res.headersSent) json(res, 500, { error: { message: e.message, type: 'server_error' } }); }); return; }
   if (url.pathname === '/v1/meu-bot/alerts' && req.method === 'GET') return json(res, 200, alertPrefs());
   if (url.pathname === '/v1/meu-bot/alerts' && req.method === 'PUT') {
@@ -1054,8 +1008,6 @@ server.requestTimeout = 0;
 // Na subida: migra a licença de antes de 22 out (personalizado/meu-bot-crm) antes que o job do CRM a leia crua.
 try { ensureLicense(); } catch (e) { log(`licença: ${e.message}`); }
 server.listen(PORT, HOST, () => log(`ouvindo em http://${HOST}:${PORT} modelos=${listedModels().map((m) => m.id).join(',')} fallback=${PROVIDERS.map((p) => `${p.name}${p.available ? '' : '(indisponível)'}`).join('→')} claude=${CLAUDE_BIN} workspace=${WORKSPACE} auth=${KEY ? 'bearer' : 'DESLIGADA'}`));
-// Primeira rodada CRM → financeiro depois de subir: cria o pipeline Vendas onde falta e espelha o que já está vendido.
-agendarSyncVendas(15000);
 
 /**
  * Vigia da máquina (saude-maquina.js): memória, swap, disco do HOME, atraso do event loop e a própria box (o cgroup

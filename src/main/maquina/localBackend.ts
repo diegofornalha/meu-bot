@@ -128,12 +128,12 @@ export function ensureLocalBackend(onStatus?: (detail: string) => void): Promise
       const node = findNode();
       if (node === null) throw new Error("Node.js não encontrado neste Mac (procurei em Homebrew, /usr/local, ~/.local e nvm). Instale o Node 18+ para usar a máquina \"local\".");
       const d = dir();
-      // Sem o Claude Code logado, o backend só sobe com o modo grátis (Ollama, tutorial 17) no providers.json: aí o chat
+      // Sem o Claude Code logado, o backend só sobe com o modo grátis (Ollama, tutorial 16) no providers.json: aí o chat
       // usa o ollama-local, e o agente (Claude) só falha se alguém pedir por ele.
       const achado = findClaude();
       const gratis = temOllamaNoProviders(lerProvidersLocal(d));
-      if (achado === null && !gratis) throw new Error("Claude Code não encontrado neste Mac (~/.local/bin/claude). Instale e faça login para usar a máquina \"local\", ou faça o tutorial 17 (modo grátis).");
-      if (achado !== null && !claudeLoggedIn() && !gratis) throw new Error("O Claude Code deste Mac não está logado: rode `claude` no Terminal e use /login, ou faça o tutorial 17 (modo grátis).");
+      if (achado === null && !gratis) throw new Error("Claude Code não encontrado neste Mac (~/.local/bin/claude). Instale e faça login para usar a máquina \"local\", ou faça o tutorial 16 (modo grátis).");
+      if (achado !== null && !claudeLoggedIn() && !gratis) throw new Error("O Claude Code deste Mac não está logado: rode `claude` no Terminal e use /login, ou faça o tutorial 16 (modo grátis).");
       const claude = achado ?? path.join(HOME, ".local", "bin", "claude");
       fs.mkdirSync(path.join(d, "data"), { recursive: true });
       const bundle = backendBundleDir();

@@ -105,7 +105,7 @@ test("variante meu-bot-diego-staging: só ela leva os módulos (abre na página 
   assert.equal(capsFor("diego-staging").modulos, "meu-bot-diego");
   assert.equal(produtoDe("diego-staging").nome, "meu-bot-diego-staging");
   assert.equal(produtoDe("diego-staging").abreEm, "modulos");
-  for (const v of ["client", "client-staging", "finance-staging", "inspector-staging", "admin"]) assert.equal(capsFor(v).modulos, null, v);
+  for (const v of ["client", "client-staging", "inspector-staging", "admin"]) assert.equal(capsFor(v).modulos, null, v);
   assert.ok(ADDONS.some((a) => a.nome === "meu-bot-diego"));
   // Add-on com módulos por licença: o Financeiro, do repositório público meu-bot-finance (issue #312).
   assert.deepEqual(ADDONS.filter((a) => a.modulos).map((a) => a.nome), ["meu-bot-finance"]);

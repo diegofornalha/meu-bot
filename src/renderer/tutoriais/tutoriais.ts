@@ -427,7 +427,6 @@ export function openGuide(t: Tutorial): void {
   if (t.id === "guarda-whatsapp") void ctx.refreshGuarda();
   if (t.id === "navegador") { void ctx.refreshLicense().then(() => paintGuide()); void ctx.refreshNavInst(); }
   if (t.id === "crm-whatsapp" || t.id === "crm-gmail") { void ctx.refreshLicense().then(() => paintGuide()); void ctx.refreshCrm(); }
-  if (t.id === "financeiro") void ctx.refreshLicense().then(() => ctx.financePage?.refresh());
   if (t.id === "xai-login") void ctx.refreshXaiLine();
   if (t.id === "whatsapp-grupos") void ctx.refreshWaGroups();
   if (t.id === "contas-cli") void ctx.refreshContas();
