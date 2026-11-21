@@ -3,7 +3,7 @@
  * digitar), um cursor único anda até ESSE ponto (o main mede o elemento e manda em `EventoDepuracao.ponto`), com o nome
  * de quem age. Ele fica parado onde agiu e some depois de um tempo sem ação. Serve para ver de fora onde o agente mexe.
  * É o modo "real" do instagramável: enquanto ele está em cena, o show (instagramavel.ts) sai do palco e o que cada log
- * fez aparece no balão dele; o show só volta quando o real some.
+ * fez aparece no balão dele; o show só volta CENA_MS depois da última ação na página.
  */
 import type { EventoDepuracao, PontoDepuracao } from "../../shared/ipc";
 import { pontoNaTela, rotuloDoDono, textoDoBalao } from "../lib/instagramavel-core.js";
@@ -11,6 +11,11 @@ import { faixaLigada } from "./faixa.js";
 
 /** Sem ação por este tempo, o cursor esmaece (a próxima ação o traz de volta de onde parou). */
 const SOME_MS = 8000;
+/**
+ * Depois da última ação na página, o real segura a cena por este tempo, mesmo já esmaecido: o show só volta depois.
+ * Sem isso os dois modos se intercalam a cada pausa do agente (clica, lê, clica).
+ */
+const CENA_MS = 30_000;
 const SETA = '<svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path d="M4 2l16 11.5-7 1.2 4.2 7.3-3 1.7-4.2-7.3L5 21z" fill="currentColor" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg>';
 type WebviewComId = HTMLElement & { getWebContentsId(): number };
 
@@ -38,6 +43,7 @@ function falar(e: EventoDepuracao): void {
 }
 let ultimo: { x: number; y: number } | null = null;
 let sumir: ReturnType<typeof setTimeout> | null = null;
+let soltar: ReturnType<typeof setTimeout> | null = null;
 
 /** O ponto real na tela, se a aba da ação está à vista nesta janela. */
 export function pontoReal(p: PontoDepuracao | undefined): { x: number; y: number } | null {
@@ -63,7 +69,8 @@ function mover(e: EventoDepuracao): void {
   if (!faixaLigada()) return;
   const fim = pontoReal(e.ponto);
   // Log sem lugar na página (nota, terminal): com o real em cena, ele conta no balão, sem sair de onde está.
-  if (fim === null) { if (emCena) { falar(e); armarSumico(); } return; }
+  // Ele reaparece onde parou, mas não renova a cena: só ação na página segura o show fora.
+  if (fim === null) { if (emCena && el !== null) { falar(e); el.classList.remove("some"); armarSumico(); } return; }
   el ??= criar();
   falar(e);
   cena(true);
@@ -83,10 +90,13 @@ function mover(e: EventoDepuracao): void {
   };
   ultimo = fim;
   armarSumico();
+  if (soltar !== null) clearTimeout(soltar);
+  soltar = setTimeout(() => { soltar = null; el?.classList.add("some"); ultimo = null; cena(false); }, CENA_MS);
 }
+/** Esmaece depois de SOME_MS sem log; a cena continua dele até CENA_MS sem ação na página. */
 function armarSumico(): void {
   if (sumir !== null) clearTimeout(sumir);
-  sumir = setTimeout(() => { el?.classList.add("some"); balaoEl?.classList.remove("on"); ultimo = null; cena(false); }, SOME_MS);
+  sumir = setTimeout(() => { el?.classList.add("some"); balaoEl?.classList.remove("on"); }, SOME_MS);
 }
 /** O renderer.ts chama uma vez, depois de ligarFaixaDepuracao. */
 export function ligarCursorAgente(): void {
@@ -95,6 +105,7 @@ export function ligarCursorAgente(): void {
     if (s.ligado) return;
     if (el !== null) el.hidden = true;
     if (sumir !== null) { clearTimeout(sumir); sumir = null; }
+    if (soltar !== null) { clearTimeout(soltar); soltar = null; }
     ultimo = null; cena(false);
   });
 }

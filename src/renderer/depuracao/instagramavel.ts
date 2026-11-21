@@ -10,7 +10,8 @@
  *
  * Dois modos (20 nov): o REAL (cursor-agente.ts, o cursor único que anda até onde a ação aconteceu) e o SHOW (este
  * arquivo). O show só entra quando o real não está em cena: log com ponto real, ou que chega com o real à vista, fica
- * com o real; quando o real entra, quem está no palco sai, e o show volta sozinho depois que o real some.
+ * com o real; quando o real entra, quem está no palco sai, e o show só volta depois de um tempo sem ação na página
+ * (CENA_MS em cursor-agente.ts), para os dois modos não se intercalarem.
  */
 import type { ContaView, EventoDepuracao, SettingsView } from "../../shared/ipc";
 import { byId as $ } from "../lib/dom.js";
