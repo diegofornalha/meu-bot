@@ -1,4 +1,5 @@
 import type { WhatsappAgente, WhatsappStatus, WhatsappReplyChoice, VoiceReplyMode, VozId, AudioSetup, WhatsappEvent } from "../../shared/ipc";
+import { hermesBloqueado } from "../lib/agente-hermes.js";
 import { byId as $, el } from "../lib/dom.js";
 import { ipcErrorText } from "../lib/ipc-error.js";
 import { estadoOuvir } from "../lib/audio-ouvir-core.js";
@@ -490,16 +491,16 @@ export function renderAgentChoice(container: HTMLElement): void {
   for (const o of AGENTE_OPTIONS) {
     const saving = waAgenteSaving === o.id;
     const card = el("button", `reply-card${marcado === o.id ? " on" : ""}${saving ? " saving" : ""}`);
-    // No Mac (máquina "local") o WhatsApp é só pelo OpenClaw por enquanto: o gateway do Hermes depende de systemd/pm2.
-    const soNasMaquinas = ctx.windowHost === "local" && o.id === "hermes";
-    card.type = "button"; card.disabled = waAgenteSaving !== null || waPairing || soNasMaquinas;
+    // Em Este Mac o Hermes só entra com o comando `hermes` instalado (lib/agente-hermes.ts); nas máquinas, sempre.
+    const bloqueio = o.id === "hermes" ? hermesBloqueado(ctx.windowHost, st) : null;
+    card.type = "button"; card.disabled = waAgenteSaving !== null || waPairing || bloqueio !== null;
     card.setAttribute("role", "radio"); card.setAttribute("aria-checked", String(marcado === o.id));
     const title = el("div", "reply-title"); title.append(el("strong", "", o.title));
     if (o.recomendado) title.append(el("span", "reply-default", "Recomendado"));
     if (saving) title.append(el("span", "reply-saving", "aplicando…"));
-    const body = el("div", "reply-body"); body.append(title, el("p", "", soNasMaquinas ? "Neste Mac, por enquanto, só o OpenClaw; o Hermes atende o WhatsApp nas máquinas por SSH." : o.text));
+    const body = el("div", "reply-body"); body.append(title, el("p", "", bloqueio ?? o.text));
     card.append(saving ? el("span", "reply-spin") : el("span", "reply-radio"), body);
-    card.addEventListener("click", () => { if (soNasMaquinas) return; if (o.id !== atual || st?.escolha == null) void escolherAgente(o.id); });
+    card.addEventListener("click", () => { if (bloqueio !== null) return; if (o.id !== atual || st?.escolha == null) void escolherAgente(o.id); });
     cards.append(card);
   }
   container.append(cards);

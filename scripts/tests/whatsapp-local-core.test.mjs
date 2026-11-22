@@ -59,6 +59,16 @@ test("as funções do prelúdio valem num bash filho (os instaladores rodam como
   assert.match(r.stdout, /^function\nfunction\nfunction\nrc=124$/m);
 });
 
+test("sed -i sem sufixo (GNU): troca no próprio arquivo, sem deixar backup; sem -i, o sed de sempre; vale num bash filho", { skip: !noMac && "só no macOS" }, () => {
+  const d = mkdtempSync(join(tmpdir(), "mb-sed-"));
+  const f = join(d, "env");
+  writeFileSync(f, "A=1\nHERMES_LOCAL_STT_COMMAND=velho\nB=2\n");
+  // A mesma forma do HERMES_STT_COMPARTILHADO_SH (whatsapp-hermes-core.ts), que o sed do BSD recusa sem o prelúdio.
+  const r = bash(`sed -i '/^HERMES_LOCAL_STT_COMMAND=/d' "${f}"; cat "${f}"; ls "${d}" | wc -l | tr -d ' '; echo x | sed 's/x/y/'; bash -c 'type -t sed'`);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stdout, "A=1\nB=2\n1\ny\nfunction\n");
+});
+
 // Máquina por SSH: os ajustes do macOS só entram num Mac, e sem a escolha de agente (que é do host "local").
 const remoto = (script, antes = "") => spawnSync("/bin/bash", ["-s"], { input: antes + c.scriptRemoto(script), encoding: "utf8", timeout: 30_000, env: { PATH: "/usr/bin:/bin", HOME: process.env.HOME } });
 

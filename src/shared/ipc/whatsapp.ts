@@ -82,6 +82,8 @@ export interface WhatsappStatus {
   repaired?: string;
   /** Agente que a pessoa escolheu para o WhatsApp desta máquina; null = ainda não escolheu (vale o que estiver instalado). */
   escolha?: WhatsappAgente | null;
+  /** O comando `hermes` existe nesta máquina (PATH do agente). Em Este Mac, é o que libera o cartão Hermes no tutorial 3. */
+  hermesCli?: boolean;
   /** Quem manda no agente: o dono gravado na máquina (whatsapp-lista.json › dono) ou o próprio número pareado (`souEu`). Ausente sem número. */
   dono?: { numero: string; nome: string | null; souEu: boolean };
   /** Onde vive o WhatsApp desta máquina (OpenClaw): conta e agente no gateway, e de quem é o gateway. Ausente = o padrão (próprio). */
