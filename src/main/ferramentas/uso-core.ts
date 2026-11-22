@@ -64,15 +64,18 @@ export function fraseDoCartao(cartao: "comprar" | "conectar", app: string): stri
 }
 
 /**
- * Lê ou altera? Pela marca que o serviço de ferramentas dá a cada ação (`somenteLeitura`); sem ela, pelo verbo no
- * começo do nome, e só o que é claramente consulta conta como leitura. Na dúvida, "desconhecido": a pessoa confirma.
+ * Lê ou altera? Pela marca que o serviço de ferramentas dá a cada ação (`somenteLeitura`). Sem ela, pelo nome, e a
+ * leitura é a exceção estrita, porque é ela que roda sem cartão: só conta quando o verbo logo depois do nome do app
+ * (GMAIL_FETCH_…) é de consulta, nenhuma outra parte é verbo que altera e o nome não junta duas ações (…_AND_…). A
+ * lista de verbos de escrita nunca é completa: o que não se encaixa é "desconhecido", e a pessoa confirma.
  */
 export function tipoDaAcao(a: { nome: string; somenteLeitura?: boolean | undefined }): TipoDeAcao {
   if (a.somenteLeitura === true) return "leitura";
   if (a.somenteLeitura === false) return "escrita";
   const partes = a.nome.toUpperCase().split(/[_\s.:-]+/).filter((x) => x !== "");
   if (partes.some((x) => VERBOS_DE_ESCRITA.has(x))) return "escrita";
-  return partes.some((x) => VERBOS_DE_LEITURA.has(x)) ? "leitura" : "desconhecido";
+  if (partes.some((x) => x === "AND" || x === "THEN")) return "desconhecido";
+  return partes.length >= 2 && VERBOS_DE_LEITURA.has(partes[1]!) ? "leitura" : "desconhecido";
 }
 const VERBOS_DE_LEITURA = new Set(["GET", "LIST", "FETCH", "SEARCH", "FIND", "READ", "QUERY", "LOOKUP", "RETRIEVE", "COUNT", "CHECK", "DESCRIBE", "INSPECT"]);
-const VERBOS_DE_ESCRITA = new Set(["CREATE", "UPDATE", "DELETE", "REMOVE", "SEND", "POST", "PUT", "PATCH", "ADD", "INSERT", "MOVE", "COPY", "UPLOAD", "SHARE", "REPLY", "FORWARD", "PUBLISH", "CANCEL", "ARCHIVE", "TRASH", "RENAME", "INVITE", "MERGE", "CLOSE", "OPEN", "SET", "CLEAR", "APPEND", "WRITE", "EDIT", "MODIFY", "RUN", "EXECUTE", "TRIGGER", "MARK", "ASSIGN", "IMPORT", "EXPORT", "DUPLICATE", "RESTORE", "BATCH"]);
+const VERBOS_DE_ESCRITA = new Set(["CREATE", "UPDATE", "DELETE", "REMOVE", "SEND", "POST", "PUT", "PATCH", "ADD", "INSERT", "MOVE", "COPY", "UPLOAD", "SHARE", "REPLY", "FORWARD", "PUBLISH", "CANCEL", "ARCHIVE", "TRASH", "RENAME", "INVITE", "MERGE", "CLOSE", "OPEN", "SET", "CLEAR", "APPEND", "WRITE", "EDIT", "MODIFY", "RUN", "EXECUTE", "TRIGGER", "MARK", "ASSIGN", "IMPORT", "EXPORT", "DUPLICATE", "RESTORE", "BATCH", "REPLACE", "SUBMIT", "TRANSFER", "PAY", "BOOK", "SCHEDULE", "LABEL", "UNSUBSCRIBE", "SUBSCRIBE", "APPROVE", "REJECT", "ACCEPT", "DECLINE", "REFUND", "CHARGE", "CONNECT", "DISCONNECT", "ENABLE", "DISABLE", "RESET", "REVOKE", "GRANT", "LOCK", "UNLOCK", "START", "STOP", "DEPLOY", "PURCHASE", "ORDER"]);

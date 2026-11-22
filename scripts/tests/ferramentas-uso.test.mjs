@@ -62,6 +62,11 @@ test("tipoDaAcao: a marca do serviço manda; sem ela, só o que é claramente co
   for (const n of ["GMAIL_SEND_EMAIL", "GOOGLECALENDAR_CREATE_EVENT", "NOTION_UPDATE_PAGE", "GOOGLEDRIVE_DELETE_FILE", "SLACK_POST_MESSAGE"]) assert.equal(u.tipoDaAcao({ nome: n }), "escrita", n);
   // "Buscar e apagar": um verbo de escrita no nome basta.
   assert.equal(u.tipoDaAcao({ nome: "GMAIL_GET_AND_DELETE_DRAFT" }), "escrita");
+  // A leitura é a exceção estrita: duas ações num nome, verbo de escrita fora do começo ou verbo que não é o primeiro
+  // depois do app nunca rodam sem cartão.
+  for (const n of ["GMAIL_FIND_AND_REPLACE", "X_GET_AND_SUBMIT_FORM", "BANK_LIST_AND_TRANSFER", "CAL_GET_AND_SCHEDULE_SLOT", "SHOP_LIST_THEN_PAY", "GMAIL_GET_AND_LABEL_THREAD"]) assert.equal(u.tipoDaAcao({ nome: n }), "escrita", n);
+  for (const n of ["GMAIL_FETCH_AND_FLAG", "DOCS_SEARCH_THEN_STAMP"]) assert.equal(u.tipoDaAcao({ nome: n }), "desconhecido", `${n}: verbo fora da lista junto com AND/THEN`);
+  for (const n of ["GOOGLE_ANALYTICS_GET_REPORT", "CRM_CONTACT_LIST", "FETCH"]) assert.equal(u.tipoDaAcao({ nome: n }), "desconhecido", `${n}: o verbo de consulta não vem logo depois do app`);
   // Relatório que "roda", ou nome sem verbo conhecido: pergunta.
   assert.equal(u.tipoDaAcao({ nome: "GOOGLEANALYTICS_RUN_REPORT" }), "escrita");
   assert.equal(u.tipoDaAcao({ nome: "STRIPE_BALANCE" }), "desconhecido");

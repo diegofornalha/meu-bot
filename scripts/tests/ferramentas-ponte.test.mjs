@@ -41,7 +41,10 @@ test("ferramentas.js: porta como nas outras pontes; a regra pede o motivo, proí
   for (const f of ["ferramentas.js", "ferramentas-mcp.js"]) assert.ok(BACKEND_RUNTIME_FILES.includes(f), `${f} vai com o backend`);
   // O install.sh copia os *.js da pasta do backend: por isso o conector é .js.
   assert.match(readFileSync(resolve("backend-colima/install.sh"), "utf8"), /cp "\$origem"\/\*\.js/);
-  assert.match(readFileSync(resolve("backend-colima/server.js"), "utf8"), /path\.join\(__dirname, 'ferramentas-mcp\.js'\)/);
+  const server = readFileSync(resolve("backend-colima/server.js"), "utf8");
+  assert.match(server, /path\.join\(__dirname, 'ferramentas-mcp\.js'\)/);
+  // O turno do WhatsApp marca a origem no dono das Ferramentas: lá não há tela para o cartão.
+  assert.match(server, /if \(turnoWa !== null\) ferramentas\.dono = \{.*origem: 'whatsapp' \};/);
 });
 
 /** Um "app" de mentira na porta local: responde a cada rota o que o teste mandar e guarda o que chegou. */

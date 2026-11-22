@@ -670,8 +670,13 @@ async function chatCompletions(req, res) {
   // Dono das abas que este turno abrir no Navegador (cada conversa trabalha nas próprias abas): id da conversa + título.
   if (browser !== null && convId !== null && !browser.dono) browser.dono = { id: `meu-bot:${convId}`, rotulo: navegador.parseRotulo(req.headers['x-meu-bot-browser-rotulo']) };
   if (gmail !== null && convId !== null) gmail.dono = { id: `meu-bot:${convId}`, rotulo: navegador.parseRotulo(req.headers['x-meu-bot-browser-rotulo']) };
-  // A conversa dona do pedido: é nela que o app mostra o cartão de conectar ou de confirmar.
-  if (ferramentas !== null && convId !== null) ferramentas.dono = { id: `meu-bot:${convId}`, rotulo: navegador.parseRotulo(req.headers['x-meu-bot-browser-rotulo']) };
+  // A conversa dona do pedido: é nela que o app mostra o cartão de conectar ou de confirmar. O turno do WhatsApp
+  // (modelo "whatsapp") não tem tela: o dono vai marcado com a origem, e o app não mostra cartão (decidirUso: leitura
+  // roda, escrita só com um "Permitir sempre" dado antes). Sem isso o cartão ficaria esperando numa conversa que ninguém vê.
+  if (ferramentas !== null) {
+    if (turnoWa !== null) ferramentas.dono = { id: turnoWa.browser && turnoWa.browser.dono ? turnoWa.browser.dono.id : `whatsapp:${turnoWa.numero || 'desconhecido'}`, rotulo: 'WhatsApp', origem: 'whatsapp' };
+    else if (convId !== null) ferramentas.dono = { id: `meu-bot:${convId}`, rotulo: navegador.parseRotulo(req.headers['x-meu-bot-browser-rotulo']) };
+  }
   const hash = sysHash(messages);
   const id = `chatcmpl-${crypto.randomBytes(8).toString('hex')}`;
   const created = Math.floor(Date.now() / 1000);
