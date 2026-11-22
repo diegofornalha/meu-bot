@@ -83,7 +83,7 @@ export const REVISAO_PAGINAS: Readonly<Record<string, string>> = {
   "/guias/responder-clientes-whatsapp-fora-do-horario": "2026-11-12",
   "/guias/ia-que-le-seu-gmail": "2026-11-12",
   "/guias/whatsapp-bloqueia-numero-com-ia": "2026-11-12",
-  "/guias/automatizar-whatsapp-com-ia": "2026-11-12",
+  "/guias/automatizar-whatsapp-com-ia": "2026-11-22",
   "/guias/api-oficial-do-whatsapp-ou-numero-proprio": "2026-11-13",
   "/privacidade": "2026-11-19",
   "/termos": "2026-11-19",
