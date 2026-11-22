@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
-const { parseSshConfig, planSshSync, renderSshAppend, normalizeInclude, identityFiles } = createRequire(import.meta.url)("../../dist/main/maquina/ssh-sync.js");
+const { modeloVazio, parseSshConfig, planSshSync, renderSshAppend, normalizeInclude, identityFiles } = createRequire(import.meta.url)("../../dist/main/maquina/ssh-sync.js");
 
 const HOME = "/Users/alguem";
 const template = `# comentário
@@ -126,4 +126,17 @@ test("includedTexts: Include aninhado, arquivo ilegível e ciclo", () => {
   const textos = includedTexts("Include a.conf\n", expand, read);
   assert.deepEqual(textos, [arquivos["/h/.ssh/a.conf"], arquivos["/h/.ssh/b.conf"]], "cada arquivo uma vez, mesmo com ciclo; o ilegível é pulado");
   assert.deepEqual(includedTexts("Host x\n", expand, read), []);
+});
+
+test("o modelo versionado vai vazio no app: sem máquina, sem Include, e o sync não escreve nada", async () => {
+  const { readFileSync } = await import("node:fs");
+  const versionado = readFileSync(new URL("../../config/ssh-hosts.conf", import.meta.url), "utf8");
+  // O repositório é público e este arquivo vai no instalador: endereço de máquina aqui é vazamento.
+  assert.equal(modeloVazio(versionado), true);
+  assert.doesNotMatch(versionado, /^\s*(Host|HostName|User|Include)\b/im);
+  const plano = planSshSync(versionado, "Host minha\n    HostName 10.0.0.1\n", HOME);
+  assert.equal(renderSshAppend(plano, "2026-11-22 00:00:00"), "");
+  assert.equal(modeloVazio(template), false);
+  assert.equal(modeloVazio("Include ~/.colima/ssh_config\n"), false);
+  assert.equal(modeloVazio("# só comentário\nHost *\n    ServerAliveInterval 60\n"), true);
 });

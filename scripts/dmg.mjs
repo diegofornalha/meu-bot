@@ -113,9 +113,6 @@ try {
       "#     User eu",
       "#     IdentityFile ~/.ssh/id_ed25519",
       "",
-      "# VM do Colima (Lima) do próprio Mac; se não houver Colima, o ssh ignora o arquivo ausente.",
-      "Include ~/.colima/ssh_config",
-      "",
     ].join("\n"));
   }
   if (!keepHosts || support) await assinar(app);

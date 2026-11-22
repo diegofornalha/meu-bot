@@ -10,7 +10,7 @@ import os from "node:os";
 import path from "node:path";
 import { app } from "electron";
 import type { SshSyncResult } from "../../shared/ipc";
-import { identityFiles, includedTexts, planSshSync, removeSshHost, renderSshAppend } from "./ssh-sync";
+import { identityFiles, includedTexts, modeloVazio, planSshSync, removeSshHost, renderSshAppend } from "./ssh-sync";
 import { expandInclude } from "./sshConfig";
 
 /** config/ssh-hosts.conf: Resources/config no .app; raiz do projeto no dev. */
@@ -53,6 +53,7 @@ export function syncSshConfig(): SshSyncResult {
     sameTarget: plan.sameTarget,
     backup,
     missingKeys: identityFiles(template, home).filter((p) => !fs.existsSync(p)),
+    modeloVazio: modeloVazio(template),
   };
 }
 

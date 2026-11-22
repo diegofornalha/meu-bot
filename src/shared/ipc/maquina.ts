@@ -176,4 +176,6 @@ export interface SshSyncResult {
   backup: string | null;
   /** Chaves (IdentityFile) do modelo que não existem neste Mac. */
   missingKeys: string[];
+  /** O modelo do app não traz máquina nenhuma (o app distribuído): nada a sincronizar, nada a listar. */
+  modeloVazio: boolean;
 }
