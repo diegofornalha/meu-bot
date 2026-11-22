@@ -169,6 +169,7 @@ while IFS= read -r D; do
   if [ -n "$EDIT" ]; then cp "$EDIT" "$T/SKILL.md"; rm -f "$EDIT"; echo "DEST=editada:\${D%%:*}"; else echo "DEST=ok:\${D%%:*}"; fi
 done < <(destinos)
 printf '%s\\n' "$NOVA" > "$BASE/$NOME/skill.sha256"
+[ -f "$BASE/$NOME/origem.json" ] && echo "ERA=1"
 printf '{"url":"%s","commit":"%s","em":"%s","origem":"link"}\\n' "$U" "$C" ${shq(em)} > "$BASE/$NOME/origem.json"
 rm -rf "$P"
 echo "OK=1"
@@ -181,7 +182,7 @@ const ERRO_INSTALAR: Record<string, string> = {
   links: "o repositório tem atalhos (symlinks); uma skill importada só pode ter arquivos comuns",
 };
 /** Lê a saída do `instalarSh`: onde a skill ficou, ou o motivo de não ter instalado. */
-export function parseInstalar(out: string): { ok: true; destinos: SkillDestino[] } | { ok: false; erro: string } {
+export function parseInstalar(out: string): { ok: true; destinos: SkillDestino[]; atualizou: boolean } | { ok: false; erro: string } {
   const falha = falhaDe(out);
   if (falha !== null) return { ok: false, erro: falha };
   const erro = linha(out, "ERRO");
@@ -192,7 +193,8 @@ export function parseInstalar(out: string): { ok: true; destinos: SkillDestino[]
   if (linha(out, "OK") !== "1") return { ok: false, erro: "a instalação não concluiu" };
   const destinos: SkillDestino[] = [];
   for (const l of out.split("\n")) { const m = /^DEST=(ok|editada):(Claude|Hermes|OpenClaw)$/.exec(l.trim()); if (m !== null) destinos.push({ agente: m[2] as SkillDestino["agente"], editada: m[1] === "editada" }); }
-  return { ok: true, destinos };
+  // ERA=1: a skill já estava importada, então isto foi uma atualização (é o que a auditoria registra).
+  return { ok: true, destinos, atualizou: linha(out, "ERA") === "1" };
 }
 
 /** As skills importadas nesta máquina: uma linha S por skill, com o origem.json e a descrição do SKILL.md guardado. */

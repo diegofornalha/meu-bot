@@ -17,6 +17,9 @@ test("catálogo e marcas: texto da tela sai da ação; legado mostra o texto ant
   assert.equal(a.textoDaLinha({ acao: "whatsapp.pausar", alvo: "+5511999990000", detalhe: "" }), "pausou o agente do WhatsApp para +5511999990000");
   assert.equal(a.textoDaLinha({ acao: "whatsapp.dono", alvo: "+5521923670743", detalhe: "" }), "definiu o dono do agente do WhatsApp (+5521923670743)");
   assert.equal(a.textoDaLinha({ acao: "legado", alvo: "", detalhe: "reiniciou o gateway" }), "reiniciou o gateway");
+  assert.equal(a.textoDaLinha({ acao: "skill.importar", alvo: "minha-skill", detalhe: "fulano/minha-skill, commit abc1234" }), "importou a skill minha-skill pelo link do repositório");
+  assert.equal(a.textoDaLinha({ acao: "skill.atualizar", alvo: "minha-skill", detalhe: "" }), "atualizou a skill importada minha-skill");
+  assert.equal(a.textoDaLinha({ acao: "skill.remover", alvo: "minha-skill", detalhe: "" }), "removeu a skill importada minha-skill");
   assert.equal(a.acaoDaMarca({ deleted: true, archived: false }), "whatsapp.excluir");
   assert.equal(a.acaoDaMarca({ deleted: false }), "whatsapp.restaurar");
   assert.equal(a.acaoDaMarca({ archived: true, at: "2026-10-17T02:10:00Z" }), null, "migração não registra");

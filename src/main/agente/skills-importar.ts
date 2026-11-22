@@ -9,6 +9,7 @@ import { runSsh } from "../whatsapp/whatsapp";
 import { isValidHost } from "../app/settings";
 import { LOCAL_HOST } from "../maquina/localBackend";
 import { log } from "../maquina/backend";
+import { registrar } from "../auditoria/auditoria";
 
 const hostOk = (host: string): boolean => host === LOCAL_HOST || isValidHost(host);
 const lastLine = (r: { stdout: string; stderr: string }): string => (r.stderr.trim() || r.stdout.trim()).split("\n").pop() || "sem resposta da máquina";
@@ -44,6 +45,7 @@ export async function skillInstalar(host: string, commit: unknown): Promise<Skil
   if (!res.ok) throw new Error(res.erro === "a instalação não concluiu" ? `a instalação não concluiu: ${lastLine(r)}` : res.erro);
   previas.delete(host);
   log(`[skills] ${host}: ${p.previa.nome} importada de ${p.previa.rotulo} (${p.previa.commit.slice(0, 7)}) em ${res.destinos.map((d) => d.agente).join(", ")}`);
+  void registrar(host, res.atualizou ? "skill.atualizar" : "skill.importar", p.previa.nome, `${p.previa.rotulo}, commit ${p.previa.commit.slice(0, 7)}`);
   return { skills: await skillsImportadas(host), destinos: res.destinos };
 }
 
@@ -53,5 +55,6 @@ export async function skillRemover(host: string, nome: unknown): Promise<SkillIm
   const r = await runSsh(host, removerSh(nome), 30_000);
   if (!r.stdout.includes("OK=1")) throw new Error(r.stdout.includes("ERRO=ausente") ? "essa skill não está mais importada nesta máquina" : `não deu para remover: ${lastLine(r)}`);
   log(`[skills] ${host}: ${nome} removida`);
+  void registrar(host, "skill.remover", nome);
   return skillsImportadas(host);
 }

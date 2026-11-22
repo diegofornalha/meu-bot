@@ -49,7 +49,8 @@ test("parsePrevia e parseInstalar: as falhas viram frases para a pessoa", () => 
   assert.match(c.parsePrevia("", u).erro, /não consegui ler/);
   assert.match(c.parseInstalar("ERRO=ocupado:Claude\n").erro, /já existe uma skill com esse nome no Claude.*nada foi alterado/);
   assert.match(c.parseInstalar("ERRO=nome\n").erro, /mudou desde a prévia/);
-  assert.deepEqual(c.parseInstalar("DEST=ok:Claude\nDEST=editada:Hermes\nOK=1\n"), { ok: true, destinos: [{ agente: "Claude", editada: false }, { agente: "Hermes", editada: true }] });
+  assert.deepEqual(c.parseInstalar("DEST=ok:Claude\nDEST=editada:Hermes\nOK=1\n"), { ok: true, destinos: [{ agente: "Claude", editada: false }, { agente: "Hermes", editada: true }], atualizou: false });
+  assert.equal(c.parseInstalar("DEST=ok:Claude\nERA=1\nOK=1\n").atualizou, true, "a skill já estava importada: é atualização");
 });
 
 const temGit = spawnSync("git", ["--version"]).status === 0;
@@ -78,6 +79,7 @@ test("de ponta a ponta num HOME temporário: prévia, instalar, pasta alheia int
 
     const i = c.parseInstalar(sh(local(c.instalarSh(URL, c1, "minha-skill", "2026-11-22T05:00:00.000Z"))));
     assert.equal(i.ok, true, JSON.stringify(i));
+    assert.equal(i.atualizou, false, "primeira vez: é importação");
     const claude = join(home, ".claude", "skills", "minha-skill");
     assert.match(readFileSync(join(claude, "SKILL.md"), "utf8"), /v1/);
     assert.ok(existsSync(join(claude, "scripts", "rodar.sh")) && !existsSync(join(claude, ".git")));
@@ -92,7 +94,7 @@ test("de ponta a ponta num HOME temporário: prévia, instalar, pasta alheia int
     const c2 = git("rev-parse", "HEAD");
     const p2 = c.parsePrevia(sh(local(c.previaSh(URL))), URL);
     assert.equal(p2.previa.commit, c2);
-    assert.equal(c.parseInstalar(sh(local(c.instalarSh(URL, c2, "minha-skill", "2026-11-22T06:00:00.000Z")))).ok, true);
+    assert.deepEqual((({ ok, atualizou }) => [ok, atualizou])(c.parseInstalar(sh(local(c.instalarSh(URL, c2, "minha-skill", "2026-11-22T06:00:00.000Z"))))), [true, true], "já estava importada: é atualização");
     assert.match(readFileSync(join(claude, "SKILL.md"), "utf8"), /editada pelo agente/);
     assert.ok(existsSync(join(claude, "novo.txt")));
     const lista = c.parseLista(sh(c.listarSh()).split(repo).join(URL));
