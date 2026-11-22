@@ -1,4 +1,5 @@
 import type { BackendModel, ClaudeAuthInfo, ContasClaudeView, ClaudeLoginEvent, XaiKeyStatus } from "../../shared/ipc";
+import { xaiVaiAoGuia } from "../lib/xai-entrar.js";
 import { avisoSemConta, estadoTexto, eventoTexto, nomeConta, sairEConferir, usoTexto } from "../lib/contas-claude.js";
 import { byId as $, el } from "../lib/dom.js";
 import { ipcErrorText } from "../lib/ipc-error.js";
@@ -340,6 +341,8 @@ const loginViewOf = (provider: LoginProvider, events: readonly ClaudeLoginEvent[
 const xaiDialog = $<HTMLDialogElement>("xai-dialog");
 const xaiClose = $<HTMLButtonElement>("xai-close");
 export let xaiAuth: ClaudeAuthInfo | null = null;
+/** A última consulta da conta da xAI terminou sem erro (vazia = sem o preparo); false antes da primeira e quando ela falha. */
+let xaiAuthConferida = false;
 export let xaiKey: XaiKeyStatus | null = null;
 const xaiState = { running: false, preparing: false, url: null as string | null, status: "", log: [] as string[], events: [] as ClaudeLoginEvent[], result: null as "ok" | "fail" | null };
 const xaiModal: LoginControls = { box: xaiDialog, status: $<HTMLElement>("xai-status"), open: $<HTMLButtonElement>("xai-open"), codeRow: el("div"), code: el("input") as HTMLInputElement, send: el("button") as HTMLButtonElement, log: $<HTMLElement>("xai-steps"), start: $<HTMLButtonElement>("xai-start"), cancel: null };
@@ -403,7 +406,8 @@ function paintXaiLine(): void {
 }
 /** Consulta a conta da xAI (e, sem o preparo, se há backend); o tutorial 4 e a lateral seguem o resultado. */
 export async function refreshXaiLine(): Promise<void> {
-  try { xaiAuth = await window.meuBot.xaiAuth(); } catch { xaiAuth = null; }
+  // `xaiAuthConferida`: só uma consulta que terminou sem erro diz que a máquina está sem o preparo (enterXai).
+  try { xaiAuth = await window.meuBot.xaiAuth(); xaiAuthConferida = true; } catch { xaiAuth = null; xaiAuthConferida = false; }
   if (xaiAuth === null && ctx.caps.login && ctx.windowHost !== "local") { try { xaiKey = await window.meuBot.xaiKeyStatus(); } catch { xaiKey = null; } }
   paintXaiLine();
   if (ctx.tutorialsReady) { paintXaiLogin(); ctx.paintGuide(); }
@@ -442,9 +446,12 @@ export const FALLBACK_TUTORIAL = TUTORIAIS.find((t) => t.id === "fallback-contas
 /**
  * Porta única para "Entrar na xAI": enquanto o tutorial 4 não foi concluído (e o Grok é possível aqui), abre o
  * guia (Preparar ou Entrar pulsando; nada roda sozinho); concluído, é trocar de conta: o modal já com o login.
+ * Máquina sem o preparo (consulta concluída e vazia: o programa do login nem está instalado) também vai para o guia,
+ * mesmo com o tutorial lembrado como concluído: o login direto ali só terminava em "código 127". A regra é
+ * `xaiVaiAoGuia` (lib/xai-entrar.ts).
  */
 export function enterXai(): void {
-  if (ctx.caps.install && !ctx.tutorialDone(XAI_TUTORIAL)) { ctx.tutNext = false; ctx.openGuide(XAI_TUTORIAL); return; }
+  if (xaiVaiAoGuia({ podeInstalar: ctx.caps.install, tutorialFeito: ctx.tutorialDone(XAI_TUTORIAL), conferida: xaiAuthConferida, preparado: xaiAuth !== null })) { ctx.tutNext = false; ctx.openGuide(XAI_TUTORIAL); return; }
   openXai(); void runXaiLogin();
 }
 /** Sai da conta da xAI nesta máquina; com `relogin`, já leva ao login (tutorial 4 ou modal). */
