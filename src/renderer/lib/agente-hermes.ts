@@ -8,9 +8,13 @@
 import type { WhatsappStatus } from "../../shared/ipc";
 
 export const HERMES_FALTA_NO_MAC = "Neste Mac o Hermes ainda não está instalado. Instale o Hermes (o comando hermes) e toque em Trocar de novo; até lá, o OpenClaw atende o WhatsApp daqui.";
+/** O status não veio (ainda lendo, ou a consulta falhou): não dá para afirmar que o Hermes falta. */
+export const HERMES_NAO_CONFERIDO = "Não consegui conferir agora se o Hermes está instalado neste Mac. Tente de novo em instantes.";
 
 /** null = pode escolher; texto = por que não (vai no cartão, no lugar da descrição). */
 export function hermesBloqueado(host: string, st: Pick<WhatsappStatus, "hermesCli"> | null): string | null {
   if (host !== "local") return null;
-  return st?.hermesCli === true ? null : HERMES_FALTA_NO_MAC;
+  if (st?.hermesCli === true) return null;
+  // `false` só quando a consulta rodou e não achou o comando; sem o campo (status com erro), o motivo é outro.
+  return st?.hermesCli === false ? HERMES_FALTA_NO_MAC : HERMES_NAO_CONFERIDO;
 }

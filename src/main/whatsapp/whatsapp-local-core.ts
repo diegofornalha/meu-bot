@@ -16,7 +16,9 @@ export const LOCAL_WA_HOST = "local";
  *   sem isso o QR nunca chegava ao app ("Gerando o QR…" para sempre). Aqui: o tail normal até o processo N sair.
  * - As funções vão com `export -f`: os instaladores rodam como `bash arquivo.sh`, um bash filho (sem isso o
  *   install-transcricao.sh não achava o `timeout` e o teste do OpenClaw falhava).
- * - `sed -i expr arq`: o sed do BSD pede o sufixo do backup; vira `sed -i '' expr arq`.
+ * - `sed -i expr arq`, com o `-i` como primeiro argumento (a única forma que os scripts usam hoje, no
+ *   HERMES_STT_COMPARTILHADO_SH): o sed do BSD pede o sufixo do backup; vira `sed -i '' expr arq`. Outras formas
+ *   do GNU (`sed -E -i`, `sed -Ei`) não são traduzidas: script novo que precisar delas estende a função e o teste.
  * - Sem escolha de agente gravada, o OpenClaw: é o padrão neste Mac, e um `hermes` da pessoa em ~/.local/bin faria a
  *   regra do motor (WA_MOTOR_SH) escolhê-lo sem ninguém pedir. Com a escolha gravada (tutorial 3 › Trocar), o Hermes
  *   atende aqui também: o gateway dele é um serviço do launchd (`hermes gateway install|start|stop|restart`), o ramo
@@ -27,7 +29,7 @@ export const LOCAL_WA_HOST = "local";
 /** PATH com o que o OpenClaw instala no Mac (~/.local, ~/.openclaw) e o Homebrew: sessão sem login (app de GUI, `ssh host bash -s`) tem PATH mínimo. */
 const MACOS_PATH_SH = `export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 `;
-/** As ferramentas que os scripts esperam do Linux e o macOS não tem: `timeout`, `tail --pid`, `stat -c` e `sed -i` sem sufixo (ver o comentário acima). */
+/** As ferramentas que os scripts esperam do Linux e o macOS não tem: `timeout`, `tail --pid`, `stat -c` e `sed -i` em primeiro argumento (ver o comentário acima). */
 const MACOS_FERRAMENTAS_SH = `command -v timeout >/dev/null 2>&1 || timeout() {
   _t=$1; shift
   perl -e 'my $t = shift; my $pid = fork(); die "fork" unless defined $pid; if ($pid == 0) { exec @ARGV or exit 127 } $SIG{ALRM} = sub { kill "TERM", $pid; sleep 1; kill "KILL", $pid; exit 124 }; alarm $t; waitpid($pid, 0); exit($? & 127 ? 128 + ($? & 127) : $? >> 8)' "$_t" "$@"
@@ -50,7 +52,7 @@ stat() {
     esac
   else command stat "$@"; fi
 }
-# \`sed -i 's/…/'\` (GNU): o sed do BSD exige o sufixo do backup depois do -i; aqui, vazio (sem backup), como no Linux.
+# \`sed -i expr arq\` com o -i em primeiro: o sed do BSD exige o sufixo do backup depois do -i; aqui, vazio (sem backup), como no Linux.
 sed() { if [ "\${1-}" = "-i" ]; then shift; command sed -i '' "$@"; else command sed "$@"; fi; }
 # Para os scripts que o prelúdio chama como \`bash arquivo.sh\` (instaladores): sem export, o bash filho não vê as funções.
 export -f stat tail sed 2>/dev/null; command -v timeout >/dev/null 2>&1 && [ "$(type -t timeout)" = function ] && export -f timeout

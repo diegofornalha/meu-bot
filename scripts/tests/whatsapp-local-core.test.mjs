@@ -59,7 +59,7 @@ test("as funções do prelúdio valem num bash filho (os instaladores rodam como
   assert.match(r.stdout, /^function\nfunction\nfunction\nrc=124$/m);
 });
 
-test("sed -i sem sufixo (GNU): troca no próprio arquivo, sem deixar backup; sem -i, o sed de sempre; vale num bash filho", { skip: !noMac && "só no macOS" }, () => {
+test("sed -i como primeiro argumento (a forma dos scripts): troca no próprio arquivo, sem deixar backup; sem -i, o sed de sempre; vale num bash filho", { skip: !noMac && "só no macOS" }, () => {
   const d = mkdtempSync(join(tmpdir(), "mb-sed-"));
   const f = join(d, "env");
   writeFileSync(f, "A=1\nHERMES_LOCAL_STT_COMMAND=velho\nB=2\n");
