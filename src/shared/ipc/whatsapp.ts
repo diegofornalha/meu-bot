@@ -27,6 +27,8 @@ export interface WhatsappCapacidades {
   /** O próprio Hermes faz a pausa por contato (ainda não existe; quando existir, o app prefere o nativo ao plugin). */
   pausaNativa: boolean;
   grupos: boolean; guarda: boolean; politicaDm: boolean; audio: boolean;
+  /** O agente gerencia grupos pelo app, com ou sem número conectado agora (OpenClaw e Hermes): com `grupos` falso, o que falta é conectar o WhatsApp, não o agente. */
+  gruposAoConectar: boolean;
   /** O app liga/desliga o "digitando…" do agente (OpenClaw: `agents.defaults.typingMode`; Hermes: `platforms.whatsapp.typing_indicator`). */
   digitando: boolean;
   /** Aplicar o "digitando…" reinicia o gateway do WhatsApp da máquina (Hermes: a chave é lida na subida). */
@@ -82,6 +84,8 @@ export interface WhatsappStatus {
   repaired?: string;
   /** Agente que a pessoa escolheu para o WhatsApp desta máquina; null = ainda não escolheu (vale o que estiver instalado). */
   escolha?: WhatsappAgente | null;
+  /** O comando `hermes` existe nesta máquina (PATH do agente). Em Este Mac, é o que libera o cartão Hermes no tutorial 3. */
+  hermesCli?: boolean;
   /** Quem manda no agente: o dono gravado na máquina (whatsapp-lista.json › dono) ou o próprio número pareado (`souEu`). Ausente sem número. */
   dono?: { numero: string; nome: string | null; souEu: boolean };
   /** Onde vive o WhatsApp desta máquina (OpenClaw): conta e agente no gateway, e de quem é o gateway. Ausente = o padrão (próprio). */

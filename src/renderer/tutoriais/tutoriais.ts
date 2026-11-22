@@ -148,10 +148,10 @@ export function paintGuideTargets(): void {
 let waInlineGuide: Tutorial | null = null;
 /**
  * Passo concluído reaberto pelo "Refazer" (tutorial + passo): o corpo volta para a pessoa remarcar a opção. `marca` é a
- * escolha no momento de reabrir (grupo alvo e quem aciona): mudou, o passo fecha sozinho e o foco volta ao passo atual.
+ * escolha no momento de reabrir (grupo alvo, quem aciona e o agente do WhatsApp): mudou, o passo fecha sozinho e o foco volta ao passo atual.
  */
 let passoReaberto: { tut: string; step: string; marca: string } | null = null;
-const marcaDoPasso = (): string => { const c = ctx.guideCtx(); return JSON.stringify([c.grupos.alvo, c.grupos.info?.quemAciona ?? null, grupoAlvo(c.grupos.info, c.grupos.alvo)?.agente ?? null]); };
+const marcaDoPasso = (): string => { const c = ctx.guideCtx(); return JSON.stringify([c.grupos.alvo, c.grupos.info?.quemAciona ?? null, grupoAlvo(c.grupos.info, c.grupos.alvo)?.agente ?? null, ctx.waStatus?.escolha ?? null]); };
 /** Como o último "Gerar QR" do guia terminou sem conectar; fica no passo (os nós de progresso voltam ao modal). */
 let waGuidePairNote: string | null = null;
 function runGuideAction(target: GuideTarget, t: Tutorial): void {
