@@ -854,3 +854,19 @@ nele): a barra lateral ganha o botão **Inspector** e a janela abre nessa págin
   127.0.0.1, mas outra conta deste mesmo Mac alcança o loopback. É um app de teste; as ferramentas de execução
   (`terminal_digitar`, `nav_js`) seguem atrás do interruptor de Configurações.
 - **Empacotar à mão:** `npm run dist:inspector-staging` de dentro do worktree. Teste: `scripts/tests/inspector-core.test.mjs`.
+
+## Vigia do Grok Bot (22 nov 2026)
+
+- O meu-bot nasceu do Grok Bot e acompanha as versões dele. `scripts/grokbot-vigia.mjs` roda a cada hora no Mac da
+  release (agente `com.meu-bot.grokbot-vigia`; `--instalar`): quando o Grok Bot instalado muda de versão, tira a
+  "impressão" do pacote (nomes de arquivos sem o hash, textos de tela em inglês e ids das Configurações), compara com a
+  da versão anterior e abre uma issue "Grok Bot X: o que mudou desde a Y", com o rótulo `sem-claude`.
+- A issue é pauta: quem tria decide, grupo a grupo, o que o meu-bot já tem e o que vale trazer, e abre uma issue própria
+  para cada melhoria (essa, sim, o "Claude automático" implementa). Nada do código do Grok Bot é guardado: o pacote
+  extraído é apagado depois da impressão, que fica em `~/Library/Application Support/meu-bot-grokbot/`.
+- Numeração (`proximaEstavel`, `scripts/grokbot-core.mjs`): a estável do meu-bot leva o número do Grok Bot quando ele
+  está à frente da nossa última; senão, o nosso patch seguinte. O número nunca se repete nem anda para trás.
+  `--check` mostra a versão instalada, as impressões guardadas e o número que a próxima estável deve levar.
+- Sem a impressão da versão anterior não há o que comparar (em 22/11 a da 1.2.0 tinha se perdido): `--impressao
+  <app.asar|pasta> <versão>` guarda a de um pacote à mão.
+
