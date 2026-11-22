@@ -7,6 +7,17 @@
 
 /** Prazo para a primeira janela carregar; passou disso, o relatório sai com o erro do prazo e o app sai com 1. */
 export const PRAZO_FUMACA_MS = 60_000;
+/**
+ * Com `MEU_BOT_FUMACA_WSL=1` (só no Windows) a fumaça também roda o "Preparar este Windows" de verdade, o mesmo código
+ * do botão (maquina/wsl.ts), e espera ele terminar: baixar o Ubuntu e instalar os pacotes leva minutos.
+ */
+export const PRAZO_FUMACA_WSL_MS = 30 * 60_000;
+export const fumacaWslPedida = (env: Record<string, string | undefined>): boolean => (env.MEU_BOT_FUMACA_WSL ?? "").trim() === "1";
+export const prazoDaFumaca = (env: Record<string, string | undefined>): number => (fumacaWslPedida(env) ? PRAZO_FUMACA_WSL_MS : PRAZO_FUMACA_MS);
+
+/** O que o preparo do "Este Windows" deixou no relatório (MEU_BOT_FUMACA_WSL). */
+export interface WslNaFumaca { ok: boolean; estado: string; alias: string; erro: string | null; log: string[]; ms: number }
+
 /** Depois de a janela carregar, o app ainda espera isto antes de gravar: erro que estoura logo após o load entra. */
 export const ASSENTAR_FUMACA_MS = 1_500;
 
@@ -43,6 +54,8 @@ export interface RelatorioFumaca {
   duracaoMs: number;
   /** Quando o relatório foi gravado (ISO). */
   em: string;
+  /** Só com MEU_BOT_FUMACA_WSL: o resultado do "Preparar este Windows". */
+  wsl?: WslNaFumaca;
 }
 
 /** Caminho do relatório pedido no ambiente; null = modo desligado (o app se comporta como sempre). */
@@ -69,6 +82,8 @@ export interface EntradaRelatorio {
   prazoVencido: boolean;
   duracaoMs: number;
   em: string;
+  /** MEU_BOT_FUMACA_WSL: o resultado do preparo; null = foi pedido e não terminou no prazo; undefined = não foi pedido. */
+  wsl?: WslNaFumaca | null;
 }
 
 const LIMITE_LINHAS = 50;
@@ -79,6 +94,8 @@ export function montarRelatorio(i: EntradaRelatorio): RelatorioFumaca {
   const carregou = janela.visivel && janela.carregou;
   const erros = i.erros.map(curto);
   if (!carregou) erros.push(i.janelas.length === 0 ? "nenhuma janela abriu" : i.prazoVencido ? `a janela não terminou de carregar em ${Math.round(PRAZO_FUMACA_MS / 1000)} s` : "a janela não carregou");
+  if (i.wsl === null) erros.push(`o preparo do este Windows não terminou em ${Math.round(PRAZO_FUMACA_WSL_MS / 60_000)} min`);
+  else if (i.wsl !== undefined && !i.wsl.ok) erros.push(`este Windows: o preparo parou em "${i.wsl.estado}": ${i.wsl.erro ?? "sem detalhes"}`);
   return {
     ok: carregou && erros.length === 0,
     versao: i.versao, plataforma: i.plataforma, arch: i.arch, variante: i.variante, empacotado: i.empacotado,
@@ -89,6 +106,7 @@ export function montarRelatorio(i: EntradaRelatorio): RelatorioFumaca {
     avisos: i.avisos.map(curto).slice(0, LIMITE_LINHAS),
     duracaoMs: i.duracaoMs,
     em: i.em,
+    ...(i.wsl === undefined || i.wsl === null ? {} : { wsl: { ...i.wsl, log: i.wsl.log.map(curto).slice(-LIMITE_LINHAS) } }),
   };
 }
 

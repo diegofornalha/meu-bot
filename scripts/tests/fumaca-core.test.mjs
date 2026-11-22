@@ -6,8 +6,8 @@ import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
 
 const require = createRequire(import.meta.url);
-const { arquivoDaFumaca, codigoDeSaida, fumacaPronta, janelaDaFumaca, montarRelatorio, textoDoErro } = require("../../dist/main/app/fumaca-core.js");
-const { capsFor, CAPS_DE_PLATAFORMA } = require("../../dist/main/app/variant-core.js");
+const { arquivoDaFumaca, codigoDeSaida, fumacaPronta, fumacaWslPedida, janelaDaFumaca, montarRelatorio, prazoDaFumaca, PRAZO_FUMACA_MS, PRAZO_FUMACA_WSL_MS, textoDoErro } = require("../../dist/main/app/fumaca-core.js");
+const { capsFor, CAPS_DE_PLATAFORMA, CAPS_SO_WINDOWS } = require("../../dist/main/app/variant-core.js");
 const { conferirFumaca, resumoDaFumaca } = await import("../fumaca-conferir.mjs");
 
 const SELETOR = { arquivo: "picker.html", titulo: "meu-bot-staging 1.3.0", carregou: true, visivel: true };
@@ -99,6 +99,35 @@ test("conferir: no Windows de hoje, nenhuma capacidade de plataforma está ligad
   assert.deepEqual(CAPS_DE_PLATAFORMA.filter((k) => caps[k] === true), []);
 });
 
+test("conferir: no Windows, a única de plataforma ligada é o Este Windows (hostWsl)", () => {
+  const caps = capsFor("client-staging", "1.3.0", "win32");
+  assert.deepEqual(CAPS_SO_WINDOWS.filter((k) => caps[k] === true), ["hostWsl"]);
+  assert.match(resumoDaFumaca(montarRelatorio(base()), [], [...CAPS_DE_PLATAFORMA, ...CAPS_SO_WINDOWS]), /ligadas \| `hostWsl`/);
+});
+
+const WSL_OK = { ok: true, estado: "pronto", alias: "meu-bot-staging-wsl", erro: null, log: ["✓ meu-bot-staging-wsl responde por SSH"], ms: 240_000 };
+test("fumaça com MEU_BOT_FUMACA_WSL: prazo longo, o preparo entra no relatório e a conferência --wsl exige pronto", () => {
+  assert.equal(fumacaWslPedida({}), false);
+  assert.equal(fumacaWslPedida({ MEU_BOT_FUMACA_WSL: "1" }), true);
+  assert.equal(prazoDaFumaca({}), PRAZO_FUMACA_MS);
+  assert.equal(prazoDaFumaca({ MEU_BOT_FUMACA_WSL: "1" }), PRAZO_FUMACA_WSL_MS);
+  const ESP = { versao: "1.3.0", plataforma: "win32", variante: "client-staging", wsl: true };
+  const ok = montarRelatorio(base({ wsl: WSL_OK }));
+  assert.equal(ok.ok, true);
+  assert.deepEqual(ok.wsl, WSL_OK);
+  assert.deepEqual(conferirFumaca(ok, ESP, capsFor), []);
+  assert.match(resumoDaFumaca(ok, []), /Este Windows \| pronto: alias `meu-bot-staging-wsl`, 240 s/);
+  // Parou no meio: o app reprova e a conferência diz onde.
+  const parou = montarRelatorio(base({ wsl: { ...WSL_OK, ok: false, estado: "sem-sshd", erro: "os pacotes da distro não instalaram" } }));
+  assert.equal(parou.ok, false);
+  assert.ok(conferirFumaca(parou, ESP, capsFor).some((x) => /parou em "sem-sshd": os pacotes/.test(x)));
+  // Pedido e não terminou no prazo.
+  assert.ok(montarRelatorio(base({ wsl: null })).erros.some((x) => /não terminou em 30 min/.test(x)));
+  // --wsl sem o preparo no relatório (rodou sem a variável) não passa; sem --wsl, o relatório de sempre passa.
+  assert.ok(conferirFumaca(montarRelatorio(base()), ESP, capsFor).some((x) => /não traz o preparo do este Windows/.test(x)));
+  assert.deepEqual(conferirFumaca(montarRelatorio(base()), { ...ESP, wsl: false }, capsFor), []);
+});
+
 test("conferir: relatório que não é do app empacotado, ou lixo, não passa", () => {
   assert.ok(conferirFumaca(montarRelatorio(base({ empacotado: false })), ESPERADO, capsFor).includes("o relatório não veio de um app empacotado"));
   assert.deepEqual(conferirFumaca(null, ESPERADO, capsFor), ["o relatório não é um objeto JSON"]);
@@ -123,4 +152,8 @@ test("main.ts liga a fumaça antes da trava de instância, e o workflow Windows 
   assert.match(wf, /MEU_BOT_FUMACA/);
   assert.match(wf, /fumaca-conferir\.mjs/);
   assert.match(wf, /windows-latest/);
+  // O modo "Este Windows": o preparo de verdade no app instalado e o ssh conferido de fora.
+  assert.match(wf, /MEU_BOT_FUMACA_WSL/);
+  assert.match(wf, /fumaca-conferir\.mjs[^\n]*--wsl/);
+  assert.match(wf, /ssh(\.exe)? [^\n]*\$env:ALIAS_WSL[^\n]*true/);
 });

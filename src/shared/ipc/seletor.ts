@@ -1,7 +1,7 @@
 /** Contrato IPC · Janela do seletor de máquinas (picker). Só tipos (nada é emitido); reexportado por src/shared/ipc.ts. */
 import type { PlanName } from "./licenca";
 import type { ContaView } from "./conta";
-import type { HostProbe, InstallBackendResult, PickerInit, SshSyncResult, TailscaleCredentialState, TailscaleSshResult } from "./maquina";
+import type { HostProbe, InstallBackendResult, PickerInit, SshSyncResult, TailscaleCredentialState, TailscaleSshResult, WslEstadoView, WslPreparoResult } from "./maquina";
 import type { SupportPerson, VpsNovaResultado } from "./suporte";
 
 /** API exposta ao seletor de máquinas como window.picker. */
@@ -73,6 +73,10 @@ export interface PickerClientApi {
   claudeLogin(host: string): Promise<void>;
   /** Abre a janela deste Mac no tutorial 16, que instala o modo grátis (Ollama). */
   modoGratis(): Promise<void>;
+  /** "Este Windows" (caps.hostWsl): em que passo do preparo a máquina Linux (WSL) deste PC está. */
+  wslEstado(): Promise<WslEstadoView>;
+  /** "Preparar este Windows": do passo em que está até o alias responder por SSH; progresso em `picker:install-progress` com o alias. */
+  wslPreparar(): Promise<WslPreparoResult>;
 }
 
 /** Variante: admin. Seletor de pessoas do meu-bot-admin. */

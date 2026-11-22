@@ -32,6 +32,11 @@ export interface Produto {
   herdaDe: string | null;
   /** Porta do backend local deste Mac (host "local"): apps abertos juntos não podem dividir. */
   portaLocal: number;
+  /**
+   * Porta do sshd da distro WSL do "Este Windows" (maquina/wsl-core.ts), em 127.0.0.1 do Windows: uma por produto, como a
+   * `portaLocal`, porque cada app prepara a sua distro e dois apps abertos juntos não podem dividir.
+   */
+  portaWsl: number;
   /** Porta padrão do controle remoto (MCP) em 127.0.0.1; uma por app, fora da 7822 do Rambox. A pessoa pode trocar. */
   portaMcp: number;
   /** Pasta de dados de um app antecessor que a primeira abertura funde (união, sem apagar a origem); null = nenhum. */
@@ -53,7 +58,12 @@ export interface Produto {
  * sockets unix, AppleScript). No Windows o app é só cliente de uma máquina remota por SSH e nenhuma delas é oferecida.
  */
 export const CAPS_DE_PLATAFORMA = ["hostLocal", "terminalLocal", "atalhosMesa", "agenteNavegador", "controleRemoto", "telaComputador", "semaforoNaBarra", "teclaCmd"] as const;
-export type CapDePlataforma = (typeof CAPS_DE_PLATAFORMA)[number];
+/**
+ * O inverso: o que só existe no Windows. `hostWsl` = o "Este Windows" do seletor, a máquina Linux (WSL) que o app
+ * prepara no próprio PC e alcança por SSH em 127.0.0.1 (maquina/wsl.ts). Só nos apps que instalam o backend.
+ */
+export const CAPS_SO_WINDOWS = ["hostWsl"] as const;
+export type CapDePlataforma = (typeof CAPS_DE_PLATAFORMA)[number] | (typeof CAPS_SO_WINDOWS)[number];
 
 /**
  * Módulos pagos à parte (add-ons): acumulativos por cima do plano, com ou sem o Pro, liberados por máquina na licença
@@ -97,36 +107,36 @@ const ADMIN: Produto["caps"] = {
 
 // meu-bot: o app da pessoa. Traz as duas extensões; o CRM próprio no Gmail abre pela licença da máquina (Pro ou superior,
 // ou o produto meu-bot-crm contratado), nunca por variante. Funde a pasta do antigo meu-bot-crm na primeira abertura.
-const CLIENT: Produto = { variant: "client", nome: "meu-bot", bundleId: "local.meu-bot", icone: "assets/icon.icns", userData: null, extensoes: ["extensao-crm", "extensao-autenticador"], canal: "estavel", licenca: "meu-bot", herdaDe: null, portaLocal: 8790, portaMcp: 7830, fundeDe: "meu-bot-crm", addon: null, instalador: true, windows: false, abreEm: null, caps: PESSOA,
+const CLIENT: Produto = { variant: "client", nome: "meu-bot", bundleId: "local.meu-bot", icone: "assets/icon.icns", userData: null, extensoes: ["extensao-crm", "extensao-autenticador"], canal: "estavel", licenca: "meu-bot", herdaDe: null, portaLocal: 8790, portaWsl: 2290, portaMcp: 7830, fundeDe: "meu-bot-crm", addon: null, instalador: true, windows: false, abreEm: null, caps: PESSOA,
   descricao: "O app da pessoa: chat e WhatsApp no plano Free; Navegador e CRM próprio no Pro; add-ons por cima, com ou sem o Pro." };
 
 /** A cópia staging de um app estável: "<nome>-staging", ícone com a faixa, dados próprios herdados dele, porta própria. */
-function staging(base: Produto, variant: AppVariant, portaLocal: number, portaMcp: number): Produto {
+function staging(base: Produto, variant: AppVariant, portaLocal: number, portaWsl: number, portaMcp: number): Produto {
   const nome = `${base.nome}-staging`;
-  return { ...base, descricao: `Canal de teste do ${base.nome}, ao lado do estável (como o VS Code Insiders): recebe o que está em teste; a licença é a do estável.`, variant, nome, bundleId: `${base.bundleId}.staging`, icone: base.icone.replace(/\.icns$/, "-staging.icns"), userData: nome, canal: "staging", herdaDe: base.nome, portaLocal, portaMcp, fundeDe: base.fundeDe === null ? null : `${base.fundeDe}-staging` };
+  return { ...base, descricao: `Canal de teste do ${base.nome}, ao lado do estável (como o VS Code Insiders): recebe o que está em teste; a licença é a do estável.`, variant, nome, bundleId: `${base.bundleId}.staging`, icone: base.icone.replace(/\.icns$/, "-staging.icns"), userData: nome, canal: "staging", herdaDe: base.nome, portaLocal, portaWsl, portaMcp, fundeDe: base.fundeDe === null ? null : `${base.fundeDe}-staging` };
 }
 
 export const PRODUTOS: readonly Produto[] = [
   CLIENT,
   // Até 4 nov chamava-se meu-bot-admin: a pasta de dados antiga é trazida na primeira abertura (admin/user-data.ts). A licença
   // continua "meu-bot-admin" (é o nome contratado, não o do app).
-  { variant: "admin", nome: "meu-bot-admin-gestao", bundleId: "local.meu-bot-admin-gestao", icone: "assets/icon-admin.icns", userData: "meu-bot-admin-gestao", extensoes: [], canal: "estavel", licenca: "meu-bot-admin", herdaDe: null, portaLocal: 8790, portaMcp: 7833, fundeDe: null, addon: null, instalador: false, windows: false, abreEm: null, caps: ADMIN,
+  { variant: "admin", nome: "meu-bot-admin-gestao", bundleId: "local.meu-bot-admin-gestao", icone: "assets/icon-admin.icns", userData: "meu-bot-admin-gestao", extensoes: [], canal: "estavel", licenca: "meu-bot-admin", herdaDe: null, portaLocal: 8790, portaWsl: 2292, portaMcp: 7833, fundeDe: null, addon: null, instalador: false, windows: false, abreEm: null, caps: ADMIN,
     descricao: "Este app: suporte, licenças, espelho das máquinas, auditoria e o registro de produtos (MVPs)." },
   // O primeiro a sair para Windows: só no canal de teste, até o instalador ter assinatura Authenticode.
-  { ...staging(CLIENT, "client-staging", 8791, 7831), windows: true },
+  { ...staging(CLIENT, "client-staging", 8791, 2291, 7831), windows: true },
   // meu-bot-admin-mac: só as contas deste Mac (quem abre o meu-bot aqui; o bot de cada um roda numa VM, assunto do
   // meu-bot-admin). Sem seletor, sem chat; cria contas administrador com o meu-bot na mesa, muda o apelido e apaga.
-  { variant: "admin-mac", nome: "meu-bot-admin-mac", bundleId: "local.meu-bot-admin-mac", icone: "assets/icon-admin-mac.icns", userData: "meu-bot-admin-mac", extensoes: [], canal: "estavel", licenca: "meu-bot-admin", herdaDe: null, portaLocal: 8790, portaMcp: 7834, fundeDe: null, addon: null, instalador: false, windows: false, abreEm: null, caps: { ...ADMIN, supportAdmin: false, usuariosMac: true },
+  { variant: "admin-mac", nome: "meu-bot-admin-mac", bundleId: "local.meu-bot-admin-mac", icone: "assets/icon-admin-mac.icns", userData: "meu-bot-admin-mac", extensoes: [], canal: "estavel", licenca: "meu-bot-admin", herdaDe: null, portaLocal: 8790, portaWsl: 2295, portaMcp: 7834, fundeDe: null, addon: null, instalador: false, windows: false, abreEm: null, caps: { ...ADMIN, supportAdmin: false, usuariosMac: true },
     descricao: "As contas deste Mac: cria (administrador, senha mostrada uma vez, meu-bot na mesa), muda o apelido e apaga. O bot de cada pessoa roda numa VM." },
   // meu-bot-inspector-staging: o meu-bot em teste com o MCP Inspector na frente (abre na página Inspector, que sobe a
   // interface oficial do @modelcontextprotocol/inspector já ligada ao controle externo deste app). Nome, ícone, dados e portas próprios; nasce como cópia dos dados do meu-bot-staging. Só staging.
-  { ...staging(CLIENT, "inspector-staging", 8793, 7835), nome: "meu-bot-inspector-staging", bundleId: "local.meu-bot-inspector.staging", icone: "assets/icon-inspector-staging.icns", userData: "meu-bot-inspector-staging", herdaDe: "meu-bot-staging", fundeDe: null, addon: null, instalador: false, abreEm: "inspector", caps: { ...PESSOA, inspector: true },
+  { ...staging(CLIENT, "inspector-staging", 8793, 2293, 7835), nome: "meu-bot-inspector-staging", bundleId: "local.meu-bot-inspector.staging", icone: "assets/icon-inspector-staging.icns", userData: "meu-bot-inspector-staging", herdaDe: "meu-bot-staging", fundeDe: null, addon: null, instalador: false, abreEm: "inspector", caps: { ...PESSOA, inspector: true },
     descricao: "O meu-bot em teste com o MCP Inspector na frente (abre na página Inspector): a interface oficial do Inspector ligada ao controle externo (MCP) do próprio app." },
   // meu-bot-diego-staging: o meu-bot em teste com a página Módulos na frente. O app não leva módulo nenhum: baixa-os
   // com git do repositório do produto (diegofornalha/meu-bot-diego, src/main/modulos/modulos-fonte-core.ts) e cada
   // módulo traz o MCP, as regras e o tutorial dele. Liberado pelo add-on meu-bot-diego na licença. Fica fora da release
   // automática (release-core.mjs, `caps.modulos`): empacota-se à mão (docs/guia/meu-bot-diego.md).
-  { ...staging(CLIENT, "diego-staging", 8794, 7836), nome: "meu-bot-diego-staging", bundleId: "local.meu-bot-diego.staging", icone: "assets/icon-diego-staging.icns", userData: "meu-bot-diego-staging", herdaDe: "meu-bot-staging", fundeDe: null, addon: "meu-bot-diego", instalador: false, abreEm: "modulos", caps: { ...PESSOA, modulos: "meu-bot-diego" },
+  { ...staging(CLIENT, "diego-staging", 8794, 2294, 7836), nome: "meu-bot-diego-staging", bundleId: "local.meu-bot-diego.staging", icone: "assets/icon-diego-staging.icns", userData: "meu-bot-diego-staging", herdaDe: "meu-bot-staging", fundeDe: null, addon: "meu-bot-diego", instalador: false, abreEm: "modulos", caps: { ...PESSOA, modulos: "meu-bot-diego" },
     descricao: "O meu-bot em teste com os módulos do Diego na frente (abre na página Módulos): os módulos vêm do repositório meu-bot-diego, baixados pelo app, com MCP e tutorial." },
 ];
 
@@ -178,11 +188,13 @@ export const userDataNameFor = (v: AppVariant): string | null => produtoDe(v).us
 /**
  * O admin só lê e faz as ações de suporte; os outros produtos fazem tudo o mais (ver a tabela). As de CAPS_DE_PLATAFORMA
  * saem daqui: fora do Windows valem onde o produto já permitia (o agente no Navegador pede `navegador`, o Computador
- * pede `chat`; as outras quatro são de todos os apps, como os canais IPC comuns delas); no Windows, nenhuma.
+ * pede `chat`; as outras quatro são de todos os apps, como os canais IPC comuns delas); no Windows, nenhuma. As de
+ * CAPS_SO_WINDOWS ao contrário: só no Windows, onde o produto instala o backend (`install`).
  */
 export function capsFor(variant: AppVariant, versao?: string, plataforma: NodeJS.Platform = "darwin"): Capabilities {
   const p = produtoDe(variant);
   const tem = plataforma !== "win32";
   return { variant, produto: p.licenca, canal: p.canal, nome: p.nome, titulo: titleFor(variant, versao), addon: p.addon, abreEm: p.abreEm, addons: ADDONS.map((a) => ({ nome: a.nome, rotulo: a.rotulo, modulos: a.modulos, semLicenca: a.semLicenca })), ...p.caps,
-    hostLocal: tem, terminalLocal: tem, atalhosMesa: tem, agenteNavegador: tem && p.caps.navegador, controleRemoto: tem, telaComputador: tem && p.caps.chat, semaforoNaBarra: tem, teclaCmd: tem };
+    hostLocal: tem, terminalLocal: tem, atalhosMesa: tem, agenteNavegador: tem && p.caps.navegador, controleRemoto: tem, telaComputador: tem && p.caps.chat, semaforoNaBarra: tem, teclaCmd: tem,
+    hostWsl: !tem && p.caps.install };
 }

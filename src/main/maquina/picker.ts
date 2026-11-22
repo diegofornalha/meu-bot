@@ -45,6 +45,7 @@ import { backgroundColor, broadcast, MIN_WINDOW_WIDTH, openMainWindow, sendWhenL
 import { posicaoNoCanto } from "../app/janela-core";
 import { seletorPodeAbrir, seletorRecemAberto, suprimirSeletorAte } from "./seletor-notificacao-core";
 import { hostIsLocalAddr } from "../app/net";
+import { aliasWsl, aoProgressoWsl, ehHostWsl, estadoView as wslEstadoView, iniciarWsl, prepararWsl } from "./wsl";
 
 /** URLs que o seletor pode pedir para abrir: lista fechada, nunca URL livre do renderer. */
 const KNOWN_URLS: Record<string, string> = { "tailscale-keys": "https://login.tailscale.com/admin/settings/keys" };
@@ -113,7 +114,9 @@ function probeCached(host: string): Promise<HostProbe> {
   const running = inflight.get(host);
   if (running !== undefined) return running;
   const descarte = descartes.get(host) ?? 0;
-  const p = probeHost(host, getBackendPort(host)).then((probe) => {
+  // "Este Windows": a distro e o sshd sobem na abertura do app (iniciarWsl); a sondagem espera por eles.
+  const antes = ehHostWsl(host) ? iniciarWsl() : Promise.resolve();
+  const p = antes.then(() => probeHost(host, getBackendPort(host))).then((probe) => {
     if ((descartes.get(host) ?? 0) === descarte) probes.set(host, { probe, at: Date.now() });
     // Só uma sondagem que entrou sabe dizer; inacessível não apaga o que já se sabia.
     if (probe.reachable) { setPodHost(host, probe.grokPod); if (setApelidoMaquina(host, probe.apelido)) broadcast("settings:changed", settingsView()); }
@@ -143,9 +146,10 @@ function probeCached(host: string): Promise<HostProbe> {
  */
 /**
  * Este Mac por SSH (o "este Mac" do admin: 127.0.0.1): os instaladores automáticos (pausa, guarda, CRM) são das máquinas
- * Linux; aqui falhavam a cada abertura (zsh, sem systemd). O Mac fica fora deles, como o host local.
+ * Linux; aqui falhavam a cada abertura (zsh, sem systemd). O Mac fica fora deles, como o host local. No Windows o
+ * 127.0.0.1 é o "Este Windows" (a distro WSL, um Linux): esse recebe os instaladores como qualquer máquina.
  */
-const ehEsteMacPorSsh = (p: HostProbe): boolean => p.hostName === "127.0.0.1" || p.hostName === "localhost";
+const ehEsteMacPorSsh = (p: HostProbe): boolean => process.platform !== "win32" && (p.hostName === "127.0.0.1" || p.hostName === "localhost");
 const pausaTried = new Set<string>();
 function ensureHermesPausa(host: string, probe: HostProbe): void {
   if (!probe.reachable || probe.gateway !== "hermes" || probe.hermesPausa === null || probe.hermesPausa === undefined || host === LOCAL_HOST || ehEsteMacPorSsh(probe) || pausaTried.has(host)) return;
@@ -264,6 +268,7 @@ function initPayload(): PickerInit {
     pods: hosts.filter(isPodHost),
     reliefShortcuts: caps().atalhosMesa ? hosts.filter(hasReliefShortcut) : [],
     caps: { atalhosMesa: caps().atalhosMesa, semaforoNaBarra: caps().semaforoNaBarra },
+    wsl: aliasWsl(),
     openDirect: getOpenDirect(),
     instagramavel: getInstagramavel(),
     names: getHostNames(),
@@ -323,9 +328,22 @@ const { fromPicker, hostArg } = ctx;
 export const clientPickerSource: PickerSource = {
   // Nome do app (meu-bot-staging inclusive, com a versão): diz qual build está aberto.
   get title() { return `${caps().titulo} · escolher máquina`; },
-  hosts: () => [...(caps().hostLocal ? [LOCAL_HOST] : []), ...listSshHosts().filter((h) => !isSupportAlias(h))],
+  // "Este Windows" no topo (antes do preparo ele ainda não está no ~/.ssh/config, e não sai da lista).
+  hosts: () => { const wsl = aliasWsl(); return [...(wsl !== null ? [wsl] : []), ...(caps().hostLocal ? [LOCAL_HOST] : []), ...listSshHosts().filter((h) => !isSupportAlias(h) && h !== wsl)]; },
   support: () => null,
   registerIpc: ({ fromPicker, hostArg, forgetProbe, progress, closePicker }) => {
+    // O progresso do preparo vai para o seletor, inclusive o do preparo retomado sozinho na abertura.
+    aoProgressoWsl((linha) => { const wsl = aliasWsl(); if (wsl !== null) progress(wsl, linha); });
+    handleClient("picker:wsl-estado", exigeCap("hostWsl", (event) => {
+      if (!fromPicker(event)) throw new Error("origem inválida");
+      return wslEstadoView();
+    }));
+    handleClient("picker:wsl-preparar", exigeCap("hostWsl", async (event) => {
+      if (!fromPicker(event)) throw new Error("origem inválida");
+      const r = await prepararWsl();
+      forgetProbe(r.alias);
+      return r;
+    }));
     handleClient("picker:install", async (event, payload: unknown) => {
       if (!fromPicker(event)) throw new Error("origem inválida");
       const host = hostArg(payload);
@@ -364,6 +382,7 @@ export const clientPickerSource: PickerSource = {
       if (!fromPicker(event)) throw new Error("origem inválida");
       const host = hostArg(payload);
       if (host === LOCAL_HOST) throw new Error("este Mac não sai da lista");
+      if (ehHostWsl(host)) throw new Error("este Windows não sai da lista");
       if (windowForHost(host) !== undefined) throw new Error(`feche a janela de ${host} antes de remover`);
       const r = removeHostFromSshConfig(host);
       if (hasShortcut(host)) removeShortcut(host);

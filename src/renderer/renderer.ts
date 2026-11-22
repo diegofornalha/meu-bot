@@ -382,7 +382,7 @@ let usuariosAdmin: { open: () => void } | null = null;
 let appVersion = "";
 /** Build deste app (`WindowInfo.build`): o cache só devolve o que este mesmo build gravou. */
 let appBuild = "";
-let caps: Capabilities = { variant: "client", produto: "meu-bot", canal: "estavel", nome: "meu-bot", titulo: "meu-bot", chat: true, pair: true, login: true, manageWa: true, tunnel: true, install: true, supportClient: true, supportAdmin: false, navegador: true, planoExigido: "free", usuariosMac: false, inspector: false, modulos: null, addon: null, abreEm: null, addons: [], hostLocal: true, terminalLocal: true, atalhosMesa: true, agenteNavegador: true, controleRemoto: true, telaComputador: true, semaforoNaBarra: true, teclaCmd: true };
+let caps: Capabilities = { variant: "client", produto: "meu-bot", canal: "estavel", nome: "meu-bot", titulo: "meu-bot", chat: true, pair: true, login: true, manageWa: true, tunnel: true, install: true, supportClient: true, supportAdmin: false, navegador: true, planoExigido: "free", usuariosMac: false, inspector: false, modulos: null, addon: null, abreEm: null, addons: [], hostLocal: true, terminalLocal: true, atalhosMesa: true, agenteNavegador: true, controleRemoto: true, telaComputador: true, semaforoNaBarra: true, teclaCmd: true, hostWsl: false };
 const lastHostEl = $<HTMLParagraphElement>("last-host");
 const settingsError = $<HTMLParagraphElement>("settings-error");
 const cancelBtn = $<HTMLButtonElement>("btn-cancel");

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { ContaView, HostProbe, InstallBackendResult, PickerApi, PickerAdminApi, PickerClientApi, PickerSharedApi, PickerInit, SshSyncResult, TailscaleCredentialState, TailscaleSshResult } from "../shared/ipc";
+import type { ContaView, HostProbe, InstallBackendResult, PickerApi, PickerAdminApi, PickerClientApi, PickerSharedApi, PickerInit, SshSyncResult, TailscaleCredentialState, TailscaleSshResult, WslEstadoView, WslPreparoResult } from "../shared/ipc";
 
 const EVENTS = ["picker:init", "picker:install-progress", "picker:vps-nova-progresso", "conta:changed"] as const;
 
@@ -52,6 +52,8 @@ const clientApi: PickerClientApi = {
   disableTailscaleCheck: (host: string): Promise<TailscaleSshResult> => ipcRenderer.invoke("picker:tailscale-disable-check", { host }),
   claudeLogin: (host: string): Promise<void> => ipcRenderer.invoke("picker:claude-login", { host }),
   modoGratis: (): Promise<void> => ipcRenderer.invoke("picker:modo-gratis", {}),
+  wslEstado: (): Promise<WslEstadoView> => ipcRenderer.invoke("picker:wsl-estado", {}),
+  wslPreparar: (): Promise<WslPreparoResult> => ipcRenderer.invoke("picker:wsl-preparar", {}),
 };
 
 /** Só o meu-bot-admin. */

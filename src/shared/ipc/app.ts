@@ -213,6 +213,11 @@ export interface Capabilities {
   semaforoNaBarra: boolean;
   /** A tecla dos atalhos do app é a ⌘; sem ela é a Ctrl (e, com o terminal em foco, Ctrl+Shift: a Ctrl sozinha é do shell). */
   teclaCmd: boolean;
+  /**
+   * Só no Windows (variant-core.ts, CAPS_SO_WINDOWS): o "Este Windows" no topo do seletor, a máquina Linux (WSL) que o
+   * app prepara neste PC e alcança por SSH em 127.0.0.1 (maquina/wsl.ts).
+   */
+  hostWsl: boolean;
 }
 
 /** O que a janela principal recebe ao nascer: a máquina a que está presa. */

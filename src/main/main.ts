@@ -4,7 +4,7 @@
  * compõe: registerIpc, initPicker e o que depende da variante (caps()).
  */
 import { ligarDepuracao } from "./app/depuracao";
-import { aoConcluirFumaca, falharFumaca, fumacaLigada, ligarFumaca } from "./app/fumaca";
+import { aoConcluirFumaca, falharFumaca, fumacaLigada, fumacaWslLigada, ligarFumaca, segurarFumacaWsl } from "./app/fumaca";
 import { app, BrowserWindow, dialog, nativeTheme, powerMonitor } from "electron";
 import { onVersaoMinima } from "./maquina/backend";
 import { LOCAL_HOST } from "./maquina/localBackend";
@@ -33,6 +33,7 @@ import { registerUsuariosMacIpc, showUsuariosMac } from "./usuarios-mac/usuarios
 import { hostFromArgv, reliefHostFromArgv } from "./app/shortcuts";
 import { initRelief, showRelief } from "./app/relief";
 import { listSshHosts } from "./maquina/sshConfig";
+import { aliasWsl, iniciarWsl, pararWsl, prepararWsl } from "./maquina/wsl";
 import { allMainWindows, broadcast, disposeWindows, getLastFocusedHost, hostOfWindow, lastFocusedWindow, openMainWindow, sendToHost, sendWhenLoaded } from "./app/windows";
 import { esquemaDe } from "./app/variant-core";
 import { aoReceberUrl, instalarOpenUrl, registrarEsquema, tratarArgv } from "./conta/deep-link";
@@ -92,6 +93,10 @@ function openFromArgs(argv: readonly string[]): void {
 }
 
 app.whenReady().then(() => {
+  // "Este Windows": a fumaça com MEU_BOT_FUMACA_WSL roda o preparo de verdade (o mesmo do botão) e espera por ele; fora
+  // dela, a abertura sobe a distro e o sshd (ou retoma um preparo pela metade) antes da primeira sondagem.
+  if (fumacaWslLigada()) segurarFumacaWsl(aliasWsl() === null ? Promise.resolve({ ok: false, estado: "sem-suporte", alias: "", erro: "este app não tem o Este Windows (caps.hostWsl)", log: [], ms: 0 }) : prepararWsl());
+  else void iniciarWsl();
   loadSettings();
   nativeTheme.themeSource = getTheme();
   loadMemory();
@@ -228,7 +233,7 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
-const encerrar = (): void => { pararInspector(); stopControleRemoto(); disposeNet(); disposeUpdater(); disposeQuickEntry(); disposeWindows(); closeTunnel(); };
+const encerrar = (): void => { pararWsl(); pararInspector(); stopControleRemoto(); disposeNet(); disposeUpdater(); disposeQuickEntry(); disposeWindows(); closeTunnel(); };
 app.on("will-quit", () => { encerrar(); applyStagedOnQuit(); });
 // A fumaça sai por app.exit (sem will-quit): a mesma limpeza, menos aplicar a atualização preparada.
 aoConcluirFumaca(encerrar);

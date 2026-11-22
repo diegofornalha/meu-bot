@@ -415,8 +415,26 @@ monta o instalador (`scripts/instalador-win.mjs`, NSIS por usuário, sem pedir a
 chave Ed25519. O asset é `<app>-<versão>-x64-setup.exe` mais o `.sig`; se essa etapa falhar, a release inteira não sai.
 À mão: `npm run dist:staging-win`.
 
-No Windows o app é só cliente de uma máquina por SSH (`capsFor` desliga o host local, os atalhos na mesa, o agente no
-Navegador, o controle remoto e o painel Computador) e o túnel não usa conexão compartilhada (`ssh-opcoes-core.ts`).
+No Windows o app é cliente de máquinas por SSH: `capsFor` desliga as oito capacidades que só existem no macOS
+(`CAPS_DE_PLATAFORMA`: o host local, o terminal local, os atalhos na mesa, o agente no Navegador, o controle remoto, o
+painel Computador, os semáforos na barra e a tecla ⌘) e o túnel não usa conexão compartilhada (`ssh-opcoes-core.ts`).
+
+**Este Windows** (`caps.hostWsl`, `CAPS_SO_WINDOWS`, só no Windows e nos apps que instalam o backend): o equivalente
+do "Este Mac". O app prepara uma distro WSL própria e a alcança por SSH em `127.0.0.1`, como uma máquina Linux
+qualquer; daí em diante instalar o backend (`backend-colima/install.sh`), o túnel, o terminal e o WhatsApp são os de
+sempre. O cartão fica no topo do seletor e não sai da lista; antes de pronto mostra o passo e o botão "Preparar este
+Windows", com o progresso. Os passos (`src/main/maquina/wsl-core.ts` decide, `wsl.ts` executa), cada um refazível:
+`sem-wsl` (instala o WSL com `wsl --install --no-distribution`, pelo UAC) → `precisa-reiniciar` (o Windows reinicia;
+o preparo retoma sozinho na abertura seguinte, pela marca `wsl.json` na pasta de dados) → `sem-distro` (baixa o
+Ubuntu 24.04 do cloud-images da arquitetura real do Windows, x64 ou ARM64 mesmo com o app emulado, confere o SHA256
+contra o `SHA256SUMS` da mesma pasta e importa como a distro `<app>` em `%LOCALAPPDATA%\<app>\wsl`; WSL2, com recuo
+para WSL1 sem virtualização; distro da pessoa não é tocada) → `sem-sshd` (pacotes, usuário comum `meubot` com sudo sem
+senha, um sshd próprio só em `127.0.0.1` na porta do produto, `portaWsl` em `variant-core.ts`, com o ssh do Ubuntu
+desligado; chave `~/.ssh/<app>-wsl_ed25519`, known_hosts com a chave do sshd lida da distro, e o alias `<app>-wsl`
+— `meu-bot-wsl` no estável — num arquivo próprio, `~/.ssh/<app>-wsl.conf`, incluído no topo do `~/.ssh/config`) →
+`pronto`. Com o app aberto, um `wsl.exe` filho mantém a distro de pé e o sshd no ar (sem ele o WSL desliga a distro em
+segundos); ele sai com o app. Com o app fechado o agente para (no Mac o launchd o mantém; no Windows fica para depois
+uma tarefa agendada).
 A atualização baixa o instalador novo, confere a assinatura e o roda em silêncio (`aplicarNoWindows`, `updater.ts`).
 O instalador ainda não tem Authenticode, por isso o Windows fica só no canal staging; a prova de saúde que promove o
 staging para estável continua sendo a do `meu-bot-staging` deste Mac.
@@ -435,7 +453,11 @@ tabela e a prova no mesmo PR. O mesmo workflow testa o instalador de uma release
 (`gh workflow run windows.yml -f release=<tag>`), que é como se reproduz o relato de quem usa o Windows; release
 anterior ao modo de fumaça só instala, abre, tira o print e sobe o log. O artefato `windows-fumaca` traz sempre o
 relatório, o `meu-bot.log` (`%APPDATA%\meu-bot-staging\`) e um print da tela com o app aberto. O check é informativo,
-não obrigatório; o que precisa de olho (cliques, o túnel com uma máquina) não é coberto. Passo a passo na skill `windows`.
+não obrigatório; o que precisa de olho (cliques, o túnel com uma máquina) não é coberto. Passo a passo na skill `windows`. O modo
+"Este Windows" (`gh workflow run windows.yml --ref <branch> -f wsl=true`) roda, no app instalado, o preparo de verdade
+(`MEU_BOT_FUMACA_WSL=1`: o mesmo código do botão, com prazo de 30 min e o resultado no relatório; a conferência com
+`--wsl` exige `pronto`) e depois abre o app normal e confere `ssh meu-bot-staging-wsl true` de fora. O runner já tem o
+WSL: instalar o WSL e reiniciar só são cobertos pelo teste do núcleo (`scripts/tests/wsl-core.test.mjs`).
 
 ### Revisão no molde do Brave/Sparkle (22 out 2026)
 

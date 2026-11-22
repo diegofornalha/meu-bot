@@ -7,7 +7,8 @@ import { resumoPlano } from "./lib/conta-resumo.js";
 import { ESTE_MAC_MAQUINA, maquinasParaAdotar, personSuffix } from "./lib/admin-view.js";
 import { mountAdminPickerChrome } from "./admin/picker-chrome.js";
 import { ipcErrorText } from "./lib/ipc-error.js";
-import { describeProbe, enderecoLabel, hostLabel, setApelidoMaquina, setHostNicknames, type ProbeText } from "./lib/probe-text.js";
+import { describeProbe, enderecoLabel, hostLabel, setAliasWsl, setApelidoMaquina, setHostNicknames, type ProbeText } from "./lib/probe-text.js";
+import { avisoChaveFaltando, ehWindows } from "./lib/plataforma.js";
 
 declare global { interface Window { picker: PickerApi } }
 
@@ -83,6 +84,8 @@ let atalhosMesa = true;
 let pods = new Set<string>();
 
 let hosts: string[] = [];
+/** O alias do "Este Windows" (null fora do Windows): no topo, fora do "Remover", com o preparo no lugar da sondagem. */
+let wslAlias: string | null = null;
 let enderecos: PickerInit["enderecos"] = {};
 /** meu-bot-admin: as pessoas do suporte (null = meu-bot normal). */
 let support: PickerInit["support"] = null;
@@ -243,12 +246,12 @@ const locais = new Set<string>();
 /** Computador do Grok Bot pelo nome (grokbot-1, grokbot-3…): vale antes de a sondagem responder, ou com ele fora do ar. */
 const nomeDeGrok = (h: string): boolean => /^grokbot\b|^grokbot-/i.test(h) || /^grokbot\b|^grokbot-/i.test(hostLabel(h));
 function tipoDe(h: string): Tipo {
-  if (h === "local" || personOf(h)?.local === true || locais.has(h)) return "mac";
+  if (h === "local" || h === wslAlias || personOf(h)?.local === true || locais.has(h)) return "mac";
   if (pods.has(h) || nomeDeGrok(h)) return "grok";
   return tiposVistos.get(h) ?? "pessoa";
 }
 function anotarTipo(h: string, user: string | null): void {
-  const t: Tipo = h === "local" || personOf(h)?.local === true || locais.has(h) ? "mac" : pods.has(h) || nomeDeGrok(h) ? "grok" : user === "root" ? "root" : "pessoa";
+  const t: Tipo = h === "local" || h === wslAlias || personOf(h)?.local === true || locais.has(h) ? "mac" : pods.has(h) || nomeDeGrok(h) ? "grok" : user === "root" ? "root" : "pessoa";
   if (tiposVistos.get(h) === t) return;
   tiposVistos.set(h, t);
   try { localStorage.setItem(TIPOS_KEY, JSON.stringify(Object.fromEntries(tiposVistos))); } catch { /* opcional */ }
@@ -272,8 +275,8 @@ function pintarTipos(): void {
     b.hidden = n === 0;
     b.classList.toggle("on", t === tipoAtivo);
     b.setAttribute("aria-selected", String(t === tipoAtivo));
-    // A primeira aba: máquinas em que se entra com usuário comum (o par de "Root").
-    b.dataset["rotulo"] = t === "pessoa" ? "Usuário" : (b.dataset["rotulo"] ?? b.textContent ?? "");
+    // A primeira aba: máquinas em que se entra com usuário comum (o par de "Root"). A deste computador, no Windows, é "Este Windows".
+    b.dataset["rotulo"] = t === "pessoa" ? "Usuário" : t === "mac" && ehWindows() ? "Este Windows" : (b.dataset["rotulo"] ?? b.textContent ?? "");
     b.replaceChildren(b.dataset["rotulo"], ...(n > 0 ? [el("span", "n", String(n))] : []));
   }
 }
@@ -307,7 +310,7 @@ function paintDetail(): void {
   detailEl.hidden = false;
   const t = results.get(selected);
   installBtn.hidden = true;
-  removeBtn.hidden = selected === "local" || support !== null;
+  removeBtn.hidden = selected === "local" || selected === wslAlias || support !== null;
   renameBtn.hidden = selected === "local";
   renameBtn.title = support !== null ? "Apelido para esta pessoa no admin (vazio volta ao nome que ela deu). O alias não muda." : "Apelido desta máquina no app (seletor, título da janela). A chave SSH não muda.";
   archiveBtn.hidden = support === null || selected === "local";
@@ -341,7 +344,7 @@ function paintDetail(): void {
   claudeLoginBtn.hidden = t.login !== true;
   modoGratisBtn.hidden = t.gratis !== true;
   if (t.install !== null && !installing) {
-    installBtn.textContent = t.install === "reinstall" ? "Reinstalar backend" : t.install === "statusline" ? "Instalar status line" : t.install === "transcricao" ? "Ativar transcrição de áudio" : t.install === "guarda" ? "Ativar guarda do WhatsApp" : t.install === "claude" ? "Instalar Claude Code" : t.install === "porta" ? `Usar porta ${t.port ?? "?"}` : t.port !== undefined ? `Instalar backend na porta ${t.port}` : "Instalar backend";
+    installBtn.textContent = t.install === "wsl" ? "Preparar este Windows" : t.install === "reinstall" ? "Reinstalar backend" : t.install === "statusline" ? "Instalar status line" : t.install === "transcricao" ? "Ativar transcrição de áudio" : t.install === "guarda" ? "Ativar guarda do WhatsApp" : t.install === "claude" ? "Instalar Claude Code" : t.install === "porta" ? `Usar porta ${t.port ?? "?"}` : t.port !== undefined ? `Instalar backend na porta ${t.port}` : "Instalar backend";
     installBtn.hidden = false;
   }
 }
@@ -365,6 +368,17 @@ async function probe(host: string, force = false): Promise<void> {
   results.delete(host);
   paintState(host);
   try {
+    // "Este Windows" antes de pronto: não há o que sondar por SSH ainda; o cartão diz o passo e oferece o preparo.
+    if (host === wslAlias) {
+      const w = await window.picker.wslEstado();
+      if (w.estado !== "pronto") {
+        results.set(host, { kind: w.estado === "sem-suporte" ? "bad" : "warn", text: w.texto, install: w.acao ? "wsl" : null, canOpen: false });
+        paintState(host);
+        // Preparo em curso (retomado na abertura): volta a perguntar até ele terminar.
+        if (w.preparando) window.setTimeout(() => { if (!installing) void probe(host, true); }, 5000);
+        return;
+      }
+    }
     const p: HostProbe = await window.picker.probe(host);
     // "este Mac" no admin (o Mac do próprio admin como pessoa): o backend é o dos apps meu-bot, não o das VMs que a
     // sondagem procura; o "sem o backend do meu-bot" seria falso. Entrou por SSH: está tudo certo para o suporte.
@@ -410,6 +424,33 @@ async function open(): Promise<void> {
   await window.picker.choose(selected);
 }
 
+/** "Preparar este Windows": o progresso chega por `picker:install-progress` com o alias; no fim, sonda de novo. */
+async function prepararWsl(host: string): Promise<void> {
+  installing = true;
+  installBtn.hidden = true;
+  logEl.hidden = false;
+  logEl.textContent = "";
+  statusEl.className = "status";
+  statusEl.textContent = "preparando este Windows… (na primeira vez baixa ~350 MB e leva alguns minutos)";
+  openBtn.disabled = true;
+  try {
+    const r = await window.picker.wslPreparar();
+    if (!r.ok) {
+      const reiniciar = r.estado === "precisa-reiniciar";
+      results.set(host, { kind: reiniciar ? "warn" : "bad", text: `${reiniciar ? "⚠" : "✗"} ${r.erro ?? "o preparo não terminou"}`, install: reiniciar ? null : "wsl", canOpen: false });
+      paintState(host);
+      return;
+    }
+  } catch (err) {
+    results.set(host, { kind: "bad", text: `✗ preparo falhou: ${ipcErrorText(err)}`, install: "wsl", canOpen: false });
+    paintState(host);
+    return;
+  } finally {
+    installing = false;
+  }
+  await probe(host, true);
+}
+
 async function install(): Promise<void> {
   if (selected === null || installing) return;
   const host = selected;
@@ -419,6 +460,7 @@ async function install(): Promise<void> {
   const port = current?.port;
   // Opcionais (status line, transcrição): falhar não impede abrir, o backend continua de pé.
   const statusLine = what === "statusline" || what === "transcricao" || what === "guarda";
+  if (what === "wsl") { await prepararWsl(host); return; }
   installing = true;
   installBtn.hidden = true;
   logEl.hidden = false;
@@ -469,7 +511,7 @@ function syncSummary(r: SshSyncResult): { kind: "ok" | "warn"; text: string } {
   let kind: "ok" | "warn" = "ok";
   if (r.missingKeys.length > 0) {
     kind = "warn";
-    lines.push(`⚠ falta a chave ${r.missingKeys.map((k) => k.replace(/^.*\/\.ssh\//, "~/.ssh/")).join(", ")} neste Mac: copie do outro Mac, ou gere uma nova e coloque a .pub no authorized_keys de cada máquina (PLAYBOOK, seção 1).`);
+    lines.push(avisoChaveFaltando(r.missingKeys.map((k) => k.replace(/^.*[\\/]\.ssh[\\/]/, "~/.ssh/"))));
   }
   lines.push(AVISO_SSH_AVANCADO);
   if (support !== null) lines.push("Pessoas do suporte não passam por aqui: o endereço delas vem do código que a pessoa manda. Máquina que mudou de IP ou foi reinstalada: \"Adicionar pessoa\" com o código novo ou com \"ssh <host>\", e \"Excluir máquina\" na antiga.");
@@ -601,6 +643,8 @@ async function loadPlans(): Promise<void> {
 }
 function init(payload: PickerInit, keepSelected: string | null = null): void {
   hosts = payload.hosts;
+  wslAlias = payload.wsl ?? null;
+  setAliasWsl(wslAlias);
   enderecos = payload.enderecos;
   support = payload.support;
   { const v = document.getElementById("pk-version"); if (v !== null) v.textContent = `v${payload.version}`; }

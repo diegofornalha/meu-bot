@@ -137,11 +137,29 @@ export interface PickerInit {
   error: string | null;
   /** Versão deste app (package.json): aparece ao lado do título, como nas janelas. */
   version: string;
+  /**
+   * O alias do "Este Windows" (caps.hostWsl): a máquina Linux (WSL) deste PC, no topo da lista e fora do "Remover";
+   * antes do preparo o seletor mostra o botão "Preparar este Windows" no lugar da sondagem. null fora do Windows.
+   */
+  wsl: string | null;
   /** Reenvio porque a lista mudou com o seletor aberto: mantém a máquina selecionada (senão vale `preselect`). */
   manterSelecao?: true;
   /** Máquinas cuja sondagem guardada ficou velha (a conta acabou de ser preparada): o seletor sonda estas de novo. */
   resondar?: string[];
 }
+
+/** O "Este Windows" no seletor: em que passo do preparo está (maquina/wsl-core.ts) e o que o cartão diz. */
+export interface WslEstadoView {
+  alias: string;
+  estado: "sem-suporte" | "sem-wsl" | "precisa-reiniciar" | "sem-distro" | "sem-sshd" | "pronto";
+  texto: string;
+  /** Oferecer "Preparar este Windows". */
+  acao: boolean;
+  /** Um preparo está em curso (começado agora ou retomado na abertura). */
+  preparando: boolean;
+}
+/** Fim de um "Preparar este Windows": `ok` = pronto e `ssh <alias>` respondeu; `log` são as últimas linhas do progresso. */
+export interface WslPreparoResult { ok: boolean; estado: WslEstadoView["estado"]; alias: string; erro: string | null; log: string[]; ms: number }
 
 /** Agente/gateway de chat que a máquina roda; o app detecta e se adapta, nunca pressupõe. */
 export type Gateway = "hermes" | "openclaw" | "picoclaw";
