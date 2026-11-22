@@ -107,9 +107,28 @@ jobs:
           $null = $p.Handle
           if (-not $p.WaitForExit(300000)) { $p.Kill(); Write-Error "o instalador não terminou em 5 min"; exit 1 }
           if ($p.ExitCode -ne 0) { Write-Error "o instalador saiu com $($p.ExitCode)"; exit 1 }
-          # O instalador pode devolver o controle antes de o último arquivo chegar: espera o .exe aparecer.
-          for ($i = 0; $i -lt 30 -and -not (Test-Path $env:EXE); $i++) { Start-Sleep -Seconds 2 }
-          if (-not (Test-Path $env:EXE)) { Write-Error "o instalador terminou mas não há $env:EXE"; exit 1 }
+          # O instalador pode devolver o controle antes de o último arquivo chegar: espera o .exe aparecer. Procura
+          # em toda a pasta de programas do usuário, para dizer onde ficou se não for a pasta esperada.
+          $esperado = $env:EXE
+          $achado = $null
+          for ($i = 0; $i -lt 60 -and $null -eq $achado; $i++) {
+            if (Test-Path $esperado) { $achado = $esperado; break }
+            $achado = Get-ChildItem -Path "$env:LOCALAPPDATA\Programs" -Filter "$env:APP.exe" -Recurse -Depth 2 -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+            if ($null -eq $achado) { Start-Sleep -Seconds 2 }
+          }
+          if ($null -eq $achado) {
+            Write-Host "--- $env:LOCALAPPDATA\Programs"; Get-ChildItem "$env:LOCALAPPDATA\Programs" -ErrorAction SilentlyContinue | Format-Table Name, LastWriteTime | Out-String | Write-Host
+            Write-Host "--- desinstaladores registrados"; Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like "meu-bot*" } | Format-List DisplayName, DisplayVersion, InstallLocation, UninstallString | Out-String | Write-Host
+            Write-Host "--- processos"; Get-Process | Where-Object { $_.ProcessName -like "*meu-bot*" -or $_.ProcessName -like "*setup*" } | Format-Table Id, ProcessName, Path | Out-String | Write-Host
+            "- **O instalador saiu com 0 mas o ``$env:APP.exe`` não apareceu** em ``$env:LOCALAPPDATA\Programs``" >> $env:GITHUB_STEP_SUMMARY
+            Write-Error "o instalador terminou mas não há $env:APP.exe em $env:LOCALAPPDATA\Programs"; exit 1
+          }
+          if ($achado -ne $esperado) {
+            "- **Pasta de instalação diferente da esperada**: o app ficou em ``$achado``, não em ``$esperado``" >> $env:GITHUB_STEP_SUMMARY
+            Write-Host "::warning::o app ficou em $achado, não em $esperado"
+            "EXE=$achado" >> $env:GITHUB_ENV
+            $env:EXE = $achado
+          }
           # O instalador não deve deixar o app aberto (isso é só com --force-run, o caminho da atualização).
           Get-Process -Name $env:APP -ErrorAction SilentlyContinue | Stop-Process -Force
           # Versão anterior ao modo de fumaça não conhece a variável: o nome dela está (ou não) no código empacotado.
