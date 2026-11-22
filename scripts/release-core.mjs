@@ -145,6 +145,34 @@ export function travaOrfa({ pid, idadeMs, vivo }) {
 /** Arquivos que, sozinhos, não justificam um staging novo (o PR "Versão: base sobe" só mexe neles). */
 const SO_VERSAO = new Set(["package.json", "package-lock.json", "docs/CHANGELOG.md"]);
 
+/** Quanto a `main` pode ficar sem staging antes de o vigia (scripts/release-vigia.mjs) acusar: folga para merges em série, testes, empacotamento e notarização. */
+export const RELEASE_PARADA_MS = 3 * 60 * 60 * 1000;
+/**
+ * A release automática parou? O agente roda num Mac só; se ele sai do launchd (aconteceu de 17 a 22 nov 2026: cinco
+ * dias, mais de 300 commits, e o site entregando uma staging com defeitos já corrigidos) nada avisa. O vigia roda
+ * fora desse Mac (GitHub Actions) e usa a mesma decisão do agente: se a rodada pediria "staging" e o último commit
+ * da `main` já passou do prazo, devolve a frase do alerta; idem quando a rodada pediria "subir-base" (a estável saiu
+ * e a base não subiu). Senão null.
+ */
+export function releaseParada({ base, tagsTodas, tagsNoHead, commitEm, agora, mudouDesdeRelease = null, estavelEm = null, limiteMs = RELEASE_PARADA_MS }) {
+  const d = decideRodada({ base, tagsTodas, tagsNoHead, commitEm, stagingEm: null, saude: null, agora, mudouDesdeRelease });
+  const como = "No Mac da chave: tail ~/Library/Logs/meu-bot-release.log e node scripts/release-auto.mjs --religar";
+  const horas = (desde) => Math.floor((agora - desde) / 3_600_000);
+  if (d.acao === "staging") {
+    if (agora - commitEm <= limiteMs) return null;
+    return `a main está há ${horas(commitEm)} h sem release staging (${d.motivo}): o agente da release parou. ${como}`;
+  }
+  // A estável da base já saiu e a main continua nela: é o agente que abre e mescla a PR "Versão: base sobe". Sem ela
+  // nenhuma staging nova sai, que é outra forma de release parada. O prazo conta do que for mais recente entre o
+  // último commit e a estável (`estavelEm`, quando se sabe), para não acusar nos minutos logo depois de publicar.
+  if (d.acao === "subir-base") {
+    const desde = Math.max(commitEm, estavelEm ?? 0);
+    if (agora - desde <= limiteMs) return null;
+    return `a estável v${base} já saiu e a main continua na base ${base} há ${horas(desde)} h: o agente da release não subiu a base, e nenhuma staging nova sai. ${como}`;
+  }
+  return null;
+}
+
 /** O staging mais novo da versão `base` entre `tags` (ex.: "v0.80.0-staging.2"), ou null. */
 export function stagingMaisNovo(base, tags) {
   let melhor = null, n = 0;
