@@ -211,12 +211,33 @@ export function scriptSubirSshd(): string {
   return `mkdir -p /run/sshd; if [ -f ${SSHD_PID} ] && kill -0 "$(cat ${SSHD_PID})" 2>/dev/null; then echo sshd-no-ar; else /usr/sbin/sshd -f ${SSHD_CONFIG} && echo sshd-subiu; fi`;
 }
 
+/** Pasta do backend do usuário da distro (a padrão do install.sh, backend-dir-core.ts). */
+export const BACKEND_WSL = `/home/${USUARIO_WSL}/.local/share/meu-bot/backend`;
+
 /**
- * O processo que mantém a distro de pé enquanto o app está aberto: sobe o sshd e fica dormindo. Sem nenhum wsl.exe
- * aberto o WSL desliga a distro em segundos, e o sshd vai junto.
+ * Sem systemd (WSL1, ou WSL2 sem `systemd=true`) o install.sh sobe o backend por nohup, e nada o traz de volta quando a
+ * distro reinicia (Windows reiniciado, app fechado): sobe aqui, como o usuário comum, se está instalado e a porta do
+ * .env não atende. `curl` com saída 7 = nada escutando (o `ss` não funciona no WSL1). Com systemd, é com ele.
+ */
+export function scriptSubirBackend(): string {
+  const bd = BACKEND_WSL;
+  return [
+    `if [ ! -d /run/systemd/system ] && [ -f ${bd}/server.js ] && [ -f ${bd}/.env ]; then`,
+    `  P=$(sed -n 's/^PORT=//p' ${bd}/.env | head -1); P=\${P:-8080}`,
+    `  curl -s -o /dev/null -m 3 "http://127.0.0.1:$P/"; if [ $? -eq 7 ]; then`,
+    `    N=; for n in /home/${USUARIO_WSL}/.local/node/bin/node /usr/local/bin/node /usr/bin/node; do [ -x "$n" ] && N=$n && break; done`,
+    `    if [ -n "$N" ]; then cd ${bd} && runuser -u ${USUARIO_WSL} -- env OPENAI_COMPAT_SESSIONS_PATH=${bd}/data/openai-compat-sessions.json setsid -f "$N" server.js >> ${bd}/backend.log 2>&1 < /dev/null && echo backend-subiu; fi`,
+    "  fi",
+    "fi",
+  ].join("\n");
+}
+
+/**
+ * O processo que mantém a distro de pé enquanto o app está aberto: sobe o sshd (e o backend, sem systemd) e fica
+ * dormindo. Sem nenhum wsl.exe aberto o WSL desliga a distro em segundos, e o sshd vai junto.
  */
 export function scriptManterDePe(): string {
-  return `${scriptSubirSshd()}; exec sleep infinity`;
+  return `${scriptSubirSshd()}\n${scriptSubirBackend()}\nexec sleep infinity`;
 }
 
 /** Pacotes do preparo (como root, sem perguntas). O ssh do Ubuntu fica desligado: quem escuta é o sshd do app. */
