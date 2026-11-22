@@ -3,7 +3,7 @@
 // login e manda a pessoa de volta ao app ou ao console. Com o Google, a conta nasce confirmada e vai direto ao /entrar.
 // Sem os parâmetros do app a conta é criada do mesmo jeito; a pessoa entra depois pelo app.
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import { getAuth, GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword, updateProfile, sendEmailVerification, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, getAdditionalUserInfo, createUserWithEmailAndPassword, updateProfile, sendEmailVerification, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 
 const cfg = window.MEU_BOT_CONTA;
 const $ = (id) => document.getElementById(id);
@@ -69,7 +69,12 @@ $("reenviar").addEventListener("click", async () => {
 $("btn-google").addEventListener("click", async () => {
   mostrar("aguardando");
   ga.evento("cadastro_iniciado", { metodo: "google" });
-  try { const prov = new GoogleAuthProvider(); prov.setCustomParameters({ prompt: "select_account" }); await signInWithPopup(auth, prov); ga.evento("cadastro_concluido", { metodo: "google" }); location.href = entrarUrl; }
+  try { const prov = new GoogleAuthProvider(); prov.setCustomParameters({ prompt: "select_account" }); const cred = await signInWithPopup(auth, prov);
+    // Conta Google que já existia não é cadastro novo: sem isto, quem já tinha conta e passou pelo /signup contava
+    // como conversão "cadastro_concluido" (meta principal do Google Ads), inflando os cadastros.
+    if (getAdditionalUserInfo(cred)?.isNewUser === true) ga.evento("cadastro_concluido", { metodo: "google" });
+    else ga.evento("cadastro_conta_existente", { metodo: "google" });
+    location.href = entrarUrl; }
   catch (e) { const fechado = e?.code === "auth/popup-closed-by-user"; ga.evento("cadastro_falhou", { metodo: "google", motivo: fechado ? "popup-fechado" : "google" }); falhou(fechado ? "A janela do Google foi fechada antes de terminar." : `Google: ${e?.message ?? e}`); }
 });
 
