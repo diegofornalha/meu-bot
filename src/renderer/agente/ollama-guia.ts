@@ -137,6 +137,8 @@ async function toggleOllama(): Promise<void> {
 }
 
 export function ligarOllama(): void {
+  // "Usar o modo grátis" do seletor: a janela deste Mac abre já no tutorial 16.
+  window.meuBot.on("ui:modo-gratis", () => enterOllama());
   registrarFonte("ollama", () => ({
     known: ctx.windowHost !== "local" || ollamaStatus !== null,
     dados: { ollama: { possible: ctx.windowHost !== "local" || ctx.caps.canal !== "staging" ? false : ollamaStatus === null ? null : ollamaStatus.possivel, status: ollamaStatus } },

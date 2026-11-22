@@ -91,6 +91,7 @@ export interface MainEvents {
   "update:state": UpdateState;
   /** Seletor pediu: abrir o modal de login do Claude Code nesta janela. */
   "ui:claude-login": Record<string, never>;
+  "ui:modo-gratis": Record<string, never>;
   /** Internet deste Mac mudou ou foi sondada (faixa OFFLINE em todas as janelas). */
   "net:state": NetState;
   /** Navegador: a lista de extensões da sessão mudou (instalou pela Web Store, removeu). */

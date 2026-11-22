@@ -14,9 +14,10 @@ import { app } from "electron";
 import type { InstallBackendResult, OllamaStatus } from "../../shared/ipc";
 import { ensureLocalBackend, localBackendAlive, localBackendDir, localBackendPort, stopLocalBackend } from "../maquina/localBackend";
 import { pidsDoLsof } from "../maquina/backend-local-orfao-core";
+import { caps } from "../app/variant";
 import {
   OLLAMA_PACOTE_BYTES, OLLAMA_SHA256_LOCAL, OLLAMA_URL_LOCAL, OLLAMA_VERSION_LOCAL, ehNossoOllamaOrfao, espacoNecessarioMb,
-  linhaDoPull, modeloNoProviders, modeloParaMemoria, ollamaPortaLocal, ollamaUrlLocal, providersComOllama, providersSemOllama,
+  linhaDoPull, modeloNoProviders, modeloParaMemoria, modoGratisDoMac, ollamaPortaLocal, ollamaUrlLocal, providersComOllama, providersSemOllama,
 } from "./ollamaLocal-core";
 
 const HOME = os.homedir();
@@ -39,6 +40,10 @@ const modeloAtual = (): string | null => modeloNoProviders(lerProviders(), porta
 const preparado = (): boolean => instalado() && modeloAtual() !== null;
 /** Só no Mac com chip Apple: no Intel o modelo roda na CPU e fica lento demais para conversar. */
 const possivel = (): boolean => process.platform === "darwin" && process.arch === "arm64";
+
+/** Estado do modo grátis para o seletor (a sondagem de "este Mac"): sem falar com o Ollama, só o disco. */
+export const modoGratisLocal = (): "instalado" | "possivel" | null =>
+  modoGratisDoMac({ staging: caps().canal === "staging", plataforma: process.platform, arch: process.arch, preparado: preparado() });
 
 const envOllama = (): NodeJS.ProcessEnv => ({ ...process.env, HOME, OLLAMA_HOST: `127.0.0.1:${porta()}`, OLLAMA_MODELS: MODELOS });
 

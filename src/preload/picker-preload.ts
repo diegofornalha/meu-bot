@@ -51,6 +51,7 @@ const clientApi: PickerClientApi = {
   forgetTailscaleCredential: (): Promise<TailscaleCredentialState> => ipcRenderer.invoke("picker:tailscale-credential-forget", {}),
   disableTailscaleCheck: (host: string): Promise<TailscaleSshResult> => ipcRenderer.invoke("picker:tailscale-disable-check", { host }),
   claudeLogin: (host: string): Promise<void> => ipcRenderer.invoke("picker:claude-login", { host }),
+  modoGratis: (): Promise<void> => ipcRenderer.invoke("picker:modo-gratis", {}),
 };
 
 /** Só o meu-bot-admin. */
