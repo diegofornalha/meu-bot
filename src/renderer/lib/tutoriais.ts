@@ -38,7 +38,7 @@ export interface GuideContext {
    */
   fallback: { primary: string | null; chain: readonly FallbackProvider[] | null };
   /**
-   * Tutorial 16 · modo grátis no Mac: `possible` = este Mac com chip Apple, no canal que já o oferece (false esconde o
+   * Tutorial 16 · modo grátis: `possible` = este Mac com chip Apple, ou a máquina por SSH que aguenta o modelo (Linux x86_64), no canal que já o oferece (false esconde o
    * tutorial e a linha; null = não consultado); `status` = o Ollama do meu-bot nesta máquina (null = não consultado).
    */
   ollama: { possible: boolean | null; status: OllamaStatus | null };
@@ -182,7 +182,7 @@ export interface Tutorial {
   needsGuarda?: true;
   /** Só onde o agente aceita ligar/desligar o "digitando…" (capacidade `digitando`); some no PicoClaw, que não mostra. */
   needsDigitando?: true;
-  /** Só no Mac com chip Apple, no canal que já oferece o modo grátis (tutorial 16); null (não consultado) esconde. */
+  /** Só onde o modo grátis existe (Mac com chip Apple ou máquina Linux x86_64), no canal que já o oferece (tutorial 16); null (não consultado) esconde. */
   needsOllama?: true;
   /** Trilha em ordem: só aparece depois que este tutorial (id) foi concluído. */
   after?: string;
@@ -687,32 +687,32 @@ export const TUTORIAIS: readonly Tutorial[] = [
     ],
   },
   {
-    // Modo grátis: o Ollama do meu-bot neste Mac (ollamaLocal.ts), para quem não tem Claude nem Grok. Sem `after`: é a
+    // Modo grátis: o Ollama do meu-bot neste Mac (ollamaLocal.ts) ou na máquina por SSH (install-ollama.sh), para quem não tem Claude nem Grok. Sem `after`: é a
     // porta de entrada de quem respondeu "Não tenho nenhuma" na primeira abertura.
     id: "ollama-local",
     number: 16,
     needs: ["ollama"],
     needsOllama: true,
-    title: "Modo grátis no Mac (Ollama)",
+    title: "Modo grátis (Ollama)",
     short: "Modo grátis",
-    summary: "Sem assinatura de IA: um modelo roda no seu Mac, de graça e sem internet para responder. Mais simples que Claude ou Grok, bom para conversar e testar o meu-bot.",
+    summary: "Sem assinatura de IA: um modelo roda na própria máquina (o seu Mac ou a máquina desta janela), de graça. Mais simples que Claude ou Grok, bom para conversar e testar o meu-bot.",
     minutes: 10,
     icon: "chat",
-    reset: { what: "para o Ollama, tira o ollama-local do backend e apaga o programa e os modelos desta pasta do meu-bot" },
+    reset: { what: "para o Ollama, tira o ollama-local do backend e apaga o programa e os modelos da pasta do meu-bot" },
     steps: [
       {
-        id: "conferir", title: "Conferir o seu Mac", target: "none", body: "ollama-check",
-        text: "O modelo roda na memória do Mac. Confira a memória e o espaço livre: o modelo é escolhido por eles.",
+        id: "conferir", title: "Conferir a máquina", target: "none", body: "ollama-check",
+        text: "O modelo roda na memória da máquina. Confira a memória e o espaço livre: o modelo é escolhido por eles.",
         done: (_st, _f, c) => c.ollama.status !== null && (c.ollama.status.pronto || c.ollama.status.livreMb === null || c.ollama.status.livreMb >= c.ollama.status.necessarioMb),
       },
       {
         id: "instalar", title: "Instalar o modo grátis", target: "none", body: "ollama-prepare",
-        text: "Um clique: o app baixa o Ollama (versão conferida) e o modelo para uma pasta própria do meu-bot, sem mexer no resto do Mac. Na primeira vez leva alguns minutos.",
+        text: "Um clique: o app baixa o Ollama (versão conferida) e o modelo para uma pasta própria do meu-bot, sem mexer no resto da máquina. Na primeira vez leva alguns minutos.",
         done: (_st, _f, c) => c.ollama.status?.pronto === true,
       },
       {
         id: "resposta", title: "Ver o modo grátis responder", target: "chat",
-        text: "Vá para a conversa: ela muda para o ollama-local e manda uma mensagem. A resposta vem do modelo no seu Mac, e a pill do túnel mostra \"respondeu ollama-local\".",
+        text: "Vá para a conversa: ela muda para o ollama-local e manda uma mensagem. A resposta vem do modelo instalado na máquina, e a pill do túnel mostra \"respondeu ollama-local\".",
         done: (_st, f, c) => c.ollama.status?.pronto === true && f.ollamaReplied,
       },
     ],

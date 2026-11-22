@@ -53,7 +53,7 @@ test("visibleTutorials: 2 e 4 só depois do 1 concluído; 5 só depois do 4; sem
   assert.deepEqual(ids(), ids(() => false), "sem `finished`, nada da trilha destravado");
 });
 
-test("tutorial 16 · Modo grátis no Mac (Ollama): conferir → instalar → ollama-local respondeu; só onde é possível", () => {
+test("tutorial 16 · Modo grátis (Ollama): conferir → instalar → ollama-local respondeu; só onde é possível", () => {
   const t17 = byId("ollama-local");
   assert.equal(t17.number, 16); assert.equal(t17.needsOllama, true); assert.equal(t17.after, undefined);
   const st = (over = {}) => ({ possivel: true, instalado: false, rodando: false, pronto: false, modelo: null, recomendado: { id: "qwen2.5:7b", rotulo: "Qwen 2.5 7B", downloadMb: 4700 }, memMb: 16384, livreMb: 50000, necessarioMb: 7300, versao: "0.40.15", ...over });

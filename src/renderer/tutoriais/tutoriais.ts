@@ -165,8 +165,8 @@ function runGuideAction(target: GuideTarget, t: Tutorial): void {
       void ctx.goToChatFromGuide("Oi! Qual modelo está respondendo agora? Uma linha.", "A conversa muda para o grok-4. Se a xAI responder, a pill do túnel mostra \"respondeu grok-4\" e o tutorial se conclui sozinho; se outro modelo responder, volte ao passo 2.", "grok-4");
     }
     else if (t.id === "ollama-local") {
-      if (ctx.guideCtx().ollama.status?.pronto !== true) { const tab = ctx.active(); if (tab !== null) ctx.addNotice(tab, "O modo grátis ainda não está pronto neste Mac; faça o passo 2 do tutorial.", "warn"); return; }
-      void ctx.goToChatFromGuide("Oi! Me responde em uma linha: quem é você?", "A conversa muda para o ollama-local. Quando a resposta do modelo no seu Mac chegar, a pill do túnel mostra \"respondeu ollama-local\" e o tutorial se conclui sozinho.", "ollama-local");
+      if (ctx.guideCtx().ollama.status?.pronto !== true) { const tab = ctx.active(); if (tab !== null) ctx.addNotice(tab, "O modo grátis ainda não está pronto nesta máquina; faça o passo 2 do tutorial.", "warn"); return; }
+      void ctx.goToChatFromGuide("Oi! Me responde em uma linha: quem é você?", "A conversa muda para o ollama-local. Quando a resposta do modelo instalado na máquina chegar, a pill do túnel mostra \"respondeu ollama-local\" e o tutorial se conclui sozinho.", "ollama-local");
     }
     else if (t.id === "claude-login") void ctx.goToChatFromGuide("Oi! Você está aí? Me responde em uma linha.", "Quando a resposta chegar, o tutorial se conclui sozinho: é a sua conta do Claude respondendo nesta máquina.");
     else void ctx.goToChatFromGuide("Oi! Me responde em uma linha, só para eu ver a status line aqui embaixo.", "Quando a resposta chegar, olhe o rodapé desta conversa: Sessão e Semanal aparecem ali, e o tutorial se conclui sozinho.");

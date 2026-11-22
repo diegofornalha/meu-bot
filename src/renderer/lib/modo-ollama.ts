@@ -1,6 +1,6 @@
 /** O ollama-local no menu "Modos do agente": quando aparece, quando dá para escolher e o que a linha diz. */
 export interface ModoOllamaEntrada {
-  /** O modo grátis é oferecido nesta janela (este Mac com chip Apple, canal de staging). */
+  /** O modo grátis é oferecido nesta janela (este Mac com chip Apple ou máquina Linux x86_64, canal de staging). */
   oferecido: boolean;
   /** O Ollama do meu-bot está instalado com um modelo. */
   instalado: boolean;
@@ -8,6 +8,8 @@ export interface ModoOllamaEntrada {
   modelo: string | null;
   /** A conversa aberta já usa o ollama-local (veio do tutorial, da paleta ou do modelo padrão). */
   emUso: boolean;
+  /** O Ollama é o da máquina por SSH desta janela, não o deste Mac. */
+  remoto?: boolean;
 }
 export interface ModoOllama { mostrar: boolean; disponivel: boolean; texto: string }
 
@@ -25,5 +27,5 @@ export function rotuloDoModelo(modelo: string | null): string {
  */
 export function modoOllama(e: ModoOllamaEntrada): ModoOllama {
   const disponivel = e.oferecido && e.instalado && e.modelo !== null;
-  return { mostrar: e.oferecido || e.emUso, disponivel, texto: `ollama-local · ${rotuloDoModelo(e.modelo)} no Ollama deste Mac, grátis e sem internet` };
+  return { mostrar: e.oferecido || e.emUso, disponivel, texto: `ollama-local · ${rotuloDoModelo(e.modelo)} no Ollama ${e.remoto === true ? "desta máquina, grátis" : "deste Mac, grátis e sem internet"}` };
 }

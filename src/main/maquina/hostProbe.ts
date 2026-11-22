@@ -22,10 +22,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { app, shell } from "electron";
 import os from "node:os";
-import type { VozId, AudioSetup, HostProbe, InstallBackendResult, MaquinaAlerta } from "../../shared/ipc";
+import type { VozId, AudioSetup, HostProbe, InstallBackendResult, MaquinaAlerta, OllamaStatus } from "../../shared/ipc";
 import { claudeLoggedIn, findClaude, findNode, LOCAL_HOST, localBackendAlive } from "./localBackend";
 import { isValidHost } from "../app/settings";
 import { modoGratisLocal } from "../agente/ollamaLocal";
+import { OLLAMA_STATUS_SH, envDoInstalador, lerStatusRemoto, ollamaLigarSh } from "../agente/ollamaRemoto-core";
 
 import { BACKEND_DIR_SH } from "./backend-dir-core";
 const REMOTE_STAGE = "~/.meu-bot-install";
@@ -489,6 +490,39 @@ export async function prepareGrokOauth(host: string, onLine?: (line: string) => 
   const inst = await run("ssh", [...sshBase(host), "--", host, `bash ${stageDe("grok")}/install-grok-oauth.sh 2>&1`], 10 * 60_000, say);
   if (inst.code !== 0) return { ok: false, log: [...lines, lines.at(-1) ?? `instalador saiu com código ${inst.code ?? "timeout"}`] };
   return { ok: true, log: lines };
+}
+
+// ---- Modo grátis numa máquina por SSH (tutorial 16): o Ollama do meu-bot na própria máquina (install-ollama.sh),
+// no molde do Grok por OAuth acima. A parte pura está em agente/ollamaRemoto-core.ts; neste Mac é o agente/ollamaLocal.ts.
+/** Estado do modo grátis na máquina; null = não deu para entrar nela (ou ela não respondeu o esperado). */
+export async function ollamaStatusRemoto(host: string): Promise<OllamaStatus | null> {
+  if (host === LOCAL_HOST || !isValidHost(host)) return null;
+  const r = await run("ssh", [...sshBase(host), "--", host, BASH_PELA_ENTRADA], 30_000, undefined, OLLAMA_STATUS_SH);
+  return r.code === 0 ? lerStatusRemoto(r.stdout) : null;
+}
+async function rodarInstaladorOllama(host: string, acao: "instalar" | "remover", timeoutMs: number, onLine?: (line: string) => void): Promise<InstallBackendResult> {
+  const lines: string[] = [];
+  const say = (l: string): void => { lines.push(l); onLine?.(l); };
+  if (host === LOCAL_HOST || !isValidHost(host)) return { ok: false, log: ["máquina inválida"] };
+  const mk = await run("ssh", [...sshBase(host), "--", host, `${limparStage("ollama")}; mkdir -p ${stageDe("ollama")}`], 20_000);
+  if (mk.code !== 0) return { ok: false, log: [...lines, `falha ao preparar a pasta remota: ${lastLine(mk.stderr)}`] };
+  const scp = await run("scp", ["-q", ...sshBase(host), "--", path.join(backendBundleDir(), "install-ollama.sh"), `${host}:${stageDe("ollama")}/`], 60_000);
+  if (scp.code !== 0) return { ok: false, log: [...lines, `scp falhou: ${lastLine(scp.stderr)}`] };
+  const cmd = acao === "remover" ? `bash ${stageDe("ollama")}/install-ollama.sh remover 2>&1` : `${envDoInstalador()} bash ${stageDe("ollama")}/install-ollama.sh 2>&1`;
+  const inst = await run("ssh", [...sshBase(host), "--", host, cmd], timeoutMs, say);
+  if (inst.code !== 0) return { ok: false, log: [...lines, lines.at(-1) ?? `instalador saiu com código ${inst.code ?? "timeout"}`] };
+  return { ok: true, log: lines };
+}
+/** Passo 2 do tutorial 16 na máquina: baixa o Ollama e o modelo, sobe o serviço e aponta o backend (até 40 min de download). */
+export const prepareOllamaRemoto = (host: string, onLine?: (line: string) => void): Promise<InstallBackendResult> => rodarInstaladorOllama(host, "instalar", 40 * 60_000, onLine);
+/** "Remover o modo grátis…": para o serviço, tira o ollama-local do providers.json e apaga a pasta. */
+export const removerOllamaRemoto = (host: string, onLine?: (line: string) => void): Promise<InstallBackendResult> => rodarInstaladorOllama(host, "remover", 2 * 60_000, onLine);
+/** "ligar"/"parar" da linha do Ollama na lateral, na máquina. */
+export async function setOllamaLigadoRemoto(host: string, ligado: boolean): Promise<OllamaStatus> {
+  if (host !== LOCAL_HOST && isValidHost(host)) await run("ssh", [...sshBase(host), "--", host, ollamaLigarSh(ligado)], 30_000);
+  const s = await ollamaStatusRemoto(host);
+  if (s === null) throw new Error("não consegui ler o estado do modo grátis nesta máquina");
+  return s;
 }
 
 const STATUSLINE_FILES = ["statusline.sh", "install-statusline.sh", "uninstall-statusline.sh"];
