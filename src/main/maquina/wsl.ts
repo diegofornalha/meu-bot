@@ -10,7 +10,7 @@
  *
  * Nada aqui mexe numa distro que a pessoa já tenha: só na de nome igual ao do app.
  */
-import { spawn, type ChildProcess } from "node:child_process";
+import { execFile, spawn, type ChildProcess } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
@@ -20,7 +20,7 @@ import { caps, produto } from "../app/variant";
 import { log } from "./backend";
 import { runSsh } from "../whatsapp/whatsapp-ssh";
 import {
-  MARCA_PREPARO, arquiteturaDoWindows, chaveDoHost, chavePublicaLimpa, confDoAlias, configComInclude, decidirEstadoWsl, knownHostsDoAlias,
+  MARCA_PREPARO, arquiteturaReal, chaveDoHost, formatoErrado, chavePublicaLimpa, confDoAlias, configComInclude, decidirEstadoWsl, knownHostsDoAlias,
   lerListaWsl, linhaInclude, nomesWsl, pedeVirtualizacao, rootfsDe, scriptManterDePe, scriptPacotes, scriptPreparo, sha256DoSums, textoDoEstadoWsl, textoDoWsl,
   wslInstalado, type EstadoWsl, type NomesWsl, type SaidaWsl, type SinaisWsl,
 } from "./wsl-core";
@@ -45,6 +45,23 @@ function pastaWsl(): string {
   return path.join(local, produto().nome, "wsl");
 }
 const wslExe = (): string => path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "wsl.exe");
+
+/**
+ * A arquitetura de verdade do Windows (o registro; o ambiente do app x64 emulado num ARM mente). Lida uma vez, sem
+ * travar o processo principal: o cache guarda a Promise.
+ */
+let arqCache: Promise<ReturnType<typeof arquiteturaReal>> | undefined;
+function arquitetura(): Promise<ReturnType<typeof arquiteturaReal>> {
+  arqCache ??= new Promise((resolve) => {
+    const reg = path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "reg.exe");
+    execFile(reg, ["query", "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment", "/v", "PROCESSOR_ARCHITECTURE"], { encoding: "utf8", windowsHide: true, timeout: 10_000 }, (_err, stdout) => {
+      const a = arquiteturaReal(stdout ?? "", process.env);
+      log(`[wsl] arquitetura deste Windows: ${a ?? "sem suporte"}`);
+      resolve(a);
+    });
+  });
+  return arqCache;
+}
 
 /** Marca do app (na pasta de dados): quando pediu a instalação do WSL e se há um preparo a retomar. */
 interface Marca { instalacaoPedidaEm: number | null; retomar: boolean }
@@ -102,7 +119,7 @@ function arquivosLocaisNoLugar(n: NomesWsl): boolean {
 async function sinais(): Promise<SinaisWsl> {
   const n = nomes();
   const marca = lerMarca();
-  const base = { arquitetura: arquiteturaDoWindows(process.env), instalacaoPedidaEm: marca.instalacaoPedidaEm, ligadoDesde: Date.now() - os.uptime() * 1000, nomes: n, arquivosLocais: arquivosLocaisNoLugar(n) };
+  const base = { arquitetura: await arquitetura(), instalacaoPedidaEm: marca.instalacaoPedidaEm, ligadoDesde: Date.now() - os.uptime() * 1000, nomes: n, arquivosLocais: arquivosLocaisNoLugar(n) };
   const status = await rodarWsl(["--status"], { prazoMs: 30_000 });
   if (!wslInstalado(status)) return { ...base, status, lista: { rc: null, texto: "" }, preparo: null };
   const lista = await rodarWsl(["-l", "-v"], { prazoMs: 30_000 });
@@ -180,7 +197,16 @@ async function executar(): Promise<ResultadoWsl> {
         return fim("sem-distro", r);
       }
     }
-    const r = await prepararDentro(n, diz);
+    let r = await prepararDentro(n, diz);
+    if (r !== null && formatoErrado(r)) {
+      // Distro de outra arquitetura (um preparo de versão anterior baixou o Ubuntu amd64 num Windows ARM): não roda
+      // nada. Apaga só a distro do app e importa a certa.
+      diz("o Linux importado é de outra arquitetura: importando de novo o certo para este Windows…");
+      await desregistrarSeExiste(n);
+      const i = await importarDistro(n, diz);
+      if (i !== null) return fim("sem-distro", i);
+      r = await prepararDentro(n, diz);
+    }
     if (r !== null) return fim("sem-sshd", r);
     manterDePe();
     // A prova: o mesmo ssh que o app usa para tudo (BatchMode, a chave e o known_hosts do alias).
@@ -224,7 +250,7 @@ async function instalarWsl(diz: (l: string) => void): Promise<string | null> {
 
 /** Baixa o Ubuntu (conferindo o SHA256) e importa como a distro do app. null = ok; senão, o porquê. */
 async function importarDistro(n: NomesWsl, diz: (l: string) => void): Promise<string | null> {
-  const arq = arquiteturaDoWindows(process.env);
+  const arq = await arquitetura();
   if (arq === null) return "arquitetura do Windows sem Ubuntu para WSL";
   const rf = rootfsDe(arq);
   const pasta = pastaWsl();

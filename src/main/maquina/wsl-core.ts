@@ -142,11 +142,33 @@ export type ArqWsl = "amd64" | "arm64";
  * máquina, não a do app.
  */
 export function arquiteturaDoWindows(env: Record<string, string | undefined>): ArqWsl | null {
-  const a = (env.PROCESSOR_ARCHITEW6432 ?? env.PROCESSOR_ARCHITECTURE ?? "").trim().toUpperCase();
+  return arqDoNome(env.PROCESSOR_ARCHITEW6432 ?? env.PROCESSOR_ARCHITECTURE ?? "");
+}
+
+function arqDoNome(nome: string): ArqWsl | null {
+  const a = nome.trim().toUpperCase();
   if (a === "AMD64" || a === "X64") return "amd64";
   if (a === "ARM64") return "arm64";
   return null;
 }
+
+/**
+ * A arquitetura pelo registro (`reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v
+ * PROCESSOR_ARCHITECTURE`). É a fonte certa: o app x64 emulado num Windows ARM recebe `PROCESSOR_ARCHITECTURE=AMD64`
+ * no ambiente (o PROCESSOR_ARCHITEW6432 só existe no x86 do WOW64), e o Ubuntu amd64 importado ali não roda nada
+ * ("execvpe(bash) failed: Exec format error", VM meu-bot-win, 22 nov 2026). null = a saída não diz.
+ */
+export function arquiteturaDoRegistro(saida: string): ArqWsl | null {
+  const m = /PROCESSOR_ARCHITECTURE\s+REG_SZ\s+(\S+)/i.exec(saida);
+  return m === null ? null : arqDoNome(m[1]!);
+}
+
+/** O registro manda; o ambiente só quando o registro não respondeu. */
+export const arquiteturaReal = (registro: string, env: Record<string, string | undefined>): ArqWsl | null =>
+  arquiteturaDoRegistro(registro) ?? arquiteturaDoWindows(env);
+
+/** O Linux da distro é de outra arquitetura (importado errado): é preciso apagar e importar de novo. */
+export const formatoErrado = (texto: string): boolean => /Exec format error/i.test(texto);
 
 /** Pasta do Ubuntu 24.04 para WSL no cloud-images: o rootfs de cada arquitetura e o SHA256SUMS ficam nela. */
 export const PASTA_ROOTFS = "https://cloud-images.ubuntu.com/wsl/releases/24.04/current/";

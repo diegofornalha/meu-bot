@@ -91,6 +91,14 @@ test("arquitetura: a do Windows, não a do app x64 emulado no ARM", () => {
   assert.equal(w.arquiteturaDoWindows({ PROCESSOR_ARCHITECTURE: "AMD64", PROCESSOR_ARCHITEW6432: "ARM64" }), "arm64");
   assert.equal(w.arquiteturaDoWindows({ PROCESSOR_ARCHITECTURE: "x86" }), null);
   assert.equal(w.arquiteturaDoWindows({}), null);
+  // O registro manda: o app x64 emulado num Windows ARM vê AMD64 no ambiente (a VM meu-bot-win importou o Ubuntu amd64).
+  const reg = "\r\nHKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment\r\n    PROCESSOR_ARCHITECTURE    REG_SZ    ARM64\r\n\r\n";
+  assert.equal(w.arquiteturaDoRegistro(reg), "arm64");
+  assert.equal(w.arquiteturaReal(reg, { PROCESSOR_ARCHITECTURE: "AMD64" }), "arm64");
+  assert.equal(w.arquiteturaReal("", { PROCESSOR_ARCHITECTURE: "AMD64" }), "amd64");
+  assert.equal(w.arquiteturaDoRegistro("ERROR: The system was unable to find the specified registry key or value."), null);
+  assert.equal(w.formatoErrado("<3>WSL (6 - SessionLeader) ERROR: CreateProcessCommon:881: execvpe(bash) failed: Exec format error"), true);
+  assert.equal(w.formatoErrado("E: Unable to locate package"), false);
 });
 
 test("rootfs por arquitetura e o SHA256 do SHA256SUMS da mesma pasta", () => {
