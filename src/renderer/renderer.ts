@@ -51,6 +51,7 @@ import { ctx, ehRemoto } from "./app/ctx.js";
 import { conferirPassos } from "./tutoriais/passos.js";
 import { abaFixaAtual, inserirAba, activatePage, closePage, deactivatePage, definePage, pintarFixada, ehVazia, ligarPaginas, openPage, pageActive, pagePrev, pageShown, pages, preencherEsquerda, relayoutSplit, restoreSplit, splitColunaVazia, splitOff, splitOn, splitOnAny, splitPages, toggleSplit } from "./app/paginas.js";
 import { acervoList, ligarAcervo, paintAcervoCount } from "./acervo/acervo.js";
+import { nomesImportados, refreshSkillsImportadas, renderMinhasSkills } from "./acervo/minhas-skills.js";
 import { activeGuide, ligarTutoriais, loadGuideFlags, openGuide, paintGuide, paintGuideTargets, paintTutCount, reportProgress, resetTutorial, saveGuideFlag, tutCounts, tutorialDone, tutorialsReady, visibleNow } from "./tutoriais/tutoriais.js";
 import { chooseReply, comPareamento, disconnectWhatsapp, fmtPhone, ligarAgenteWhatsapp, openWhatsapp, paintWhatsapp, pairWhatsapp, refreshWhatsapp, renderAudioControls, renderChannelEditor, renderReplyCards, replyChoiceNow, requestAgentPrepare, waAgentBtn, waConnected, waDialog, waPairBtn, waPairing, waPolicyBox, waPolicyCards, waPolicySaving, waProgress, waProgressText, waQr, waSuccess } from "./whatsapp/agente-whatsapp.js";
 import { cacheDrop, cacheRead, cacheWrite, getListMode, ligarConversas, paintArquivadas, paintListMode, paintWaSidebar, setListMode, waChatTitle } from "./whatsapp/conversas.js";
@@ -1538,8 +1539,11 @@ ligarPaginas();
 let acervoBibliotecaAberta = false;
 const acervoPage = definePage("acervo", "Acervo", $<HTMLElement>("acervo-panel"), () => {
   acervoList.replaceChildren();
-  const machine = (objectiveState?.skills ?? []).filter((sk) => sk.learned !== true);
-  const learned = (objectiveState?.skills ?? []).filter((sk) => sk.learned === true);
+  // Minhas skills (importadas pelo link) vêm primeiro; elas moram nas mesmas pastas, então saem das listas de baixo.
+  if (caps.install) renderMinhasSkills(acervoList);
+  const importadas = nomesImportados();
+  const machine = (objectiveState?.skills ?? []).filter((sk) => sk.learned !== true && !importadas.has(sk.name));
+  const learned = (objectiveState?.skills ?? []).filter((sk) => sk.learned === true && !importadas.has(sk.name));
   if (objectiveState?.available === true && learned.length > 0) {
     acervoList.append(el("div", "tut-group", `Skills aprendidas em ${hostLabel(windowHost)}`));
     acervoList.append(el("div", "acervo-empty", "O agente da conversa registra aqui o que aprendeu (ex.: como operar um site pelo Navegador) e consulta antes de repetir a tarefa. Para mudar uma, peça na conversa: \"atualize a skill <nome>: …\"."));
@@ -2064,6 +2068,7 @@ void (async () => {
   if (caps.chat && windowHost !== "" && navEstavaAberto()) void openNavTab(undefined, false);
   void refreshSupportState();
   void refreshObjective();
+  if (caps.install) void refreshSkillsImportadas();
   void refreshClaudeLine();
   void conferirBackend();
   void refreshXaiLine();

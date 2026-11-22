@@ -1,6 +1,6 @@
 /** Contrato IPC · A superfície exposta às telas (window.meuBot) e os eventos do main. Só tipos (nada é emitido); reexportado por src/shared/ipc.ts. */
 import type { BatimentoDepuracao, EstadoDepuracao, EventoDepuracao } from "./depuracao";
-import type { AccountStatus, AudioSetup, ClaudeAuthInfo, ClaudeLoginEvent, ContaEstado, ContaEvento, ContaId, ContasClaudeView, LinkPublicoInfo, LinkPublicoStatus, CotaInfo, LinkPublicoLista, LinkPublicoPublicado, FreedomLevel, LimiaresClaude, ObjectiveChoice, ObjectiveInfo, OllamaEvento, OllamaStatus, StatusLineSegments, XaiKeyStatus } from "./agente";
+import type { AccountStatus, AudioSetup, ClaudeAuthInfo, ClaudeLoginEvent, ContaEstado, ContaEvento, ContaId, ContasClaudeView, LinkPublicoInfo, LinkPublicoStatus, CotaInfo, LinkPublicoLista, LinkPublicoPublicado, FreedomLevel, LimiaresClaude, ObjectiveChoice, ObjectiveInfo, OllamaEvento, OllamaStatus, SkillImportada, SkillInstalada, SkillPreviaResultado, StatusLineSegments, XaiKeyStatus } from "./agente";
 import type { AlertPrefs, BackendModel, ClienteMcp, ControleRemotoView, DonoInfo, NetState, SettingsUpdate, SettingsView, WindowInfo, ZoomAction, ZoomState } from "./app";
 import type { ReleasePublicada, UpdateState } from "./atualizacao";
 import type { ContaView } from "./conta";
@@ -465,6 +465,13 @@ export interface MeuBotClientApi {
   resetCrm(): Promise<CrmInfo>;
   /** Salva só o nome (passo 1 do tutorial), sem ligar nada. */
   setSupportName(name: string): Promise<SupportInfo>;
+  /** Skills importadas pelo link nesta máquina (Acervo › Minhas skills). */
+  skillsImportadas(): Promise<SkillImportada[]>;
+  /** A máquina baixa o repositório do link e devolve a prévia (nome, descrição, arquivos, commit); não instala. */
+  skillPrevia(link: string): Promise<SkillPreviaResultado>;
+  /** Instala o commit da última prévia pedida nesta janela. */
+  skillInstalar(commit: string): Promise<SkillInstalada>;
+  skillRemover(nome: string): Promise<SkillImportada[]>;
   /** Tutorial 7: estado na máquina (objetivo, nível, skill salva, skills do workspace). */
   objectiveInfo(): Promise<ObjectiveInfo>;
   /** Tutorial 7, passos 1 e 2: grava o objetivo e/ou o nível em objetivo.json na máquina. */

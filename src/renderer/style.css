@@ -545,6 +545,14 @@ dialog.perguntar input { font: inherit; padding: 8px 10px; border-radius: 8px; b
 .acervo-item .grow { flex: 1; min-width: 0; }
 .acervo-item strong { display: block; font-size: 13px; }
 .acervo-item span { font-size: 12px; color: var(--muted); }
+/* Acervo › Minhas skills: importar pelo link, a prévia do que a máquina baixou e as ações de cada skill. */
+.skill-import { display: flex; gap: 8px; }
+.skill-import input { flex: 1; min-width: 0; font: inherit; font-size: 13px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); }
+.acervo-item.skill-previa { align-items: flex-start; border-color: var(--accent, var(--line)); }
+.acervo-item .skill-meta, .acervo-item .skill-aviso { display: block; margin-top: 4px; }
+.acervo-item .skill-aviso { color: var(--fg); }
+.skill-arquivos { max-height: 140px; overflow: auto; margin: 6px 0 0; font-size: 11px; }
+.skill-acoes { display: flex; gap: 6px; flex-shrink: 0; }
 .acervo-item.on { border-color: var(--ok); background: color-mix(in srgb, var(--ok) 7%, var(--bg)); }
 .cl-line { cursor: pointer; }
 .cl-line .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

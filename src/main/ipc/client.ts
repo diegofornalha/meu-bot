@@ -50,6 +50,7 @@ async function rememberClaudeSession(conv: { id: string; host: string; claude?: 
 }
 import { getHostNames, getNotificacaoSom, isBackendModel } from "../app/settings";
 import { objectiveInfo, resetObjective, saveObjectiveSkill, setObjective } from "../agente/objetivo";
+import { skillInstalar, skillPrevia, skillRemover, skillsImportadas } from "../agente/skills-importar";
 import { crmInfo, crmTest, resetCrm, setCrm } from "../crm/crm";
 import { toggleQuickEntry } from "../app/quickEntry";
 import { gmailInstalled, guardaInstalled, installAudio, installCrm, installGmail, installGuarda, installHermesPausa, installNavegador, installStatusLine, installTela, navegadorInstalled, ollamaStatusRemoto, prepareGrokOauth, prepareOllamaRemoto, removerOllamaRemoto, setOllamaLigadoRemoto, statusLineInstalled, uninstallCrm, uninstallGuarda, uninstallStatusLine } from "../maquina/hostProbe";
@@ -169,6 +170,12 @@ export function registerClientIpc(): void {
     if (h === null) throw new Error("origem inválida");
     return setSupportShare(h.host, payload);
   });
+  // Skills importadas pelo link do repositório (docs/planos/marketplace-skills.md): a máquina baixa, a tela mostra a
+  // prévia e só então instala. O "instalar" só leva o commit: o resto vem da prévia guardada no main.
+  handleClient("skills:listar", (event) => { const h = hostFromEvent(event); if (h === null) throw new Error("origem inválida"); return skillsImportadas(h.host); });
+  handleClient("skills:previa", (event, payload: unknown) => { const h = hostFromEvent(event); if (h === null) throw new Error("origem inválida"); return skillPrevia(h.host, (payload as { link?: unknown } | null)?.link); });
+  handleClient("skills:instalar", (event, payload: unknown) => { const h = hostFromEvent(event); if (h === null) throw new Error("origem inválida"); return skillInstalar(h.host, (payload as { commit?: unknown } | null)?.commit); });
+  handleClient("skills:remover", (event, payload: unknown) => { const h = hostFromEvent(event); if (h === null) throw new Error("origem inválida"); return skillRemover(h.host, (payload as { nome?: unknown } | null)?.nome); });
   // Tutorial 7 · objetivo do WhatsApp: tudo mora na máquina (objetivo.json, skill no workspace, trava do nível).
   handleClient("objective:info", (event) => {
     const h = hostFromEvent(event);
