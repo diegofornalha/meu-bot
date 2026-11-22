@@ -1,4 +1,0 @@
-### Site: roteiro de conferência do staging antes de aprovar a produção
-#### Novo
-- `docs/STAGING.md`: o que conferir no staging antes de aprovar a produção do site, uma linha por fluxo com o resultado esperado (site no computador e no celular, cadastro e teste grátis, página Plano, pagamento no Modo Teste com a promoção do primeiro mês, admin, Analytics do ensaio), as diferenças conscientes entre os dois ambientes, a regra de cada serviço de fora (AbacatePay, Analytics, Google Ads, banco) e o registro que vai no `--aprovar <sha> --roteiro <arquivo>`.
-- `scripts/staging-contas.mjs`: põe as contas de teste do staging nos estados que o roteiro usa (em teste, teste vencido ontem, prazo da promoção vencido, Pro ativo) pela API de admin, sem escrever no banco. Só fala com o staging: recusa qualquer outro endereço.
