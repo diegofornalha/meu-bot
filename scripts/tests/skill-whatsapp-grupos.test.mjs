@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { readFileSync, readdirSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -53,4 +53,19 @@ test("wa-admin.sh: achar_node vê o node do atalho openclaw e o de ~/.local/node
     const fixo = execFileSync("bash", ["-c", 'for n in /opt/node/bin/node /opt/openclaw/node/bin/node /opt/node*/bin/node /usr/local/bin/node; do [[ -x "$n" ]] && { echo "$n"; break; }; done; true'], { encoding: "utf8" }).trim();
     assert.equal(execFileSync("bash", ["-c", `${fn}\nachar_node; true`], { encoding: "utf8", env: { HOME: join(t, "vazio"), PATH: "/usr/bin:/bin" } }).trim(), fixo);
   } finally { rmSync(t, { recursive: true, force: true }); }
+});
+
+// Máquina com o gateway num perfil próprio (OPENCLAW_STATE_DIR=~/.openclaw-<perfil>): o plugin existe, mas fora do
+// ~/.openclaw. O "checar" dizia "reinstale o plugin"; agora diz onde ele está e que o meu-bot só lê o perfil padrão.
+test("wa-grupos.js checar: plugin em outro perfil do OpenClaw é dito como tal; sem plugin nenhum, manda reinstalar", () => {
+  const home = mkdtempSync(join(tmpdir(), "wa-perfil-"));
+  try {
+    const checar = () => spawnSync(process.execPath, [join(D, "scripts", "wa-grupos.js"), "checar"], { env: { ...process.env, HOME: home }, encoding: "utf8" });
+    let r = checar();
+    assert.equal(r.status, 1); assert.match(r.stderr, /reinstale o plugin/);
+    mkdirSync(join(home, ".openclaw-meu-perfil", "extensions", "whatsapp", "node_modules", "baileys"), { recursive: true });
+    r = checar();
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /outro perfil \(~\/\.openclaw-meu-perfil\)/); assert.doesNotMatch(r.stderr, /reinstale/);
+  } finally { rmSync(home, { recursive: true, force: true }); }
 });

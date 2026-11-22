@@ -40,6 +40,22 @@ function pluginNodeModules() {
   return cands.find((c) => fs.existsSync(path.join(c, 'baileys'))) || null;
 }
 const PLUGIN_NM = pluginNodeModules();
+/**
+ * O plugin está em outra pasta de estado do OpenClaw (~/.openclaw-<perfil>, gateway com OPENCLAW_STATE_DIR)? Devolve a
+ * pasta, ou null. Só para o diagnóstico do "checar": mandar "reinstale o plugin" a quem já o tem noutro perfil criaria
+ * uma segunda instalação e não resolveria nada.
+ */
+function pluginEmOutroPerfil() {
+  const home = os.homedir();
+  let nomes = [];
+  try { nomes = fs.readdirSync(home).filter((n) => /^\.openclaw-[\w.-]+$/.test(n)).sort(); } catch { return null; }
+  for (const n of nomes) {
+    const d = path.join(home, n);
+    if (fs.existsSync(path.join(d, 'extensions/whatsapp/node_modules/baileys'))) return d;
+    try { if (fs.readdirSync(path.join(d, 'npm/projects')).some((x) => x.startsWith('openclaw-whatsapp-'))) return d; } catch { /* sem o layout novo */ }
+  }
+  return null;
+}
 const AUTH_DIR = path.join(os.homedir(), '.openclaw/credentials/whatsapp/default');
 const CACHE = path.join(__dirname, '..', 'data', 'grupos-live.json');
 const OPENCLAW_VERSION = '2026.7.1-2'; // igual ao browser[] que o plugin anuncia
@@ -61,7 +77,11 @@ if (!cmd || flags.has('--help')) {
 
 // "checar": só confere o que a listagem precisa (sem parar nada). O wa-admin.sh roda isto ANTES de parar o gateway.
 if (cmd === 'checar') {
-  if (!PLUGIN_NM) die('não achei o baileys do plugin do WhatsApp (procurei em ~/.openclaw/extensions/whatsapp e ~/.openclaw/npm/projects/openclaw-whatsapp-*): reinstale o plugin com openclaw plugins install');
+  if (!PLUGIN_NM) {
+    const outro = pluginEmOutroPerfil();
+    if (outro) die(`o OpenClaw desta máquina guarda o WhatsApp em outro perfil (${outro.replace(os.homedir(), '~')}), e o meu-bot só trabalha com o perfil padrão (~/.openclaw): a lista de grupos não funciona enquanto o gateway usar esse perfil`);
+    die('não achei o baileys do plugin do WhatsApp (procurei em ~/.openclaw/extensions/whatsapp e ~/.openclaw/npm/projects/openclaw-whatsapp-*): reinstale o plugin com openclaw plugins install');
+  }
   if (!fs.existsSync(path.join(AUTH_DIR, 'creds.json'))) die(`creds.json não encontrado em ${AUTH_DIR}`);
   console.log(`ok: ${PLUGIN_NM}`);
   process.exit(0);
