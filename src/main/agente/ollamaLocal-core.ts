@@ -12,6 +12,11 @@ export const OLLAMA_SHA256_LOCAL = "607c79d5d6315ef9d896db83adde736a4c0057196329
 /** Tamanho do pacote (bytes), para o progresso do download e o espaço que ele pede. */
 export const OLLAMA_PACOTE_BYTES = 185_971_671;
 
+/** O mesmo Ollama para a máquina por SSH (Linux x86_64): o pacote ollama-linux-amd64.tar.zst da mesma versão. */
+export const OLLAMA_URL_LINUX = `https://github.com/ollama/ollama/releases/download/v${OLLAMA_VERSION_LOCAL}/ollama-linux-amd64.tar.zst`;
+export const OLLAMA_SHA256_LINUX = "628c018404a4206493efd38e46251c154ede5141b8b8dc85c659b3b027c47379";
+export const OLLAMA_PACOTE_BYTES_LINUX = 1_543_547_172;
+
 /** Nome do provedor no providers.json e do modelo que o chat pede ao backend. */
 export const OLLAMA_PROVIDER = "ollama-local";
 
@@ -30,6 +35,9 @@ const MEDIO: ModeloOllama = { id: "qwen2.5:7b", rotulo: "Qwen 2.5 7B", downloadM
 export function modeloParaMemoria(memMb: number | null): ModeloOllama {
   return memMb !== null && memMb > 8 * 1024 ? MEDIO : PEQUENO;
 }
+
+/** Na máquina por SSH o modelo roda na CPU (VPS sem GPU): sempre o leve, que conversa a ~20 tokens/s em 4 vCPUs. */
+export const modeloParaMaquinaRemota = (): ModeloOllama => PEQUENO;
 
 /** Espaço que a instalação pede: o pacote extraído (~3x o .tgz), o modelo e 2 GB de folga. */
 export const espacoNecessarioMb = (m: ModeloOllama): number => Math.ceil((OLLAMA_PACOTE_BYTES * 3) / 1_048_576) + m.downloadMb + 2_048;

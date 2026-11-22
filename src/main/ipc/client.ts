@@ -52,7 +52,7 @@ import { getHostNames, getNotificacaoSom, isBackendModel } from "../app/settings
 import { objectiveInfo, resetObjective, saveObjectiveSkill, setObjective } from "../agente/objetivo";
 import { crmInfo, crmTest, resetCrm, setCrm } from "../crm/crm";
 import { toggleQuickEntry } from "../app/quickEntry";
-import { gmailInstalled, guardaInstalled, installAudio, installCrm, installGmail, installGuarda, installHermesPausa, installNavegador, installStatusLine, installTela, navegadorInstalled, prepareGrokOauth, statusLineInstalled, uninstallCrm, uninstallGuarda, uninstallStatusLine } from "../maquina/hostProbe";
+import { gmailInstalled, guardaInstalled, installAudio, installCrm, installGmail, installGuarda, installHermesPausa, installNavegador, installStatusLine, installTela, navegadorInstalled, ollamaStatusRemoto, prepareGrokOauth, prepareOllamaRemoto, removerOllamaRemoto, setOllamaLigadoRemoto, statusLineInstalled, uninstallCrm, uninstallGuarda, uninstallStatusLine } from "../maquina/hostProbe";
 import { gmailAgente, gmailAgenteInfo, gmailAgenteReligar } from "../google/gmail-api";
 import { readSegments, writeSegments } from "../agente/statusLine";
 import { deliverNow, reportSupportProgress, resetSupport, setSupport, setSupportNameOnly, setSupportShare, supportCodeText, supportInfo } from "../client/support";
@@ -541,26 +541,38 @@ export function registerClientIpc(): void {
     if (p.estrategia === "ordem" || p.estrategia === "folga") l.estrategia = p.estrategia;
     return limiaresContasClaude(h.host, l);
   });
-  // Modo grátis (tutorial 16): o Ollama do meu-bot só existe na máquina "local" (este Mac); nas outras, `null`.
-  const hostOllama = (event: Electron.IpcMainInvokeEvent): { win: Electron.BrowserWindow } | null => {
+  // Modo grátis (tutorial 16): o Ollama do meu-bot neste Mac (ollamaLocal.ts) ou na máquina por SSH desta janela
+  // (install-ollama.sh, pelo hostProbe.ts). Na máquina remota só no staging, como o resto do modo grátis.
+  const hostOllama = (event: Electron.IpcMainInvokeEvent): { win: Electron.BrowserWindow; host: string } => {
     const h = hostFromEvent(event);
     if (h === null) throw new Error("origem inválida");
-    return h.host === LOCAL_HOST ? h : null;
+    return h;
   };
-  handleClient("ollama:status", (event) => (hostOllama(event) === null ? null : ollamaStatusLocal()));
+  const exigeRemotoOferecido = (): void => { if (caps().canal !== "staging") throw new Error("o modo grátis numa máquina por SSH ainda não é oferecido nesta versão"); };
+  const eventoOllama = (win: Electron.BrowserWindow) => (line: string): void => { if (!win.isDestroyed()) win.webContents.send("ollama:event", { text: line }); };
+  handleClient("ollama:status", (event) => {
+    const h = hostOllama(event);
+    if (h.host === LOCAL_HOST) return ollamaStatusLocal();
+    return caps().canal === "staging" ? ollamaStatusRemoto(h.host) : null;
+  });
   handleClient("ollama:prepare", (event) => {
     const h = hostOllama(event);
-    if (h === null) throw new Error("o modo grátis só roda neste Mac");
-    return prepareOllamaLocal((line) => { if (!h.win.isDestroyed()) h.win.webContents.send("ollama:event", { text: line }); });
+    if (h.host === LOCAL_HOST) return prepareOllamaLocal(eventoOllama(h.win));
+    exigeRemotoOferecido();
+    return prepareOllamaRemoto(h.host, eventoOllama(h.win));
   });
   handleClient("ollama:ligar", (event, payload) => {
-    if (hostOllama(event) === null) throw new Error("o modo grátis só roda neste Mac");
-    return setOllamaLigadoLocal((payload as { ligado?: unknown } | undefined)?.ligado === true);
+    const h = hostOllama(event);
+    const ligado = (payload as { ligado?: unknown } | undefined)?.ligado === true;
+    if (h.host === LOCAL_HOST) return setOllamaLigadoLocal(ligado);
+    exigeRemotoOferecido();
+    return setOllamaLigadoRemoto(h.host, ligado);
   });
   handleClient("ollama:remover", (event) => {
     const h = hostOllama(event);
-    if (h === null) throw new Error("o modo grátis só roda neste Mac");
-    return removerOllamaLocal((line) => { if (!h.win.isDestroyed()) h.win.webContents.send("ollama:event", { text: line }); });
+    if (h.host === LOCAL_HOST) return removerOllamaLocal(eventoOllama(h.win));
+    exigeRemotoOferecido();
+    return removerOllamaRemoto(h.host, eventoOllama(h.win));
   });
   handleClient("xai-login:start", (event) => {
     const h = hostFromEvent(event);

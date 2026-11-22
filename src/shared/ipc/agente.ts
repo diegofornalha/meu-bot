@@ -139,6 +139,10 @@ export interface OllamaStatus {
   livreMb: number | null;
   necessarioMb: number;
   versao: string;
+  /** O Ollama é o da máquina por SSH (Linux, serviço do usuário), não o deste Mac: os textos dizem "nesta máquina". */
+  remoto?: true;
+  /** Tamanho do download do programa, em MB (ausente = o do Mac, ~0,2 GB). */
+  programaMb?: number;
 }
 /** Progresso do preparo/remoção do Ollama: uma linha do log. */
 export interface OllamaEvento { text: string }

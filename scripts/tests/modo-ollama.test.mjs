@@ -27,3 +27,10 @@ test("ollama-local no menu de modos: aparece onde é oferecido e só se escolhe 
   assert.equal(emUso.mostrar, true);
   assert.equal(emUso.disponivel, false);
 });
+
+test("ollama-local na janela de uma máquina por SSH: a linha diz que o modelo é da máquina", () => {
+  const remota = modoOllama({ oferecido: true, instalado: true, modelo: "qwen2.5:3b", emUso: false, remoto: true });
+  assert.deepEqual(remota, { mostrar: true, disponivel: true, texto: "ollama-local · Qwen 2.5 3B no Ollama desta máquina, grátis" });
+  // Máquina que não aguenta (ou canal que não oferece): a linha some, como antes.
+  assert.equal(modoOllama({ oferecido: false, instalado: false, modelo: null, emUso: false, remoto: true }).mostrar, false);
+});
