@@ -60,15 +60,15 @@ test("os dois ambientes de hoje: produção vende menos itens que o staging, e o
 test("marketplaceDoEnv: sem as chaves de pagamento nada está à venda; com elas, o Pro primeiro e o catálogo do ambiente", async () => {
   const { marketplaceDoEnv } = await import("../dist/rotas/pagamentos.js");
   const vars = AMBIENTES.producao;
-  assert.deepEqual(marketplaceDoEnv({ ...vars }), [], "sem ABACATEPAY_KEY e sem o secret do webhook");
-  const ligado = marketplaceDoEnv({ ...vars, ABACATEPAY_KEY: "abc_dev_x", ABACATEPAY_WEBHOOK_SECRET: "s".repeat(40) });
+  assert.deepEqual(await marketplaceDoEnv({ ...vars }), [], "sem ABACATEPAY_KEY e sem o secret do webhook");
+  // Sem banco à mão (as ofertas das ferramentas vêm dele): a lista é a de antes, sem ferramentas.
+  const ligado = await marketplaceDoEnv({ ...vars, ABACATEPAY_KEY: "abc_dev_x", ABACATEPAY_WEBHOOK_SECRET: "s".repeat(40) });
   assert.deepEqual(ligado.map((i) => i.id), ["pro", ...lerAddons(vars.ABACATEPAY_ADDONS).map((a) => a.nome), ...lerExtras(vars.ABACATEPAY_EXTRAS).map((x) => x.nome)]);
   assert.equal(ligado[0].centavos, Number(vars.ABACATEPAY_PRECO_CENTAVOS));
 });
 
 // Ferramentas: a conexão do agente com um app, vendida uma a uma (ferramentas-core.ts e ferramentas-catalogo.ts).
 import { CATALOGO } from "../dist/ferramentas-catalogo.js";
-import { OFERTAS_DE_FERRAMENTAS } from "../dist/ferramentas-ofertas.js";
 import { combinaComABusca, defeitosDoCatalogo, ehFerramenta, idDaFerramenta, lerOfertasDeFerramentas, semAcento, textoDeBusca } from "../dist/ferramentas-core.js";
 import { fichaDaFerramenta, rotuloDoGrupo } from "../dist/marketplace-core.js";
 
@@ -90,7 +90,7 @@ test("catálogo de ferramentas: bem formado, em português e sem slug repetido",
   for (const parte of ["slug fora da forma", "nome vazio", "sem categoria", "grupo desconhecido", "resumo deve ser", "exemplo de pedido", "slug repetido"]) assert.match(d, new RegExp(parte));
 });
 
-test("ofertas de ferramentas: só entra o que está no catálogo e na forma; os dois ambientes são lidos sem erro", () => {
+test("ofertas de ferramentas: só entra o que está no catálogo e na forma", () => {
   const ofertas = lerOfertasDeFerramentas({
     gmail: { produto: "prod_abc123XYZ", centavos: 4700 },
     notion: { produto: "sem-prefixo", centavos: 4700 },
@@ -101,10 +101,6 @@ test("ofertas de ferramentas: só entra o que está no catálogo e na forma; os 
   }, CATALOGO);
   assert.deepEqual(ofertas.map((o) => [o.ferramenta.slug, o.centavos]), [["google_search_console", 2900], ["gmail", 4700]], "na ordem do catálogo, sem as entradas fora da forma");
   for (const lixo of [null, undefined, [], "x", 3]) assert.deepEqual(lerOfertasDeFerramentas(lixo, CATALOGO), []);
-  for (const amb of ["producao", "staging"]) {
-    const lidas = lerOfertasDeFerramentas(OFERTAS_DE_FERRAMENTAS[amb], CATALOGO);
-    assert.equal(lidas.length, Object.keys(OFERTAS_DE_FERRAMENTAS[amb]).length, `${amb}: toda oferta escrita é válida e de ferramenta do catálogo`);
-  }
 });
 
 test("ferramenta no Marketplace: ficha escrita do catálogo, depois dos apps e extras, com nome técnico próprio", () => {

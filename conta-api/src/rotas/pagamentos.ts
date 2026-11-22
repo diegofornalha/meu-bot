@@ -21,11 +21,12 @@ import { gaIds } from "../analytics-core.js";
 import { assinaturaIdValido, clientIdDeReserva, clientIdValido, compraGa4, decidir, detalheLiberar, lerAddons, lerEvento, lerExtras, lerPromo, metodosSemPix, itemIdGa, pedidoDoCheckout, cuponsDoCheckout, decidirAvulso, clienteNaoExiste, pedidoComCliente, ehCupomDaPromo, EVENTO_AVULSO, precoDaCobranca, voltaDoCheckout, refValida, resultadoCancelamento, sessionIdValido, validoAte, webhookConfere, tipoDoExtra, type Decisao, type OfertaAddon, type OfertaExtra, type Promo } from "../pagamento-core.js";
 import { MAQUINA_LIMITE_MAX } from "../licenca-core.js";
 import { itensDoMarketplace, type ItemMarketplace } from "../marketplace-core.js";
-import { lerOfertasDeFerramentas, type OfertaFerramenta } from "../ferramentas-core.js";
-import { CATALOGO } from "../ferramentas-catalogo.js";
-import { OFERTAS_DE_FERRAMENTAS } from "../ferramentas-ofertas.js";
+import type { OfertaFerramenta } from "../ferramentas-core.js";
+import { ofertasAVendaNoBanco } from "../ferramentas-ofertas-db.js";
 
 const API = "https://api.abacatepay.com/v2";
+/** O mesmo endereço, para quem cria produtos (rotas/admin-ferramentas.ts). */
+export const API_ABACATE = API;
 
 /** O cliente da AbacatePay guardado na conta (o da última compra paga), ou null. */
 async function clienteDaConta(env: Env, contaId: string): Promise<string | null> {
@@ -64,10 +65,10 @@ export const catalogoAddons = (env: Env): string[] => lerAddons(env.ABACATEPAY_A
 export const addonsAVenda = (env: Env): OfertaAddon[] => (pagamentosLigados(env) ? lerAddons(env.ABACATEPAY_ADDONS) : []);
 /** As unidades extras à venda neste ambiente (máquina extra); vazio com os pagamentos desligados ou sem ABACATEPAY_EXTRAS. */
 export const extrasAVenda = (env: Env): OfertaExtra[] => (pagamentosLigados(env) ? lerExtras(env.ABACATEPAY_EXTRAS) : []);
-/** As ferramentas à venda neste ambiente (ferramentas-ofertas.ts contra o catálogo); vazio com os pagamentos desligados. */
-export const ferramentasAVenda = (env: Env): OfertaFerramenta[] => (pagamentosLigados(env) ? lerOfertasDeFerramentas(OFERTAS_DE_FERRAMENTAS[env.CANAL === "staging" ? "staging" : "producao"], CATALOGO) : []);
+/** As ferramentas à venda neste ambiente: as que o super admin pôs à venda pelo console (ferramentas-ofertas-db.ts); vazio com os pagamentos desligados. */
+export const ferramentasAVenda = async (env: Env): Promise<OfertaFerramenta[]> => (pagamentosLigados(env) ? ofertasAVendaNoBanco(env.DB) : []);
 /** O Marketplace deste ambiente (marketplace-core.ts): o Pro e o que mais está à venda; vazio com os pagamentos desligados. */
-export const marketplaceDoEnv = (env: Env): ItemMarketplace[] => itensDoMarketplace({ precoPro: pagamentosLigados(env) ? preco(env) : null, addons: addonsAVenda(env), extras: extrasAVenda(env), ferramentas: ferramentasAVenda(env) });
+export const marketplaceDoEnv = async (env: Env): Promise<ItemMarketplace[]> => itensDoMarketplace({ precoPro: pagamentosLigados(env) ? preco(env) : null, addons: addonsAVenda(env), extras: extrasAVenda(env), ferramentas: await ferramentasAVenda(env) });
 /** A promoção do primeiro mês do Pro neste ambiente; null sem cupom (PROMO_CUPOM vazio) ou com os pagamentos desligados. */
 export const promoLigada = (env: Env): Promo | null => (pagamentosLigados(env) ? lerPromo(env.PROMO_CUPOM, env.PROMO_PRECO_CENTAVOS, env.PROMO_DIAS, preco(env)) : null);
 /**
