@@ -4,6 +4,7 @@
  * compõe: registerIpc, initPicker e o que depende da variante (caps()).
  */
 import { ligarDepuracao } from "./app/depuracao";
+import { aoConcluirFumaca, falharFumaca, fumacaLigada, ligarFumaca } from "./app/fumaca";
 import { app, BrowserWindow, dialog, nativeTheme, powerMonitor } from "electron";
 import { onVersaoMinima } from "./maquina/backend";
 import { LOCAL_HOST } from "./maquina/localBackend";
@@ -38,6 +39,10 @@ import { aoReceberUrl, instalarOpenUrl, registrarEsquema, tratarArgv } from "./c
 import { parseLinkConfiguracoes } from "./conta/deep-link-core";
 import { aoRetornarAuth, aoRetorno, aoSair, contaEntrada, papelConfirmado } from "./conta/conta";
 
+// Modo de fumaça (MEU_BOT_FUMACA=<arquivo>, a prova automática do app empacotado): sem a variável não faz nada. Antes
+// de tudo, para um erro do arranque já entrar no relatório.
+ligarFumaca();
+
 // Cada produto além do meu-bot tem userData próprio (senão dividiria pasta e trava de instância). Antes de tudo.
 // O admin traz o pessoas.json antigo; um produto da pessoa (meu-bot-inspector-staging…) nasce como cópia do meu-bot dela.
 { const ud = userDataName(); const de = produto().herdaDe; if (ud !== null) useVariantUserData(ud, caps().supportAdmin ? migrateAdminPessoas : de !== null ? herdarDe(de, produto().abreEm !== null) : undefined); }
@@ -63,7 +68,8 @@ instalarOpenUrl(ESQUEMA);
 // Uma instância só: abrir o app de novo (Dock, Finder, `open -a`) mostra o seletor de máquinas; chegando pelo deep
 // link do login (Windows/Linux: a URL vem nos argumentos da instância nova), só o retorno é tratado, sem seletor.
 if (!app.requestSingleInstanceLock()) {
-  app.quit();
+  // Na fumaça, sair calado seria um relatório que nunca chega: o motivo vai para o arquivo e o app sai com 1.
+  if (fumacaLigada()) falharFumaca("outra instância deste app já está aberta: a fumaça não subiu"); else app.quit();
 } else {
   app.on("second-instance", (_event, argv) => { if (!tratarArgv(argv, ESQUEMA)) openFromArgs(argv); });
 }
@@ -138,10 +144,13 @@ app.whenReady().then(() => {
   // caíram e refaz a checagem de atualização se ela falhou por rede.
   initNet();
   installBrowserHooks();
-  if (caps().controleRemoto) void startTermApi().catch((e: unknown) => { log(`[terminal] controle local não subiu: ${e instanceof Error ? e.message : String(e)}`); });
+  // Na fumaça, nem o controle local nem o MCP sobem: o socket (/tmp/<app>-<uid>/term.sock) e a porta são do app, não
+  // da pasta de dados, e uma fumaça ao lado do app aberto (--user-data-dir) tomaria o socket dele.
+  const controle = caps().controleRemoto && !fumacaLigada();
+  if (controle) void startTermApi().catch((e: unknown) => { log(`[terminal] controle local não subiu: ${e instanceof Error ? e.message : String(e)}`); });
   // Controle remoto (MCP): só se a pessoa ligou em Configurações; porta ocupada fica como erro no estado, não derruba nada.
   if (caps().inspector) limparSessaoAntiga(); // execução anterior que caiu: a chave do MCP não fica no disco
-  if (caps().controleRemoto && getControleRemoto().ligado) void startControleRemoto().catch((e: unknown) => { log(`[mcp] não subiu: ${e instanceof Error ? e.message : String(e)}`); });
+  if (controle && getControleRemoto().ligado) void startControleRemoto().catch((e: unknown) => { log(`[mcp] não subiu: ${e instanceof Error ? e.message : String(e)}`); });
   onBackOnline(() => {
     markSuspect(); void revalidate();
     const hosts = new Set(allMainWindows().map((w) => hostOfWindow(w)).filter((h): h is string => h !== undefined && h !== LOCAL_HOST));
@@ -219,4 +228,7 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
-app.on("will-quit", () => { pararInspector(); stopControleRemoto(); disposeNet(); disposeUpdater(); disposeQuickEntry(); disposeWindows(); closeTunnel(); applyStagedOnQuit(); });
+const encerrar = (): void => { pararInspector(); stopControleRemoto(); disposeNet(); disposeUpdater(); disposeQuickEntry(); disposeWindows(); closeTunnel(); };
+app.on("will-quit", () => { encerrar(); applyStagedOnQuit(); });
+// A fumaça sai por app.exit (sem will-quit): a mesma limpeza, menos aplicar a atualização preparada.
+aoConcluirFumaca(encerrar);

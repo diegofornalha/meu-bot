@@ -1,0 +1,206 @@
+# Prova do meu-bot num Windows x64 de verdade (runner do GitHub, sem tela interativa). Dois modos:
+#   - do código (PR, push na main, ou workflow_dispatch sem `release`): empacota com o mesmo comando da release
+#     (`npm run dist:staging-win`), instala em silêncio e abre o app no modo de fumaça (MEU_BOT_FUMACA,
+#     src/main/app/fumaca-core.ts); scripts/fumaca-conferir.mjs confere o relatório e o contrato das capacidades.
+#   - de uma release (`gh workflow run windows.yml -f release=v1.2.0-staging.8`): baixa o instalador publicado
+#     naquela release e faz o mesmo. É como se reproduz o relato de quem usa o Windows, na versão exata da pessoa.
+#     Release anterior ao modo de fumaça não grava relatório: o job instala, abre, tira o print e sobe o log.
+# Sempre sobe o artefato `windows-fumaca`: relatório, meu-bot.log, print da tela com o app aberto e as janelas.
+# Não usa segredos (funciona em PR de fork) e NÃO é check obrigatório da main: é informativo. Como o Claude usa:
+# skill `windows` (.claude/skills/windows/SKILL.md).
+name: Windows
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Tag de uma release para testar o instalador publicado (ex.: v1.2.0-staging.8). Vazio: empacota o código deste ref."
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-${{ github.ref }}-${{ inputs.release || 'codigo' }}
+  cancel-in-progress: true
+
+jobs:
+  fumaca:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      APP: meu-bot-staging
+      VARIANTE: client-staging
+      # Entrada de quem dispara: só chega aos scripts pelo ambiente, nunca colada num comando.
+      RELEASE: ${{ inputs.release }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 26
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            extensao-crm/package-lock.json
+
+      - name: Preparar
+        id: prep
+        run: |
+          $saida = Join-Path $env:RUNNER_TEMP "fumaca"
+          New-Item -ItemType Directory -Force -Path $saida | Out-Null
+          "SAIDA=$saida" >> $env:GITHUB_ENV
+          "EXE=$env:LOCALAPPDATA\Programs\$env:APP\$env:APP.exe" >> $env:GITHUB_ENV
+          "DADOS=$env:APPDATA\$env:APP" >> $env:GITHUB_ENV
+          if ($env:RELEASE -ne "") {
+            if ($env:RELEASE -notmatch '^v\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$') { Write-Error "release inválida: '$env:RELEASE' (ex.: v1.2.0-staging.8)"; exit 1 }
+            $versao = $env:RELEASE.Substring(1)
+            $modo = "release"
+          } else {
+            $versao = (Get-Content package.json -Raw | ConvertFrom-Json).version
+            $modo = "codigo"
+          }
+          "VERSAO=$versao" >> $env:GITHUB_ENV
+          "MODO=$modo" >> $env:GITHUB_ENV
+          "modo=$modo" >> $env:GITHUB_OUTPUT
+          $de = if ($modo -eq "release") { "instalador publicado na release ``$env:RELEASE``" } else { "código de ``$env:GITHUB_REF`` (``$($env:GITHUB_SHA.Substring(0,7))``)" }
+          "## meu-bot no Windows x64: $env:APP $versao`n`nDe onde veio o app: $de.`n" >> $env:GITHUB_STEP_SUMMARY
+
+      # ── Do código: o mesmo empacotamento da release, agora num Windows ──
+      - name: Dependências
+        if: steps.prep.outputs.modo == 'codigo'
+        run: |
+          npm ci
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm ci --prefix extensao-crm
+      - name: Empacotar (npm run dist:staging-win)
+        if: steps.prep.outputs.modo == 'codigo'
+        env:
+          # Os scripts do package.json usam rm, cp e &&: no Windows o npm os roda pelo bash do Git.
+          npm_config_script_shell: C:\Program Files\Git\bin\bash.exe
+        run: |
+          npm run dist:staging-win
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "INSTALADOR=$(Join-Path (Get-Location) "out\$env:APP-$env:VERSAO-x64-setup.exe")" >> $env:GITHUB_ENV
+
+      # ── De uma release: o instalador que as pessoas receberam ──
+      - name: Baixar o instalador da release
+        if: steps.prep.outputs.modo == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $nome = "$env:APP-$env:VERSAO-x64-setup.exe"
+          $pasta = Join-Path $env:RUNNER_TEMP "instalador"
+          gh release download $env:RELEASE -R $env:GITHUB_REPOSITORY -p $nome -D $pasta
+          if ($LASTEXITCODE -ne 0) { Write-Error "a release $env:RELEASE não tem o asset $nome (release sem Windows, ou tag errada)"; exit 1 }
+          "INSTALADOR=$(Join-Path $pasta $nome)" >> $env:GITHUB_ENV
+
+      - name: Instalar em silêncio (/S)
+        id: instalar
+        run: |
+          if (-not (Test-Path $env:INSTALADOR)) { Write-Error "falta o instalador: $env:INSTALADOR"; exit 1 }
+          $mb = [math]::Round((Get-Item $env:INSTALADOR).Length / 1MB, 1)
+          $p = Start-Process -FilePath $env:INSTALADOR -ArgumentList "/S" -PassThru
+          $null = $p.Handle
+          if (-not $p.WaitForExit(300000)) { $p.Kill(); Write-Error "o instalador não terminou em 5 min"; exit 1 }
+          if ($p.ExitCode -ne 0) { Write-Error "o instalador saiu com $($p.ExitCode)"; exit 1 }
+          # O instalador pode devolver o controle antes de o último arquivo chegar: espera o .exe aparecer.
+          for ($i = 0; $i -lt 30 -and -not (Test-Path $env:EXE); $i++) { Start-Sleep -Seconds 2 }
+          if (-not (Test-Path $env:EXE)) { Write-Error "o instalador terminou mas não há $env:EXE"; exit 1 }
+          # O instalador não deve deixar o app aberto (isso é só com --force-run, o caminho da atualização).
+          Get-Process -Name $env:APP -ErrorAction SilentlyContinue | Stop-Process -Force
+          # Versão anterior ao modo de fumaça não conhece a variável: o nome dela está (ou não) no código empacotado.
+          $asar = Join-Path (Split-Path $env:EXE) "resources\app.asar"
+          $tem = node -e "process.stdout.write(require('node:fs').readFileSync(process.argv[1]).includes('MEU_BOT_FUMACA') ? 'sim' : 'nao')" $asar
+          "tem_fumaca=$tem" >> $env:GITHUB_OUTPUT
+          "- Instalador: ``$(Split-Path $env:INSTALADOR -Leaf)`` ($mb MB), instalado em ``$env:EXE``" >> $env:GITHUB_STEP_SUMMARY
+          if ($tem -ne "sim") { "- **Esta versão é anterior ao modo de fumaça**: não há relatório nem conferência das capacidades. O job abre o app, tira o print e sobe o log." >> $env:GITHUB_STEP_SUMMARY }
+
+      - name: Abrir no modo de fumaça
+        if: steps.instalar.outputs.tem_fumaca == 'sim'
+        run: |
+          $env:MEU_BOT_FUMACA = Join-Path $env:SAIDA "relatorio.json"
+          $p = Start-Process -FilePath $env:EXE -PassThru
+          $null = $p.Handle
+          # O app se dá 60 s para a janela carregar e sai sozinho; 90 s sem sair é travamento do processo.
+          if (-not $p.WaitForExit(90000)) {
+            taskkill /IM "$env:APP.exe" /F /T | Out-Null
+            "- Fumaça: o app **não saiu em 90 s** (travou antes de gravar o relatório)" >> $env:GITHUB_STEP_SUMMARY
+          } else {
+            "- Fumaça: o app saiu com código ``$($p.ExitCode)``" >> $env:GITHUB_STEP_SUMMARY
+          }
+          if (Test-Path $env:MEU_BOT_FUMACA) { Get-Content $env:MEU_BOT_FUMACA } else { Write-Host "sem relatório em $env:MEU_BOT_FUMACA" }
+          exit 0
+
+      - name: Abrir o app e tirar o print
+        id: print
+        if: always() && steps.instalar.outcome == 'success'
+        env:
+          # Sem atualizador: o app tem de ficar na versão que se quer ver.
+          MEU_BOT_NO_UPDATE: "1"
+        run: |
+          Get-Process -Name $env:APP -ErrorAction SilentlyContinue | Stop-Process -Force
+          Start-Process -FilePath $env:EXE
+          Start-Sleep -Seconds 20
+          $procs = @(Get-Process -Name $env:APP -ErrorAction SilentlyContinue)
+          $janelas = @($procs | Where-Object { $_.MainWindowTitle -ne "" } | ForEach-Object { $_.MainWindowTitle })
+          "processos: $($procs.Count)`njanelas: $($janelas -join ' | ')" | Set-Content (Join-Path $env:SAIDA "janelas.txt")
+          try {
+            Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+            $t = [System.Windows.Forms.SystemInformation]::VirtualScreen
+            $bmp = New-Object System.Drawing.Bitmap $t.Width, $t.Height
+            $g = [System.Drawing.Graphics]::FromImage($bmp)
+            $g.CopyFromScreen($t.Left, $t.Top, 0, 0, $bmp.Size)
+            $bmp.Save((Join-Path $env:SAIDA "tela.png"), [System.Drawing.Imaging.ImageFormat]::Png)
+            $g.Dispose(); $bmp.Dispose()
+            "- Print da tela com o app aberto: ``tela.png`` no artefato ($($t.Width)x$($t.Height))" >> $env:GITHUB_STEP_SUMMARY
+          } catch {
+            "- Print da tela: **não consegui capturar** ($($_.Exception.Message))" >> $env:GITHUB_STEP_SUMMARY
+          }
+          $vivo = $procs.Count -gt 0
+          $titulo = if ($janelas.Count -gt 0) { $janelas -join ' | ' } else { "(nenhuma com título)" }
+          "- App aberto por 20 s: $(if ($vivo) { "**continuou de pé** ($($procs.Count) processos)" } else { "**fechou sozinho**" }); janela: ``$titulo``" >> $env:GITHUB_STEP_SUMMARY
+          taskkill /IM "$env:APP.exe" /F /T 2>$null | Out-Null
+          # O log e o que mais ajudar a ler um relato: a pasta de dados do app no Windows é %APPDATA%\<app>.
+          $log = Join-Path $env:DADOS "meu-bot.log"
+          if (Test-Path $log) { Copy-Item $log (Join-Path $env:SAIDA "meu-bot.log"); "- Log: ``meu-bot.log`` no artefato ($((Get-Content $log).Count) linhas)" >> $env:GITHUB_STEP_SUMMARY }
+          else { "- Log: o app não escreveu ``meu-bot.log`` em ``$env:DADOS``" >> $env:GITHUB_STEP_SUMMARY }
+          if (Test-Path $env:DADOS) { Get-ChildItem $env:DADOS | Select-Object Name, Length, LastWriteTime | Format-Table | Out-String | Set-Content (Join-Path $env:SAIDA "pasta-de-dados.txt") }
+          if (-not $vivo) { Write-Error "o app não ficou aberto: fechou sozinho em menos de 20 s"; exit 1 }
+          if ($janelas.Count -eq 0) { Write-Error "o app ficou de pé mas não mostrou janela nenhuma"; exit 1 }
+          exit 0
+
+      # ── A conferência: o relatório contra a versão esperada e o contrato das capacidades (capsFor) ──
+      # Do código, o contrato é o deste checkout. De uma release, é o do código daquela tag (a tabela pode ter mudado).
+      - name: Código da release (para o contrato das capacidades)
+        if: always() && steps.prep.outputs.modo == 'release' && steps.instalar.outputs.tem_fumaca == 'sim'
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.release }}
+          path: fonte-release
+      - name: Compilar o contrato da release
+        if: always() && steps.prep.outputs.modo == 'release' && steps.instalar.outputs.tem_fumaca == 'sim'
+        working-directory: fonte-release
+        env:
+          npm_config_script_shell: C:\Program Files\Git\bin\bash.exe
+        run: |
+          npm ci
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run build:main
+      - name: Conferir o relatório
+        if: always() && steps.instalar.outputs.tem_fumaca == 'sim'
+        run: |
+          $dist = if ($env:MODO -eq "release") { "fonte-release\dist" } else { "dist" }
+          node scripts/fumaca-conferir.mjs (Join-Path $env:SAIDA "relatorio.json") --versao $env:VERSAO --plataforma win32 --variante $env:VARIANTE --dist $dist
+
+      - name: Subir relatório, log e print
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-fumaca
+          path: ${{ runner.temp }}/fumaca
+          if-no-files-found: warn
+          retention-days: 30
