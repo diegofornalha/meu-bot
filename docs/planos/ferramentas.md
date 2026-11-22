@@ -44,6 +44,26 @@ com a divisão visível.
 - **No app**, três blocos: Prontas para uso (compradas e funcionando), Falta conectar (compradas, esperando o
   Conectar) e No Marketplace (as demais, com preço).
 
+## Tudo pelo chat
+
+Pedido do dono (21 nov 2026), a partir do que o Hostinger Agente faz: a pessoa não precisa sair da conversa. A página
+Ferramentas existe para ver e administrar; o caminho do dia a dia é o chat.
+
+- **Conectar pelo chat.** O agente tenta usar uma ferramenta comprada e ainda não conectada: a conversa mostra um
+  cartão "Conectar o <app>" com o botão. A pessoa autoriza, o cartão vira "Conectado" e o agente continua de onde parou.
+- **Ferramenta não comprada.** O cartão diz o preço e leva ao item no Marketplace. O agente não alcança o app.
+- **Confirmar antes de agir.** Antes de uma ação num app conectado, a conversa mostra "o que vai acontecer", em
+  português, com Cancelar, Permitir uma vez e Permitir sempre. Ler e consultar pode ficar liberado; escrever, enviar e
+  apagar pedem a confirmação, na mesma lógica dos níveis do agente do WhatsApp (só conversa, consulta, age).
+
+Isso muda o caminho do agente em relação ao primeiro desenho. O app já tem o molde: `backend-colima/gmail-mcp.mjs` é
+um conector local na máquina que repassa cada pedido, por um túnel, ao app no Mac, que é quem tem a credencial. As
+ferramentas seguem o mesmo trilho: um `ferramentas-mcp.mjs` na máquina repassa ao app, o app mostra o cartão na
+conversa, espera a resposta da pessoa e só então pede a execução ao `conta-api`. Vantagens: a máquina não guarda
+credencial nenhuma, a confirmação é nativa do app, e some o maior risco da fase 0 (o `conta-api` como intermediário de
+um conector em fluxo). Limite, o mesmo do Gmail do agente: com o app fechado, as ferramentas ficam fechadas. O agente
+do WhatsApp usando ferramentas com o Mac desligado fica para uma etapa posterior, com credencial própria da máquina.
+
 ## Fases
 
 | Fase | O que entrega | Estado |
@@ -52,11 +72,11 @@ com a divisão visível.
 | 1a | Catálogo em português, tipo "ferramenta" no Marketplace e a busca (site e console) | feito |
 | 1b | Compra de uma ferramenta: checkout, `ferramentas_pagas`, cancelamento | a fazer |
 | 2 | `conta-api` com o Composio: estado por conta, conectar, desconectar, token da máquina | depende da fase 0 |
-| 3 | Página Ferramentas no app e o agente usando (conector por turno no backend) | depende da fase 2 |
+| 3 | O agente usando pelo chat (conector local na máquina, cartões de conectar e de confirmar na conversa) e a página Ferramentas no app | depende da fase 2 |
 | 4 | Produção: produtos e preços criados, textos revistos, aprovação do site | depois do staging provado |
 
-O ponto de maior risco técnico é o da fase 0: o `conta-api` (Cloudflare Worker) como intermediário do conector. Se não
-funcionar bem, a alternativa é o backend da máquina pedir ao `conta-api` a execução de cada ferramenta por HTTP comum.
+A fase 0 prova, com a chave do Composio, as chamadas que o `conta-api` vai fazer: sessão por conta só com as ferramentas
+pagas, link de conexão, estado das conexões e execução de uma ferramenta por HTTP comum.
 
 ## O que depende do dono
 
