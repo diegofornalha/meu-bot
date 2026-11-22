@@ -8,7 +8,7 @@ import { TUTORIAIS, type Tutorial } from "../lib/tutoriais.js";
 import type { Tab } from "../renderer.js";
 import { ctx, ehRemoto } from "../app/ctx.js";
 import { registrarFonte } from "../tutoriais/fontes.js";
-import { FALLBACK_PRIMARIES, fallbackOrderText } from "../lib/fallback.js";
+import { FALLBACK_PRIMARIES, fallbackOrderText, opcoesDePrimario } from "../lib/fallback.js";
 import { registrarPassos } from "../tutoriais/passos.js";
 
 // ---- Entrar no Claude Code: roda `claude auth login` na máquina, abre o link e recebe o código. Um estado só
@@ -455,11 +455,10 @@ function renderClaudeLoginPasso(txt: HTMLElement): void {
   paintLoginControls(clGuide, "guide");
   if (refocus) { clGuide.code.focus(); clGuide.code.setSelectionRange(sel[0], sel[1]); }
 }
-/** Primário do tutorial 5 → modelo padrão da máquina (Claude = agente, xAI = grok-4). */
-const PRIMARY_OF: Record<string, BackendModel> = { claude: "agente", xai: "grok-4" };
 /**
  * Passo "Escolher primário e reserva" (tutorial 5): a mesma escolha de Configurações › Fallback, salva na hora
- * (o modelo padrão desta máquina muda), com a linha da corrente e o estado das duas contas.
+ * (o modelo padrão desta máquina muda), com a linha da corrente e o estado das contas. Onde o modo grátis está
+ * instalado, o Ollama entra como terceira opção: quem não tem assinatura pode deixá-lo de primário.
  */
 export function renderFallbackOrder(container: HTMLElement): void {
   const box = el("div", "audio-controls");
@@ -469,15 +468,19 @@ export function renderFallbackOrder(container: HTMLElement): void {
     line(ctx.clAuth?.loggedIn ?? null, `Claude Code${ctx.clAuth?.email ? `: ${ctx.clAuth.email}` : ""} → modelo agente`),
     line(ctx.xaiAuth?.loggedIn ?? null, `xAI${ctx.xaiAuth?.email ? `: ${ctx.xaiAuth.email}` : ""} → modelo grok-4`),
   );
+  const chain = ctx.account?.providers ?? null;
+  const ollama = (chain ?? []).find((p) => p.name === "ollama-local");
+  if (ollama !== undefined) accounts.append(line(ollama.available, "Ollama (modo grátis, sem conta) → modelo ollama-local"));
   const label = el("label", "", "Primário nesta máquina ");
   const sel = el("select");
-  for (const [value, text] of [["claude", "Claude (agente)"], ["xai", "xAI (grok-4)"]] as const) { const o = el("option", "", text); o.value = value; sel.append(o); }
   const cur: string = ctx.settings?.backendModelForHost ?? "";
-  if (cur === "grok-4") sel.value = "xai"; else if (cur === "agente") sel.value = "claude"; else { const o = el("option", "", `outro (${cur || "sem modelo"}): fora da corrente`); o.value = "other"; o.disabled = true; sel.append(o); sel.value = "other"; }
+  const opcoes = opcoesDePrimario(chain, cur);
+  for (const op of opcoes) { const o = el("option", "", op.texto); o.value = op.modelo; sel.append(o); }
+  if (opcoes.some((op) => op.modelo === cur)) sel.value = cur; else { const o = el("option", "", `outro (${cur || "sem modelo"}): fora da corrente`); o.value = "other"; o.disabled = true; sel.append(o); sel.value = "other"; }
   label.append(sel);
-  const hint = el("p", "hint", fallbackOrderText(cur, ctx.account?.providers ?? null));
+  const hint = el("p", "hint", fallbackOrderText(cur, chain));
   sel.addEventListener("change", () => {
-    const m = PRIMARY_OF[sel.value];
+    const m = opcoes.find((op) => op.modelo === sel.value)?.modelo as BackendModel | undefined;
     if (m === undefined) return;
     sel.disabled = true;
     void window.meuBot.setSettings({ backendModelForHost: m }).then((view) => {
