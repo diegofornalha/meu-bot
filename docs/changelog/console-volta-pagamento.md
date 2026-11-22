@@ -1,1 +1,0 @@
-- Console: quem paga e volta com a sessão vencida (ela dura 1 hora) entra de novo e cai na mesma página com o aviso de pagamento recebido, em vez de uma página sem aviso.
