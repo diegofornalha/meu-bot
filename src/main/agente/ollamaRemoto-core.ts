@@ -39,8 +39,8 @@ export const OLLAMA_STATUS_SH = [
   `if [ -n "$M" ] && curl -fsS -m 4 "http://127.0.0.1:$OPORT/api/tags" 2>/dev/null | grep -q "\"$M\""; then echo pronto=1; else echo pronto=0; fi`,
 ].join("\n");
 
-/** "ligar"/"parar" da lateral: o serviço do usuário que o instalador criou. */
-export const ollamaLigarSh = (ligado: boolean): string => `systemctl --user ${ligado ? "start" : "stop"} meu-bot-ollama.service 2>&1; sleep ${ligado ? 2 : 1}`;
+/** "ligar"/"parar" da lateral: o serviço do usuário que o instalador criou. Sai com erro (e a frase do systemctl) se ele falhar. */
+export const ollamaLigarSh = (ligado: boolean): string => `systemctl --user ${ligado ? "start" : "stop"} meu-bot-ollama.service 2>&1 || exit 1; sleep ${ligado ? 2 : 1}`;
 
 /** A resposta do OLLAMA_STATUS_SH no formato do status do Mac; null = a máquina não respondeu o que se esperava. */
 export function lerStatusRemoto(stdout: string): OllamaStatus | null {

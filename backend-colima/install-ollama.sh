@@ -22,7 +22,8 @@ SYS_UNIT=/etc/systemd/system/meu-bot-backend.service
 # O backend pode ser serviço de usuário (o normal), de sistema ou nenhum dos dois: reiniciar o que existe.
 backend_restart() {
   if systemctl --user cat meu-bot-backend.service >/dev/null 2>&1; then
-    systemctl --user restart meu-bot-backend.service; echo "backend: $(systemctl --user is-active meu-bot-backend.service)"
+    if systemctl --user restart meu-bot-backend.service; then echo "backend: $(systemctl --user is-active meu-bot-backend.service)"
+    else echo "aviso: não consegui reiniciar o backend; use \"Reinstalar backend\" no seletor para ele ler o providers.json novo"; fi
   elif [ -f "$SYS_UNIT" ]; then
     if sudo -n systemctl restart meu-bot-backend.service >/dev/null 2>&1; then echo "backend (serviço de sistema): $(sudo -n systemctl is-active meu-bot-backend.service)"
     else echo "aviso: o backend é serviço de sistema e não consegui reiniciá-lo (sem sudo); use \"Reinstalar backend\" no seletor para ele ler o providers.json novo"; fi

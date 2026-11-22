@@ -519,7 +519,10 @@ export const prepareOllamaRemoto = (host: string, onLine?: (line: string) => voi
 export const removerOllamaRemoto = (host: string, onLine?: (line: string) => void): Promise<InstallBackendResult> => rodarInstaladorOllama(host, "remover", 2 * 60_000, onLine);
 /** "ligar"/"parar" da linha do Ollama na lateral, na máquina. */
 export async function setOllamaLigadoRemoto(host: string, ligado: boolean): Promise<OllamaStatus> {
-  if (host !== LOCAL_HOST && isValidHost(host)) await run("ssh", [...sshBase(host), "--", host, ollamaLigarSh(ligado)], 30_000);
+  if (host !== LOCAL_HOST && isValidHost(host)) {
+    const r = await run("ssh", [...sshBase(host), "--", host, ollamaLigarSh(ligado)], 30_000);
+    if (r.code !== 0) throw new Error(lastLine(r.stdout) || lastLine(r.stderr) || `não consegui ${ligado ? "ligar" : "parar"} o modo grátis nesta máquina`);
+  }
   const s = await ollamaStatusRemoto(host);
   if (s === null) throw new Error("não consegui ler o estado do modo grátis nesta máquina");
   return s;

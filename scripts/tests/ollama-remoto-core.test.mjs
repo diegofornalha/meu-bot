@@ -44,6 +44,15 @@ test("lerStatusRemoto: onde o modo grátis não roda", () => {
   assert.equal(r.lerStatusRemoto("Permission denied"), null);
 });
 
+test("ollamaLigarSh: liga ou para o serviço e sai com erro quando o systemctl falha", () => {
+  const m = maquina();
+  assert.equal(rodar(m, r.ollamaLigarSh(false)).status, 0);
+  writeFileSync(join(m.bin, "systemctl"), "#!/bin/bash\necho 'Unit meu-bot-ollama.service not loaded.'\nexit 5\n");
+  const falha = rodar(m, r.ollamaLigarSh(true));
+  assert.equal(falha.status, 1);
+  assert.match(falha.stdout, /not loaded/, "a frase do systemctl chega a quem chamou");
+});
+
 test("envDoInstalador: versão, sha256, URL e modelo saem do ollamaLocal-core", () => {
   const e = r.envDoInstalador();
   assert.ok(e.includes(`OLLAMA_VERSION=${o.OLLAMA_VERSION_LOCAL}`));
@@ -98,17 +107,18 @@ test("install-ollama.sh: sintaxe, e a mescla do providers.json preserva as outra
   assert.ok(trecho.includes("providers_ollama()"), "o instalador tem o trecho marcado");
   const m = maquina({ providers: JSON.stringify([{ name: "agente", type: "claude", priority: 0 }, { name: "grok-4", type: "openai", priority: 1, base_url: "http://127.0.0.1:8645/v1", model: "grok-4" }]) });
   const p = join(m.bd, "providers.json");
-  const chamar = (args) => spawnSync("bash", ["-c", `set -euo pipefail\nNODE=${JSON.stringify(process.execPath)}\n${trecho}\nproviders_ollama ${args}`], { encoding: "utf8" });
-  assert.equal(chamar(`"${p}" por 7883 qwen2.5:3b`).status, 0);
-  assert.equal(chamar(`"${p}" por 7883 qwen2.5:3b`).status, 0, "idempotente");
+  // O caminho do node e os argumentos vão pelo ambiente e pelos parâmetros do bash, nunca colados no texto do script.
+  const chamar = (...args) => spawnSync("bash", ["-c", `set -euo pipefail\n${trecho}\nproviders_ollama "$@"`, "providers", ...args], { encoding: "utf8", env: { ...process.env, NODE: process.execPath } });
+  assert.equal(chamar(p, "por", "7883", "qwen2.5:3b").status, 0);
+  assert.equal(chamar(p, "por", "7883", "qwen2.5:3b").status, 0, "idempotente");
   const l = JSON.parse(readFileSync(p, "utf8"));
   assert.deepEqual(l.map((e) => e.name), ["agente", "grok-4", "ollama-local"], "o grok-4 fica; o ollama-local não duplica");
   assert.deepEqual(l[2], { ...o.entradaOllama(7883, "qwen2.5:3b"), description: "Modo grátis: Ollama nesta máquina (tutorial 16)" }, "a mesma entrada do Mac, só com a descrição da máquina");
   assert.equal(o.modeloNoProviders(readFileSync(p, "utf8"), 7883), "qwen2.5:3b", "o app lê o que a máquina gravou");
-  assert.equal(chamar(`"${p}" tirar`).status, 0);
+  assert.equal(chamar(p, "tirar").status, 0);
   assert.deepEqual(JSON.parse(readFileSync(p, "utf8")).map((e) => e.name), ["agente", "grok-4"]);
   // Arquivo ilegível: recomeça do agente, como no Mac.
   writeFileSync(p, "{lixo");
-  assert.equal(chamar(`"${p}" por 7883 qwen2.5:3b`).status, 0);
+  assert.equal(chamar(p, "por", "7883", "qwen2.5:3b").status, 0);
   assert.deepEqual(JSON.parse(readFileSync(p, "utf8")).map((e) => e.name), ["agente", "ollama-local"]);
 });
