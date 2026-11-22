@@ -203,8 +203,17 @@ async function acaoContaClaude(run: () => Promise<ContasClaudeView | null>): Pro
 /** "Sair" do Login padrão: logout na máquina, tutorial 1 de volta ao passo 1, e a lista relida para o cartão mostrar deslogada. */
 async function sairDoLoginPadrao(): Promise<void> {
   if (contasOcupado || clState.running) return;
-  await ctx.resetTutorial(CLAUDE_TUTORIAL);
-  await acaoContaClaude(() => window.meuBot.contasClaudeConferir("padrao"));
+  // O logout roda aqui, dentro da ação do cartão: se falhar, o motivo aparece no próprio cartão (contasMsg). O
+  // resetTutorial sozinho guardava o erro na tela dos Tutoriais, e quem clicou em "Sair" não via nada.
+  let saiu = false;
+  await acaoContaClaude(async () => {
+    await logoutClaude(false);
+    if (clAuth?.loggedIn === true) throw new Error("o Claude Code não saiu da conta nesta máquina; tente de novo");
+    saiu = true;
+    return window.meuBot.contasClaudeConferir("padrao");
+  });
+  // Só com o logout feito o tutorial 1 volta ao passo 1 (o logout que ele repete não muda nada numa conta já deslogada).
+  if (saiu) await ctx.resetTutorial(CLAUDE_TUTORIAL);
 }
 /** Cria a conta isolada e já abre o login nela (modal do tutorial 1, com link + código). */
 async function adicionarContaClaude(): Promise<void> {
