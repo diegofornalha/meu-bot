@@ -453,10 +453,13 @@ async function install(): Promise<void> {
   await probe(host, true);
 }
 
+/** O "sincronizar ssh" é avançado: só serve a quem usa o Cursor (Remote SSH), que lê o mesmo ~/.ssh/config. */
+const AVISO_SSH_AVANCADO = "Função avançada: as máquinas por SSH só funcionam com o aplicativo Cursor instalado neste computador (baixe em cursor.com). O Cursor e o meu-bot leem o mesmo ~/.ssh/config.";
+
 function syncSummary(r: SshSyncResult): { kind: "ok" | "warn"; text: string } {
   const lines: string[] = [];
   // App distribuído: o modelo vem vazio. Não lista as máquinas da pessoa nem fala de "máquinas do projeto".
-  if (r.modeloVazio) return { kind: "ok", text: "Este app não traz máquinas prontas para sincronizar: o ~/.ssh/config ficou como estava. As máquinas do seletor são as que já estão nesse arquivo." };
+  if (r.modeloVazio) return { kind: "ok", text: `${AVISO_SSH_AVANCADO}\nEste app não traz máquinas prontas para sincronizar: o ~/.ssh/config ficou como estava. As máquinas do seletor são as que já estão nesse arquivo.` };
   if (r.added.length === 0 && r.includesAdded === 0) lines.push("✓ ~/.ssh/config já tinha todas as máquinas do projeto; nada mudou.");
   else lines.push(`✓ entraram no ~/.ssh/config: ${[...r.added, ...(r.includesAdded > 0 ? [`${r.includesAdded} Include`] : [])].join(", ")}${r.backup !== null ? ` (backup em ${r.backup.replace(/^.*\//, "")})` : ""}.`);
   if (r.kept.length > 0) lines.push(`mantidas como estavam: ${r.kept.join(", ")}.`);
@@ -468,7 +471,7 @@ function syncSummary(r: SshSyncResult): { kind: "ok" | "warn"; text: string } {
     kind = "warn";
     lines.push(`⚠ falta a chave ${r.missingKeys.map((k) => k.replace(/^.*\/\.ssh\//, "~/.ssh/")).join(", ")} neste Mac: copie do outro Mac, ou gere uma nova e coloque a .pub no authorized_keys de cada máquina (PLAYBOOK, seção 1).`);
   }
-  lines.push("O Cursor (Remote SSH) lê o mesmo arquivo (ou um que ele inclui), então as máquinas aparecem lá também.");
+  lines.push(AVISO_SSH_AVANCADO);
   if (support !== null) lines.push("Pessoas do suporte não passam por aqui: o endereço delas vem do código que a pessoa manda. Máquina que mudou de IP ou foi reinstalada: \"Adicionar pessoa\" com o código novo ou com \"ssh <host>\", e \"Excluir máquina\" na antiga.");
   return { kind, text: lines.join("\n") };
 }
