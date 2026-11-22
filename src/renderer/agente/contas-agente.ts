@@ -200,6 +200,12 @@ async function acaoContaClaude(run: () => Promise<ContasClaudeView | null>): Pro
   catch (err) { contasMsg = ipcErrorText(err); }
   finally { contasOcupado = false; ctx.paintGuide(); }
 }
+/** "Sair" do Login padrão: logout na máquina, tutorial 1 de volta ao passo 1, e a lista relida para o cartão mostrar deslogada. */
+async function sairDoLoginPadrao(): Promise<void> {
+  if (contasOcupado || clState.running) return;
+  await ctx.resetTutorial(CLAUDE_TUTORIAL);
+  await acaoContaClaude(() => window.meuBot.contasClaudeConferir("padrao"));
+}
 /** Cria a conta isolada e já abre o login nela (modal do tutorial 1, com link + código). */
 async function adicionarContaClaude(): Promise<void> {
   if (contasOcupado || clState.running) return;
@@ -246,6 +252,12 @@ export function renderContasClaude(box: HTMLElement): void {
     if (c.uso.estado === "esgotada") btn("Usar agora", "Volta a usar esta conta antes da hora (se o limite já passou)", () => { void acaoContaClaude(() => window.meuBot.contasClaudeUsarAgora(c.id)); });
     btn("Conferir", "Relê login, e-mail e uso desta conta", () => { void acaoContaClaude(() => window.meuBot.contasClaudeConferir(c.id)); });
     btn(c.ativa ? "Desligar" : "Ligar", c.ativa ? "Tira esta conta do rodízio (sem sair dela)" : "Devolve esta conta ao rodízio", () => { void acaoContaClaude(() => window.meuBot.contasClaudeAtualizar(c.id, { ativa: !c.ativa })); });
+    if (c.padrao && c.logada) {
+      // O login padrão não tem pasta para apagar: o "remover" dele é sair do Claude Code da máquina, o mesmo que o
+      // "Refazer do zero" do tutorial 1 faz (e o tutorial volta ao passo 1).
+      const sair = btn("Sair", "Sai do Claude Code desta máquina (o login padrão) e volta o tutorial 1 ao passo 1; as outras contas ficam", () => {});
+      sair.addEventListener("click", () => ctx.armConfirm(sair, "Confirmar? sai do login padrão", () => { void sairDoLoginPadrao(); }));
+    }
     if (!c.padrao) {
       const i = isoladas.findIndex((x) => x.id === c.id);
       if (i > 0) btn("↑", "Preferir antes", () => { const ids = isoladas.map((x) => x.id); [ids[i - 1], ids[i]] = [ids[i]!, ids[i - 1]!]; void acaoContaClaude(() => window.meuBot.contasClaudeReordenar(ids)); });

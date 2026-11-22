@@ -19,6 +19,8 @@ export function estadoTexto(c: ContaClaude, atual: string | null, nowMs = Date.n
 
 /** "Sessão 42% · 1h20m · Semanal 10% · 3d2h"; "" sem dado. */
 export function usoTexto(c: ContaClaude, nowMs = Date.now()): string {
+  // Conta deslogada: o uso guardado é de um login que não existe mais; mostrá-lo sugeria uma conta ainda em uso.
+  if (!c.logada) return "";
   const parts: string[] = [];
   const j = (nome: string, w: { pct: number; resets: number | null } | null): void => { if (w !== null) parts.push(`${nome} ${Math.round(w.pct)}%${w.resets !== null && w.resets * 1000 > nowMs ? ` · ${timeUntil(w.resets, nowMs)}` : ""}`); };
   j("Sessão", c.uso.sessao); j("Semanal", c.uso.semanal);

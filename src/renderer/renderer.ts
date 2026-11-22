@@ -51,7 +51,7 @@ import { ctx, ehRemoto } from "./app/ctx.js";
 import { conferirPassos } from "./tutoriais/passos.js";
 import { abaFixaAtual, inserirAba, activatePage, closePage, deactivatePage, definePage, pintarFixada, ehVazia, ligarPaginas, openPage, pageActive, pagePrev, pageShown, pages, preencherEsquerda, relayoutSplit, restoreSplit, splitColunaVazia, splitOff, splitOn, splitOnAny, splitPages, toggleSplit } from "./app/paginas.js";
 import { acervoList, ligarAcervo, paintAcervoCount } from "./acervo/acervo.js";
-import { activeGuide, ligarTutoriais, loadGuideFlags, openGuide, paintGuide, paintGuideTargets, paintTutCount, reportProgress, saveGuideFlag, tutCounts, tutorialDone, tutorialsReady, visibleNow } from "./tutoriais/tutoriais.js";
+import { activeGuide, ligarTutoriais, loadGuideFlags, openGuide, paintGuide, paintGuideTargets, paintTutCount, reportProgress, resetTutorial, saveGuideFlag, tutCounts, tutorialDone, tutorialsReady, visibleNow } from "./tutoriais/tutoriais.js";
 import { chooseReply, comPareamento, disconnectWhatsapp, fmtPhone, ligarAgenteWhatsapp, openWhatsapp, paintWhatsapp, pairWhatsapp, refreshWhatsapp, renderAudioControls, renderChannelEditor, renderReplyCards, replyChoiceNow, requestAgentPrepare, waAgentBtn, waConnected, waDialog, waPairBtn, waPairing, waPolicyBox, waPolicyCards, waPolicySaving, waProgress, waProgressText, waQr, waSuccess } from "./whatsapp/agente-whatsapp.js";
 import { cacheDrop, cacheRead, cacheWrite, getListMode, ligarConversas, paintArquivadas, paintListMode, paintWaSidebar, setListMode, waChatTitle } from "./whatsapp/conversas.js";
 import { TUT_GRUPOS, ligarGrupos, loadGrupoAlvo, refreshWaGroups, waGroupReplied, waGroupTitle, waGroups, waGroupsAt, waGroupsInflight, waGroupsSection } from "./whatsapp/grupos.js";
@@ -169,6 +169,7 @@ const ctxImpl = {
   get loadGrupoAlvo() { return loadGrupoAlvo; },
   get loadGuideFlags() { return loadGuideFlags; },
   get logoutClaude() { return logoutClaude; },
+  get resetTutorial() { return resetTutorial; },
   get logoutXai() { return logoutXai; },
   get maybeAskNotificationsOnce() { return maybeAskNotificationsOnce; },
   get maybeNotify() { return maybeNotify; },
