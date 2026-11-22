@@ -65,3 +65,10 @@ test("ehNossoProxyOrfao: só o proxy do Hermes do meu-bot na porta deste app", (
   assert.equal(c.ehNossoProxyOrfao("", pre, 8691), false);
   assert.equal(c.ehNossoProxyOrfao(py, "", 8691), false);
 });
+
+test("falhaLoginXai: máquina sem o programa do login (127) manda preparar o Grok; o resto mostra o código", () => {
+  assert.match(c.falhaLoginXai(127, ""), /falta preparar o Grok.*passo 1 do tutorial 4/);
+  assert.match(c.falhaLoginXai(1, "bash: line 1: hermes: command not found"), /falta preparar o Grok/);
+  assert.equal(c.falhaLoginXai(1, "invalid_grant"), "o login da xAI não concluiu (código 1).");
+  assert.equal(c.falhaLoginXai(null, ""), "o login da xAI não concluiu (código ?).");
+});

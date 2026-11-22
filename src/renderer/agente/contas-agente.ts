@@ -442,9 +442,11 @@ export const FALLBACK_TUTORIAL = TUTORIAIS.find((t) => t.id === "fallback-contas
 /**
  * Porta única para "Entrar na xAI": enquanto o tutorial 4 não foi concluído (e o Grok é possível aqui), abre o
  * guia (Preparar ou Entrar pulsando; nada roda sozinho); concluído, é trocar de conta: o modal já com o login.
+ * Máquina sem o preparo (`xaiAuth` null: o programa do login nem está instalado) também vai para o guia, mesmo com o
+ * tutorial lembrado como concluído: o login direto ali só terminava em "código 127".
  */
 export function enterXai(): void {
-  if (ctx.caps.install && !ctx.tutorialDone(XAI_TUTORIAL)) { ctx.tutNext = false; ctx.openGuide(XAI_TUTORIAL); return; }
+  if (ctx.caps.install && (!ctx.tutorialDone(XAI_TUTORIAL) || xaiAuth === null)) { ctx.tutNext = false; ctx.openGuide(XAI_TUTORIAL); return; }
   openXai(); void runXaiLogin();
 }
 /** Sai da conta da xAI nesta máquina; com `relogin`, já leva ao login (tutorial 4 ou modal). */

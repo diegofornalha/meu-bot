@@ -55,6 +55,14 @@ export function rotuloCredencialXai(list: string): string | null {
 }
 
 /** `hermes --version` é da versão pedida? */
+/**
+ * Por que o login da xAI numa máquina por SSH não concluiu. Código 127 (ou "hermes: command not found") é a máquina
+ * sem o programa do login, que o preparo do Grok instala: dizer isso, e não só o código, que não leva a pessoa a nada.
+ */
+export function falhaLoginXai(code: number | null, saida: string): string {
+  if (code === 127 || /hermes: (command )?not found/i.test(saida)) return "falta preparar o Grok nesta máquina (o programa do login ainda não está instalado): faça o passo 1 do tutorial 4, \"Preparar o Grok nesta máquina\", e entre de novo.";
+  return `o login da xAI não concluiu (código ${code ?? "?"}).`;
+}
 export const hermesNaVersao = (versionOut: string, versao: string = HERMES_VERSION_LOCAL): boolean => versionOut.includes(`v${versao}`);
 
 /**

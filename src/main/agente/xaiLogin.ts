@@ -13,6 +13,7 @@ import { log } from "../maquina/backend";
 import { LOCAL_HOST } from "../maquina/localBackend";
 import { isValidHost } from "../app/settings";
 import { BACKEND_DIR_SH } from "../maquina/backend-dir-core";
+import { falhaLoginXai } from "./xaiLocal-core";
 import { cancelXaiLoginLocal, startXaiLoginLocal, xaiAuthInfoLocal, xaiLogoutLocal } from "./xaiLocal";
 
 const SSH_OPTS = [
@@ -101,7 +102,7 @@ export function startXaiLogin(host: string, send: (ev: ClaudeLoginEvent) => void
           proxy = r.out.includes("proxy=1");
         }
         log(`[xai-login] ${host}: processo saiu com ${code}; logado=${ok}`);
-        send({ kind: "done", ok, text: ok ? `xAI logada nesta máquina (${added ?? "credencial nova"}); ${proxy ? "o grok-4 já usa a conta nova." : "falta preparar o Grok (passo 1) para o grok-4 responder."}` : `o login da xAI não concluiu (código ${code ?? "?"}).` });
+        send({ kind: "done", ok, text: ok ? `xAI logada nesta máquina (${added ?? "credencial nova"}); ${proxy ? "o grok-4 já usa a conta nova." : "falta preparar o Grok (passo 1) para o grok-4 responder."}` : falhaLoginXai(code, all) });
         resolve();
       })();
     });
