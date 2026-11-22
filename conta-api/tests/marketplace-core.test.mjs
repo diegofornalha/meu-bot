@@ -80,6 +80,10 @@ test("catálogo de ferramentas: bem formado, em português e sem slug repetido",
   assert.ok(CATALOGO.some((f) => f.grupo === "pronta") && CATALOGO.some((f) => f.grupo === "conectar"), "os dois grupos existem");
   // Fora do público do meu-bot (lazer, uso pessoal, outros países): não entram.
   for (const s of ["aiwyn_tax_mcp", "alltrails_mcp", "viator_mcp", "ziprecruiter_mcp", "dice_mcp", "taskrabbit_mcp", "resortlife_travel_mcp"]) assert.ok(!slugs.includes(s), `${s} ficou de fora`);
+  // Ferramenta que pede um dado além da autorização diz o que é e onde fica, para o agente buscar pela pessoa.
+  const ads = CATALOGO.find((f) => f.slug === "googleads");
+  assert.match(ads.pede.dado, /ID de cliente/); assert.match(ads.pede.onde, /Google Ads/);
+  assert.match(defeitosDoCatalogo([{ ...ads, pede: { dado: "x", onde: "y" } }]).join("\n"), /o dado pedido na conexão/);
   // O validador pega os defeitos que importam.
   const ruim = [{ slug: "Gmail!", nome: "G", categoria: "", grupo: "x", resumo: "curto", exemplo: "" }, { ...CATALOGO[0] }, { ...CATALOGO[0] }];
   const d = defeitosDoCatalogo(ruim).join("\n");

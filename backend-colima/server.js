@@ -25,10 +25,13 @@ const sessions = require('./session-map');
 const toolEvents = require('./tool-events');
 const navegador = require('./navegador');
 const gmailPonte = require('./gmail');
+const ferramentasPonte = require('./ferramentas');
 const pontes = require('./pontes');
 const navWhatsapp = require('./navegador-whatsapp');
 const NAVEGADOR_MCP = path.join(os.homedir(), '.local/share/meu-bot/navegador-mcp.mjs');
 const GMAIL_MCP = path.join(os.homedir(), '.local/share/meu-bot/gmail-mcp.mjs');
+// O conector das Ferramentas mora na pasta do backend (vai e se atualiza com ele; sem instalador próprio).
+const FERRAMENTAS_MCP = path.join(__dirname, 'ferramentas-mcp.js');
 /** Passos por mensagem quando o Navegador está ligado (o perfil "agente" tem 30 sem ele). */
 const BROWSER_MAX_TURNS = 100;
 const providers = require('./providers');
@@ -449,7 +452,7 @@ function currentModelLabel(conta) {
   return MODEL_LABELS[k] || (m || null);
 }
 
-function runClaude({ prompt, system, cwd, maxTurns, bypass, resume, signal, onDelta, onTool, browser, gmail, model, conta, bloqueadas, mcpModulos }) {
+function runClaude({ prompt, system, cwd, maxTurns, bypass, resume, signal, onDelta, onTool, browser, gmail, ferramentas, model, conta, bloqueadas, mcpModulos }) {
   return new Promise((resolve, reject) => {
     const contaId = conta ? conta.id : 'padrao';
     // Limite forçado (teste): a conta parece esgotada antes de a CLI subir.
@@ -457,7 +460,7 @@ function runClaude({ prompt, system, cwd, maxTurns, bypass, resume, signal, onDe
     const args = ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages', '--max-turns', String(maxTurns)];
     args.push(...(bypass ? ['--dangerously-skip-permissions'] : ['--permission-mode', 'default']));
     // Pontes do app ligadas neste turno (Navegador, Gmail): os MCPs entram pela porta do túnel reverso de cada um (pontes.js).
-    args.push(...pontes.pontesCliArgs({ browser, gmail, nodeBin: process.execPath, navegadorMcp: NAVEGADOR_MCP, gmailMcp: GMAIL_MCP, snapshotOff: navegador.cliSupportsSnapshotOff(CLAUDE_VERSION) }));
+    args.push(...pontes.pontesCliArgs({ browser, gmail, ferramentas, nodeBin: process.execPath, navegadorMcp: NAVEGADOR_MCP, gmailMcp: GMAIL_MCP, ferramentasMcp: FERRAMENTAS_MCP, snapshotOff: navegador.cliSupportsSnapshotOff(CLAUDE_VERSION) }));
     // Módulos de produto ligados para este perfil (modulos.js): os MCPs deles vêm de um arquivo 0600 do turno.
     if (mcpModulos) args.push('--mcp-config', mcpModulos);
     if (Array.isArray(bloqueadas) && bloqueadas.length > 0) args.push('--disallowedTools', bloqueadas.join(','));
@@ -515,7 +518,7 @@ function runClaude({ prompt, system, cwd, maxTurns, bypass, resume, signal, onDe
     });
     child.stderr.on('data', (d) => { stderr += d.toString('utf8'); });
     child.stdin.on('error', () => {});
-    const notas = pontes.pontesTurnoNotas({ browser, gmail, browserNote: navegador.browserTurnNote, gmailNote: gmailPonte.gmailTurnNote });
+    const notas = pontes.pontesTurnoNotas({ browser, gmail, ferramentas, browserNote: navegador.browserTurnNote, gmailNote: gmailPonte.gmailTurnNote, ferramentasNote: ferramentasPonte.ferramentasTurnNote });
     child.stdin.end(notas.length > 0 ? `${notas.join('\n')}\n\n${prompt}` : prompt);
 
     function handle(ev) {
@@ -652,11 +655,23 @@ async function chatCompletions(req, res) {
     else if (!fs.existsSync(GMAIL_MCP)) log(`gmail pedido, mas ${GMAIL_MCP} não existe; ignorado`);
     else gmail = { port: gmailPort };
   }
+  // Ferramentas (os apps que a pessoa contratou, 21 nov): a mesma regra, com o conector que vem na pasta do backend.
+  // Quem decide o que pode (o que a conta comprou, conectar, confirmar na conversa) é o app, do outro lado do túnel.
+  let ferramentas = null;
+  const ferramentasPort = ferramentasPonte.parseFerramentasPort(req.headers['x-meu-bot-ferramentas-port']);
+  if (ferramentasPort !== null) {
+    const lic = licenseView().license;
+    if (!licenca.proOk(lic)) log(`ferramentas pedidas sem Pro (plano ${lic.plan}/${lic.status}); ignorado`);
+    else if (!fs.existsSync(FERRAMENTAS_MCP)) log(`ferramentas pedidas, mas ${FERRAMENTAS_MCP} não existe; ignorado`);
+    else ferramentas = { port: ferramentasPort };
+  }
   const convRaw = req.headers['x-conversation-id'];
   const convId = typeof convRaw === 'string' && CONV_ID_RE.test(convRaw) ? convRaw : null;
   // Dono das abas que este turno abrir no Navegador (cada conversa trabalha nas próprias abas): id da conversa + título.
   if (browser !== null && convId !== null && !browser.dono) browser.dono = { id: `meu-bot:${convId}`, rotulo: navegador.parseRotulo(req.headers['x-meu-bot-browser-rotulo']) };
   if (gmail !== null && convId !== null) gmail.dono = { id: `meu-bot:${convId}`, rotulo: navegador.parseRotulo(req.headers['x-meu-bot-browser-rotulo']) };
+  // A conversa dona do pedido: é nela que o app mostra o cartão de conectar ou de confirmar.
+  if (ferramentas !== null && convId !== null) ferramentas.dono = { id: `meu-bot:${convId}`, rotulo: navegador.parseRotulo(req.headers['x-meu-bot-browser-rotulo']) };
   const hash = sysHash(messages);
   const id = `chatcmpl-${crypto.randomBytes(8).toString('hex')}`;
   const created = Math.floor(Date.now() / 1000);
@@ -719,7 +734,7 @@ async function chatCompletions(req, res) {
       const ultimaFala = [...messages].reverse().find((m) => m.role === 'user');
       const acao = modulos.ajusteDaAcao(doModulo.acoes, ultimaFala ? messageText(ultimaFala) : '');
       const regrasModulos = [...doModulo.regras, ...(acao && acao.adendo ? [acao.adendo] : [])].join('\n\n');
-      const identity = `Você responde dentro do meu-bot pelo Claude Code, perfil "${name}" (Anthropic). Se perguntarem qual modelo ou IA você é, diga exatamente isso.${browser ? `\n\n${navegador.BROWSER_RULE}${browser.dono && browser.dono.origem === 'whatsapp' ? `\n\n${navegador.NAV_WA_RULE}` : ''}` : ''}${gmail ? `\n\n${gmailPonte.GMAIL_RULE}` : ''}${avisoNivel ? `\n\n${avisoNivel}` : ''}${regrasModulos ? `\n\n${regrasModulos}` : ''}`;
+      const identity = `Você responde dentro do meu-bot pelo Claude Code, perfil "${name}" (Anthropic). Se perguntarem qual modelo ou IA você é, diga exatamente isso.${browser ? `\n\n${navegador.BROWSER_RULE}${browser.dono && browser.dono.origem === 'whatsapp' ? `\n\n${navegador.NAV_WA_RULE}` : ''}` : ''}${gmail ? `\n\n${gmailPonte.GMAIL_RULE}` : ''}${ferramentas ? `\n\n${ferramentasPonte.FERRAMENTAS_RULE}` : ''}${avisoNivel ? `\n\n${avisoNivel}` : ''}${regrasModulos ? `\n\n${regrasModulos}` : ''}`;
       plan = { ...plan, system: plan.system ? `${identity}\n\n${plan.system}` : identity };
       resumed = Boolean(plan.resume);
       // A melhor conta agora (uma em aviso só se não há outra). Sem nenhuma: erro com a hora em que a próxima volta;
@@ -740,7 +755,7 @@ async function chatCompletions(req, res) {
       let mcpModulos = null;
       if (Object.keys(doModulo.mcp).length > 0) { try { mcpModulos = modulos.arquivoMcp(doModulo.mcp); } catch (e) { log(`módulos: MCP do turno não gravado (${e.message})`); } }
       if (doModulo.ids.length > 0) log(`módulos no turno ${name}: ${doModulo.ids.join(', ')}${acao ? ' (ação)' : ''}`);
-      const call = () => runClaude({ ...withModel(plan), cwd: profile.cwd, maxTurns, bypass: profile.bypass, signal: abort.signal, onDelta, onTool, browser, gmail, model, conta, bloqueadas, mcpModulos });
+      const call = () => runClaude({ ...withModel(plan), cwd: profile.cwd, maxTurns, bypass: profile.bypass, signal: abort.signal, onDelta, onTool, browser, gmail, ferramentas, model, conta, bloqueadas, mcpModulos });
       let out;
       try {
       for (let tries = 0; ; tries++) {

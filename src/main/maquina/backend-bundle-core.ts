@@ -14,7 +14,7 @@
  * faltava, e as quatro VMs caíram em MODULE_NOT_FOUND no reinício seguinte.
  */
 export const BACKEND_RUNTIME_FILES = [
-  "server.js", "session-map.js", "nivel-ferramentas.js", "modulos.js", "providers.js", "providers.json", "account-status.js", "contas-claude.js", "tool-events.js", "navegador.js", "navegador-whatsapp.js", "gmail.js", "pontes.js", "licenca.js", "crm-modelo.js", "crm-store.js", "crm-api.js", "autenticador.js", "saude-maquina.js", "cota.js", "faxina.js", "auditoria.py",
+  "server.js", "session-map.js", "nivel-ferramentas.js", "modulos.js", "providers.js", "providers.json", "account-status.js", "contas-claude.js", "tool-events.js", "navegador.js", "navegador-whatsapp.js", "gmail.js", "ferramentas.js", "ferramentas-mcp.js", "pontes.js", "licenca.js", "crm-modelo.js", "crm-store.js", "crm-api.js", "autenticador.js", "saude-maquina.js", "cota.js", "faxina.js", "auditoria.py",
   // Porteiro do claude (rodízio de contas para o OpenClaw/WhatsApp e o Terminal): mora na pasta do backend e puxa contas-claude.js.
   "claude-porteiro.js",
   // Regra única do motor do WhatsApp (espelho em JS de WA_MOTOR_SH): o server.js decide por ela por onde mandar mensagem.
