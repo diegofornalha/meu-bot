@@ -146,3 +146,15 @@ export interface OllamaStatus {
 }
 /** Progresso do preparo/remoção do Ollama: uma linha do log. */
 export interface OllamaEvento { text: string }
+
+/**
+ * Skill importada pelo link do repositório (docs/planos/marketplace-skills.md): a prévia do que a máquina baixou, antes
+ * de instalar. `commit` é o que será instalado (fixado); `arquivos` vem cortado em 200, `total` é a contagem inteira.
+ */
+export interface SkillPrevia { url: string; rotulo: string; nome: string; descricao: string; commit: string; data: string | null; arquivos: string[]; total: number; bytes: number }
+export type SkillPreviaResultado = { ok: true; previa: SkillPrevia } | { ok: false; erro: string };
+/** Uma skill importada nesta máquina, com o repositório e o commit instalado. */
+export interface SkillImportada { nome: string; descricao: string; url: string; rotulo: string; commit: string; em: string | null }
+/** Onde a skill ficou: a pasta de qual agente; `editada` = o SKILL.md que o agente tinha editado foi mantido. */
+export interface SkillDestino { agente: "Claude" | "Hermes" | "OpenClaw"; editada: boolean }
+export interface SkillInstalada { skills: SkillImportada[]; destinos: SkillDestino[] }

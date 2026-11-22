@@ -72,6 +72,7 @@ export const CLIENT_CHANNELS = [
   "tailscale:disable-check", "tailscale:restore",
   // tutorial 7: objetivo do WhatsApp (objetivo.json, skill no workspace do OpenClaw, trava do nível)
   "objective:info", "objective:set", "objective:save", "objective:reset",
+  "skills:listar", "skills:previa", "skills:instalar", "skills:remover",
   // suporte, lado da pessoa
   "support:info", "support:set", "support:progress", "support:name", "support:deliver", "support:code", "support:share", "support:reset",
   // seletor
