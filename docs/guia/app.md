@@ -423,7 +423,8 @@ staging para estável continua sendo a do `meu-bot-staging` deste Mac.
 
 Quem confere o Windows é o workflow "Windows" (`.github/workflows/windows.yml`, runner `windows-latest`, x64 de verdade,
 sem segredos), em todo PR e push na `main`: empacota com o mesmo `npm run dist:staging-win`, instala em silêncio
-(`/S`), confere o `.exe` em `%LOCALAPPDATA%\Programs\meu-bot-staging\` e abre o app no **modo de fumaça**. Com
+(`/S`), confere o `.exe` em `%LOCALAPPDATA%\Programs\meu-bot\` (a pasta leva o nome do pacote, não o do produto:
+foi a primeira coisa que a prova mostrou) e abre o app no **modo de fumaça**. Com
 `MEU_BOT_FUMACA=<arquivo>` no ambiente (vale em qualquer plataforma; sem a variável nada muda) o app sobe normal, sem
 atualizador, espera a primeira janela à vista (o seletor) carregar, grava um relatório JSON (versão, plataforma,
 variante, `caps`, janela, erros) e sai com 0 ou 1; prazo de 60 s (`src/main/app/fumaca-core.ts` decide, `fumaca.ts`

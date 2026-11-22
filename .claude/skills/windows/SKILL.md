@@ -6,7 +6,7 @@ description: Prova o meu-bot num Windows x64 de verdade pelo workflow "Windows" 
 # Windows: provar no runner do GitHub
 
 Não há Windows neste Mac. A prova é o workflow **Windows** (`.github/workflows/windows.yml`, `windows-latest`, x64,
-grátis, sem segredos): instala o `meu-bot-staging`, abre no **modo de fumaça** (`MEU_BOT_FUMACA=<arquivo>`,
+grátis, sem segredos): instala o `meu-bot-staging` (fica em `%LOCALAPPDATA%\Programs\meu-bot\meu-bot-staging.exe`), abre no **modo de fumaça** (`MEU_BOT_FUMACA=<arquivo>`,
 `src/main/app/fumaca-core.ts`), confere o relatório (`scripts/fumaca-conferir.mjs`) e sobe o artefato
 `windows-fumaca`. Roda sozinho em todo PR e push na `main`; o check é informativo (não segura o merge).
 

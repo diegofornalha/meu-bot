@@ -53,7 +53,9 @@ jobs:
           $saida = Join-Path $env:RUNNER_TEMP "fumaca"
           New-Item -ItemType Directory -Force -Path $saida | Out-Null
           "SAIDA=$saida" >> $env:GITHUB_ENV
-          "EXE=$env:LOCALAPPDATA\Programs\$env:APP\$env:APP.exe" >> $env:GITHUB_ENV
+          # Onde o instalador põe o app hoje: a pasta leva o nome do pacote ("meu-bot", do package.json), não o do
+          # produto. Se isso mudar, o passo de instalar acha o .exe assim mesmo e avisa.
+          "EXE=$env:LOCALAPPDATA\Programs\meu-bot\$env:APP.exe" >> $env:GITHUB_ENV
           "DADOS=$env:APPDATA\$env:APP" >> $env:GITHUB_ENV
           if ($env:RELEASE -ne "") {
             if ($env:RELEASE -notmatch '^v\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$') { Write-Error "release inválida: '$env:RELEASE' (ex.: v1.2.0-staging.8)"; exit 1 }

@@ -2,7 +2,8 @@
 // em out/<nome>-win32-x64. Uso: node scripts/instalador-win.mjs --variant client-staging [--versao 0.2.0-staging.3]
 //
 // O instalador é NSIS, feito pelo electron-builder só nesta etapa (`prepackaged`: ele não reempacota nem toca no .exe,
-// que já leva os fuses e a integridade do asar). Instala por usuário em %LOCALAPPDATA%\Programs\<nome>, sem pedir
+// que já leva os fuses e a integridade do asar). Instala por usuário em %LOCALAPPDATA%\Programs\meu-bot (o nome do
+// pacote, não o do produto: conferido no runner Windows, .github/workflows/windows.yml), sem pedir
 // administrador; `/S` instala em silêncio e `--updated --force-run` reabre o app depois (o caminho da atualização).
 // Roda neste Mac: o conjunto NSIS "1.2.1" do electron-builder é nativo em arm64 (o antigo é x86_64 e pede Rosetta).
 // Sem assinatura Authenticode: o SmartScreen avisa na instalação. A atualização é conferida pela assinatura Ed25519.
