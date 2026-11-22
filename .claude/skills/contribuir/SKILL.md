@@ -58,13 +58,22 @@ nesta sessão** (branch de outra sessão: só avise o usuário).
 ## Ao terminar
 
 - **Quadro** (skill `quadro`): ponha a PR no Project #6 em "Claude trabalhando"
-  (`gh project item-add 6 --owner diegofornalha --url <url da PR>`). Quando a correção estiver provada (memória "PR só aprovada
-  funcionando") e você tiver lido os comentários da Revisão Claude, **mescle você mesmo**, sem esperar o usuário
-  (decisão dele em 15 nov 2026: nenhuma pessoa como gargalo): `gh pr merge <n> --merge --auto --delete-branch`. O
-  `main` exige o check `testes`: com `--auto` a PR entra sozinha quando ele ficar verde, mesmo que a sessão acabe
-  antes. Confira depois (`gh pr view <n> --json state`), mova o cartão para Arquivados e apague o worktree. Não
-  mescle: PR de prova ("NÃO MESCLAR"), PR de outra sessão ou pessoa, PR com comentário da revisão ainda sem resposta,
-  nem mudança que o usuário pediu para ver antes; essas vão para "Esperando você" com a ação exata.
+  (`gh project item-add 6 --owner diegofornalha --url <url da PR>`). **Você não liga o auto-merge nem
+  mescla na mão**: o workflow `.github/workflows/auto-merge.yml` liga o auto-merge sozinho quando a Revisão Claude
+  termina (decisão do usuário em 15 nov 2026: nenhuma pessoa como gargalo), e o `main` só deixa entrar com o check
+  `testes` verde e **todas as conversas da revisão resolvidas**. O que fica com você:
+  - **Provar** a mudança (memória "PR só aprovada funcionando") antes de abrir a PR. O que ainda não foi provado
+    abre como **rascunho** (`gh pr create --draft`) ou com o rótulo `nao-mesclar`, que seguram o auto-merge; "NÃO
+    MESCLAR" no título faz o mesmo. Ao tirar o rascunho, a revisão roda e o auto-merge é ligado no fim dela.
+  - **Ler os comentários** da Revisão Claude e do CodeQL, corrigir num commit novo, responder em cada um e
+    **resolver a conversa**: responder não resolve, e conversa aberta segura a PR. Liste as abertas e resolva com
+    `gh api graphql -f query='{repository(owner:"diegofornalha",name:"meu-bot"){pullRequest(number:<n>){reviewThreads(first:50){nodes{id isResolved comments(first:1){nodes{path body}}}}}}}'`
+    e `gh api graphql -f query='mutation{resolveReviewThread(input:{threadId:"<id>"}){thread{isResolved}}}'`. Só
+    resolva o que foi corrigido ou respondido com o motivo; a do CodeQL se resolve sozinha quando o alerta some.
+  - Conferir depois (`gh pr view <n> --json state,autoMergeRequest`), mover o cartão para Arquivados e apagar o
+    worktree. `node scripts/auto-merge.mjs <n> --check` mostra o que o workflow decide para a PR.
+  - PR de outra sessão ou pessoa, e mudança que o usuário pediu para ver antes: ponha `nao-mesclar` e mande para
+    "Esperando você" com a ação exata.
 
 Diga em pt-BR, em poucas linhas: o link do PR, o branch, o que foi testado e o que falta conferir. Avise onde está o
 worktree (`../meu-bot-<nome>`), que o checkout principal não mudou, e que ele sai com `git worktree remove ../meu-bot-<nome>`
