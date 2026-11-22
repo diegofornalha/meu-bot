@@ -248,6 +248,8 @@ export function scriptPreparo(porta: number, chavePub: string): string {
     "[ -f /etc/ssh/ssh_host_ed25519_key ] || ssh-keygen -q -t ed25519 -N '' -f /etc/ssh/ssh_host_ed25519_key",
     "install -d -m 755 /etc/ssh/meu-bot /etc/meu-bot",
     `cat > ${SSHD_CONFIG} <<'MEU_BOT_SSHD'\n${sshdConfig(porta)}MEU_BOT_SSHD`,
+    // O sshd (até o `-t`) recusa sem o diretório de separação de privilégio, que some a cada boot da distro (/run é tmpfs).
+    "mkdir -p /run/sshd",
     `/usr/sbin/sshd -t -f ${SSHD_CONFIG}`,
     // Config nova numa distro que já tinha o sshd do app no ar: derruba o antigo para subir com a nova.
     `if [ -f ${SSHD_PID} ]; then kill "$(cat ${SSHD_PID})" 2>/dev/null || true; rm -f ${SSHD_PID}; sleep 0.5; fi`,

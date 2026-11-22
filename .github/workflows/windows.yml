@@ -47,6 +47,8 @@ jobs:
       VARIANTE: client-staging
       # O alias que o "Este Windows" grava no ~/.ssh (maquina/wsl-core.ts, nomesWsl): <app>-wsl.
       ALIAS_WSL: meu-bot-staging-wsl
+      # Sem isto o wsl.exe escreve em UTF-16LE e o log sai com \0 entre as letras.
+      WSL_UTF8: "1"
       # Entrada de quem dispara: só chega aos scripts pelo ambiente, nunca colada num comando.
       RELEASE: ${{ inputs.release }}
     steps:

@@ -134,6 +134,8 @@ test("sshd do app: só 127.0.0.1, só o usuário comum, só por chave, na porta 
   assert.match(p, /useradd -m -s \/bin\/bash meubot/);
   assert.match(p, /'ssh-ed25519 AAAA meu-bot-staging-wsl' > \/home\/meubot\/\.ssh\/authorized_keys/);
   assert.match(p, /\/usr\/sbin\/sshd -t -f \/etc\/ssh\/meu-bot\/sshd_config/);
+  // Achado da primeira rodada no runner: sem /run/sshd o `sshd -t` falha ("Missing privilege separation directory").
+  assert.ok(p.indexOf("mkdir -p /run/sshd") < p.indexOf("sshd -t"), "/run/sshd antes do teste da config");
   assert.ok(p.includes(`echo ${w.PREPARO_VERSAO} > ${w.MARCA_PREPARO}`));
   assert.ok(p.trimEnd().endsWith("echo preparo-ok"));
   // O heredoc da config fecha numa linha própria (senão o resto do script vira config).
