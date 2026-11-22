@@ -34,8 +34,9 @@ com a divisão visível.
 - **Catálogo com um dono só:** `conta-api/src/ferramentas-catalogo.ts`. Por ferramenta: `slug` (o do toolkit no
   Composio), `nome`, `categoria`, `grupo` (`pronta` ou `conectar`), `resumo` (o que o agente faz) e `exemplo` (um
   pedido). O site, o console e o app leem daqui.
-- **Venda:** `conta-api/src/ferramentas-ofertas.ts`, por ambiente: o produto da AbacatePay e o preço de cada
-  ferramenta. Sem oferta no ambiente, a ferramenta não aparece à venda ali. Nome técnico `ferramenta-<slug>`.
+- **Venda:** os preços são do super admin, pelo console (tela "Preços das ferramentas"), guardados no banco
+  (tabela `ferramentas_ofertas`, lida por `conta-api/src/ferramentas-ofertas-db.ts`). Preço novo cria o produto mensal
+  na AbacatePay sozinho. Sem oferta à venda no ambiente, a ferramenta não aparece ali. Nome técnico `ferramenta-<slug>`.
 - **A chave do projeto Composio nunca sai do servidor.** O endereço MCP que o Composio dá por usuário só funciona com
   a chave do projeto; por isso quem fala com o Composio é o `conta-api`, e a máquina fala com o `conta-api`.
 - **Só o que comprou:** a sessão do Composio da conta é criada com a lista das ferramentas pagas

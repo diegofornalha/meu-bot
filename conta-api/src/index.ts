@@ -35,6 +35,7 @@ import { deleteDeviceDaConta } from "./rotas/devices.js";
 import { deleteMaquina, deleteMaquinaVista, postMaquina, postMaquinaVista, postRenovarLicenca } from "./rotas/maquinas.js";
 import { marketplaceDoEnv, addonsAVenda, extrasAVenda, pagamentosLigados, cupomPixLigado, deleteAdminAssinatura, postAssinatura, postCancelarAssinatura, postWebhookAbacate, promoLigada } from "./rotas/pagamentos.js";
 import { itemPorSlug } from "./marketplace-core.js";
+import { getAdminFerramentas, postAdminFerramentasLote, putAdminFerramenta } from "./rotas/admin-ferramentas.js";
 import { REVISAO_MARKETPLACE, llmsDoMarketplace, paginaDoMarketplace } from "./marketplace-pagina.js";
 import { deleteMembro, deleteOrg, getOrg, getOrgPublico, getOrgs, patchAdminOrg, patchMembro, patchOrg, postMembro, postOrg } from "./rotas/orgs.js";
 
@@ -112,7 +113,7 @@ const cspDoConsole = (env: Env): string => ["default-src 'self'", `script-src 's
  */
 async function consolePagina(req: Request, env: Env, url: URL): Promise<Response> {
   if (url.pathname === "/robots.txt") return comCabecalhos(robotsFechado(), {});
-  if (url.pathname === "/config.js") return comCabecalhos(configJs({ api: env.API_ORIGIN, auth: env.AUTH_ORIGIN, console: env.CONSOLE_ORIGIN, site: env.SITE_ORIGIN, canal: env.CANAL, ga: gaDoEnv(env), passkey: passkeyLigada(env) ? "1" : "", pagamentos: pagamentosLigados(env) ? "1" : "", cupomPix: cupomPixLigado(env) ? "1" : "", addons: JSON.stringify(addonsAVenda(env).map((a) => ({ nome: a.nome, rotulo: a.rotulo, centavos: a.centavos }))), extras: JSON.stringify(extrasAVenda(env).map((x) => ({ tipo: x.tipo, nome: x.nome, rotulo: x.rotulo, centavos: x.centavos, ...(x.deCentavos === undefined ? {} : { deCentavos: x.deCentavos }) }))), marketplace: JSON.stringify(marketplaceDoEnv(env)) }), {});
+  if (url.pathname === "/config.js") return comCabecalhos(configJs({ api: env.API_ORIGIN, auth: env.AUTH_ORIGIN, console: env.CONSOLE_ORIGIN, site: env.SITE_ORIGIN, canal: env.CANAL, ga: gaDoEnv(env), passkey: passkeyLigada(env) ? "1" : "", pagamentos: pagamentosLigados(env) ? "1" : "", cupomPix: cupomPixLigado(env) ? "1" : "", addons: JSON.stringify(addonsAVenda(env).map((a) => ({ nome: a.nome, rotulo: a.rotulo, centavos: a.centavos }))), extras: JSON.stringify(extrasAVenda(env).map((x) => ({ tipo: x.tipo, nome: x.nome, rotulo: x.rotulo, centavos: x.centavos, ...(x.deCentavos === undefined ? {} : { deCentavos: x.deCentavos }) }))), marketplace: JSON.stringify(await marketplaceDoEnv(env)) }), {});
   const caminho = /\.[a-z0-9]{1,8}$/i.test(url.pathname) && !url.pathname.endsWith(".html") ? url.pathname : "/console/index.html";
   const res = await env.ASSETS.fetch(new Request(new URL(caminho, url.origin).toString(), { method: "GET", headers: req.headers }));
   // Tudo sem cache: o console muda junto com a API, e um JS velho de 5 min já mostrou tela errada depois de um deploy.
@@ -157,6 +158,7 @@ async function api(req: Request, env: Env, url: URL, espera: (p: Promise<unknown
     const atribuirMaquina = /^(POST|DELETE) \/admin\/maquinas\/([a-f0-9-]{36})\/conta$/.exec(rota);
     const maquinaVista = /^(POST|DELETE) \/conta\/maquinas\/([a-f0-9-]{36})\/visto$/.exec(rota);
     const perfil = /^(PUT|DELETE) \/admin\/perfis\/([^/]{3,200})$/.exec(rota);
+    const precoFerramenta = /^PUT \/admin\/ferramentas\/([a-z0-9_]{2,60})$/.exec(rota);
     const org = /^(GET|PATCH|DELETE) \/orgs\/([a-z0-9-]{1,40})$/.exec(rota);
     const membroNovo = /^POST \/orgs\/([a-z0-9-]{1,40})\/membros$/.exec(rota);
     const membro = /^(PATCH|DELETE) \/orgs\/([a-z0-9-]{1,40})\/membros\/([^/]{3,200})$/.exec(rota);
@@ -185,6 +187,9 @@ async function api(req: Request, env: Env, url: URL, espera: (p: Promise<unknown
     else if (tirarPasskey !== null) res = await deletePasskey(auth, env, tirarPasskey[1]!);
     else if (rota === "POST /sessao/sair") res = await postSair(auth, env);
     else if (rota === "POST /sessao/console") res = await postSessaoConsole(auth, env, req);
+    else if (rota === "GET /admin/ferramentas") res = await getAdminFerramentas(auth, env);
+    else if (rota === "POST /admin/ferramentas/lote") res = await postAdminFerramentasLote(auth, env, req);
+    else if (precoFerramenta !== null) res = await putAdminFerramenta(auth, env, precoFerramenta[1]!, req);
     else if (rota === "GET /admin/visao") res = await getAdminVisao(auth, env, url);
     else if (rota === "GET /admin/conta") res = await getAdminConta(auth, env, url);
     else if (atribuirMaquina !== null) res = atribuirMaquina[1] === "POST" ? await postAtribuirMaquina(auth, env, atribuirMaquina[2]!, req) : await deleteAtribuirMaquina(auth, env, atribuirMaquina[2]!, req);
@@ -266,7 +271,7 @@ async function sitePagina(req: Request, env: Env, url: URL): Promise<Response> {
   // /sitemap.xml é montado aqui: a home, /baixar e /novidades levam a data da release mais nova; as outras, a de REVISAO_PAGINAS.
   if (url.pathname === "/sitemap.xml") {
     const d = await downloadMac();
-    return comCabecalhos(new Response(sitemapXml(env.SITE_ORIGIN, d?.publicadoEm ?? null, undefined, { slugs: marketplaceDoEnv(env).map((i) => i.slug), revisao: REVISAO_MARKETPLACE }), { headers: { "content-type": "application/xml; charset=utf-8", "cache-control": "public, max-age=3600" } }), {});
+    return comCabecalhos(new Response(sitemapXml(env.SITE_ORIGIN, d?.publicadoEm ?? null, undefined, { slugs: (await marketplaceDoEnv(env)).map((i) => i.slug), revisao: REVISAO_MARKETPLACE }), { headers: { "content-type": "application/xml; charset=utf-8", "cache-control": "public, max-age=3600" } }), {});
   }
   // /novidades: as releases estáveis do GitHub (cache de 10 min no edge) dentro de public/site/novidades.html.
   if (url.pathname === "/novidades") {
@@ -277,7 +282,7 @@ async function sitePagina(req: Request, env: Env, url: URL): Promise<Response> {
   // e das fichas (marketplace-pagina.ts). Sem nada à venda, ou slug fora do catálogo: segue para a 404 do site.
   const mk = /^\/marketplace(?:\/([a-z0-9-]{1,60}))?$/.exec(url.pathname);
   if (mk !== null) {
-    const itens = marketplaceDoEnv(env);
+    const itens = await marketplaceDoEnv(env);
     const item = mk[1] === undefined ? null : itemPorSlug(itens, mk[1]);
     if (itens.length > 0 && (mk[1] === undefined || item !== null)) {
       const modelo = await env.ASSETS.fetch(new Request(new URL("/site/marketplace.html", url.origin).toString())).then((r) => r.text());
@@ -287,7 +292,7 @@ async function sitePagina(req: Request, env: Env, url: URL): Promise<Response> {
   // llms.txt: as linhas da assinatura só saem com os pagamentos ligados (llmsPorPagamentos).
   if (url.pathname === "/llms.txt") {
     const t = await env.ASSETS.fetch(new Request(new URL("/site/llms.txt", url.origin).toString())).then((r) => r.text());
-    return comCabecalhos(new Response(llmsPorPagamentos(t, pagamentosLigados(env)) + llmsDoMarketplace(marketplaceDoEnv(env)), { headers: { "content-type": "text/plain; charset=utf-8" } }), { "cache-control": "no-cache" });
+    return comCabecalhos(new Response(llmsPorPagamentos(t, pagamentosLigados(env)) + llmsDoMarketplace(await marketplaceDoEnv(env)), { headers: { "content-type": "text/plain; charset=utf-8" } }), { "cache-control": "no-cache" });
   }
   // robots.txt e llms.txt vivem em public/site/ e saem na raiz do host; privacidade e termos também.
   const raiz: Record<string, string> = { "/robots.txt": "/site/robots.txt", "/llms.txt": "/site/llms.txt", "/privacidade": "/site/privacidade.html", "/termos": "/site/termos.html", "/grok-no-whatsapp": "/site/grok-no-whatsapp.html", "/parceria-xai": "/site/parceria-xai.html", "/baixar": "/site/baixar.html", "/perguntas": "/site/perguntas.html", "/grok-bot-e-meu-bot": "/site/grok-bot-e-meu-bot.html", "/guias": "/site/guias/index.html" };
