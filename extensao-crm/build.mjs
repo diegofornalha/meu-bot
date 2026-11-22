@@ -7,8 +7,10 @@ import { build, context } from "esbuild";
 import { cpSync, copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const here = dirname(new URL(import.meta.url).pathname);
+// fileURLToPath, não `.pathname`: no Windows (workflow "Windows") o pathname é "/D:/a/…", que não é um caminho.
+const here = dirname(fileURLToPath(import.meta.url));
 const dist = join(here, "..", "build", "extensao-crm");
 const distAut = join(here, "..", "build", "extensao-autenticador");
 const watch = process.argv.includes("--watch");

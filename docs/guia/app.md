@@ -419,7 +419,23 @@ No Windows o app é só cliente de uma máquina por SSH (`capsFor` desliga o hos
 Navegador, o controle remoto e o painel Computador) e o túnel não usa conexão compartilhada (`ssh-opcoes-core.ts`).
 A atualização baixa o instalador novo, confere a assinatura e o roda em silêncio (`aplicarNoWindows`, `updater.ts`).
 O instalador ainda não tem Authenticode, por isso o Windows fica só no canal staging; a prova de saúde que promove o
-staging para estável continua sendo a do `meu-bot-staging` deste Mac, e nada confere o Windows automaticamente.
+staging para estável continua sendo a do `meu-bot-staging` deste Mac.
+
+Quem confere o Windows é o workflow "Windows" (`.github/workflows/windows.yml`, runner `windows-latest`, x64 de verdade,
+sem segredos), em todo PR e push na `main`: empacota com o mesmo `npm run dist:staging-win`, instala em silêncio
+(`/S`), confere o `.exe` em `%LOCALAPPDATA%\Programs\meu-bot\` (a pasta leva o nome do pacote, não o do produto:
+foi a primeira coisa que a prova mostrou) e abre o app no **modo de fumaça**. Com
+`MEU_BOT_FUMACA=<arquivo>` no ambiente (vale em qualquer plataforma; sem a variável nada muda) o app sobe normal, sem
+atualizador, espera a primeira janela à vista (o seletor) carregar, grava um relatório JSON (versão, plataforma,
+variante, `caps`, janela, erros) e sai com 0 ou 1; prazo de 60 s (`src/main/app/fumaca-core.ts` decide, `fumaca.ts`
+ouve o Electron). Na fumaça o app não mexe em nada de fora: não abre o navegador do sistema, não atualiza backend nem
+plugins das máquinas e não sobe o controle local nem o MCP. `scripts/fumaca-conferir.mjs` confere o relatório e o **contrato das capacidades**: as `caps` que o
+app calculou têm de ser as de `capsFor(variante, versão, "win32")`, então religar uma capacidade no Windows muda a
+tabela e a prova no mesmo PR. O mesmo workflow testa o instalador de uma release já publicada
+(`gh workflow run windows.yml -f release=<tag>`), que é como se reproduz o relato de quem usa o Windows; release
+anterior ao modo de fumaça só instala, abre, tira o print e sobe o log. O artefato `windows-fumaca` traz sempre o
+relatório, o `meu-bot.log` (`%APPDATA%\meu-bot-staging\`) e um print da tela com o app aberto. O check é informativo,
+não obrigatório; o que precisa de olho (cliques, o túnel com uma máquina) não é coberto. Passo a passo na skill `windows`.
 
 ### Revisão no molde do Brave/Sparkle (22 out 2026)
 

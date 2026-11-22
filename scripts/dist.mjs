@@ -8,7 +8,8 @@ import { spawnSync } from "node:child_process";
 
 const passo = (cmd, args) => {
   console.log(`\n▶ ${cmd} ${args.join(" ")}`);
-  const r = spawnSync(cmd, args, { stdio: "inherit" });
+  // No Windows (workflow "Windows", .github/workflows/windows.yml) o npm é um .cmd: só abre por um shell.
+  const r = spawnSync(cmd, args, { stdio: "inherit", shell: process.platform === "win32" });
   if (r.status !== 0) { console.error(`✗ falhou: ${cmd} ${args.join(" ")}`); process.exit(r.status ?? 1); }
 };
 

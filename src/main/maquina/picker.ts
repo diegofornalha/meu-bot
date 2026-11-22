@@ -36,6 +36,7 @@ import { settingsView, getBackendPort, getHostNames, getLastHost, getInstagramav
 import { isPort } from "../app/settings-normalize";
 import { closeTunnel } from "./tunnel";
 import { listSshHosts, sshEnderecos } from "./sshConfig";
+import { fumacaLigada } from "../app/fumaca";
 import { removeHostFromSshConfig, syncSshConfig } from "./sshSync";
 import {
   createReliefShortcut, createShortcut, hasReliefShortcut, hasShortcut, removeReliefShortcut, removeShortcut, shortcutEmoji,
@@ -116,6 +117,8 @@ function probeCached(host: string): Promise<HostProbe> {
     if ((descartes.get(host) ?? 0) === descarte) probes.set(host, { probe, at: Date.now() });
     // Só uma sondagem que entrou sabe dizer; inacessível não apaga o que já se sabia.
     if (probe.reachable) { setPodHost(host, probe.grokPod); if (setApelidoMaquina(host, probe.apelido)) broadcast("settings:changed", settingsView()); }
+    // No modo de fumaça o app abre, grava o relatório e sai em segundos: não começa instalação em máquina nenhuma.
+    if (fumacaLigada()) return probe;
     // Backend antes dos plugins: o plugin do CRM e os módulos chamam a API dele.
     void ensureBackendAtual(host, probe).finally(() => {
       ensureGuarda(host, probe);
