@@ -867,6 +867,8 @@ nele): a barra lateral ganha o botão **Inspector** e a janela abre nessa págin
 - Numeração (`proximaEstavel`, `scripts/grokbot-core.mjs`): a estável do meu-bot leva o número do Grok Bot quando ele
   está à frente da nossa última; senão, o nosso patch seguinte. O número nunca se repete nem anda para trás.
   `--check` mostra a versão instalada, as impressões guardadas e o número que a próxima estável deve levar.
+- A versão só conta como relatada (`relatada-<v>.txt`) com a issue no ar: se o `gh` falhar, a rodada seguinte tenta de
+  novo e o Mac avisa. A triagem do relatório e a abertura das issues de melhoria são a skill `grokbot-novidades`.
 - Sem a impressão da versão anterior não há o que comparar (em 22/11 a da 1.2.0 tinha se perdido): `--impressao
   <app.asar|pasta> <versão>` guarda a de um pacote à mão.
 

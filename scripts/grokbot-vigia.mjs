@@ -19,16 +19,26 @@ import { compararVersao, lerVersao, mudou, opcoesDe, proximaEstavel, relatorio, 
 const AQUI = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const ESTADO = process.env.MEU_BOT_GROKBOT_DIR ?? join(homedir(), "Library", "Application Support", "meu-bot-grokbot");
 const APP = process.env.MEU_BOT_GROKBOT_APP ?? "/Applications/Grok Bot.app";
-const LOG = join(homedir(), "Library", "Logs", "meu-bot-grokbot.log");
+// Em teste (MEU_BOT_GROKBOT_DIR), o log fica na pasta do teste e nada é notificado na tela.
+const EM_TESTE = process.env.MEU_BOT_GROKBOT_DIR !== undefined;
+const LOG = EM_TESTE ? join(ESTADO, "vigia.log") : join(homedir(), "Library", "Logs", "meu-bot-grokbot.log");
 const ROTULO = "com.meu-bot.grokbot-vigia";
 const PLIST = join(homedir(), "Library", "LaunchAgents", `${ROTULO}.plist`);
 const REPO = "diegofornalha/meu-bot";
 mkdirSync(ESTADO, { recursive: true });
 const log = (s) => { try { mkdirSync(dirname(LOG), { recursive: true }); appendFileSync(LOG, `${new Date().toISOString()} ${s}\n`); } catch { /* sem log */ } console.log(s); };
 const shOu = (cmd, args, cwd = AQUI) => { try { return execFileSync(cmd, args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim(); } catch { return null; } };
+/** Como o shOu, mas diz por que falhou: `{ ok, saida, erro }`. */
+const tentar = (cmd, args, cwd = AQUI) => {
+  const r = spawnSync(cmd, args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  return r.status === 0 ? { ok: true, saida: (r.stdout ?? "").trim(), erro: "" } : { ok: false, saida: "", erro: ((r.stderr ?? "").trim().split("\n").pop() || r.error?.message || `saiu com ${r.status}`).slice(0, 300) };
+};
+const avisar = (msg) => { if (EM_TESTE) return; try { execFileSync("osascript", ["-e", `display notification ${JSON.stringify(msg)} with title "meu-bot · Grok Bot"`], { stdio: "ignore" }); } catch { /* sem GUI */ } };
 
 const versaoInstalada = () => { const v = shOu("/usr/libexec/PlistBuddy", ["-c", "Print CFBundleShortVersionString", join(APP, "Contents", "Info.plist")]); return lerVersao(v) === null ? null : v; };
 const arquivoDe = (v) => join(ESTADO, `impressao-${v}.json`);
+/** Marca de "esta versão já foi relatada" (issue aberta ou achada, ou nada a relatar): sem ela, a rodada seguinte retoma. */
+const marcaDe = (v) => join(ESTADO, `relatada-${v}.txt`);
 const guardadas = () => readdirSync(ESTADO).map((f) => /^impressao-(\d+\.\d+\.\d+)\.json$/.exec(f)?.[1]).filter(Boolean).sort(compararVersao);
 const ler = (v) => JSON.parse(readFileSync(arquivoDe(v), "utf8"));
 
@@ -49,6 +59,8 @@ function impressaoDaPasta(dir, versao) {
   }
   return { versao, tiradaEm: new Date().toISOString(), arquivos, textos: [...textos].sort(), opcoes };
 }
+/** O pacote do app: o app.asar, ou a pasta Resources/app de um app não empacotado. */
+const pacoteDoApp = () => { const r = join(APP, "Contents", "Resources"); return existsSync(join(r, "app.asar")) ? join(r, "app.asar") : join(r, "app"); };
 function impressaoDoPacote(origem, versao) {
   if (statSync(origem).isDirectory()) return impressaoDaPasta(origem, versao);
   const tmp = mkdtempSync(join(tmpdir(), "grokbot-"));
@@ -60,6 +72,9 @@ function impressaoDoPacote(origem, versao) {
   } finally { rmSync(tmp, { recursive: true, force: true }); }
 }
 const ultimaEstavelNossa = () => {
+  // As tags locais podem estar velhas: sem buscar, a próxima estável poderia repetir um número já publicado.
+  const f = tentar("git", ["fetch", "--tags", "--quiet", "origin"]);
+  if (!f.ok) log(`aviso: não busquei as tags do origin (${f.erro}); a numeração pode estar defasada`);
   const tags = (shOu("git", ["tag", "-l", "v*"]) ?? "").split("\n").map((t) => t.replace(/^v/, "")).filter((t) => lerVersao(t) !== null).sort(compararVersao);
   return tags.at(-1) ?? null;
 };
@@ -75,28 +90,44 @@ function check() {
   console.log(`Grok Bot instalado: ${v ?? "não achei em " + APP}`);
   console.log(`impressões guardadas: ${g.join(", ") || "nenhuma"}`);
   console.log(`meu-bot, última estável: ${nossa ?? "?"} · próxima pela regra: ${proximaEstavel(v, nossa) ?? "?"}`);
-  console.log(v === null ? "decisão: nada a fazer" : g.includes(v) ? "decisão: nada novo" : `decisão: versão nova (${v}); --run tira a impressão e relata`);
+  console.log(v === null ? "decisão: nada a fazer" : existsSync(marcaDe(v)) ? "decisão: nada novo" : g.includes(v) ? `decisão: a ${v} tem impressão, mas ainda não foi relatada; --run retoma` : `decisão: versão nova (${v}); --run tira a impressão e relata`);
+}
+/** Abre (ou acha) a issue do relatório. Devolve a url/número, ou lança com o motivo quando o gh falha. */
+function publicarIssue(v, anterior, md) {
+  const titulo = `Grok Bot ${v}: o que mudou desde a ${anterior}`;
+  const lista = tentar("gh", ["issue", "list", "-R", REPO, "--state", "all", "--search", `Grok Bot ${v} in:title`, "--json", "number,title", "--limit", "50"]);
+  if (!lista.ok) throw new Error(`não consultei as issues (${lista.erro})`);
+  let achadas = []; try { achadas = JSON.parse(lista.saida || "[]"); } catch { throw new Error("o gh devolveu uma lista de issues ilegível"); }
+  const ja = achadas.find((i) => i.title === titulo);
+  if (ja) return `#${ja.number} (já existia)`;
+  const corpo = join(ESTADO, `issue-${v}.md`); writeFileSync(corpo, md.length > 60000 ? `${md.slice(0, 60000)}\n\n(cortado; o relatório inteiro está no Mac da release)\n` : md);
+  // Rótulo sem-claude: a issue é pauta para triagem; cada melhoria escolhida vira issue própria (essa, sim, implementada sozinha).
+  const nova = tentar("gh", ["issue", "create", "-R", REPO, "--title", titulo, "--label", "sem-claude", "--body-file", corpo]);
+  if (!nova.ok) throw new Error(`não abri a issue (${nova.erro})`);
+  return nova.saida;
 }
 function run() {
   const v = versaoInstalada();
   if (v === null) { log(`Grok Bot não está em ${APP}; nada a fazer`); return; }
-  const antes = guardadas();
-  if (antes.includes(v)) { log(`Grok Bot ${v}: impressão já guardada`); return; }
-  writeFileSync(arquivoDe(v), `${JSON.stringify(impressaoDoPacote(join(APP, "Contents", "Resources", "app.asar"), v))}\n`);
-  log(`Grok Bot ${v}: impressão guardada`);
-  const anterior = antes.filter((x) => compararVersao(x, v) < 0).at(-1);
-  if (anterior === undefined) { log("primeira impressão: sem versão anterior para comparar"); return; }
-  if (!mudou(ler(anterior), ler(v))) { log(`Grok Bot ${v}: nada mudou no que a impressão vê desde a ${anterior}`); return; }
+  if (existsSync(marcaDe(v))) { log(`Grok Bot ${v}: já relatada`); return; }
+  if (!existsSync(arquivoDe(v))) { writeFileSync(arquivoDe(v), `${JSON.stringify(impressaoDoPacote(pacoteDoApp(), v))}\n`); log(`Grok Bot ${v}: impressão guardada`); }
+  const anterior = guardadas().filter((x) => compararVersao(x, v) < 0).at(-1);
+  if (anterior === undefined) { writeFileSync(marcaDe(v), "primeira impressão: sem versão anterior para comparar\n"); log("primeira impressão: sem versão anterior para comparar"); return; }
+  if (!mudou(ler(anterior), ler(v))) { writeFileSync(marcaDe(v), `nada mudou desde a ${anterior}\n`); log(`Grok Bot ${v}: nada mudou no que a impressão vê desde a ${anterior}`); return; }
   const { arq, md } = escreverRelatorio(anterior, v);
   log(`relatório em ${arq}`);
-  // Rótulo sem-claude: a issue é pauta para triagem; cada melhoria escolhida vira issue própria (essa, sim, implementada sozinha).
-  const titulo = `Grok Bot ${v}: o que mudou desde a ${anterior}`;
-  const ja = shOu("gh", ["issue", "list", "-R", REPO, "--state", "all", "--search", `"${titulo}" in:title`, "--json", "number", "-q", ".[0].number"]);
-  if (ja) { log(`issue #${ja} já existe para a ${v}`); return; }
-  const corpo = join(ESTADO, `issue-${v}.md`); writeFileSync(corpo, md.length > 60000 ? `${md.slice(0, 60000)}\n\n(cortado; o relatório inteiro está no Mac da release)\n` : md);
-  const url = shOu("gh", ["issue", "create", "-R", REPO, "--title", titulo, "--label", "sem-claude", "--body-file", corpo]);
-  log(url ? `issue aberta: ${url}` : "não consegui abrir a issue (gh); o relatório ficou no disco");
-  try { execFileSync("osascript", ["-e", `display notification ${JSON.stringify(`Grok Bot ${v}: relatório do que mudou pronto`)} with title "meu-bot · Grok Bot"`], { stdio: "ignore" }); } catch { /* sem GUI */ }
+  // A marca só é gravada com a issue no ar: se o gh falhar (sem rede, sem login), a próxima rodada tenta de novo.
+  try {
+    const onde = publicarIssue(v, anterior, md);
+    writeFileSync(marcaDe(v), `${onde}\n`);
+    log(`issue: ${onde}`);
+    avisar(`Grok Bot ${v}: relatório do que mudou pronto`);
+  } catch (e) {
+    const motivo = e instanceof Error ? e.message : String(e);
+    log(`✗ Grok Bot ${v}: ${motivo}; tento de novo na próxima rodada (relatório em ${arq})`);
+    avisar(`Grok Bot ${v}: ${motivo}. Relatório em ${arq}`);
+    process.exitCode = 1;
+  }
 }
 function instalar() {
   const uid = process.getuid();
