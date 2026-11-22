@@ -19,6 +19,12 @@ export interface Ferramenta {
   resumo: string;
   /** Um pedido que a pessoa pode fazer ao agente. */
   exemplo: string;
+  /**
+   * Só nas que pedem um dado além da autorização (o Google Ads pede o ID de cliente): o que é o dado e onde ele fica,
+   * em português. O cartão de conectar avisa antes de a página de autorização abrir, e o agente busca o dado pela
+   * pessoa quando tem o Navegador: achar um número que ninguém sabe de cabeça não pode ser a barreira.
+   */
+  pede?: { dado: string; onde: string };
 }
 /** O que o Marketplace diz de cada grupo, no cartão e na página do item. */
 export const ROTULO_GRUPO: Readonly<Record<GrupoFerramenta, string>> = { pronta: "Pronta para uso", conectar: "Conectar com um clique" };
@@ -65,6 +71,7 @@ export function defeitosDoCatalogo(catalogo: readonly Ferramenta[]): string[] {
     if (!GRUPOS_FERRAMENTA.includes(f.grupo)) d.push(`${quem}: grupo desconhecido`);
     if (f.resumo.trim().length < 20 || f.resumo.length > 160 || !f.resumo.endsWith(".")) d.push(`${quem}: resumo deve ser uma frase de 20 a 160 caracteres, com ponto final`);
     if (f.exemplo.trim().length < 10 || f.exemplo.length > 120) d.push(`${quem}: exemplo de pedido vazio ou longo demais`);
+    if (f.pede !== undefined && (f.pede.dado.trim().length < 5 || f.pede.onde.trim().length < 10)) d.push(`${quem}: o dado pedido na conexão precisa dizer o que é e onde fica`);
   }
   return d;
 }

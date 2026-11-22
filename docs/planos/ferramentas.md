@@ -56,9 +56,15 @@ Ferramentas existe para ver e administrar; o caminho do dia a dia é o chat.
   português, com Cancelar, Permitir uma vez e Permitir sempre. Ler e consultar pode ficar liberado; escrever, enviar e
   apagar pedem a confirmação, na mesma lógica dos níveis do agente do WhatsApp (só conversa, consulta, age).
 
+- **Nenhum dado que o agente consiga buscar vira tarefa da pessoa.** Alguns apps pedem algo além da autorização
+  (o Google Ads pede o ID de cliente, na página do Composio, em inglês e sem dizer onde achar). O catálogo marca essas
+  ferramentas (`pede`), o cartão avisa em português antes de a página abrir, e o agente, com o Navegador, busca o dado na
+  conta da pessoa, mostra o que achou e confirma. Provado à mão em 21 nov: o ID do Google Ads saiu do bloco da conta no
+  topo do painel.
+
 Isso muda o caminho do agente em relação ao primeiro desenho. O app já tem o molde: `backend-colima/gmail-mcp.mjs` é
 um conector local na máquina que repassa cada pedido, por um túnel, ao app no Mac, que é quem tem a credencial. As
-ferramentas seguem o mesmo trilho: um `ferramentas-mcp.mjs` na máquina repassa ao app, o app mostra o cartão na
+ferramentas seguem o mesmo trilho: um `ferramentas-mcp.js` na máquina repassa ao app, o app mostra o cartão na
 conversa, espera a resposta da pessoa e só então pede a execução ao `conta-api`. Vantagens: a máquina não guarda
 credencial nenhuma, a confirmação é nativa do app, e some o maior risco da fase 0 (o `conta-api` como intermediário de
 um conector em fluxo). Limite, o mesmo do Gmail do agente: com o app fechado, as ferramentas ficam fechadas. O agente
