@@ -200,7 +200,8 @@ export function agenteResumo(st: WhatsappStatus | null): string | null {
 }
 const WHATSAPP_STEPS: GuideStep[] = [
   {
-    id: "escolher", title: "Qual agente atende o seu WhatsApp?", target: "none", body: "agent-choice",
+    // "Trocar" na linha concluída: clicou no agente errado, reabre os cartões sem recomeçar o tutorial.
+    id: "escolher", title: "Qual agente atende o seu WhatsApp?", target: "none", body: "agent-choice", refazer: true,
     text: "Os dois fazem tudo deste tutorial: responder e escolher quem. Os dois também entendem áudio: a transcrição liga sozinha depois de parear. Se não souber, fique com o recomendado.",
     // Escolhido, ou a máquina já tem um dos dois atendendo (dá para trocar depois, no WhatsApp).
     done: (st) => st !== null && (st.escolha != null || (st.present && (st.gateway === "openclaw" || st.gateway === "hermes"))),

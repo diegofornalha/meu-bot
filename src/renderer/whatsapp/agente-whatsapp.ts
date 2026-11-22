@@ -1,4 +1,5 @@
 import type { WhatsappAgente, WhatsappStatus, WhatsappReplyChoice, VoiceReplyMode, VozId, AudioSetup, WhatsappEvent } from "../../shared/ipc";
+import { cartaoAgenteDesligado, hermesBloqueado } from "../lib/agente-hermes.js";
 import { byId as $, el } from "../lib/dom.js";
 import { ipcErrorText } from "../lib/ipc-error.js";
 import { estadoOuvir } from "../lib/audio-ouvir-core.js";
@@ -490,16 +491,16 @@ export function renderAgentChoice(container: HTMLElement): void {
   for (const o of AGENTE_OPTIONS) {
     const saving = waAgenteSaving === o.id;
     const card = el("button", `reply-card${marcado === o.id ? " on" : ""}${saving ? " saving" : ""}`);
-    // No Mac (máquina "local") o WhatsApp é só pelo OpenClaw por enquanto: o gateway do Hermes depende de systemd/pm2.
-    const soNasMaquinas = ctx.windowHost === "local" && o.id === "hermes";
-    card.type = "button"; card.disabled = waAgenteSaving !== null || waPairing || soNasMaquinas;
+    // Em Este Mac o Hermes só entra com o comando `hermes` instalado (lib/agente-hermes.ts); nas máquinas, sempre.
+    const bloqueio = o.id === "hermes" ? hermesBloqueado(ctx.windowHost, st) : null;
+    card.type = "button"; card.disabled = cartaoAgenteDesligado({ salvando: waAgenteSaving !== null, bloqueio });
     card.setAttribute("role", "radio"); card.setAttribute("aria-checked", String(marcado === o.id));
     const title = el("div", "reply-title"); title.append(el("strong", "", o.title));
     if (o.recomendado) title.append(el("span", "reply-default", "Recomendado"));
     if (saving) title.append(el("span", "reply-saving", "aplicando…"));
-    const body = el("div", "reply-body"); body.append(title, el("p", "", soNasMaquinas ? "Neste Mac, por enquanto, só o OpenClaw; o Hermes atende o WhatsApp nas máquinas por SSH." : o.text));
+    const body = el("div", "reply-body"); body.append(title, el("p", "", bloqueio ?? o.text));
     card.append(saving ? el("span", "reply-spin") : el("span", "reply-radio"), body);
-    card.addEventListener("click", () => { if (soNasMaquinas) return; if (o.id !== atual || st?.escolha == null) void escolherAgente(o.id); });
+    card.addEventListener("click", () => { if (bloqueio !== null) return; if (o.id !== atual || st?.escolha == null) void escolherAgente(o.id); });
     cards.append(card);
   }
   container.append(cards);
@@ -507,14 +508,23 @@ export function renderAgentChoice(container: HTMLElement): void {
   container.append(el("div", "guide-note", conectadoNoOutro ? "Trocar desconecta o número do agente atual; depois é só ler o QR de novo." : "Dá para trocar depois; trocar pede para ler o QR de novo."));
   if (waAgenteMsg !== null) container.append(el("p", `hint ${waAgenteMsg.bad ? "bad-hint" : "audio-ok"}`, waAgenteMsg.text));
 }
+/** A troca de agente cancelou um pareamento em andamento: o aviso do QR diz isso, em vez de "expirou". */
+let waCancelouParaTrocar = false;
 async function escolherAgente(agente: WhatsappAgente): Promise<void> {
   if (waAgenteSaving !== null) return;
   waAgenteSaving = agente; waAgenteMsg = null; paintWhatsapp(); ctx.paintGuide();
   try {
+    // Arrependeu-se com o QR na tela: cancela o pareamento e troca, sem ler o QR nem esperar ele expirar.
+    if (waPairing && !waConnected) {
+      waCancelouParaTrocar = true;
+      await window.meuBot.whatsappCancel().catch(() => undefined);
+      for (let i = 0; i < 100 && waPairing; i++) await new Promise((r) => setTimeout(r, 150));
+      if (waPairing) throw new Error("o pareamento em andamento não parou; feche o QR (Cancelar) e troque de novo");
+    }
     ctx.waStatus = await window.meuBot.whatsappEscolherAgente(agente);
     waAgenteMsg = { text: `✓ ${agente === "openclaw" ? "OpenClaw" : "Hermes"} vai atender o WhatsApp desta máquina.`, bad: false };
   } catch (err) { waAgenteMsg = { text: `✗ ${ipcErrorText(err)}`, bad: true }; }
-  finally { waAgenteSaving = null; paintWhatsapp(); ctx.paintGuide(); }
+  finally { waAgenteSaving = null; waCancelouParaTrocar = false; paintWhatsapp(); ctx.paintGuide(); }
 }
 
 /** Aba em que o pedido de preparar foi feito nesta janela; null antes do primeiro pedido. */
@@ -699,7 +709,7 @@ export async function pairWhatsapp(reset: boolean): Promise<void> {
     waPairing = false;
     if (waTick !== null) { clearInterval(waTick); waTick = null; }
     paintWaMeta();
-    if (!waConnected && !waProgress.classList.contains("bad")) setWaProgress("O QR expirou sem leitura. Gere outro quando quiser.", "bad");
+    if (!waConnected && !waProgress.classList.contains("bad")) setWaProgress(waCancelouParaTrocar ? "Pareamento cancelado para trocar de agente." : "O QR expirou sem leitura. Gere outro quando quiser.", "bad");
     waQr.hidden = true; waHow.hidden = true;
     // O gateway acabou de voltar; o bridge leva alguns segundos (no Hermes, às vezes minutos) para abrir a sessão.
     // Pareou: consulta a cada 5 s até ver conectado (até ~3 min), em vez de deixar o passo voltar a "Gerar QR".

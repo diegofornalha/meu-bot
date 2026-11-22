@@ -16,15 +16,20 @@ export const LOCAL_WA_HOST = "local";
  *   sem isso o QR nunca chegava ao app ("Gerando o QR…" para sempre). Aqui: o tail normal até o processo N sair.
  * - As funções vão com `export -f`: os instaladores rodam como `bash arquivo.sh`, um bash filho (sem isso o
  *   install-transcricao.sh não achava o `timeout` e o teste do OpenClaw falhava).
- * - Sem escolha de agente gravada, o OpenClaw: no Mac o Hermes não atende o WhatsApp (o gateway dele depende de
- *   systemd/pm2), mas um `hermes` da pessoa em ~/.local/bin faria a regra do motor (WA_MOTOR_SH) escolhê-lo.
- * Os trechos de systemd dos scripts já saem sozinhos sem /run/systemd/system; o restart cai em `openclaw gateway
- * restart`, que no Mac é o launchd.
+ * - `sed -i expr arq`, com o `-i` como primeiro argumento (a única forma que os scripts usam hoje, no
+ *   HERMES_STT_COMPARTILHADO_SH): o sed do BSD pede o sufixo do backup; vira `sed -i '' expr arq`. Outras formas
+ *   do GNU (`sed -E -i`, `sed -Ei`) não são traduzidas: script novo que precisar delas estende a função e o teste.
+ * - Sem escolha de agente gravada, o OpenClaw: é o padrão neste Mac, e um `hermes` da pessoa em ~/.local/bin faria a
+ *   regra do motor (WA_MOTOR_SH) escolhê-lo sem ninguém pedir. Com a escolha gravada (tutorial 3 › Trocar), o Hermes
+ *   atende aqui também: o gateway dele é um serviço do launchd (`hermes gateway install|start|stop|restart`), o ramo
+ *   `GW=cli` dos scripts.
+ * Os trechos de systemd dos scripts já saem sozinhos sem /run/systemd/system; o restart do OpenClaw cai em `openclaw
+ * gateway restart`, que no Mac é o launchd.
  */
 /** PATH com o que o OpenClaw instala no Mac (~/.local, ~/.openclaw) e o Homebrew: sessão sem login (app de GUI, `ssh host bash -s`) tem PATH mínimo. */
 const MACOS_PATH_SH = `export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 `;
-/** As ferramentas que os scripts esperam do Linux e o macOS não tem: `timeout`, `tail --pid` e `stat -c` (ver o comentário acima). */
+/** As ferramentas que os scripts esperam do Linux e o macOS não tem: `timeout`, `tail --pid`, `stat -c` e `sed -i` em primeiro argumento (ver o comentário acima). */
 const MACOS_FERRAMENTAS_SH = `command -v timeout >/dev/null 2>&1 || timeout() {
   _t=$1; shift
   perl -e 'my $t = shift; my $pid = fork(); die "fork" unless defined $pid; if ($pid == 0) { exec @ARGV or exit 127 } $SIG{ALRM} = sub { kill "TERM", $pid; sleep 1; kill "KILL", $pid; exit 124 }; alarm $t; waitpid($pid, 0); exit($? & 127 ? 128 + ($? & 127) : $? >> 8)' "$_t" "$@"
@@ -47,11 +52,13 @@ stat() {
     esac
   else command stat "$@"; fi
 }
+# \`sed -i expr arq\` com o -i em primeiro: o sed do BSD exige o sufixo do backup depois do -i; aqui, vazio (sem backup), como no Linux.
+sed() { if [ "\${1-}" = "-i" ]; then shift; command sed -i '' "$@"; else command sed "$@"; fi; }
 # Para os scripts que o prelúdio chama como \`bash arquivo.sh\` (instaladores): sem export, o bash filho não vê as funções.
-export -f stat tail 2>/dev/null; command -v timeout >/dev/null 2>&1 && [ "$(type -t timeout)" = function ] && export -f timeout
+export -f stat tail sed 2>/dev/null; command -v timeout >/dev/null 2>&1 && [ "$(type -t timeout)" = function ] && export -f timeout
 true
 `;
-/** Só no host "local": sem escolha de agente gravada, o OpenClaw (no Mac o Hermes não atende o WhatsApp). */
+/** Só no host "local": sem escolha de agente gravada, o OpenClaw (o Hermes só atende neste Mac quando a pessoa o escolhe). */
 const AGENTE_PADRAO_SH = `[ -s "$HOME/.local/share/meu-bot/whatsapp-agente" ] || { mkdir -p "$HOME/.local/share/meu-bot" && echo openclaw > "$HOME/.local/share/meu-bot/whatsapp-agente"; } 2>/dev/null || true
 `;
 export const LOCAL_SH_PRELUDE = `${MACOS_PATH_SH}${AGENTE_PADRAO_SH}${MACOS_FERRAMENTAS_SH}`;

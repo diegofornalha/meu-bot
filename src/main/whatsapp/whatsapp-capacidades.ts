@@ -79,7 +79,7 @@ export const alvoSemAlias = (a: WhatsappAlvoResolvido): string | null =>
 
 const NADA: WhatsappCapacidades = {
   parear: false, listarConversas: false, lerConversa: false, limparHistorico: false, gatewayProprio: false, gruposAtualizar: false,
-  pausar: false, pausaPrazo: false, pausaNativa: false, grupos: false, guarda: false, politicaDm: false, audio: false, politicaReinicia: false, digitando: false, digitandoReinicia: false,
+  pausar: false, pausaPrazo: false, pausaNativa: false, grupos: false, gruposAoConectar: false, guarda: false, politicaDm: false, audio: false, politicaReinicia: false, digitando: false, digitandoReinicia: false,
 };
 
 /** O que a máquina tem além do motor: como a pausa por contato é feita no Hermes (whatsapp-hermes-core.ts › hermesPausaModo) e se o gateway é desta conta. */
@@ -92,7 +92,9 @@ const HERMES_PADRAO: CapacidadesHermes = { pausaModo: "allowlist" };
  * que falharia na primeira tentativa. `hermes` só é lido para o Hermes.
  */
 export function capacidadesDe(gateway: Gateway | null, ready: boolean, connected: boolean, hermes: CapacidadesHermes = HERMES_PADRAO): WhatsappCapacidades {
-  if (gateway === null || !ready) return NADA;
+  if (gateway === null) return NADA;
+  // Ainda sem o agente pronto, a tela já sabe se os grupos vêm ao conectar (e não diz "este agente não permite").
+  if (!ready) return { ...NADA, gruposAoConectar: gateway === "openclaw" || gateway === "hermes" };
   const proprio = hermes.proprio !== false;
   switch (gateway) {
     // OpenClaw guarda a conversa num banco próprio e expõe sessões pelo gateway: dá para tudo.
@@ -102,7 +104,7 @@ export function capacidadesDe(gateway: Gateway | null, ready: boolean, connected
     case "openclaw":
       return {
         parear: true, listarConversas: connected, lerConversa: connected, limparHistorico: connected, gatewayProprio: proprio, gruposAtualizar: connected && proprio,
-        pausar: connected, pausaPrazo: false, pausaNativa: false, grupos: connected, guarda: proprio, politicaDm: true, audio: true, politicaReinicia: false,
+        pausar: connected, pausaPrazo: false, pausaNativa: false, grupos: connected, gruposAoConectar: true, guarda: proprio, politicaDm: true, audio: true, politicaReinicia: false,
         // "digitando…": `agents.defaults.typingMode`, que o gateway recarrega sem reiniciar (também num gateway de outro usuário).
         digitando: true, digitandoReinicia: false,
       };
@@ -120,7 +122,7 @@ export function capacidadesDe(gateway: Gateway | null, ready: boolean, connected
     // "Digitando…": `platforms.whatsapp.typing_indicator` no config.yaml (ligado/desligado), lido na subida: aplicar reinicia.
     case "hermes": {
       const prazo = connected && hermes.pausaModo !== "allowlist";
-      return { ...NADA, parear: true, listarConversas: connected, lerConversa: connected, limparHistorico: connected, gatewayProprio: true, gruposAtualizar: connected, pausar: connected, pausaPrazo: prazo, pausaNativa: hermes.pausaModo === "nativa", grupos: connected, politicaDm: true, audio: true, politicaReinicia: true, digitando: true, digitandoReinicia: true };
+      return { ...NADA, parear: true, listarConversas: connected, lerConversa: connected, limparHistorico: connected, gatewayProprio: true, gruposAtualizar: connected, pausar: connected, pausaPrazo: prazo, pausaNativa: hermes.pausaModo === "nativa", grupos: connected, gruposAoConectar: true, politicaDm: true, audio: true, politicaReinicia: true, digitando: true, digitandoReinicia: true };
     }
     // PicoClaw: pareia e tem política de quem o agente responde; o resto ainda não foi mapeado. "Digitando…" não tem
     // como ligar: o canal nativo do WhatsApp (whatsapp_native) não implementa o indicador (TypingCapable).

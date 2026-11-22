@@ -84,15 +84,18 @@ const gruposGerenciaveis = (): boolean => ctx.waStatus !== null && ctx.waStatus.
 const DICA_SEM_SKILL = (): string => ctx.waStatus !== null && !ctx.waStatus.capacidades.guarda
   ? "O WhatsApp do Hermes não está pareado nesta máquina: faça o tutorial 3 e volte aqui."
   : "A skill whatsapp-grupos não está nesta máquina: atualize a guarda do WhatsApp pelo seletor.";
-const GRUPOS_INDISPONIVEL = "O agente desta máquina ainda não permite ligar o grupo nem escolher quem conversa pelo app. Dá para ler e limpar o histórico; para mudar quem responde, ajuste na própria máquina.";
+const GRUPOS_SEM_SUPORTE = "O agente desta máquina ainda não permite ligar o grupo nem escolher quem conversa pelo app. Dá para ler e limpar o histórico; para mudar quem responde, ajuste na própria máquina.";
+const GRUPOS_SEM_CONEXAO = "O WhatsApp desta máquina não está conectado. Conecte pelo tutorial 3 (WhatsApp) e volte aqui: aí dá para ligar o grupo e escolher quem conversa.";
+/** Por que os grupos não podem ser gerenciados agora: falta conectar o WhatsApp (OpenClaw, Hermes) ou o agente não tem isso. */
+const gruposIndisponivel = (): string => (ctx.waStatus !== null && ctx.waStatus.capacidades.gruposAoConectar ? GRUPOS_SEM_CONEXAO : GRUPOS_SEM_SUPORTE);
 /** Sem a capacidade, a seção explica em vez de oferecer botões que falhariam. Devolve true quando bloqueou. */
 function gruposIndisponivelNota(container: HTMLElement): boolean {
   if (gruposGerenciaveis()) return false;
-  container.append(el("p", "hint guide-pair-note", GRUPOS_INDISPONIVEL));
+  container.append(el("p", "hint guide-pair-note", gruposIndisponivel()));
   return true;
 }
 async function setWaGroup(jid: string, patch: WhatsappGroupPatch): Promise<boolean> {
-  if (!gruposGerenciaveis()) { waGroupsMsg = { text: GRUPOS_INDISPONIVEL, bad: true }; afterWaGroups(); return false; }
+  if (!gruposGerenciaveis()) { waGroupsMsg = { text: gruposIndisponivel(), bad: true }; afterWaGroups(); return false; }
   waGroupSaving = jid; waGroupsMsg = null; afterWaGroups();
   try { waGroups = await window.meuBot.setWhatsappGroup(jid, patch); ctx.cacheWrite("waGroups", waGroups); return true; }
   catch (err) { waGroupsMsg = { text: `Não deu para mudar: ${ipcErrorText(err)}`, bad: true }; return false; }
@@ -313,7 +316,7 @@ function waGroupSummary(g: WaGroupPage): HTMLElement {
   const box = el("div", "wa-group-summary");
   const q = waGroups;
   if (!gruposGerenciaveis()) {
-    box.append(el("p", "hint", "Este app ainda não lê, nesta máquina, se o agente está ligado neste grupo."), el("p", "hint", GRUPOS_INDISPONIVEL));
+    box.append(el("p", "hint", "Este app ainda não lê, nesta máquina, se o agente está ligado neste grupo."), el("p", "hint", gruposIndisponivel()));
     if (waGroupsMsg !== null && waGroupsMsg.bad) box.append(el("p", "hint guide-pair-note", waGroupsMsg.text));
     return box;
   }
