@@ -202,7 +202,13 @@ else
   # pelo cwd, que é o que identifica o nosso.
   for p in $(pgrep -f 'node server\.js' 2>/dev/null); do [ "$(readlink "/proc/$p/cwd" 2>/dev/null)" = "$DEST" ] && kill "$p" 2>/dev/null; done
   pkill -f "$DEST/server.js" 2>/dev/null || true; sleep 0.5
-  (cd "$DEST" && OPENAI_COMPAT_SESSIONS_PATH="$DEST/data/openai-compat-sessions.json" nohup "$NODE" server.js >> "$DEST/backend.log" 2>&1 &)
+  # </dev/null: sem ele o node herda o stdin do canal SSH e o `ssh host bash install.sh` do app não termina nunca.
+  # setsid: sai da sessão de quem chamou (no WSL, sem ele o node morre junto com o wsl.exe que o lançou).
+  if command -v setsid >/dev/null 2>&1; then
+    (cd "$DEST" && OPENAI_COMPAT_SESSIONS_PATH="$DEST/data/openai-compat-sessions.json" setsid -f nohup "$NODE" server.js >> "$DEST/backend.log" 2>&1 </dev/null)
+  else
+    (cd "$DEST" && OPENAI_COMPAT_SESSIONS_PATH="$DEST/data/openai-compat-sessions.json" nohup "$NODE" server.js >> "$DEST/backend.log" 2>&1 </dev/null &)
+  fi
   sleep 1.5
 fi
 

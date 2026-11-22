@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 // "Este Windows" (src/main/maquina/wsl-core.ts): ler o wsl.exe, decidir o passo do preparo, o rootfs por arquitetura,
 // o SHA256 do SHA256SUMS e os scripts/arquivos do ~/.ssh. O runner do GitHub já tem o WSL, então o caminho
 // "sem-wsl → instalar → reiniciar" só é coberto aqui.
@@ -144,7 +145,22 @@ test("sshd do app: só 127.0.0.1, só o usuário comum, só por chave, na porta 
   assert.match(w.scriptPacotes(), /systemctl disable --now ssh\.socket ssh\.service/);
   assert.match(w.scriptPacotes(), /openssh-server python3 curl/);
   // Manter de pé: sobe o sshd se não está no ar e fica dormindo (o wsl.exe filho segura a distro).
-  assert.match(w.scriptManterDePe(), /kill -0 .*\/usr\/sbin\/sshd -f \/etc\/ssh\/meu-bot\/sshd_config.*exec sleep infinity$/);
+  assert.match(w.scriptManterDePe(), /kill -0 .*\/usr\/sbin\/sshd -f \/etc\/ssh\/meu-bot\/sshd_config[\s\S]*exec sleep infinity$/);
+  // Sem systemd, o backend sobe junto (WSL1 não tem; a distro reinicia a cada boot do Windows).
+  assert.ok(w.scriptManterDePe().includes(w.scriptSubirBackend()));
+});
+
+test("sem systemd, o backend da distro sobe como o usuário comum, fora da sessão do wsl.exe e sem stdin", () => {
+  const b = w.scriptSubirBackend();
+  assert.match(b, /\[ ! -d \/run\/systemd\/system \]/);
+  assert.match(b, /\/home\/meubot\/\.local\/share\/meu-bot\/backend\/server\.js/);
+  // A porta vem do .env do install.sh; só sobe se nada atende (curl 7), porque o ss não funciona no WSL1.
+  assert.match(b, /s\/\^PORT=\/\//);
+  assert.match(b, /if \[ \$\? -eq 7 \]/);
+  assert.match(b, /runuser -u meubot -- env .* setsid -f "\$N" server\.js >> .*backend\.log 2>&1 < \/dev\/null/);
+  // O bash aceita o script inteiro (sintaxe).
+  const r = spawnSync("bash", ["-n"], { input: b, encoding: "utf8" });
+  assert.equal(r.status, 0, r.stderr);
 });
 
 test("~/.ssh: o alias num arquivo próprio e o Include no topo do config, uma vez só", () => {

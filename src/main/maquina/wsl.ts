@@ -198,11 +198,15 @@ async function executar(): Promise<ResultadoWsl> {
   }
 }
 
-/** Instala o WSL (sem distro) com elevação: o Windows mostra o UAC. null = ok; senão, o porquê. */
+/**
+ * Instala o WSL (sem distro) com elevação: o Windows mostra o UAC. null = ok; senão, o porquê. `--enable-wsl1` junto:
+ * sem ele o `--install` liga só a Plataforma de Máquina Virtual, e num PC sem virtualização (uma VM, BIOS com ela
+ * desligada) o recuo para WSL1 do import cairia por falta do componente (provado na VM meu-bot-win, 22 nov 2026).
+ */
 async function instalarWsl(diz: (l: string) => void): Promise<string | null> {
   diz("instalando o WSL: o Windows vai pedir permissão de administrador…");
   const ps = path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
-  const comando = "$ErrorActionPreference='Stop'; try { $p = Start-Process -FilePath 'wsl.exe' -ArgumentList '--install','--no-distribution' -Verb RunAs -Wait -PassThru; exit $p.ExitCode } catch { Write-Output $_.Exception.Message; exit 1223 }";
+  const comando = "$ErrorActionPreference='Stop'; try { $p = Start-Process -FilePath 'wsl.exe' -ArgumentList '--install','--no-distribution','--enable-wsl1' -Verb RunAs -Wait -PassThru; exit $p.ExitCode } catch { Write-Output $_.Exception.Message; exit 1223 }";
   const r = await new Promise<{ rc: number | null; texto: string }>((resolve) => {
     const c = spawn(ps, ["-NoProfile", "-NonInteractive", "-Command", comando], { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
     let t = "";
