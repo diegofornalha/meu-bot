@@ -136,6 +136,25 @@ test("super admin define os preços das ferramentas, e o Marketplace passa a ven
       "googlecalendar: sem preço → R$ 47, à venda",
     ]);
 
+    // O banco falha na gravação depois de a AbacatePay criar o produto: a pessoa recebe a frase (não um 500), e a nova
+    // tentativa não cria outro produto se o histórico ficou gravado.
+    const comFalha = (falhaEm) => ({ ...env, DB: { prepare: (sql) => { if (falhaEm.test(sql)) return { bind: () => ({ run: async () => { throw new Error("D1_ERROR"); }, first: async () => { throw new Error("D1_ERROR"); }, all: async () => { throw new Error("D1_ERROR"); } }), all: async () => { throw new Error("D1_ERROR"); } }; return DB.prepare(sql); } } });
+    const antesDaFalha = pedidos.length;
+    const semGravar = await chamar("PUT", "/admin/ferramentas/canva", { centavos: 4700, aVenda: true }, ts, comFalha(/INSERT INTO ferramentas_ofertas/));
+    assert.equal(semGravar.status, 502); assert.match(semGravar.corpo.erro, /foi criado na AbacatePay \(prod_teste\d+\), mas não consegui gravar o preço/);
+    assert.equal(pedidos.length, antesDaFalha + 1);
+    assert.equal((await chamar("PUT", "/admin/ferramentas/canva", { centavos: 4700, aVenda: true }, ts)).status, 200);
+    assert.equal(pedidos.length, antesDaFalha + 1, "a segunda tentativa reaproveitou o produto do histórico");
+    // Não dá para ler o banco: frase, nada pedido à AbacatePay; e a lista responde 503 com o motivo.
+    const semLer = await chamar("PUT", "/admin/ferramentas/figma", { centavos: 4700, aVenda: true }, ts, comFalha(/SELECT produto, centavos, a_venda/));
+    assert.equal(semLer.status, 502); assert.match(semLer.corpo.erro, /não consegui ler o preço de Figma/);
+    assert.equal(pedidos.length, antesDaFalha + 1);
+    const semLista = await chamar("GET", "/admin/ferramentas", undefined, ts, comFalha(/FROM ferramentas_ofertas$/));
+    assert.equal(semLista.status, 503); assert.match(semLista.corpo.erro, /não consegui ler os preços/);
+    // No lote, a ferramenta que falha no banco entra em "falhas" e as outras seguem.
+    const loteFalho = await chamar("POST", "/admin/ferramentas/lote", { slugs: ["trello", "asana"], centavos: 3900, aVenda: true }, ts, comFalha(/INSERT INTO ferramentas_ofertas/));
+    assert.equal(loteFalho.status, 200); assert.deepEqual(loteFalho.corpo.feitas, []); assert.deepEqual(loteFalho.corpo.falhas.map((f) => f.slug), ["trello", "asana"]);
+
     // Pagamentos desligados no ambiente: a tela diz isso, nada muda, e o Marketplace não vende nada.
     const semKey = { ...env, ABACATEPAY_KEY: "" };
     assert.equal((await chamar("GET", "/admin/ferramentas", undefined, ts, semKey)).corpo.pagamentos, false);
@@ -161,6 +180,20 @@ test("ofertas na memória: um minuto, por banco, e a mudança de preço a esquec
   esquecerOfertasEmMemoria();
   assert.equal((await ofertasAVendaNoBanco(db, 2000 + MEMORIA_DAS_OFERTAS_MS))[0].centavos, 6900, "a mudança de preço esquece a memória na hora");
   assert.equal((await ofertasAVendaNoBanco(banco(), 2000 + MEMORIA_DAS_OFERTAS_MS)).length, 1, "outro banco não aproveita a memória do primeiro");
+  // Banco fora do ar: vale a última resposta boa, mesmo vencida, e nada novo é guardado (a consulta seguinte tenta de novo).
+  esquecerOfertasEmMemoria();
+  let cai = false; let vezes = 0;
+  const instavel = { prepare: () => ({ all: async () => { vezes++; if (cai) throw new Error("D1_ERROR: network connection lost"); return { results: [{ slug: "gmail", produto: "prod_abc123XYZ", centavos: 4700 }] }; } }) };
+  const calado = console.error; console.error = () => {};
+  try {
+    assert.equal((await ofertasAVendaNoBanco(instavel, 1)).length, 1);
+    cai = true;
+    assert.equal((await ofertasAVendaNoBanco(instavel, 1 + MEMORIA_DAS_OFERTAS_MS)).length, 1, "o Marketplace não esvazia numa falha passageira");
+    assert.equal((await ofertasAVendaNoBanco(instavel, 2 + MEMORIA_DAS_OFERTAS_MS)).length, 1);
+    assert.equal(vezes, 3, "a falha não fica na memória: cada consulta tenta de novo");
+    esquecerOfertasEmMemoria();
+    assert.deepEqual(await ofertasAVendaNoBanco(instavel, 9), [], "sem resposta boa guardada, nada à venda");
+  } finally { console.error = calado; }
   // Tabela ausente (migração ainda não aplicada) e linha fora do catálogo ou da forma: nada à venda, sem erro.
   esquecerOfertasEmMemoria();
   assert.deepEqual(await ofertasAVendaNoBanco({ prepare: () => ({ all: async () => { throw new Error("no such table: ferramentas_ofertas"); } }) }, 1), []);

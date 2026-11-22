@@ -38,7 +38,8 @@ export const ehFerramenta = (produto: string | null | undefined): boolean => typ
 /** Uma ferramenta à venda num ambiente: o produto de assinatura mensal na AbacatePay e o preço dela. */
 export interface OfertaFerramenta { ferramenta: Ferramenta; produto: string; centavos: number }
 /**
- * Lê as ofertas de um ambiente (`{ "<slug>": { produto, centavos } }`, do ferramentas-ofertas.ts) contra o catálogo.
+ * Lê as ofertas de um ambiente (`{ "<slug>": { produto, centavos } }`, das linhas à venda de `ferramentas_ofertas`,
+ * montado pelo ferramentas-ofertas-db.ts) contra o catálogo.
  * Entrada fora da forma, ou de ferramenta que não está no catálogo, é descartada: a ferramenta some da venda em vez
  * de abrir um checkout com produto ou preço errados. Sai na ordem do catálogo.
  */

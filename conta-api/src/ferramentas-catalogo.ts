@@ -5,7 +5,8 @@
  * que o agente faz com o app e `exemplo` é um pedido que a pessoa pode fazer. `grupo`: "pronta" = não pede login,
  * funciona assim que comprada; "conectar" = pede um clique em Conectar e a autorização da conta.
  * Ferramenta não é módulo: módulo é um produto com regras e fluxo próprios (página Módulos); ferramenta é a conexão
- * com um app. O que está à venda em cada ambiente, e por quanto, é do ferramentas-ofertas.ts.
+ * com um app. O que está à venda em cada ambiente, e por quanto, o super admin define no console
+ * (tabela ferramentas_ofertas, lida pelo ferramentas-ofertas-db.ts).
  */
 import type { Ferramenta } from "./ferramentas-core.js";
 

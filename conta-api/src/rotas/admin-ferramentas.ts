@@ -25,7 +25,9 @@ interface LinhaOferta { slug: string; produto: string; centavos: number; a_venda
 
 export async function getAdminFerramentas(auth: Autenticado, env: Env): Promise<Response> {
   if (auth.claims.adm !== "super") return json({ erro: SO_SUPER }, 403);
-  const linhas = (await env.DB.prepare("SELECT slug, produto, centavos, a_venda, atualizado_em, atualizado_por FROM ferramentas_ofertas").all<LinhaOferta>()).results;
+  let linhas: LinhaOferta[];
+  try { linhas = (await env.DB.prepare("SELECT slug, produto, centavos, a_venda, atualizado_em, atualizado_por FROM ferramentas_ofertas").all<LinhaOferta>()).results; }
+  catch (e) { return json({ erro: /no such table/i.test(String(e)) ? "o banco deste ambiente ainda não tem a tabela dos preços (migração 0025): publique o site de novo" : "não consegui ler os preços no banco; tente de novo" }, 503); }
   const por = new Map(linhas.map((l) => [l.slug, l]));
   return json({
     pagamentos: pagamentosLigados(env),
@@ -51,25 +53,38 @@ async function criarProduto(env: Env, f: Ferramenta, centavos: number): Promise<
 
 /** Define o preço e a venda de uma ferramenta. Usado pela rota de uma e pela de lote. */
 async function aplicar(env: Env, quem: string, f: Ferramenta, centavos: number, aVenda: boolean): Promise<{ ok: true; centavos: number; aVenda: boolean; mudou: boolean } | { ok: false; erro: string }> {
-  const linha = await env.DB.prepare("SELECT produto, centavos, a_venda FROM ferramentas_ofertas WHERE slug = ?1").bind(f.slug).first<{ produto: string; centavos: number; a_venda: number }>();
-  const atual: OfertaGuardada | null = linha === null ? null : { produto: linha.produto, centavos: linha.centavos, aVenda: linha.a_venda === 1 };
-  const historico = (await env.DB.prepare("SELECT produto, centavos FROM ferramentas_produtos WHERE slug = ?1").bind(f.slug).all<ProdutoCriado>()).results;
+  let atual: OfertaGuardada | null; let historico: ProdutoCriado[];
+  try {
+    const linha = await env.DB.prepare("SELECT produto, centavos, a_venda FROM ferramentas_ofertas WHERE slug = ?1").bind(f.slug).first<{ produto: string; centavos: number; a_venda: number }>();
+    atual = linha === null ? null : { produto: linha.produto, centavos: linha.centavos, aVenda: linha.a_venda === 1 };
+    historico = (await env.DB.prepare("SELECT produto, centavos FROM ferramentas_produtos WHERE slug = ?1").bind(f.slug).all<ProdutoCriado>()).results;
+  } catch { return { ok: false, erro: `não consegui ler o preço de ${f.nome} no banco; nada foi alterado. Tente de novo.` }; }
   const d = decidirOferta({ atual, centavos, aVenda, historico });
   if (d.acao === "nada") return { ok: true, centavos, aVenda, mudou: false };
   const agora = agoraIso();
-  let produto: string;
+  let produto: string; let criado = false;
   if (d.acao === "so-venda") produto = atual!.produto;
   else if (d.acao === "reusar") produto = d.produto;
   else {
     const novo = await criarProduto(env, f, centavos);
     if ("erro" in novo) return { ok: false, erro: novo.erro };
-    produto = novo.produto;
-    await env.DB.prepare("INSERT OR IGNORE INTO ferramentas_produtos (produto, slug, centavos, criado_em, criado_por) VALUES (?1, ?2, ?3, ?4, ?5)").bind(produto, f.slug, centavos, agora, quem).run();
+    produto = novo.produto; criado = true;
   }
-  await env.DB.prepare("INSERT INTO ferramentas_ofertas (slug, produto, centavos, a_venda, atualizado_em, atualizado_por) VALUES (?1, ?2, ?3, ?4, ?5, ?6) ON CONFLICT(slug) DO UPDATE SET produto = excluded.produto, centavos = excluded.centavos, a_venda = excluded.a_venda, atualizado_em = excluded.atualizado_em, atualizado_por = excluded.atualizado_por")
-    .bind(f.slug, produto, centavos, aVenda ? 1 : 0, agora, quem).run();
-  await auditar(env.DB, quem, "ferramenta.preco", null, detalheDaMudanca(f.slug, atual, { centavos, aVenda }), agora);
+  // Daqui em diante é o banco. Se ele falhar depois de a AbacatePay já ter criado o produto, a pessoa recebe a frase
+  // (não um 500), e no lote as outras ferramentas seguem. O histórico é gravado primeiro: com ele no banco, a nova
+  // tentativa reaproveita o produto em vez de pedir à AbacatePay um externalId que já existe.
+  try {
+    if (criado) await env.DB.prepare("INSERT OR IGNORE INTO ferramentas_produtos (produto, slug, centavos, criado_em, criado_por) VALUES (?1, ?2, ?3, ?4, ?5)").bind(produto, f.slug, centavos, agora, quem).run();
+    await env.DB.prepare("INSERT INTO ferramentas_ofertas (slug, produto, centavos, a_venda, atualizado_em, atualizado_por) VALUES (?1, ?2, ?3, ?4, ?5, ?6) ON CONFLICT(slug) DO UPDATE SET produto = excluded.produto, centavos = excluded.centavos, a_venda = excluded.a_venda, atualizado_em = excluded.atualizado_em, atualizado_por = excluded.atualizado_por")
+      .bind(f.slug, produto, centavos, aVenda ? 1 : 0, agora, quem).run();
+  } catch {
+    esquecerOfertasEmMemoria();
+    return { ok: false, erro: criado ? `o produto de ${f.nome} foi criado na AbacatePay (${produto}), mas não consegui gravar o preço no banco. Tente de novo: se o produto ficou registrado, ele é reaproveitado.` : `não consegui gravar o preço de ${f.nome} no banco; tente de novo.` };
+  }
   esquecerOfertasEmMemoria();
+  // A auditoria falhar não desfaz o preço que já está valendo: fica o aviso no log do Worker.
+  try { await auditar(env.DB, quem, "ferramenta.preco", null, detalheDaMudanca(f.slug, atual, { centavos, aVenda }), agora); }
+  catch (e) { console.error(`auditoria do preço de ${f.slug} não gravada (${String(e).slice(0, 160)})`); }
   return { ok: true, centavos, aVenda, mudou: true };
 }
 
