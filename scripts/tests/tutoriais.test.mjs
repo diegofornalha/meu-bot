@@ -386,6 +386,13 @@ test("tutorial 10 enxuto: etapa feita mostra o resultado numa linha (com 'Trocar
   for (const s of [grupo, quem, modo]) assert.equal(s.refazer, true, `${s.id} com "Trocar"`);
 });
 
+test("tutorial 3 (WhatsApp): o passo do agente, concluído, tem \"Trocar\" (escolheu o errado, volta sem refazer o tutorial)", () => {
+  const escolher = byId("whatsapp-openclaw").steps[0];
+  assert.equal(escolher.id, "escolher");
+  assert.equal(escolher.refazer, true);
+  assert.equal(escolher.resumo(emptyContext(), { escolha: "hermes" }), "Agente: Hermes");
+});
+
 test("tutorial 12 (link público): só em máquina por SSH; ligado pelo admin → passo 1; algo no ar → passo 2; nome trocado ou \"deixar como está\" → concluído", () => {
   const t = byId("link-publico");
   assert.equal(t.number, 12); assert.deepEqual(t.needs, ["linkpublico"]); assert.equal(t.after, "claude-login"); assert.equal(t.needsXai, true);
