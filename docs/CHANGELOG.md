@@ -10,6 +10,8 @@ e entra aqui na seção da versão quando ela vira estável.
 > primeira entrada descreve o app inteiro como ele está hoje.
 > Em 17 de novembro de 2026 a base foi de 0.84.0 para 1.2.0, de novo para acompanhar o Grok Bot, que está na
 > 1.2.0. A 0.84.0 não saiu como estável: a próxima estável depois da v0.83.0 é a v1.2.0.
+> Regra desde 22 de novembro de 2026: a estável do meu-bot leva o número da estável do Grok Bot quando ele está à
+> frente da nossa; entre uma versão e outra dele, a nossa sobe só o último número.
 
 ---
 
