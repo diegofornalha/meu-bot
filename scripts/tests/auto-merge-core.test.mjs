@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { AUTORES, ROTULO_NAO_MESCLAR, avisoSemRevisao, decidirAutoMerge, revisaoEmAndamento, revisaoNaoRodou } from "../auto-merge-core.mjs";
+import { AUTORES, ROTULO_NAO_MESCLAR, avisoSemRevisao, decidirAutoMerge, planoAutoMerge, revisaoEmAndamento, revisaoNaoRodou } from "../auto-merge-core.mjs";
 
 // Auto-merge das PRs (.github/workflows/auto-merge.yml): a regra que decide ligar, desligar ou não tocar.
 const pr = (over = {}) => ({ estado: "OPEN", autor: "diegofornalha", deFork: false, rascunho: false, rotulos: [], titulo: "Seletor: algo muda", ...over });
@@ -50,4 +50,38 @@ test("revisão ainda rodando neste commit: o auto-merge espera o fim dela", () =
   assert.equal(revisaoEmAndamento(rodadas, "aaa"), false, "a deste commit já terminou");
   assert.equal(revisaoEmAndamento(rodadas, "ccc"), false, "commit novo: a revisão não roda de novo a cada push");
   assert.equal(revisaoEmAndamento([], "aaa"), false);
+});
+
+// O plano inteiro: é o que o auto-merge.mjs executa, passo a passo, com o gh.
+const plano = ({ over = {}, rodadas = [], revisao = null } = {}) => planoAutoMerge({ pr: { ...pr(), sha: "bbb", ligado: false, ...over }, rodadas, revisao });
+
+test("plano: a revisão terminou e a PR é nossa → liga uma vez só", () => {
+  assert.deepEqual(plano({ revisao: "success", rodadas: [{ headSha: "bbb", status: "completed" }] }).passos, ["ligar"]);
+  assert.deepEqual(plano({ revisao: "skipped" }).passos, ["ligar"], "rótulo sem-claude: a revisão é pulada e a PR entra só com os testes");
+  assert.deepEqual(plano({ over: { ligado: true }, revisao: "success" }).passos, [], "já ligado: nada a repetir");
+  assert.deepEqual(plano({ revisao: null }).passos, ["ligar"], "tirou o rótulo com a revisão já terminada");
+});
+
+test("plano: revisão que não revisou liga e avisa; se outra ainda roda neste commit, espera", () => {
+  assert.deepEqual(plano({ revisao: "failure" }).passos, ["ligar", "avisar"]);
+  assert.deepEqual(plano({ over: { ligado: true }, revisao: "timed_out" }).passos, ["avisar"]);
+  // A rodada antiga foi cancelada por uma nova do mesmo commit: nada de ligar nem de avisar "não revisou".
+  const cancelada = plano({ revisao: "cancelled", rodadas: [{ headSha: "bbb", status: "completed" }, { headSha: "bbb", status: "in_progress" }] });
+  assert.equal(cancelada.acao, "esperar");
+  assert.deepEqual(cancelada.passos, []);
+  // O mesmo pelo outro gatilho (tirar o rótulo no meio da revisão).
+  assert.deepEqual(plano({ revisao: null, rodadas: [{ headSha: "bbb", status: "queued" }] }).passos, []);
+  // Rodada em andamento de outro commit (a PR já andou) não segura.
+  assert.deepEqual(plano({ revisao: "success", rodadas: [{ headSha: "aaa", status: "in_progress" }] }).passos, ["ligar"]);
+});
+
+test("plano: marcada para não entrar → desliga só se estava ligado; de fora → nunca mexe", () => {
+  assert.deepEqual(plano({ over: { rotulos: ["nao-mesclar"], ligado: true } }).passos, ["desligar"]);
+  assert.deepEqual(plano({ over: { rotulos: ["nao-mesclar"], ligado: false } }).passos, []);
+  assert.deepEqual(plano({ over: { rascunho: true, ligado: true }, revisao: "skipped" }).passos, ["desligar"]);
+  // Desligar não espera a revisão: a marca vale na hora.
+  assert.deepEqual(plano({ over: { titulo: "Prova (NÃO MESCLAR)", ligado: true }, rodadas: [{ headSha: "bbb", status: "in_progress" }] }).passos, ["desligar"]);
+  assert.deepEqual(plano({ over: { deFork: true, ligado: true }, revisao: "failure" }).passos, []);
+  assert.deepEqual(plano({ over: { autor: "alguem-de-fora", rotulos: ["nao-mesclar"], ligado: true } }).passos, []);
+  assert.deepEqual(plano({ over: { estado: "MERGED" }, revisao: "success" }).passos, []);
 });

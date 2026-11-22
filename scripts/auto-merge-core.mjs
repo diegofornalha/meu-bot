@@ -38,3 +38,20 @@ export function revisaoEmAndamento(rodadas, sha) {
 /** Aviso na PR quando ela vai entrar sem ter sido revisada. */
 export const avisoSemRevisao = (conclusao) =>
   `A Revisão Claude não chegou a revisar esta PR (terminou como \`${conclusao}\`). O auto-merge foi ligado mesmo assim: ela entra quando o check \`testes\` passar. Para revisar antes, ponha o rótulo \`${ROTULO_NAO_MESCLAR}\` e comente \`@claude revise\`.`;
+
+/**
+ * O que fazer com a PR agora, em passos que o auto-merge.mjs executa na ordem: "desligar", "ligar", "avisar" (o
+ * comentário de que entrou sem revisão). `pr` = { estado, autor, deFork, rascunho, rotulos, titulo, sha, ligado };
+ * `rodadas` = as da Revisão Claude no branch ({ headSha, status }); `revisao` = a conclusão da rodada que acabou de
+ * terminar, ou null quando o gatilho foi rótulo, título ou rascunho.
+ * Com uma revisão ainda rodando no commit atual, nada é ligado nem avisado, venha o gatilho de onde vier: uma rodada
+ * cancelada por outra mais nova também termina ("cancelled"), e ligar ali deixaria a PR entrar antes dos comentários
+ * da que ainda roda. O fim dela chama isto de novo.
+ */
+export function planoAutoMerge({ pr, rodadas, revisao }) {
+  const d = decidirAutoMerge(pr);
+  if (d.acao === "nada") return { ...d, passos: [] };
+  if (d.acao === "desligar") return { ...d, passos: pr.ligado ? ["desligar"] : [] };
+  if (revisaoEmAndamento(rodadas, pr.sha)) return { acao: "esperar", motivo: "a Revisão Claude ainda está rodando neste commit: o auto-merge fica para o fim dela", passos: [] };
+  return { ...d, passos: [...(pr.ligado ? [] : ["ligar"]), ...(revisaoNaoRodou(revisao) ? ["avisar"] : [])] };
+}

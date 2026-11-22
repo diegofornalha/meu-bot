@@ -3,7 +3,9 @@
 # precisava ligar o auto-merge PR por PR, e quem ligava cedo demais deixava a PR entrar antes dos comentários da
 # Revisão Claude (a #464 entrou assim).
 # Por isso quem liga é o FIM da Revisão Claude (workflow_run), não a abertura da PR. Rótulo, título e rascunho
-# reavaliam: `nao-mesclar`, "NÃO MESCLAR" no título e rascunho desligam; tirar religa (se a revisão já terminou).
+# reavaliam: `nao-mesclar`, "NÃO MESCLAR" no título e rascunho desligam; tirar religa. Nos dois gatilhos, com uma
+# revisão ainda rodando no commit da PR nada é ligado: o fim dela chama de novo (uma rodada cancelada por outra também
+# "termina").
 # A regra está em scripts/auto-merge-core.mjs (testada); este arquivo só acha a PR e chama scripts/auto-merge.mjs.
 # Segurança: roda sempre o script da main (nunca o código da PR), só em branches deste repo, e o nome do branch chega
 # ao shell por variável de ambiente. Não trocar para pull_request_target.
@@ -24,7 +26,8 @@ permissions:
   actions: read
 
 concurrency:
-  group: auto-merge-${{ github.event.pull_request.number || github.event.workflow_run.head_branch }}
+  # O mesmo grupo nos dois gatilhos (o número da PR), para um rótulo e o fim da revisão não brigarem entre ligar e desligar.
+  group: auto-merge-${{ github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number || github.event.workflow_run.head_branch }}
   cancel-in-progress: false
 
 jobs:
@@ -55,5 +58,5 @@ jobs:
             if [ -z "$N" ]; then echo "sem PR aberta para o branch $BRANCH: nada a fazer"; exit 0; fi
             node scripts/auto-merge.mjs "$N" "--revisao=$CONCLUSAO"
           else
-            node scripts/auto-merge.mjs "$PR_DO_EVENTO" --esperar-revisao
+            node scripts/auto-merge.mjs "$PR_DO_EVENTO"
           fi
