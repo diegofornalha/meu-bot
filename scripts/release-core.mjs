@@ -145,6 +145,23 @@ export function travaOrfa({ pid, idadeMs, vivo }) {
 /** Arquivos que, sozinhos, não justificam um staging novo (o PR "Versão: base sobe" só mexe neles). */
 const SO_VERSAO = new Set(["package.json", "package-lock.json", "docs/CHANGELOG.md"]);
 
+/** Quanto a `main` pode ficar sem staging antes de o vigia (scripts/release-vigia.mjs) acusar: folga para merges em série, testes, empacotamento e notarização. */
+export const RELEASE_PARADA_MS = 3 * 60 * 60 * 1000;
+/**
+ * A release automática parou? O agente roda num Mac só; se ele sai do launchd (aconteceu de 17 a 22 nov 2026: cinco
+ * dias, mais de 300 commits, e o site entregando uma staging com defeitos já corrigidos) nada avisa. O vigia roda
+ * fora desse Mac (GitHub Actions) e usa a mesma decisão do agente: se a rodada pediria "staging" e o último commit
+ * da `main` já passou do prazo, devolve a frase do alerta; senão null.
+ */
+export function releaseParada({ base, tagsTodas, tagsNoHead, commitEm, agora, mudouDesdeRelease = null, limiteMs = RELEASE_PARADA_MS }) {
+  const d = decideRodada({ base, tagsTodas, tagsNoHead, commitEm, stagingEm: null, saude: null, agora, mudouDesdeRelease });
+  if (d.acao !== "staging") return null;
+  const atraso = agora - commitEm;
+  if (atraso <= limiteMs) return null;
+  const horas = Math.floor(atraso / 3_600_000);
+  return `a main está há ${horas} h sem release staging (${d.motivo}): o agente da release parou. No Mac da chave: tail ~/Library/Logs/meu-bot-release.log e node scripts/release-auto.mjs --religar`;
+}
+
 /** O staging mais novo da versão `base` entre `tags` (ex.: "v0.80.0-staging.2"), ou null. */
 export function stagingMaisNovo(base, tags) {
   let melhor = null, n = 0;

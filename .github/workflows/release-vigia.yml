@@ -1,0 +1,35 @@
+# Vigia da release automática: de 2 em 2 horas confere se a `main` está sem release staging além do prazo (3 h). A
+# release sai de um Mac só (agente do launchd, scripts/release-auto.mjs); se o agente para, nada avisava: de 17 a
+# 22 nov 2026 foram cinco dias e mais de 300 commits sem release (#460). Este workflow roda fora desse Mac.
+# Parado = o job falha, e o GitHub avisa o dono do repositório por e-mail; o resumo do job diz o que fazer.
+# Não abre issue de propósito: issue aberta acorda o Claude automático, e isto é operação, não código.
+# A regra é `releaseParada` (scripts/release-core.mjs, testada); este arquivo só chama scripts/release-vigia.mjs.
+name: Vigia da release
+
+on:
+  schedule:
+    - cron: "23 */2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-vigia
+  cancel-in-progress: true
+
+jobs:
+  vigia:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          # Histórico e tags: a regra compara o topo da main com as tags de release (v*).
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 26
+      - name: A main está sem release staging além do prazo?
+        run: node scripts/release-vigia.mjs
