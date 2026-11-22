@@ -7,6 +7,7 @@
  */
 import { molduraDaJanela } from "../app/moldura-core";
 import { caps } from "../app/variant";
+import { modoGratisLocal } from "../agente/ollamaLocal";
 import type { MainEventChannel, MainEvents } from "../../shared/ipc";
 import { contaEntrada, contaView, papelConfirmado } from "../conta/conta";
 import { SEM_PAPEL_GESTAO, acessoGestao, papelParaGestao } from "../conta/conta-core";
@@ -421,6 +422,18 @@ export const clientPickerSource: PickerSource = {
       const win = openMainWindow(host, "picker");
       sendWhenLoaded(win, "ui:claude-login", {});
       forgetProbe(host);
+      closePicker();
+    });
+    // "Usar o modo grátis": este Mac sem o Claude Code. A janela abre no tutorial 16 (o backend local só sobe sem o
+    // Claude depois que o Ollama entra no providers.json).
+    handleClient("picker:modo-gratis", (event) => {
+      if (!fromPicker(event)) throw new Error("origem inválida");
+      if (!caps().hostLocal) throw new Error(SEM_CAPACIDADE_MSG);
+      if (modoGratisLocal() === null) throw new Error("o modo grátis não é oferecido neste Mac");
+      setLastHost(LOCAL_HOST);
+      const win = openMainWindow(LOCAL_HOST, "picker");
+      sendWhenLoaded(win, "ui:modo-gratis", {});
+      forgetProbe(LOCAL_HOST);
       closePicker();
     });
   },

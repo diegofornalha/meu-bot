@@ -49,6 +49,8 @@ export interface HostProbe {
   freePort: number | null;
   claudePath: string | null;
   claudeLoggedIn: boolean;
+  /** Só "este Mac": o modo grátis (Ollama, tutorial 16) já está instalado, pode ser instalado, ou não é oferecido aqui (null/ausente). */
+  modoGratis?: "instalado" | "possivel" | null;
   node: string | null;
   systemd: boolean;
   /** Computador do Grok Bot (pod): PID 1 pod-daemon/tini ou cgroup pod-…; tem botão de alívio. */

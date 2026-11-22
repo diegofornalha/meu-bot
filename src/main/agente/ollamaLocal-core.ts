@@ -52,6 +52,15 @@ export function modeloNoProviders(raw: string | null, porta: number): string | n
 /** O providers.json tem o Ollama em qualquer porta? (o backend local pode subir sem o Claude). */
 export const temOllamaNoProviders = (raw: string | null): boolean => providerPorNome(raw, OLLAMA_PROVIDER) !== null;
 
+/**
+ * O modo grátis neste Mac, para o seletor de máquinas: só no canal de staging e no Mac com chip Apple (no Intel o
+ * modelo roda na CPU e fica lento demais). null = não é oferecido aqui.
+ */
+export function modoGratisDoMac(e: { staging: boolean; plataforma: string; arch: string; preparado: boolean }): "instalado" | "possivel" | null {
+  if (!e.staging || e.plataforma !== "darwin" || e.arch !== "arm64") return null;
+  return e.preparado ? "instalado" : "possivel";
+}
+
 /** Um processo na porta é o `ollama serve` deste app (de uma abertura anterior)? Pelo binário na pasta do meu-bot. */
 export function ehNossoOllamaOrfao(comando: string, prefixo: string): boolean {
   const c = comando.trim();

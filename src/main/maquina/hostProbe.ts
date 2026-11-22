@@ -25,6 +25,7 @@ import os from "node:os";
 import type { VozId, AudioSetup, HostProbe, InstallBackendResult, MaquinaAlerta } from "../../shared/ipc";
 import { claudeLoggedIn, findClaude, findNode, LOCAL_HOST, localBackendAlive } from "./localBackend";
 import { isValidHost } from "../app/settings";
+import { modoGratisLocal } from "../agente/ollamaLocal";
 
 import { BACKEND_DIR_SH } from "./backend-dir-core";
 const REMOTE_STAGE = "~/.meu-bot-install";
@@ -290,7 +291,7 @@ function probeLocal(port: number): HostProbe {
   if (node !== null) { try { nodeVersion = spawnSync(node, ["-v"], { encoding: "utf8", timeout: 5000 }).stdout.trim() || null; } catch { /* sem versão */ } }
   return {
     host: LOCAL_HOST, hostName: null, reachable: true, hostKeyChanged: false, user: os.userInfo().username, apelido: null, os: `macOS ${os.release()}`, arch: os.arch(),
-    backendInstalled: true, backendForeign: false, backendListening: localBackendAlive(), backendSumiu: false, backendUnitPort: null, backendVersion: null, backendBusy: null, appPort: port, backendPort: null, portBusy: false, freePort: null, claudePath: claude, claudeLoggedIn: claude !== null && claudeLoggedIn(),
+    backendInstalled: true, backendForeign: false, backendListening: localBackendAlive(), backendSumiu: false, backendUnitPort: null, backendVersion: null, backendBusy: null, appPort: port, backendPort: null, portBusy: false, freePort: null, claudePath: claude, claudeLoggedIn: claude !== null && claudeLoggedIn(), modoGratis: modoGratisLocal(),
     node: nodeVersion, ...medidasLocais(), backendAlerta: null, systemd: false, grokPod: false, tailscaleCheck: false, statusLine: localStatusLine(), guarda: null, guardaVersion: null, crm: null, crmVersion: null, audioIn: null, gateway: null, models: ["claudecode", "agente"], error: node === null ? "Node.js não encontrado neste Mac" : null,
   };
 }

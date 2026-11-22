@@ -76,7 +76,7 @@ export const CLIENT_CHANNELS = [
   "support:info", "support:set", "support:progress", "support:name", "support:deliver", "support:code", "support:share", "support:reset",
   // seletor
   "picker:install", "picker:install-statusline", "picker:install-transcricao", "picker:install-claude", "picker:install-guarda", "picker:remove-host", "picker:rename-host",
-  "picker:open-direct", "picker:instagramavel", "picker:onboarding-done", "picker:claude-login",
+  "picker:open-direct", "picker:instagramavel", "picker:onboarding-done", "picker:claude-login", "picker:modo-gratis",
   "picker:approve-tailscale", "picker:tailscale-disable-check", "picker:tailscale-credential-save", "picker:tailscale-credential-forget",
 ] as const;
 

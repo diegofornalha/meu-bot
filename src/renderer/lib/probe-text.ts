@@ -10,6 +10,8 @@ export interface ProbeText {
   canOpen: boolean;
   /** Oferecer o botão "Entrar no Claude Code". */
   login?: boolean;
+  /** Oferecer o botão "Usar o modo grátis": este Mac sem o Claude Code, onde o modo grátis (Ollama) pode ser instalado. */
+  gratis?: boolean;
   /** Porta que a ação usa: a do backend ("porta") ou a livre em que "install" vai instalar. */
   port?: number;
 }
@@ -53,7 +55,11 @@ export function describeProbe(p: HostProbe): ProbeText {
   if (p.host === "local") {
     if (p.error !== null || p.claudePath === null || !p.claudeLoggedIn) {
       const why = p.error ?? (p.claudePath === null ? "Claude Code não encontrado" : "Claude Code não está logado");
-      return { kind: "bad", text: `✗ este Mac · ${why}`, install: null, canOpen: false, login: p.claudePath !== null && !p.claudeLoggedIn };
+      const login = p.claudePath !== null && !p.claudeLoggedIn;
+      // Sem o Claude Code a pessoa não fica presa: o backend local sobe só com o modo grátis (Ollama, tutorial 16).
+      if (p.error === null && p.modoGratis === "instalado") return { kind: "ok", text: `✓ ${who} · Node ${p.node ?? "?"} · modo grátis instalado (Ollama): quem responde é o modelo deste Mac · ${why} · backend sobe com a janela${p.backendListening ? " (no ar agora)" : ""}`, install: null, canOpen: true, login };
+      if (p.error === null && p.modoGratis === "possivel") return { kind: "bad", text: `✗ este Mac · ${why}. Sem assinatura de IA? "Usar o modo grátis" instala um modelo que roda neste Mac.`, install: null, canOpen: false, login, gratis: true };
+      return { kind: "bad", text: `✗ este Mac · ${why}`, install: null, canOpen: false, login };
     }
     return { kind: "ok", text: `✓ ${who} · Node ${p.node ?? "?"} · Claude Code logado · backend sobe com a janela${p.backendListening ? " (no ar agora)" : ""}${slNote(p)}`, install: slInstall(p), canOpen: true };
   }

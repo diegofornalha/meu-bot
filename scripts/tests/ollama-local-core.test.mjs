@@ -77,3 +77,13 @@ test("linhaDoPull: status legíveis, progresso de 5 em 5% no blob grande, erro e
   assert.deepEqual(o.linhaDoPull({ error: "pull model manifest: file does not exist" }, 10), { texto: "erro: pull model manifest: file does not exist", pct: 10 });
   assert.equal(o.linhaDoPull("lixo", 0), null);
 });
+
+test("modoGratisDoMac: só no staging e no Mac com chip Apple; instalado ou possível", () => {
+  const mac = { staging: true, plataforma: "darwin", arch: "arm64", preparado: false };
+  assert.equal(o.modoGratisDoMac(mac), "possivel");
+  assert.equal(o.modoGratisDoMac({ ...mac, preparado: true }), "instalado");
+  assert.equal(o.modoGratisDoMac({ ...mac, staging: false }), null, "estável: ainda não é oferecido");
+  assert.equal(o.modoGratisDoMac({ ...mac, arch: "x64" }), null, "Mac Intel");
+  assert.equal(o.modoGratisDoMac({ ...mac, plataforma: "win32", arch: "arm64" }), null, "Windows");
+  assert.equal(o.modoGratisDoMac({ ...mac, staging: false, preparado: true }), null, "instalado no staging não vale no estável");
+});

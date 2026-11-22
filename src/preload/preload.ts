@@ -39,6 +39,7 @@ const MAIN_EVENT_CHANNELS: readonly MainEventChannel[] = [
   "term:data",
   "term:exit",
   "ui:claude-login",
+  "ui:modo-gratis",
   "update:state",
   "net:state",
   "browser:extensions",

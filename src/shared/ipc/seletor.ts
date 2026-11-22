@@ -71,6 +71,8 @@ export interface PickerClientApi {
   disableTailscaleCheck(host: string): Promise<TailscaleSshResult>;
   /** Abre a janela da máquina já no modal "Entrar no Claude Code". */
   claudeLogin(host: string): Promise<void>;
+  /** Abre a janela deste Mac no tutorial 16, que instala o modo grátis (Ollama). */
+  modoGratis(): Promise<void>;
 }
 
 /** Variante: admin. Seletor de pessoas do meu-bot-admin. */

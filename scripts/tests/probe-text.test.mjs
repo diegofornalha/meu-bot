@@ -144,3 +144,48 @@ test("chave SSH da máquina mudou: não é 'fora do ar', e o texto diz o que faz
   const ok = describeProbe({ ...base, hostName: "187.127.41.175", backendInstalled: true, backendListening: true, models: ["claudecode"] });
   assert.match(ok.text, /box@vm \(187\.127\.41\.175\) · Debian 13/);
 });
+
+test("este Mac sem o Claude Code: o modo grátis abre a máquina ou é oferecido", () => {
+  const mac = { ...base, host: "local", os: "macOS 25.6.0", arch: "arm64", backendInstalled: true, claudePath: null, claudeLoggedIn: false };
+  const comClaude = "/Users/x/.local/bin/claude";
+
+  // Modo grátis possível e ainda não instalado: não abre, e o botão "Usar o modo grátis" aparece.
+  const possivel = describeProbe({ ...mac, modoGratis: "possivel" });
+  assert.deepEqual(pick(possivel), { kind: "bad", install: null, canOpen: false });
+  assert.equal(possivel.gratis, true);
+  assert.equal(possivel.login, false, "sem Claude Code não há o que logar");
+  assert.match(possivel.text, /Claude Code não encontrado.*Usar o modo grátis/);
+  // Claude Code instalado e deslogado: os dois botões.
+  const deslogado = describeProbe({ ...mac, claudePath: comClaude, modoGratis: "possivel" });
+  assert.equal(deslogado.gratis, true);
+  assert.equal(deslogado.login, true);
+  assert.match(deslogado.text, /Claude Code não está logado/);
+
+  // Modo grátis instalado: este Mac abre sem o Claude Code, e o botão de instalar some.
+  const instalado = describeProbe({ ...mac, modoGratis: "instalado" });
+  assert.deepEqual(pick(instalado), { kind: "ok", install: null, canOpen: true });
+  assert.equal(instalado.gratis, undefined);
+  assert.match(instalado.text, /modo grátis instalado \(Ollama\)/);
+  assert.equal(describeProbe({ ...mac, claudePath: comClaude, modoGratis: "instalado" }).login, true, "deslogado continua podendo entrar no Claude");
+
+  // Onde o modo grátis não é oferecido (estável, Mac Intel): exatamente como antes.
+  for (const p of [mac, { ...mac, modoGratis: null }]) {
+    const t = describeProbe(p);
+    assert.deepEqual(pick(t), { kind: "bad", install: null, canOpen: false });
+    assert.equal(t.gratis, undefined);
+    assert.equal(t.text, "✗ este Mac · Claude Code não encontrado");
+  }
+  // Sem Node o backend local não sobe: o modo grátis não resolve, nem instalado.
+  const semNode = describeProbe({ ...mac, error: "Node.js não encontrado neste Mac", modoGratis: "instalado" });
+  assert.equal(semNode.canOpen, false);
+  assert.equal(semNode.gratis, undefined);
+  // Claude Code logado: nada muda.
+  const logado = describeProbe({ ...mac, claudePath: comClaude, claudeLoggedIn: true, modoGratis: "possivel" });
+  assert.equal(logado.canOpen, true);
+  assert.equal(logado.gratis, undefined);
+  assert.match(logado.text, /Claude Code logado/);
+  // Máquina por SSH deslogada: o modo grátis é só deste Mac.
+  const remota = describeProbe({ ...base, backendInstalled: true, backendListening: true, claudeLoggedIn: false, modoGratis: "possivel" });
+  assert.equal(remota.gratis, undefined);
+  assert.equal(remota.login, true);
+});

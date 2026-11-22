@@ -27,6 +27,7 @@ const grokbotResetBtn = $<HTMLButtonElement>("pk-grokbot-reset");
 const tailscaleBtn = $<HTMLButtonElement>("pk-tailscale");
 const tailscaleOffBtn = $<HTMLButtonElement>("pk-tailscale-off");
 const claudeLoginBtn = $<HTMLButtonElement>("pk-claude-login");
+const modoGratisBtn = $<HTMLButtonElement>("pk-modo-gratis");
 const tsForm = $<HTMLDivElement>("pk-ts-form");
 const tsId = $<HTMLInputElement>("pk-ts-id");
 const tsSecret = $<HTMLInputElement>("pk-ts-secret");
@@ -331,12 +332,14 @@ function paintDetail(): void {
     statusEl.textContent = `verificando ${hostLabel(selected)}…`;
     openBtn.disabled = true;
     claudeLoginBtn.hidden = true;
+    modoGratisBtn.hidden = true;
     return;
   }
   statusEl.className = `status ${t.kind}`;
   statusEl.textContent = t.text;
   openBtn.disabled = !t.canOpen || installing;
   claudeLoginBtn.hidden = t.login !== true;
+  modoGratisBtn.hidden = t.gratis !== true;
   if (t.install !== null && !installing) {
     installBtn.textContent = t.install === "reinstall" ? "Reinstalar backend" : t.install === "statusline" ? "Instalar status line" : t.install === "transcricao" ? "Ativar transcrição de áudio" : t.install === "guarda" ? "Ativar guarda do WhatsApp" : t.install === "claude" ? "Instalar Claude Code" : t.install === "porta" ? `Usar porta ${t.port ?? "?"}` : t.port !== undefined ? `Instalar backend na porta ${t.port}` : "Instalar backend";
     installBtn.hidden = false;
@@ -758,6 +761,7 @@ async function runDisableCheck(host: string): Promise<void> {
   }
 }
 
+modoGratisBtn.addEventListener("click", () => { void window.picker.modoGratis().catch((err: unknown) => showError("Modo grátis", err)); });
 claudeLoginBtn.addEventListener("click", () => { if (selected !== null) void window.picker.claudeLogin(selected).catch((err: unknown) => showError("Login", err)); });
 tailscaleOffBtn.addEventListener("click", () => {
   if (selected === null) return;
