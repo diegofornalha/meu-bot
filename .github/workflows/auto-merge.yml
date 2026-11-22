@@ -51,6 +51,8 @@ jobs:
           BRANCH: ${{ github.event.workflow_run.head_branch }}
           CONCLUSAO: ${{ github.event.workflow_run.conclusion }}
         run: |
+          # Só na PR que cria este workflow: o script ainda não está na main, que é de onde ele sempre roda.
+          if [ ! -f scripts/auto-merge.mjs ]; then echo "scripts/auto-merge.mjs ainda não está na main: nada a fazer"; exit 0; fi
           if [ "$EVENTO" = "workflow_run" ]; then
             N="$PR_DA_RODADA"
             # A rodada nem sempre traz a PR: acha pela ponta do branch.
