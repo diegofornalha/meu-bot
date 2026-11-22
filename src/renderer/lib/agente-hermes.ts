@@ -18,3 +18,10 @@ export function hermesBloqueado(host: string, st: Pick<WhatsappStatus, "hermesCl
   // `false` só quando a consulta rodou e não achou o comando; sem o campo (status com erro), o motivo é outro.
   return st?.hermesCli === false ? HERMES_FALTA_NO_MAC : HERMES_NAO_CONFERIDO;
 }
+
+/**
+ * O cartão de um agente está desligado? Só enquanto uma troca está sendo gravada, ou pelo bloqueio do próprio cartão.
+ * Pareamento em andamento (QR na tela) NÃO desliga: quem se arrependeu da escolha troca sem ler o QR nem esperar ele
+ * expirar; o clique cancela o pareamento e grava a troca (agente-whatsapp.ts, escolherAgente).
+ */
+export const cartaoAgenteDesligado = (e: { salvando: boolean; bloqueio: string | null }): boolean => e.salvando || e.bloqueio !== null;
