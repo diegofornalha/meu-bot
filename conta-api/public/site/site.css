@@ -101,4 +101,8 @@ main.marketplace { max-width: 980px; }
 .marketplace a.mk-cartao .mk-preco { color: var(--texto); font-size: 16px; margin-top: 10px; }
 .marketplace .mk-mais { color: var(--primario); font-weight: 600; margin-top: 12px; }
 .marketplace .mk-preco { font-size: 20px; }
+.marketplace .mk-busca { margin: 20px 0 0; }
+.marketplace .mk-busca input { width: min(520px, 100%); padding: 11px 14px; border: 1px solid var(--borda); border-radius: 12px; font: inherit; color: inherit; background: var(--cartao); }
+.marketplace .mk-busca input:focus-visible { border-color: var(--primario); outline: none; }
+.marketplace a.mk-cartao[hidden] { display: none; }
 .marketplace .mk-preco s { opacity: .6; }

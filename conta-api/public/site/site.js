@@ -135,4 +135,18 @@
       .then((d) => { const hw = $("hash-windows"); if (hw && d && typeof d.sha256 === "string") { hw.textContent = d.sha256; const bloco = $("bloco-hash-windows"); if (bloco) bloco.hidden = false; } vw.textContent = d && typeof d.versao === "string" ? ["Versão " + d.versao, data(d.publicadoEm), mb(d.tamanho)].filter(Boolean).join(" · ") : "O instalador do Windows ainda não saiu em nenhuma versão de teste."; })
       .catch(() => { vw.textContent = ""; });
   }
+  // /marketplace: a busca esconde os cartões que não combinam. Cada cartão traz em data-busca o texto em que procurar
+  // (nome, resumo, categoria e exemplo de pedido); todas as palavras digitadas têm de aparecer, sem diferenciar acento.
+  const busca = $("mk-busca");
+  if (busca) {
+    const semAcento = (t) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    const cartoes = [...document.querySelectorAll(".mk-cartao[data-busca]")].map((c) => ({ c, alvo: semAcento(c.dataset.busca || "") }));
+    const filtrar = () => {
+      const palavras = semAcento(busca.value).split(/\s+/).filter(Boolean);
+      let visiveis = 0;
+      for (const { c, alvo } of cartoes) { const ok = palavras.every((p) => alvo.includes(p)); c.hidden = !ok; if (ok) visiveis++; }
+      const vazio = $("mk-busca-vazio"); if (vazio) vazio.hidden = visiveis > 0;
+    };
+    busca.addEventListener("input", filtrar);
+  }
 })();

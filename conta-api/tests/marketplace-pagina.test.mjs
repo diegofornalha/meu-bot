@@ -91,3 +91,33 @@ test("no Worker: /marketplace e cada item respondem 200; slug fora do catálogo 
   assert.match(llms, /## Marketplace/);
   assert.doesNotMatch(await (await pedir("producao", "/llms.txt", {})).text(), /## Marketplace/);
 });
+
+// A busca na vitrine e as ferramentas nas páginas públicas.
+import { CATALOGO as CATALOGO_F } from "../dist/ferramentas-catalogo.js";
+import { lerOfertasDeFerramentas as lerOfertasF } from "../dist/ferramentas-core.js";
+import { itensDoMarketplace as itensF } from "../dist/marketplace-core.js";
+import { corpoDaLista as corpoListaF, corpoDoItem as corpoItemF } from "../dist/marketplace-pagina.js";
+
+test("vitrine: campo de busca e, em cada cartão, o texto em que ela procura", () => {
+  const itens = itensF({ precoPro: 9700, addons: [], extras: [], ferramentas: lerOfertasF({ gmail: { produto: "prod_abc123XYZ", centavos: 4700 }, godaddy_mcp: { produto: "prod_def456UVW", centavos: 1900 } }, CATALOGO_F) });
+  const html = corpoListaF(itens);
+  assert.match(html, /<input type="search" id="mk-busca"[^>]*aria-label="Buscar no Marketplace"/);
+  assert.match(html, /id="mk-busca-vazio" hidden/);
+  assert.equal((html.match(/data-busca="/g) ?? []).length, itens.length, "todo cartão é buscável, não só as ferramentas");
+  assert.match(html, /href="\/marketplace\/ferramenta-gmail"[^>]*data-tipo="ferramenta"[^>]*data-busca="Gmail [^"]*Google[^"]*"/);
+  assert.match(html, /Ferramenta · Conectar com um clique/);
+  assert.match(html, /Ferramenta · Pronta para uso/);
+  assert.match(html, /<span class="mk-tipo">Plano<\/span>/, "o Pro continua só com o tipo");
+});
+
+test("página de uma ferramenta: o que dá para pedir, como conectar e o preço", () => {
+  const itens = itensF({ precoPro: 9700, addons: [], extras: [], ferramentas: lerOfertasF({ gmail: { produto: "prod_abc123XYZ", centavos: 4700 } }, CATALOGO_F) });
+  const gmail = itens.find((i) => i.id === "ferramenta-gmail");
+  const html = corpoItemF(gmail);
+  assert.match(html, /<h1>Gmail<\/h1>/);
+  assert.match(html, /<h2>O que dá para pedir<\/h2>\s*<p>Por exemplo: “[^”]+”<\/p>/);
+  assert.match(html, /clique em Conectar e autorize/);
+  assert.match(html, /<strong>R\$ 47<\/strong> por mês/);
+  assert.match(html, /href="\/account\/marketplace\/ferramenta-gmail"/);
+  assert.doesNotMatch(corpoItemF(itens[0]), /O que dá para pedir/, "o Pro não ganha a seção");
+});

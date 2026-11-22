@@ -65,3 +65,83 @@ test("marketplaceDoEnv: sem as chaves de pagamento nada está à venda; com elas
   assert.deepEqual(ligado.map((i) => i.id), ["pro", ...lerAddons(vars.ABACATEPAY_ADDONS).map((a) => a.nome), ...lerExtras(vars.ABACATEPAY_EXTRAS).map((x) => x.nome)]);
   assert.equal(ligado[0].centavos, Number(vars.ABACATEPAY_PRECO_CENTAVOS));
 });
+
+// Ferramentas: a conexão do agente com um app, vendida uma a uma (ferramentas-core.ts e ferramentas-catalogo.ts).
+import { CATALOGO } from "../dist/ferramentas-catalogo.js";
+import { OFERTAS_DE_FERRAMENTAS } from "../dist/ferramentas-ofertas.js";
+import { combinaComABusca, defeitosDoCatalogo, ehFerramenta, idDaFerramenta, lerOfertasDeFerramentas, semAcento, textoDeBusca } from "../dist/ferramentas-core.js";
+import { fichaDaFerramenta, rotuloDoGrupo } from "../dist/marketplace-core.js";
+
+test("catálogo de ferramentas: bem formado, em português e sem slug repetido", () => {
+  assert.deepEqual(defeitosDoCatalogo(CATALOGO), []);
+  assert.ok(CATALOGO.length >= 100, "o catálogo tem as ferramentas da lista");
+  const slugs = CATALOGO.map((f) => f.slug);
+  for (const s of ["gmail", "google_search_console", "googlecalendar", "googlesheets", "notion", "canva"]) assert.ok(slugs.includes(s), `${s} está no catálogo`);
+  assert.ok(CATALOGO.some((f) => f.grupo === "pronta") && CATALOGO.some((f) => f.grupo === "conectar"), "os dois grupos existem");
+  // Fora do público do meu-bot (lazer, uso pessoal, outros países): não entram.
+  for (const s of ["aiwyn_tax_mcp", "alltrails_mcp", "viator_mcp", "ziprecruiter_mcp", "dice_mcp", "taskrabbit_mcp", "resortlife_travel_mcp"]) assert.ok(!slugs.includes(s), `${s} ficou de fora`);
+  // O validador pega os defeitos que importam.
+  const ruim = [{ slug: "Gmail!", nome: "G", categoria: "", grupo: "x", resumo: "curto", exemplo: "" }, { ...CATALOGO[0] }, { ...CATALOGO[0] }];
+  const d = defeitosDoCatalogo(ruim).join("\n");
+  for (const parte of ["slug fora da forma", "nome vazio", "sem categoria", "grupo desconhecido", "resumo deve ser", "exemplo de pedido", "slug repetido"]) assert.match(d, new RegExp(parte));
+});
+
+test("ofertas de ferramentas: só entra o que está no catálogo e na forma; os dois ambientes são lidos sem erro", () => {
+  const ofertas = lerOfertasDeFerramentas({
+    gmail: { produto: "prod_abc123XYZ", centavos: 4700 },
+    notion: { produto: "sem-prefixo", centavos: 4700 },
+    canva: { produto: "prod_abc123XYZ", centavos: 0 },
+    slack: { produto: "prod_abc123XYZ", centavos: 19.5 },
+    nao_existe: { produto: "prod_abc123XYZ", centavos: 4700 },
+    google_search_console: { produto: "prod_def456UVW", centavos: 2900 },
+  }, CATALOGO);
+  assert.deepEqual(ofertas.map((o) => [o.ferramenta.slug, o.centavos]), [["google_search_console", 2900], ["gmail", 4700]], "na ordem do catálogo, sem as entradas fora da forma");
+  for (const lixo of [null, undefined, [], "x", 3]) assert.deepEqual(lerOfertasDeFerramentas(lixo, CATALOGO), []);
+  for (const amb of ["producao", "staging"]) {
+    const lidas = lerOfertasDeFerramentas(OFERTAS_DE_FERRAMENTAS[amb], CATALOGO);
+    assert.equal(lidas.length, Object.keys(OFERTAS_DE_FERRAMENTAS[amb]).length, `${amb}: toda oferta escrita é válida e de ferramenta do catálogo`);
+  }
+});
+
+test("ferramenta no Marketplace: ficha escrita do catálogo, depois dos apps e extras, com nome técnico próprio", () => {
+  const gmail = CATALOGO.find((f) => f.slug === "gmail"), console_ = CATALOGO.find((f) => f.slug === "google_search_console"), pronta = CATALOGO.find((f) => f.grupo === "pronta");
+  assert.equal(idDaFerramenta("google_search_console"), "ferramenta-google-search-console");
+  assert.equal(ehFerramenta("ferramenta-gmail"), true);
+  for (const p of ["pro", "meu-bot-finance", "extra-maquina", null, undefined]) assert.equal(ehFerramenta(p), false);
+
+  const f = fichaDaFerramenta(gmail);
+  assert.equal(f.slug, "ferramenta-gmail"); assert.equal(f.tipo, "ferramenta"); assert.equal(f.nome, "Gmail");
+  assert.equal(f.resumo, gmail.resumo); assert.equal(f.exemplo, gmail.exemplo); assert.equal(f.categoria, "Google");
+  assert.match(f.descricao, /clique em Conectar e autorize/);
+  assert.match(f.exige, /Pro/);
+  assert.equal(rotuloDoGrupo(f), "Conectar com um clique");
+  const fp = fichaDaFerramenta(pronta);
+  assert.match(fp.descricao, /Não pede login/);
+  assert.equal(rotuloDoGrupo(fp), "Pronta para uso");
+  assert.equal(rotuloDoGrupo(FICHAS[ITEM_PRO]), null, "o Pro não tem grupo");
+
+  const itens = itensDoMarketplace({ precoPro: 9700, addons: [], extras: [], ferramentas: lerOfertasDeFerramentas({ gmail: { produto: "prod_abc123XYZ", centavos: 4700 }, google_search_console: { produto: "prod_def456UVW", centavos: 2900 } }, CATALOGO) });
+  assert.deepEqual(itens.map((i) => [i.id, i.tipo, i.centavos]), [["pro", "plano", 9700], ["ferramenta-google-search-console", "ferramenta", 2900], ["ferramenta-gmail", "ferramenta", 4700]]);
+  assert.equal(itemPorSlug(itens, "ferramenta-gmail").nome, "Gmail");
+  assert.equal(itensDoMarketplace({ precoPro: null, addons: [], extras: [], ferramentas: lerOfertasDeFerramentas({ gmail: { produto: "prod_abc123XYZ", centavos: 4700 } }, CATALOGO) }).length, 0, "pagamentos desligados: nada à venda");
+  assert.equal(itensDoMarketplace({ precoPro: 9700, addons: [], extras: [] }).length, 1, "sem ferramentas, a lista é a de antes");
+  // Nenhum slug público de ferramenta bate com o de um item que já existe.
+  const publicos = new Set(Object.values(FICHAS).map((x) => x.slug));
+  for (const c of CATALOGO) assert.ok(!publicos.has(idDaFerramenta(c.slug)));
+  assert.ok(console_ !== undefined);
+});
+
+test("busca do Marketplace: sem acento, todas as palavras, em nome, resumo, categoria e exemplo", () => {
+  assert.equal(semAcento("Calendário e AÇÃO"), "calendario e acao");
+  const sheets = fichaDaFerramenta(CATALOGO.find((f) => f.slug === "googlesheets"));
+  const t = textoDeBusca(sheets);
+  for (const termo of ["", "  ", "planilha", "PLANILHAS google", "google planilha", "faturamento"]) assert.equal(combinaComABusca(t, termo), true, termo);
+  for (const termo of ["gmail", "planilha zebra"]) assert.equal(combinaComABusca(t, termo), false, termo);
+  // "planilha" acha o Google Sheets e o Excel; "e-mail" acha o Gmail e o Outlook.
+  const acha = (termo) => CATALOGO.filter((f) => combinaComABusca(textoDeBusca(fichaDaFerramenta(f)), termo)).map((f) => f.slug);
+  for (const s of ["googlesheets", "excel"]) assert.ok(acha("planilha").includes(s), s);
+  for (const s of ["gmail", "outlook"]) assert.ok(acha("e-mail").includes(s), s);
+  assert.ok(acha("agenda").includes("googlecalendar"));
+  assert.deepEqual(acha("xyzzy-nao-existe"), []);
+  assert.equal(combinaComABusca(textoDeBusca(FICHAS[ITEM_PRO]), "whatsapp"), true, "os itens de antes também são achados");
+});
