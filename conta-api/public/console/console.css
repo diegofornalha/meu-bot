@@ -173,6 +173,8 @@ code { padding: 2px 6px; border-radius: 6px; background: var(--codigo); border: 
 .j-hist { margin-top: 10px; font-size: 13px; } .j-hist summary { cursor: pointer; color: var(--sub); }
 
 /* Marketplace: grade de cartões (o mesmo desenho da página Módulos do app) e a página de um item. */
+.mk-busca { margin: 16px 0 0; }
+.mk-busca input { width: min(520px, 100%); }
 .mk-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; margin: 16px 0 20px; }
 .mk-cartao { display: flex; flex-direction: column; gap: 6px; background: var(--cartao); border: 1px solid var(--borda); border-radius: 16px; padding: 20px; color: var(--texto); text-decoration: none; }
 .mk-cartao:hover, .mk-cartao:focus-visible { border-color: var(--primario); outline: none; }

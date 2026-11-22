@@ -1,5 +1,6 @@
 import { MOTIVOS_ENCERRAR, ROTULO_ALVO, avisoDepoisDo404, cortesiasDaFicha, diaDaqui, estadoCortesia, fimDoDia, oQueACortesiaDa, pedeReleitura, rotuloMotivo, seloDoPlano, visaoVelha } from "./admin-core.js";
 import { INFINITO, SEM_LIMITE, SEM_PRAZO, TODOS_ADDONS, avisoAddonPago, contagemRegressiva, addonsNaVisaoGeral, estadoAssinaturaPro, fase, linhasDeMaquinas, deParaDoExtra, assinaturasDoItem, bloqueioDeOrg, assentoChegou, cortesiasNaTela, proPelaOrgTexto, estadoDoItem, itemGa, ofertaDoProAparece, orgsQueGerencia, usuariosDaOrg, situacaoDaUnidade, situacaoDoApp, resumoDeUso, semDevices, oQueAContaTem, pagoChegou, assinaturasAtivasDe, pedidoAssinar, podeAdicionarMaquina, promoNaTela, buscaDaVolta, reaisCurto, semPrazo, vagaDoAssinar, voltaDoPagamento, vagasDeDevice, vagasDeMaquina } from "./plano-core.js";
+import { filtrarItens } from "./busca-core.js";
 // Console da conta meu-bot (console.agentesgrok.com/account/* e /organizations/<slug>/members|settings, molde Rambox). Entra pela mesma página de
 // login do app (auth.agentesgrok.com) com esquema=web: o console gera state + PKCE, a página devolve #code&state, e
 // POST /token {grant:"web"} vira um token de acesso de 1 h guardado neste navegador (localStorage: outra aba, inclusive
@@ -1414,7 +1415,10 @@ let mkMedido = null;
 /** Navega dentro do console sem recarregar (os cartões e o "voltar" do Marketplace). */
 function irPara(ev, caminho) { ev.preventDefault(); history.pushState(null, "", caminho); if (conta !== null) mostrarConsole(conta); }
 const avatarDe = (item) => el("div", "mk-avatar", item.nome.replace(/^Mais um[a]? /, "").slice(0, 1).toUpperCase());
-const TIPO_ITEM = { plano: "Plano", app: "App", unidade: "Extra" };
+const TIPO_ITEM = { plano: "Plano", app: "App", unidade: "Extra", ferramenta: "Ferramenta" };
+/** O que o cartão de uma ferramenta diz do grupo dela (ferramentas-core.ts no Worker). */
+const ROTULO_GRUPO = { pronta: "Pronta para uso", conectar: "Conectar com um clique" };
+const tipoDoItem = (x) => [TIPO_ITEM[x.tipo] ?? "", ROTULO_GRUPO[x.grupo] ?? ""].filter((t) => t !== "").join(" · ");
 /** A linha do preço de um item: "De R$ 997 por R$ 97 por mês" quando há preço de tabela; senão "R$ 97 por mês". */
 function precoDoItem(item, classe) {
   const p = el("p", classe), dp = deParaDoExtra(item);
@@ -1446,11 +1450,15 @@ function pintarMarketplace(c) {
     const nomes = Object.fromEntries(MKT.map((x) => [x.id, x.nome]));
     const tem = semPrazo(l) ? [`Pro ${INFINITO}`, TODOS_ADDONS] : oQueAContaTem(c, nomes);
     $("mk-tem").textContent = tem.length === 0 ? "Ainda nada além da conta gratuita. Comece pelo Pro." : `${tem.join(" · ")}.`;
-    $("mk-grade").replaceChildren(...MKT.map((x) => {
+    // A busca filtra a vitrine; o que foi digitado fica no campo entre as repinturas (a página é repintada várias vezes).
+    const busca = $("mk-busca"), visiveis = filtrarItens(MKT, busca.value);
+    if (!busca.dataset.ligada) { busca.dataset.ligada = "1"; busca.addEventListener("input", () => pintarMarketplace(c)); }
+    $("mk-busca-vazio").hidden = visiveis.length > 0;
+    $("mk-grade").replaceChildren(...visiveis.map((x) => {
       const a = el("a", "mk-cartao"), topo = el("div", "mk-topo"), e = estadoDoItem(c, x, data);
       a.href = `/account/marketplace/${x.slug}`; a.addEventListener("click", (ev) => { ga.evento("select_item", { item_list_id: "marketplace", items: [itemGa(x)] }); irPara(ev, a.getAttribute("href")); });
       topo.append(avatarDe(x), selo(e.texto, e.tom));
-      a.append(topo, el("h3", "", x.nome), el("p", "mk-tipo", TIPO_ITEM[x.tipo] ?? ""), el("p", "mk-resumo", x.resumo ?? ""), precoDoItem(x, "mk-preco"));
+      a.append(topo, el("h3", "", x.nome), el("p", "mk-tipo", tipoDoItem(x)), el("p", "mk-resumo", x.resumo ?? ""), precoDoItem(x, "mk-preco"));
       return a;
     }));
     return;
@@ -1460,6 +1468,7 @@ function pintarMarketplace(c) {
   cabeca.append(avatarDe(item), el("h2", "", item.nome), selo(e.texto, e.tom));
   painel.append(cabeca, el("p", "", item.resumo ?? ""), precoDoItem(item, "oferta"));
   if (item.descricao) painel.append(el("h3", "", "Como funciona"), el("p", "", item.descricao));
+  if (item.exemplo) painel.append(el("h3", "", "O que dá para pedir"), el("p", "", `Por exemplo: “${item.exemplo}”`));
   if (Array.isArray(item.inclui) && item.inclui.length > 0) { const ul = el("ul"); ul.append(...item.inclui.map((x) => el("li", "", x))); painel.append(el("h3", "", "O que você passa a ter"), ul); }
   if (item.exige) painel.append(el("h3", "", "O que é preciso"), el("p", "", item.exige));
   // O que fazer agora, por tipo: o Pro usa o painel de assinar (pintarAssinar já o trouxe para cá); sem oferta, diz o que a conta tem.

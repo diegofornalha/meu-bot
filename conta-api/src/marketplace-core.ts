@@ -5,9 +5,13 @@
  * catálogo do ambiente não entra na lista: o Marketplace só mostra o que se vende ali.
  */
 import type { OfertaAddon, OfertaExtra } from "./pagamento-core.js";
+import { ROTULO_GRUPO, idDaFerramenta, type Ferramenta, type GrupoFerramenta, type OfertaFerramenta } from "./ferramentas-core.js";
 
-/** `plano`: a assinatura base; `app`: função completa que roda em cima do plano (add-on); `unidade`: mais uma vaga (cada assinatura soma 1). */
-export type TipoItem = "plano" | "app" | "unidade";
+/**
+ * `plano`: a assinatura base; `app`: função completa que roda em cima do plano (add-on); `unidade`: mais uma vaga (cada
+ * assinatura soma 1); `ferramenta`: a conexão do agente com um app, vendida uma a uma (ferramentas-core.ts).
+ */
+export type TipoItem = "plano" | "app" | "unidade" | "ferramenta";
 export interface Ficha {
   /** O caminho público do item: /marketplace/<slug>. */
   slug: string;
@@ -22,6 +26,10 @@ export interface Ficha {
   inclui: readonly string[];
   /** O que é preciso ter antes; null quando não exige nada. */
   exige: string | null;
+  /** Só nas ferramentas: a categoria (para a busca e o filtro), um pedido de exemplo e se pede conexão. */
+  categoria?: string;
+  exemplo?: string;
+  grupo?: GrupoFerramenta;
 }
 /** O nome técnico do Pro na lista (os add-ons e extras usam o nome do catálogo: "meu-bot-finance", "extra-maquina"). */
 export const ITEM_PRO = "pro";
@@ -74,6 +82,22 @@ export const FICHAS: Readonly<Record<string, Ficha>> = {
   },
 };
 
+/** A ficha de uma ferramenta, escrita a partir do catálogo: o mesmo texto para as cento e tantas, mudando o app. */
+export function fichaDaFerramenta(f: Ferramenta): Ficha {
+  const pronta = f.grupo === "pronta";
+  return {
+    slug: idDaFerramenta(f.slug), tipo: "ferramenta", nome: f.nome, resumo: f.resumo,
+    descricao: pronta
+      ? `O agente passa a usar o ${f.nome} nas conversas do chat e do WhatsApp. Não pede login nem configuração: depois de contratar, ele já responde pedidos como o do exemplo.`
+      : `O agente passa a usar o ${f.nome} pela sua conta, nas conversas do chat e do WhatsApp. Depois de contratar, abra a página Ferramentas do app, clique em Conectar e autorize o acesso. Não há chave para criar nem servidor para configurar.`,
+    inclui: [`O ${f.nome} ligado ao seu agente`, pronta ? "Pronta para uso: funciona assim que contratada" : "Conexão com um clique, pela página Ferramentas do app", "Você desconecta quando quiser"],
+    exige: COM_O_PRO,
+    categoria: f.categoria, exemplo: f.exemplo, grupo: f.grupo,
+  };
+}
+/** "Pronta para uso" ou "Conectar com um clique", para o cartão e a página de uma ferramenta; null nos outros itens. */
+export const rotuloDoGrupo = (i: { grupo?: GrupoFerramenta | undefined }): string | null => (i.grupo === undefined ? null : ROTULO_GRUPO[i.grupo]);
+
 /** Um item à venda no ambiente: a ficha mais o preço. `id` é o nome técnico (o `produto` do checkout; "pro" para o plano). */
 export interface ItemMarketplace extends Ficha { id: string; centavos: number; deCentavos: number | null }
 
@@ -83,14 +107,15 @@ const fichaDeReserva = (id: string, rotulo: string, tipo: TipoItem): Ficha => ({
 /**
  * O que está à venda: o Pro primeiro (a base), depois os apps e as unidades, na ordem do catálogo. `precoPro` null =
  * pagamentos desligados no ambiente: lista vazia. `addons` e `extras` são os que estão à venda (`addonsAVenda`,
- * `extrasAVenda`).
+ * `extrasAVenda`). As ferramentas vêm por último, na ordem do catálogo: são muitas, e a busca é o caminho até elas.
  */
-export function itensDoMarketplace(p: { precoPro: number | null; addons: readonly OfertaAddon[]; extras: readonly OfertaExtra[] }): ItemMarketplace[] {
+export function itensDoMarketplace(p: { precoPro: number | null; addons: readonly OfertaAddon[]; extras: readonly OfertaExtra[]; ferramentas?: readonly OfertaFerramenta[] }): ItemMarketplace[] {
   if (p.precoPro === null) return [];
   const de = (cobrado: number, tabela: number | null | undefined): number | null => (typeof tabela === "number" && tabela > cobrado ? tabela : null);
   const out: ItemMarketplace[] = [{ ...FICHAS[ITEM_PRO]!, id: ITEM_PRO, centavos: p.precoPro, deCentavos: de(p.precoPro, PRO_DE_CENTAVOS) }];
   for (const a of p.addons) out.push({ ...(FICHAS[a.nome] ?? fichaDeReserva(a.nome, a.rotulo, "app")), id: a.nome, centavos: a.centavos, deCentavos: null });
   for (const x of p.extras) out.push({ ...(FICHAS[x.nome] ?? fichaDeReserva(x.nome, x.rotulo, "unidade")), id: x.nome, centavos: x.centavos, deCentavos: de(x.centavos, x.deCentavos) });
+  for (const f of p.ferramentas ?? []) out.push({ ...fichaDaFerramenta(f.ferramenta), id: idDaFerramenta(f.ferramenta.slug), centavos: f.centavos, deCentavos: null });
   return out;
 }
 /** O item de um slug público, ou null (slug desconhecido ou item fora do catálogo do ambiente). */
