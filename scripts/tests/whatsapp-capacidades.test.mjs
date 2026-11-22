@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 const { capacidadesDe } = createRequire(import.meta.url)("../../dist/main/whatsapp/whatsapp-capacidades.js");
 
-const CHAVES = ["parear", "listarConversas", "lerConversa", "limparHistorico", "pausar", "pausaPrazo", "pausaNativa", "grupos", "guarda", "politicaDm", "audio", "politicaReinicia", "gatewayProprio", "gruposAtualizar", "digitando", "digitandoReinicia"];
+const CHAVES = ["parear", "listarConversas", "lerConversa", "limparHistorico", "pausar", "pausaPrazo", "pausaNativa", "grupos", "guarda", "politicaDm", "audio", "politicaReinicia", "gatewayProprio", "gruposAtualizar", "gruposAoConectar", "digitando", "digitandoReinicia"];
 
 test("Hermes: pausa com prazo vem do plugin meu-bot-pausa ou do nativo; sem os dois, pausar é pela lista (sem prazo); no OpenClaw não há prazo", () => {
   const sem = capacidadesDe("hermes", true, true);
@@ -18,7 +18,9 @@ test("Hermes: pausa com prazo vem do plugin meu-bot-pausa ou do nativo; sem os d
 
 test("sem gateway ou sem bridge/plugin, a máquina não oferece nada", () => {
   for (const c of [capacidadesDe(null, true, true), capacidadesDe("openclaw", false, false), capacidadesDe("hermes", false, false)]) {
-    assert.deepEqual(Object.values(c).filter(Boolean), [], "nenhuma capacidade deveria estar ligada");
+    // `gruposAoConectar` não é oferta: só diz à tela por que os grupos ainda não aparecem (tem teste próprio abaixo).
+    const { gruposAoConectar: _aviso, ...oferece } = c;
+    assert.deepEqual(Object.values(oferece).filter(Boolean), [], "nenhuma capacidade deveria estar ligada");
   }
 });
 
@@ -37,6 +39,16 @@ test("OpenClaw: o que depende de conversa só liga com o número conectado", () 
   assert.ok(sem.parear && sem.guarda && sem.politicaDm);
   assert.ok(!sem.listarConversas && !sem.limparHistorico && !sem.pausar && !sem.grupos);
   assert.ok(com.listarConversas && com.lerConversa && com.limparHistorico && com.pausar && com.grupos);
+});
+
+test("gruposAoConectar: OpenClaw e Hermes gerenciam grupos assim que o WhatsApp conecta (mesmo sem o agente pronto); PicoClaw e máquina sem agente, não", () => {
+  for (const g of ["openclaw", "hermes"]) {
+    assert.ok(capacidadesDe(g, true, false).gruposAoConectar && !capacidadesDe(g, true, false).grupos, `${g} desconectado: falta conectar`);
+    assert.ok(capacidadesDe(g, false, false).gruposAoConectar && !capacidadesDe(g, false, false).parear, `${g} sem estar pronto: só o aviso muda`);
+    assert.ok(capacidadesDe(g, true, true).gruposAoConectar && capacidadesDe(g, true, true).grupos);
+  }
+  assert.ok(!capacidadesDe("picoclaw", true, true).gruposAoConectar);
+  assert.ok(!capacidadesDe(null, true, true).gruposAoConectar);
 });
 
 test("Hermes: lista, lê e limpa pelo state.db, liga/desliga grupos e áudio (config.yaml) e escolhe quem responde (.env, com reinício); sem guarda", () => {
