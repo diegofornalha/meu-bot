@@ -155,6 +155,12 @@ test("vigia da release: acusa a main sem staging além do prazo; em dia, ou só 
   assert.equal(releaseParada({ ...base, tagsNoHead: ["v1.2.0-staging.3"], commitEm: agora - 100 * H }), null);
   // Só a versão e o CHANGELOG mudaram (PR "Versão: base sobe"): o agente também não solta staging.
   assert.equal(releaseParada({ ...base, mudouDesdeRelease: ["package.json", "docs/CHANGELOG.md"], commitEm: agora - 100 * H }), null);
-  // A estável da base já saiu: a rodada é "subir-base", não staging.
-  assert.equal(releaseParada({ ...base, tagsTodas: ["v1.2.0"], commitEm: agora - 100 * H }), null);
+  // A estável da base já saiu e a base não subiu: outra forma de release parada (sem a PR da base, não sai staging).
+  const semBase = releaseParada({ ...base, tagsTodas: ["v1.2.0"], commitEm: agora - 100 * H });
+  assert.match(semBase, /^a estável v1\.2\.0 já saiu e a main continua na base 1\.2\.0 há 100 h/);
+  assert.match(semBase, /--religar/);
+  // Estável recém-publicada de um commit antigo (promoção pela tag): o prazo conta da estável, não do commit.
+  assert.equal(releaseParada({ ...base, tagsTodas: ["v1.2.0"], commitEm: agora - 100 * H, estavelEm: agora - 10 * 60_000 }), null);
+  assert.match(releaseParada({ ...base, tagsTodas: ["v1.2.0"], commitEm: agora - 100 * H, estavelEm: agora - 5 * H }), /há 5 h/);
+  assert.equal(releaseParada({ ...base, tagsTodas: ["v1.2.0"], commitEm: agora - 60_000 }), null, "base por subir, mas dentro do prazo");
 });
