@@ -27,7 +27,12 @@ skill e cada módulo tem versão, histórico e acesso próprios, e a pessoa usa 
 - A skill importada pode ser colocada à venda pelo próprio criador.
 - Item de criador de fora é assinatura mensal, o fluxo que a AbacatePay já tem aqui.
 - Repasse ao criador manual no começo: o site registra cada venda e o fechamento do mês sai por Pix.
-- Revisão: o Claude revisa e o dono aprova antes de publicar. Atualização passa pela revisão de novo.
+- Revisão sem gargalo: a revisão do Claude publica sozinha quando não aponta nada. O que ela apontar como risco espera
+  o dono no console, e o dono pode tirar qualquer item do ar a qualquer hora. Vale para o envio novo e para cada
+  atualização. A primeira versão desta decisão, no mesmo dia, era "o Claude revisa e o dono aprova"; mudou para
+  seguir a regra de 15 nov 2026, "nenhuma pessoa é gargalo".
+- Skill importada é instalada pelo app, como os módulos, depois da prévia e do clique da pessoa. O resto do Acervo
+  continua pedindo a instalação ao agente da máquina.
 - Criador de fora vende skills e módulos. Ferramentas continuam com a curadoria do dono.
 
 ## Desenho
@@ -46,13 +51,28 @@ skill e cada módulo tem versão, histórico e acesso próprios, e a pessoa usa 
 - Antes de instalar, a tela mostra nome, descrição, arquivos e commit. A skill roda com as permissões do agente e, por
   este caminho, não passa por revisão: a pessoa instala por conta própria e vê o que está aceitando. Repositório sem
   `SKILL.md` válido é recusado, com a mensagem dizendo o que falta.
-- A instalação usa a biblioteca que já existe, `skill_semente` (`backend-colima/skills-lib.sh`): põe em
-  `~/.claude/skills` e `~/.hermes/skills` e preserva o que o agente editou. Falta o destino do OpenClaw
-  (`<workspace>/skills`, como em `objetivo-core.ts`), que entra na biblioteca.
+- A instalação tem instalador próprio (`src/main/agente/skills-importar-core.ts`), e não a `skill_semente` da
+  `backend-colima/skills-lib.sh`: aquela só roda dentro do instalador de um componente. Ele põe a skill no Claude Code
+  (`~/.claude/skills`) e no agente do WhatsApp (Hermes ou OpenClaw, na pasta `skills` do workspace), preserva o
+  `SKILL.md` que o agente editou e não toca em pasta que não foi ele que criou.
 - Registro na máquina: `~/.local/share/meu-bot/skills/<nome>/origem.json`, com `url`, `commit`, `em` e `origem` (link ou
   marketplace). Atualizar é um clique da pessoa; nada muda sozinho quando o repositório muda.
+- Importar, atualizar e remover ficam na Auditoria da máquina (`skill.importar`, `skill.atualizar`, `skill.remover`),
+  com o repositório e o commit.
 - Tela: o Acervo, que hoje lista skills só para leitura, ganha "Importar pelo link" e as seções "Minhas skills" e "Do
   Marketplace", com Atualizar, Remover e "Colocar à venda".
+
+### Importar pelo chat
+
+O plano das Ferramentas diz que o caminho do dia a dia é a conversa, e a página serve para administrar. A importação
+segue a mesma regra: o agente pede, o app mostra a prévia como cartão na conversa e a pessoa confirma.
+
+- Usa a ponte e o cartão das Ferramentas no app, que ainda não existem (as PRs #468 e #469 entregaram o lado da máquina
+  e as regras puras). Não se cria uma segunda ponte só para as skills.
+- Quando existirem: uma tool nova no `backend-colima/ferramentas-mcp.js` (sobe a `backend-colima/VERSION`), que chama
+  `skillPrevia` e `skillInstalar` (`src/main/agente/skills-importar.ts`).
+- Sempre com cartão: não há "Permitir sempre" para instalar skill. Pelo WhatsApp o pedido é recusado, porque sem tela
+  não há prévia.
 
 ### Vender (site, `conta-api`)
 
@@ -71,7 +91,8 @@ skill e cada módulo tem versão, histórico e acesso próprios, e a pessoa usa 
 ### Criadores de fora
 
 - "Colocar à venda" envia repositório, commit, ficha e preço. O app do criador manda o pacote do commit que ele já
-  testou na própria máquina. O item fica "em revisão" até a revisão do Claude e a aprovação do dono no console.
+  testou na própria máquina. O item fica "em revisão" até a revisão do Claude terminar: sem apontamento, é publicado
+  na hora; com apontamento de risco, espera o dono no console.
 - Cada venda grava quanto cabe ao criador. O console mostra o fechamento do mês para o repasse por Pix.
 
 ## Fases
@@ -79,9 +100,10 @@ skill e cada módulo tem versão, histórico e acesso próprios, e a pessoa usa 
 | Fase | O que entrega | Estado |
 |---|---|---|
 | 0 | Este plano | feito |
-| 1 | Importar skill pelo link, de graça: baixar com commit fixado, prévia, instalar nos três agentes, atualizar e remover; Acervo com "Minhas skills" | a fazer |
+| 1 | Importar skill pelo link, de graça: baixar com commit fixado, prévia, instalar nos três agentes, atualizar e remover; Acervo com "Minhas skills"; registro na Auditoria | em revisão (PR #479) |
+| 1b | Importar pelo chat: o agente pede, a prévia vem como cartão na conversa e a pessoa confirma | depende da ponte e do cartão das Ferramentas no app |
 | 2 | Skills do dono à venda: tipo `skill`, catálogo em tabela, checkout, webhook, cancelamento, licença e entrega do pacote aprovado; uma skill oficial como piloto | depende da fase 1 e da fase 1b das Ferramentas |
-| 3 | Criadores de fora: "Colocar à venda", revisão do Claude com aprovação no console, registro de vendas e fechamento mensal | depende da fase 2 e da comissão definida |
+| 3 | Criadores de fora: "Colocar à venda", revisão do Claude que publica sozinha quando não aponta risco, fila do dono no console para o resto, registro de vendas e fechamento mensal | depende da fase 2 e da comissão definida |
 | 4 | Módulos como itens individuais: um repositório por módulo e a lista de add-ons vinda do catálogo (hoje `ADDONS` é fixa em `variant-core.ts`, com cópia em `licenca.js`) | depende da fase 2 |
 
 ## O que depende do dono
