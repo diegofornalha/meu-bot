@@ -19,6 +19,9 @@ test("usoTexto e nomeConta", () => {
   assert.equal(usoTexto(conta(), NOW), "Sessão 42% · 1h20m · Semanal 10% · 3d2h");
   assert.equal(usoTexto(conta({ uso: { ...conta().uso, sessao: null, semanal: { pct: 7, resets: null } } }), NOW), "Semanal 7%");
   assert.equal(usoTexto(conta({ uso: { ...conta().uso, sessao: null, semanal: null } }), NOW), "");
+  // Deslogada: o uso guardado é de um login que não existe mais, e não aparece.
+  assert.equal(usoTexto(conta({ logada: false }), NOW), "");
+  assert.equal(usoTexto(conta({ id: "padrao", rotulo: "Login padrão", padrao: true, home: null, logada: false, ativa: false }), NOW), "");
   assert.equal(nomeConta(conta()), "Conta 2 · b@x.y");
   assert.equal(nomeConta(conta({ rotulo: "Claude · b@x.y" })), "Claude · b@x.y");
   assert.equal(nomeConta(conta({ email: null })), "Conta 2");
