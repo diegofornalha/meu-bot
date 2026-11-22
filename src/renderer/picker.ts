@@ -19,6 +19,7 @@ const errorEl = $<HTMLParagraphElement>("pk-error");
 const detailEl = $<HTMLElement>("pk-detail");
 const statusEl = $<HTMLParagraphElement>("pk-status");
 const installBtn = $<HTMLButtonElement>("pk-install");
+const copiarErroBtn = $<HTMLButtonElement>("pk-copiar-erro");
 const reliefShortcutBtn = $<HTMLButtonElement>("pk-relief-shortcut");
 const removeBtn = $<HTMLButtonElement>("pk-remove");
 const renameBtn = $<HTMLButtonElement>("pk-rename");
@@ -331,6 +332,7 @@ function paintDetail(): void {
     reliefShortcutBtn.title = has ? `Remover "aliviar ${selected}.app" da área de trabalho` : `Criar "aliviar ${selected}.app" na área de trabalho: um clique limpa o pod e abre a janela`;
   }
   if (t === undefined) {
+    copiarErroBtn.hidden = true;
     statusEl.className = "status";
     statusEl.textContent = `verificando ${hostLabel(selected)}…`;
     openBtn.disabled = true;
@@ -340,6 +342,8 @@ function paintDetail(): void {
   }
   statusEl.className = `status ${t.kind}`;
   statusEl.textContent = t.text;
+  copiarErroBtn.hidden = t.kind !== "bad" || installing;
+  copiarErroBtn.textContent = "Copiar erro";
   openBtn.disabled = !t.canOpen || installing;
   claudeLoginBtn.hidden = t.login !== true;
   modoGratisBtn.hidden = t.gratis !== true;
@@ -348,6 +352,18 @@ function paintDetail(): void {
     installBtn.hidden = false;
   }
 }
+
+/**
+ * "Copiar erro": a mensagem da máquina selecionada, com o registro do que foi feito (o do preparo ou da instalação) e
+ * a versão do app, pronta para colar numa conversa de suporte. Só aparece quando o estado é erro.
+ */
+copiarErroBtn.addEventListener("click", () => {
+  if (selected === null) return;
+  const versao = document.getElementById("pk-version")?.textContent ?? "";
+  const registro = logEl.hidden ? "" : (logEl.textContent?.trim() ?? "");
+  const texto = [`meu-bot ${versao} · ${navigator.platform}`, `máquina: ${hostLabel(selected)}`, statusEl.textContent ?? "", ...(registro === "" ? [] : ["", "registro:", registro])].join("\n");
+  void navigator.clipboard.writeText(texto).then(() => { copiarErroBtn.textContent = "Copiado ✓"; }, () => { copiarErroBtn.textContent = "Não consegui copiar"; });
+});
 
 function select(host: string | null): void {
   selected = host;
