@@ -27,6 +27,8 @@ export interface WhatsappCapacidades {
   /** O próprio Hermes faz a pausa por contato (ainda não existe; quando existir, o app prefere o nativo ao plugin). */
   pausaNativa: boolean;
   grupos: boolean; guarda: boolean; politicaDm: boolean; audio: boolean;
+  /** O agente gerencia grupos pelo app, com ou sem número conectado agora (OpenClaw e Hermes): com `grupos` falso, o que falta é conectar o WhatsApp, não o agente. */
+  gruposAoConectar: boolean;
   /** O app liga/desliga o "digitando…" do agente (OpenClaw: `agents.defaults.typingMode`; Hermes: `platforms.whatsapp.typing_indicator`). */
   digitando: boolean;
   /** Aplicar o "digitando…" reinicia o gateway do WhatsApp da máquina (Hermes: a chave é lida na subida). */
