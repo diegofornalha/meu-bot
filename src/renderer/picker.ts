@@ -455,6 +455,8 @@ async function install(): Promise<void> {
 
 function syncSummary(r: SshSyncResult): { kind: "ok" | "warn"; text: string } {
   const lines: string[] = [];
+  // App distribuído: o modelo vem vazio. Não lista as máquinas da pessoa nem fala de "máquinas do projeto".
+  if (r.modeloVazio) return { kind: "ok", text: "Este app não traz máquinas prontas para sincronizar: o ~/.ssh/config ficou como estava. As máquinas do seletor são as que já estão nesse arquivo." };
   if (r.added.length === 0 && r.includesAdded === 0) lines.push("✓ ~/.ssh/config já tinha todas as máquinas do projeto; nada mudou.");
   else lines.push(`✓ entraram no ~/.ssh/config: ${[...r.added, ...(r.includesAdded > 0 ? [`${r.includesAdded} Include`] : [])].join(", ")}${r.backup !== null ? ` (backup em ${r.backup.replace(/^.*\//, "")})` : ""}.`);
   if (r.kept.length > 0) lines.push(`mantidas como estavam: ${r.kept.join(", ")}.`);

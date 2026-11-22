@@ -135,7 +135,9 @@ O sshd da `agente-br` aceita senha (`PasswordAuthentication yes` em `/etc/ssh/ss
 
 ## Sincronizar SSH e alívio pelo seletor (14 out 2026)
 
-- `config/ssh-hosts.conf` é o modelo versionado das máquinas (formato do `~/.ssh/config`, sem segredo).
+- `config/ssh-hosts.conf` é o modelo versionado das máquinas (formato do `~/.ssh/config`). **Desde 22 nov 2026 vai
+  vazio**: o repositório é público e o arquivo entra no instalador, então endereço de máquina ali chegava a todo
+  mundo que clicasse em sincronizar (um teste trava isso). Com o modelo vazio o botão só avisa que não há o que trazer.
   Botão ⇅ "sincronizar ssh" no rodapé do seletor → `picker:sync-ssh` → `sshSync.ts`: lê o modelo
   (`Resources/config/` no .app), planeja com `ssh-sync.ts` (puro, testado: Include normalizado com `~`,
   Host existente nunca alterado, "só neste Mac" relatado), faz backup `config.bak-<data>` e **acrescenta**

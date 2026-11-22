@@ -125,6 +125,12 @@ export function planSshSync(templateText: string, currentText: string, home: str
   return { includesToAdd, hostsToAdd, kept, onlyLocal, skipped, sameTarget };
 }
 
+/** O modelo não traz máquina nem Include (é o caso do app distribuído): o sync não tem o que oferecer. */
+export function modeloVazio(templateText: string): boolean {
+  const t = parseSshConfig(templateText);
+  return t.includes.length === 0 && plainAliases(t.blocks).length === 0;
+}
+
 /** Texto a acrescentar no fim do ~/.ssh/config (vazio se não há nada a fazer). */
 export function renderSshAppend(plan: SshSyncPlan, stamp: string): string {
   if (plan.includesToAdd.length === 0 && plan.hostsToAdd.length === 0) return "";
