@@ -43,6 +43,7 @@ export const STATUS_SCRIPT = `
 export PATH=$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/bin:$PATH
 ${WA_MOTOR_SH}
 echo "escolha=$ESC"
+echo "hermescli=$(command -v hermes >/dev/null 2>&1 && echo 1 || echo 0)"
 ${WA_ALVO_SH}
 echo "marks=$(cat "${WA_MARKS_FILE}" 2>/dev/null | tr -d '\n')"
 ${porMotor((m) => m.statusSh)}
@@ -87,17 +88,19 @@ async function lerWhatsappStatus(host: string): Promise<Omit<WhatsappStatus, "ca
   if (r.code !== 0) return { ...none, detail: `não consegui consultar: ${ultimaLinha(r.stderr) || "ssh falhou"}` };
   let kv = kvTrimOf(r.stdout);
   const escolha = agenteEscolhido(kv.get("escolha"));
+  // O `hermes` existe na máquina? Decide se o cartão Hermes é oferecido em Este Mac (lib/agente-hermes.ts).
+  const hermesCli = kv.get("hermescli") === "1";
   const alvo = alvoDoScript(host, kv);
-  if (kv.get("present") !== "1") return { ...none, escolha };
+  if (kv.get("present") !== "1") return { ...none, escolha, hermesCli };
   const motor = motorDoScript(host, kv);
-  if (motor === null) return { ...none, escolha };
+  if (motor === null) return { ...none, escolha, hermesCli };
   const semAlias = alvoSemAlias(alvo);
   if (kv.get("poralvo") === "1" && motor.porAlvo !== undefined) {
     // Sem alias para o gateway, não há o que consultar: a tela explica o que falta.
-    if (semAlias !== null) return { ...none, present: true, gateway: "openclaw", agent: `OpenClaw · gateway de ${alvo.gatewayUser ?? "?"}, conta ${alvo.accountId}`, state: "sem alias para o gateway", detail: semAlias, missing: semAlias, escolha, alvo };
+    if (semAlias !== null) return { ...none, present: true, gateway: "openclaw", agent: `OpenClaw · gateway de ${alvo.gatewayUser ?? "?"}, conta ${alvo.accountId}`, state: "sem alias para o gateway", detail: semAlias, missing: semAlias, escolha, hermesCli, alvo };
     kv = await completarPorAlvo(host, kv, (m, a) => m.porAlvo!.statusSh(a), 240_000);
   }
-  const st = { ...motor.parseStatus(host, kv), escolha };
+  const st = { ...motor.parseStatus(host, kv), escolha, hermesCli };
   if (motor.nome !== "openclaw" || (alvo.proprio && alvo.accountId === "default")) return st;
   // Conta nomeada, ou num gateway de outro usuário da máquina: a tela diz onde o WhatsApp vive.
   const agent = alvo.proprio ? `${st.agent} · conta ${alvo.accountId}, agente ${alvo.agentId}` : `${st.agent} · gateway de ${alvo.gatewayUser ?? "?"}${alvo.gatewayHost === null ? "" : ` (${alvo.gatewayHost})`}, conta ${alvo.accountId}, agente ${alvo.agentId}`;
