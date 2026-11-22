@@ -27,8 +27,11 @@ export function textoDestinos(d: readonly SkillDestino[]): string {
   return `instalada em: ${onde}${editadas.length > 0 ? `. No ${editadas.join(" e no ")} o SKILL.md que o agente tinha editado foi mantido` : ""}.`;
 }
 
-export async function refreshSkillsImportadas(): Promise<void> {
-  try { skills = await window.meuBot.skillsImportadas(); } catch { skills = skills ?? []; }
+/** `calado`: a releitura logo depois de instalar não troca o "✓ instalada" por um erro de leitura. */
+export async function refreshSkillsImportadas(calado = false): Promise<void> {
+  // Leitura que falha (máquina sem resposta) vira texto para a pessoa e não zera a lista: "nenhuma skill importada"
+  // seria falso, e os botões Atualizar/Remover sumiriam sem explicação.
+  try { skills = await window.meuBot.skillsImportadas(); } catch (err) { if (!calado) msg = { text: `✗ ${ipcErrorText(err)}`, bad: true }; }
   repinta();
 }
 async function pedirPrevia(l: string): Promise<void> {
@@ -45,8 +48,11 @@ async function instalar(p: SkillPrevia): Promise<void> {
   ocupado = "instalar"; msg = null; repinta();
   try {
     const r = await window.meuBot.skillInstalar(p.commit);
-    skills = r.skills; previa = null; link = "";
+    if (r.skills !== null) skills = r.skills;
+    previa = null; link = "";
     msg = { text: `✓ ${p.nome} ${textoDestinos(r.destinos)} O agente passa a usá-la nas próximas conversas.`, bad: false };
+    // Instalou, mas o main não conseguiu reler a lista: a tela relê, sem trocar o "✓" por um erro de leitura.
+    if (r.skills === null) void refreshSkillsImportadas(true);
   } catch (err) { msg = { text: `✗ ${ipcErrorText(err)}`, bad: true }; }
   finally { ocupado = null; repinta(); }
 }

@@ -46,7 +46,9 @@ export async function skillInstalar(host: string, commit: unknown): Promise<Skil
   previas.delete(host);
   log(`[skills] ${host}: ${p.previa.nome} importada de ${p.previa.rotulo} (${p.previa.commit.slice(0, 7)}) em ${res.destinos.map((d) => d.agente).join(", ")}`);
   void registrar(host, res.atualizou ? "skill.atualizar" : "skill.importar", p.previa.nome, `${p.previa.rotulo}, commit ${p.previa.commit.slice(0, 7)}`);
-  return { skills: await skillsImportadas(host), destinos: res.destinos };
+  // A skill já está instalada e registrada: a releitura da lista não pode transformar isso em "falhou" na tela.
+  const skills = await skillsImportadas(host).catch((e: unknown) => { log(`[skills] ${host}: instalou, mas não reli a lista: ${e instanceof Error ? e.message : String(e)}`); return null; });
+  return { skills, destinos: res.destinos };
 }
 
 export async function skillRemover(host: string, nome: unknown): Promise<SkillImportada[]> {

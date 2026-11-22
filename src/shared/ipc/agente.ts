@@ -157,4 +157,5 @@ export type SkillPreviaResultado = { ok: true; previa: SkillPrevia } | { ok: fal
 export interface SkillImportada { nome: string; descricao: string; url: string; rotulo: string; commit: string; em: string | null }
 /** Onde a skill ficou: a pasta de qual agente; `editada` = o SKILL.md que o agente tinha editado foi mantido. */
 export interface SkillDestino { agente: "Claude" | "Hermes" | "OpenClaw"; editada: boolean }
-export interface SkillInstalada { skills: SkillImportada[]; destinos: SkillDestino[] }
+/** `skills` null = a skill foi instalada, mas a lista não pôde ser relida agora (a tela relê por conta própria). */
+export interface SkillInstalada { skills: SkillImportada[] | null; destinos: SkillDestino[] }
