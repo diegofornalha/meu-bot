@@ -64,9 +64,9 @@ export const catalogoAddons = (env: Env): string[] => lerAddons(env.ABACATEPAY_A
 export const addonsAVenda = (env: Env): OfertaAddon[] => (pagamentosLigados(env) ? lerAddons(env.ABACATEPAY_ADDONS) : []);
 /** As unidades extras à venda neste ambiente (máquina extra); vazio com os pagamentos desligados ou sem ABACATEPAY_EXTRAS. */
 export const extrasAVenda = (env: Env): OfertaExtra[] => (pagamentosLigados(env) ? lerExtras(env.ABACATEPAY_EXTRAS) : []);
-/** O Marketplace deste ambiente (marketplace-core.ts): o Pro e o que mais está à venda; vazio com os pagamentos desligados. */
 /** As ferramentas à venda neste ambiente (ferramentas-ofertas.ts contra o catálogo); vazio com os pagamentos desligados. */
 export const ferramentasAVenda = (env: Env): OfertaFerramenta[] => (pagamentosLigados(env) ? lerOfertasDeFerramentas(OFERTAS_DE_FERRAMENTAS[env.CANAL === "staging" ? "staging" : "producao"], CATALOGO) : []);
+/** O Marketplace deste ambiente (marketplace-core.ts): o Pro e o que mais está à venda; vazio com os pagamentos desligados. */
 export const marketplaceDoEnv = (env: Env): ItemMarketplace[] => itensDoMarketplace({ precoPro: pagamentosLigados(env) ? preco(env) : null, addons: addonsAVenda(env), extras: extrasAVenda(env), ferramentas: ferramentasAVenda(env) });
 /** A promoção do primeiro mês do Pro neste ambiente; null sem cupom (PROMO_CUPOM vazio) ou com os pagamentos desligados. */
 export const promoLigada = (env: Env): Promo | null => (pagamentosLigados(env) ? lerPromo(env.PROMO_CUPOM, env.PROMO_PRECO_CENTAVOS, env.PROMO_DIAS, preco(env)) : null);
