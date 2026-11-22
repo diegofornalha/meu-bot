@@ -78,6 +78,8 @@ export const CLIENT_CHANNELS = [
   // seletor
   "picker:install", "picker:install-statusline", "picker:install-transcricao", "picker:install-claude", "picker:install-guarda", "picker:remove-host", "picker:rename-host",
   "picker:open-direct", "picker:instagramavel", "picker:onboarding-done", "picker:claude-login", "picker:modo-gratis",
+  // "Este Windows" (caps.hostWsl): o estado e o preparo da máquina Linux (WSL) deste PC
+  "picker:wsl-estado", "picker:wsl-preparar",
   "picker:approve-tailscale", "picker:tailscale-disable-check", "picker:tailscale-credential-save", "picker:tailscale-credential-forget",
 ] as const;
 

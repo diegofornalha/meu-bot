@@ -5,6 +5,11 @@
 #   - de uma release (`gh workflow run windows.yml -f release=v1.2.0-staging.8`): baixa o instalador publicado
 #     naquela release e faz o mesmo. É como se reproduz o relato de quem usa o Windows, na versão exata da pessoa.
 #     Release anterior ao modo de fumaça não grava relatório: o job instala, abre, tira o print e sobe o log.
+#   - "Este Windows" (`gh workflow run windows.yml --ref <branch> -f wsl=true`, por cima de um dos dois): no app
+#     instalado, a fumaça roda o "Preparar este Windows" de verdade (MEU_BOT_FUMACA_WSL=1, o mesmo código do botão:
+#     baixa o Ubuntu, importa a distro, sshd em 127.0.0.1, chave e alias), a conferência exige "pronto" (--wsl) e,
+#     com o app aberto de novo, `ssh <app>-wsl true` de fora prova que a abertura sobe a distro e o sshd. O runner
+#     já tem o WSL: o caminho "instalar o WSL → reiniciar" fica só nos testes (scripts/tests/wsl-core.test.mjs).
 # Sempre sobe o artefato `windows-fumaca`: relatório, meu-bot.log, print da tela com o app aberto e as janelas.
 # Não usa segredos (funciona em PR de fork) e NÃO é check obrigatório da main: é informativo. Como o Claude usa:
 # skill `windows` (.claude/skills/windows/SKILL.md).
@@ -20,21 +25,28 @@ on:
         description: "Tag de uma release para testar o instalador publicado (ex.: v1.2.0-staging.8). Vazio: empacota o código deste ref."
         required: false
         default: ""
+      wsl:
+        description: "Também prepara o \"Este Windows\" (WSL) no app instalado e confere o ssh do alias de fora (uns 10 min a mais)."
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: windows-${{ github.ref }}-${{ inputs.release || 'codigo' }}
+  group: windows-${{ github.ref }}-${{ inputs.release || 'codigo' }}-${{ inputs.wsl && 'wsl' || 'fumaca' }}
   cancel-in-progress: true
 
 jobs:
   fumaca:
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     env:
       APP: meu-bot-staging
       VARIANTE: client-staging
+      # O alias que o "Este Windows" grava no ~/.ssh (maquina/wsl-core.ts, nomesWsl): <app>-wsl.
+      ALIAS_WSL: meu-bot-staging-wsl
       # Entrada de quem dispara: só chega aos scripts pelo ambiente, nunca colada num comando.
       RELEASE: ${{ inputs.release }}
     steps:
@@ -216,6 +228,60 @@ jobs:
         run: |
           $dist = if ($env:MODO -eq "release") { "fonte-release\dist" } else { "dist" }
           node scripts/fumaca-conferir.mjs (Join-Path $env:SAIDA "relatorio.json") --versao $env:VERSAO --plataforma win32 --variante $env:VARIANTE --dist $dist
+
+      # ── "Este Windows" (-f wsl=true): o preparo de verdade no app instalado, e o ssh do alias conferido de fora ──
+      - name: Preparar este Windows (MEU_BOT_FUMACA_WSL)
+        if: always() && inputs.wsl && steps.instalar.outputs.tem_fumaca == 'sim'
+        run: |
+          Get-Process -Name $env:APP -ErrorAction SilentlyContinue | Stop-Process -Force
+          wsl.exe --status; wsl.exe -l -v
+          $env:MEU_BOT_FUMACA = Join-Path $env:SAIDA "relatorio-wsl.json"
+          $env:MEU_BOT_FUMACA_WSL = "1"
+          $t0 = Get-Date
+          $p = Start-Process -FilePath $env:EXE -PassThru
+          $null = $p.Handle
+          # O app se dá 30 min para o preparo (baixar ~350 MB e o apt) e sai sozinho; 35 min sem sair é travamento.
+          if (-not $p.WaitForExit(2100000)) {
+            taskkill /IM "$env:APP.exe" /F /T | Out-Null
+            "- Este Windows: o app **não saiu em 35 min**" >> $env:GITHUB_STEP_SUMMARY
+          } else {
+            "- Este Windows: o app saiu com código ``$($p.ExitCode)`` em $([math]::Round(((Get-Date) - $t0).TotalSeconds)) s" >> $env:GITHUB_STEP_SUMMARY
+          }
+          if (Test-Path $env:MEU_BOT_FUMACA) { Get-Content $env:MEU_BOT_FUMACA } else { Write-Host "sem relatório em $env:MEU_BOT_FUMACA" }
+          wsl.exe -l -v
+          exit 0
+      - name: Conferir o preparo do este Windows
+        if: always() && inputs.wsl && steps.instalar.outputs.tem_fumaca == 'sim'
+        run: |
+          $dist = if ($env:MODO -eq "release") { "fonte-release\dist" } else { "dist" }
+          node scripts/fumaca-conferir.mjs (Join-Path $env:SAIDA "relatorio-wsl.json") --versao $env:VERSAO --plataforma win32 --variante $env:VARIANTE --dist $dist --wsl
+      - name: ssh do alias de fora, com o app aberto
+        if: always() && inputs.wsl && steps.instalar.outputs.tem_fumaca == 'sim'
+        env:
+          MEU_BOT_NO_UPDATE: "1"
+        run: |
+          # Fechado o app da fumaça, o wsl.exe que segurava a distro saiu: a abertura normal tem de subir a distro e o sshd.
+          wsl.exe --terminate $env:APP 2>$null
+          Get-Content "$env:USERPROFILE\.ssh\config" -ErrorAction SilentlyContinue | Select-Object -First 3
+          Get-Content "$env:USERPROFILE\.ssh\$env:ALIAS_WSL.conf" -ErrorAction SilentlyContinue
+          Start-Process -FilePath $env:EXE
+          $ok = $false
+          for ($i = 0; $i -lt 30 -and -not $ok; $i++) {
+            Start-Sleep -Seconds 3
+            ssh.exe -o BatchMode=yes -o ConnectTimeout=5 $env:ALIAS_WSL true
+            $ok = $LASTEXITCODE -eq 0
+          }
+          if ($ok) {
+            $quem = (ssh.exe -o BatchMode=yes $env:ALIAS_WSL 'id -un; uname -m; grep PRETTY_NAME /etc/os-release') -join ' '
+            "- ``ssh $env:ALIAS_WSL true`` de fora, com o app aberto: **ok** ($quem)" >> $env:GITHUB_STEP_SUMMARY
+          } else {
+            ssh.exe -v -o BatchMode=yes -o ConnectTimeout=5 $env:ALIAS_WSL true 2>&1 | Select-Object -Last 25
+            "- ``ssh $env:ALIAS_WSL true`` de fora, com o app aberto: **falhou** (90 s)" >> $env:GITHUB_STEP_SUMMARY
+          }
+          taskkill /IM "$env:APP.exe" /F /T 2>$null | Out-Null
+          $log = Join-Path $env:DADOS "meu-bot.log"
+          if (Test-Path $log) { Copy-Item $log (Join-Path $env:SAIDA "meu-bot-wsl.log") }
+          if (-not $ok) { Write-Error "o alias $env:ALIAS_WSL não respondeu por SSH com o app aberto"; exit 1 }
 
       - name: Subir relatório, log e print
         if: always()

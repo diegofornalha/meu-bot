@@ -14,7 +14,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { app, shell, type BrowserWindow } from "electron";
 import { appVariant, caps } from "./variant";
-import { arquivoDaFumaca, ASSENTAR_FUMACA_MS, codigoDeSaida, fumacaPronta, montarRelatorio, PRAZO_FUMACA_MS, textoDoErro, type JanelaVista } from "./fumaca-core";
+import { arquivoDaFumaca, ASSENTAR_FUMACA_MS, codigoDeSaida, fumacaPronta, fumacaWslPedida, montarRelatorio, prazoDaFumaca, textoDoErro, type JanelaVista, type WslNaFumaca } from "./fumaca-core";
 
 const erros: string[] = [];
 const avisos: string[] = [];
@@ -24,6 +24,19 @@ let inicio = 0;
 let concluida = false;
 let assentar: NodeJS.Timeout | null = null;
 let limpar: (() => void) | null = null;
+/** MEU_BOT_FUMACA_WSL: o preparo do "Este Windows" em curso (a fumaça espera) e o resultado dele. */
+let wslEmCurso = false;
+let wsl: WslNaFumaca | null | undefined;
+
+/** A fumaça pediu o preparo do "Este Windows" (MEU_BOT_FUMACA_WSL=1)? O main.ts dispara o mesmo código do botão. */
+export const fumacaWslLigada = (): boolean => destino !== null && fumacaWslPedida(process.env);
+/** A fumaça só conclui depois deste preparo; o resultado entra no relatório. */
+export function segurarFumacaWsl(p: Promise<WslNaFumaca>): void {
+  wslEmCurso = true; wsl = null;
+  void p.then((r) => { wsl = r; logar(`este Windows: ${r.ok ? "pronto" : `parou em ${r.estado}: ${r.erro ?? ""}`} em ${Math.round(r.ms / 1000)} s`); })
+    .catch((e: unknown) => { wsl = { ok: false, estado: "?", alias: "", erro: textoDoErro("preparo", e), log: [], ms: 0 }; })
+    .finally(() => { wslEmCurso = false; talvezConcluir(); });
+}
 
 /** O que o `will-quit` faria (fechar túneis, parar servidores): o main.ts registra, a fumaça chama antes de sair. */
 export function aoConcluirFumaca(cb: () => void): void { limpar = cb; }
@@ -51,6 +64,7 @@ function concluir(prazoVencido: boolean): void {
   const r = montarRelatorio({
     versao: app.getVersion(), plataforma: process.platform, arch: process.arch, variante: appVariant(), empacotado: app.isPackaged,
     caps: capsDoApp, janelas: vistas(), erros, avisos, prazoVencido, duracaoMs: Date.now() - inicio, em: new Date().toISOString(),
+    ...(wsl === undefined ? {} : { wsl }),
   });
   let codigo = codigoDeSaida(r);
   try {
@@ -68,7 +82,7 @@ function concluir(prazoVencido: boolean): void {
 
 /** Uma janela à vista carregou: espera assentar (erro logo depois do load ainda entra) e conclui. */
 function talvezConcluir(): void {
-  if (concluida || assentar !== null || !fumacaPronta(vistas())) return;
+  if (concluida || assentar !== null || wslEmCurso || !fumacaPronta(vistas())) return;
   assentar = setTimeout(() => concluir(false), ASSENTAR_FUMACA_MS);
 }
 
@@ -101,7 +115,7 @@ export function ligarFumaca(): void {
   process.on("unhandledRejection", (e) => { erros.push(textoDoErro("promessa rejeitada sem tratamento", e)); });
   app.on("browser-window-created", (_e, win) => vigiar(win));
   app.on("child-process-gone", (_e, d) => { if (d.reason !== "clean-exit" && d.reason !== "killed") erros.push(`processo ${d.type} caiu (${d.reason}, código ${d.exitCode})`); });
-  setTimeout(() => concluir(true), PRAZO_FUMACA_MS);
+  setTimeout(() => concluir(true), prazoDaFumaca(process.env));
   void app.whenReady().then(() => logar(`começou: relatório em ${destino}`));
 }
 

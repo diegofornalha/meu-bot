@@ -121,6 +121,32 @@ test("nome da máquina: o deste Mac vence o apelido gravado na máquina, que ven
   assert.equal(hostLabel("meu-box-3"), "meu-box-3");
 });
 
+test("Este Windows: o alias do WSL aparece como \"Este Windows\" até a pessoa dar um apelido", async () => {
+  const { hostLabel, setHostNicknames, setAliasWsl } = await import("../../dist/renderer/lib/probe-text.js");
+  setHostNicknames({});
+  assert.equal(hostLabel("meu-bot-staging-wsl"), "meu-bot-staging-wsl");
+  setAliasWsl("meu-bot-staging-wsl");
+  assert.equal(hostLabel("meu-bot-staging-wsl"), "Este Windows");
+  assert.equal(hostLabel("outra"), "outra");
+  setHostNicknames({ "meu-bot-staging-wsl": "PC da sala" });
+  assert.equal(hostLabel("meu-bot-staging-wsl"), "PC da sala");
+  setHostNicknames({}); setAliasWsl(null);
+  assert.equal(hostLabel("meu-bot-staging-wsl"), "meu-bot-staging-wsl");
+});
+
+test("textos por plataforma: \"este Mac\" vira \"este Windows\" no Windows, e o aviso da chave não manda copiar \"do outro Mac\"", async () => {
+  const { ehWindows, nomeDesteComputador, nesteComputador, avisoChaveFaltando } = await import("../../dist/renderer/lib/plataforma.js");
+  assert.equal(ehWindows("Win32"), true);
+  assert.equal(ehWindows("MacIntel"), false);
+  assert.equal(nomeDesteComputador(true), "este Windows");
+  assert.equal(nomeDesteComputador(false), "este Mac");
+  assert.equal(nesteComputador(true), "neste Windows");
+  const win = avisoChaveFaltando(["~/.ssh/id_ed25519"], true);
+  assert.match(win, /falta a chave ~\/\.ssh\/id_ed25519 neste Windows/);
+  assert.doesNotMatch(win, /Mac/);
+  assert.match(avisoChaveFaltando(["~/.ssh/id_ed25519"], false), /neste Mac: copie do outro Mac/);
+});
+
 test("endereço na lista: HostName do ~/.ssh/config, e o usuário só quando o alias não o diz", async () => {
   const { enderecoLabel } = await import("../../dist/renderer/lib/probe-text.js");
   assert.equal(enderecoLabel("agente-root", { hostName: "187.127.41.175", user: "root" }), " · 187.127.41.175");

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
-const { resolveVariant, capsFor, titleFor, userDataNameFor, PRODUTOS, produtoDe, CAPS_DE_PLATAFORMA } = createRequire(import.meta.url)("../../dist/main/app/variant-core.js");
+const { resolveVariant, capsFor, titleFor, userDataNameFor, PRODUTOS, produtoDe, CAPS_DE_PLATAFORMA, CAPS_SO_WINDOWS } = createRequire(import.meta.url)("../../dist/main/app/variant-core.js");
 
 test("resolveVariant: em dev manda a variável de ambiente; empacotado manda o variant.json", () => {
   assert.equal(resolveVariant({ packaged: false, env: "admin", variantJson: undefined }), "admin");
@@ -47,17 +47,23 @@ test("capsFor: no macOS (e sem dizer a plataforma) as capacidades de plataforma 
       assert.equal(mac[k], base === null ? true : p.caps[base], `${p.variant}.${k}`);
       assert.equal(k in p.caps, false, `${k} é derivada: não entra na tabela do produto`);
     }
+    for (const k of CAPS_SO_WINDOWS) { assert.equal(mac[k], false, `${p.variant}.${k} só no Windows`); assert.equal(k in p.caps, false, `${k} é derivada`); }
     // O resto é a linha do produto, sem mexer.
     for (const [k, v] of Object.entries(p.caps)) assert.deepEqual(mac[k], v, `${p.variant}.${k}`);
   }
 });
 
-test("capsFor: no Windows as seis capacidades de plataforma ficam desligadas e o resto é igual ao macOS", () => {
+test("capsFor: no Windows as capacidades do macOS ficam desligadas, o Este Windows (hostWsl) liga onde o produto instala o backend, e o resto é igual", () => {
+  assert.deepEqual([...CAPS_SO_WINDOWS], ["hostWsl"]);
+  const daPlataforma = [...CAPS_DE_PLATAFORMA, ...CAPS_SO_WINDOWS];
   for (const p of PRODUTOS) {
     const mac = capsFor(p.variant, "1.0.0", "darwin"), win = capsFor(p.variant, "1.0.0", "win32");
     for (const k of CAPS_DE_PLATAFORMA) assert.equal(win[k], false, `${p.variant}.${k}`);
-    assert.deepEqual({ ...win, ...Object.fromEntries(CAPS_DE_PLATAFORMA.map((k) => [k, mac[k]])) }, mac, `${p.variant}: só as de plataforma mudam`);
+    assert.equal(win.hostWsl, p.caps.install, `${p.variant}.hostWsl`);
+    assert.deepEqual({ ...win, ...Object.fromEntries(daPlataforma.map((k) => [k, mac[k]])) }, mac, `${p.variant}: só as de plataforma mudam`);
   }
+  assert.equal(capsFor("client-staging", "1.0.0", "win32").hostWsl, true, "o meu-bot-staging do Windows oferece o Este Windows");
+  assert.equal(capsFor("admin", "1.0.0", "win32").hostWsl, false, "o admin não instala backend");
 });
 
 test("meu-bot traz as duas extensões e funde a pasta do antigo meu-bot-crm", () => {

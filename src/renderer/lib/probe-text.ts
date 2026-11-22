@@ -5,8 +5,8 @@ export type ProbeKind = "ok" | "warn" | "bad";
 export interface ProbeText {
   kind: ProbeKind;
   text: string;
-  /** O que o botão de ação faz; "porta" = "Usar porta N" (o backend da máquina está em outra porta). */
-  install: "install" | "reinstall" | "statusline" | "transcricao" | "guarda" | "claude" | "porta" | null;
+  /** O que o botão de ação faz; "porta" = "Usar porta N" (o backend da máquina está em outra porta); "wsl" = "Preparar este Windows". */
+  install: "install" | "reinstall" | "statusline" | "transcricao" | "guarda" | "claude" | "porta" | "wsl" | null;
   canOpen: boolean;
   /** Oferecer o botão "Entrar no Claude Code". */
   login?: boolean;
@@ -27,7 +27,11 @@ export function setApelidoMaquina(h: string, apelido: string | null): boolean {
   if (apelido === null || apelido.trim() === "") delete apelidosMaquina[h]; else apelidosMaquina[h] = apelido.trim();
   return hostLabel(h) !== antes;
 }
-export const hostLabel = (h: string): string => nicknames[h] ?? apelidosMaquina[h] ?? (h === "local" ? "este Mac (sem SSH)" : h);
+let aliasWsl: string | null = null;
+/** O alias do "Este Windows" (PickerInit.wsl): sem apelido, a lista o chama assim, e não pelo nome SSH. */
+export const setAliasWsl = (alias: string | null): void => { aliasWsl = alias; };
+export const ROTULO_WSL = "Este Windows";
+export const hostLabel = (h: string): string => nicknames[h] ?? apelidosMaquina[h] ?? (h === "local" ? "este Mac (sem SSH)" : h === aliasWsl ? ROTULO_WSL : h);
 
 /**
  * O que falta de opcional numa máquina que abre: a status line do Claude (cache de limites) e, com OpenClaw, a
