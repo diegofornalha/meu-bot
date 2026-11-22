@@ -58,3 +58,13 @@ export function avisoLimiteNoChat(code: string | undefined): { title: string; te
     text: "Não é falha do meu-bot nem da máquina: o Claude limita o uso por conta e o reserva também esgotou. Dá para esperar a volta do limite, entrar com outra conta do Claude (tutorial 1, «Contas do Claude nesta máquina») ou pedir ao admin uma conta a mais.",
   };
 }
+
+/**
+ * "Sair" do Login padrão: faz o logout e só então relê as contas. Se a conta continua logada depois do logout, é erro
+ * (quem chama mostra no cartão) e nada mais roda: nem a releitura, nem o que vem depois dela.
+ */
+export async function sairEConferir<T>(d: { sair: () => Promise<void>; aindaLogada: () => boolean; conferir: () => Promise<T> }): Promise<T> {
+  await d.sair();
+  if (d.aindaLogada()) throw new Error("o Claude Code não saiu da conta nesta máquina; tente de novo");
+  return d.conferir();
+}

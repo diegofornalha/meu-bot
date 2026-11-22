@@ -1,5 +1,5 @@
 import type { BackendModel, ClaudeAuthInfo, ContasClaudeView, ClaudeLoginEvent, XaiKeyStatus } from "../../shared/ipc";
-import { avisoSemConta, estadoTexto, eventoTexto, nomeConta, usoTexto } from "../lib/contas-claude.js";
+import { avisoSemConta, estadoTexto, eventoTexto, nomeConta, sairEConferir, usoTexto } from "../lib/contas-claude.js";
 import { byId as $, el } from "../lib/dom.js";
 import { ipcErrorText } from "../lib/ipc-error.js";
 import { type LoginView, type LoginProvider, loginView } from "../lib/login-steps.js";
@@ -207,10 +207,9 @@ async function sairDoLoginPadrao(): Promise<void> {
   // resetTutorial sozinho guardava o erro na tela dos Tutoriais, e quem clicou em "Sair" não via nada.
   let saiu = false;
   await acaoContaClaude(async () => {
-    await logoutClaude(false);
-    if (clAuth?.loggedIn === true) throw new Error("o Claude Code não saiu da conta nesta máquina; tente de novo");
+    const v = await sairEConferir({ sair: () => logoutClaude(false), aindaLogada: () => clAuth?.loggedIn === true, conferir: () => window.meuBot.contasClaudeConferir("padrao") });
     saiu = true;
-    return window.meuBot.contasClaudeConferir("padrao");
+    return v;
   });
   // Só com o logout feito o tutorial 1 volta ao passo 1 (o logout que ele repete não muda nada numa conta já deslogada).
   if (saiu) await ctx.resetTutorial(CLAUDE_TUTORIAL);
