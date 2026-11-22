@@ -402,6 +402,7 @@ const modeList = $<HTMLUListElement>("mode-list");
 const topbarMini = $<HTMLElement>("topbar-mini");
 const composerMini = $<HTMLElement>("composer-mini");
 const miniText = $<HTMLSpanElement>("mini-text");
+const topbarHost = $<HTMLSpanElement>("topbar-host");
 const topbarHideBtn = $<HTMLButtonElement>("btn-topbar-hide");
 const topbarShowBtn = $<HTMLButtonElement>("btn-topbar-show");
 const paletteEl = $<HTMLElement>("palette");
@@ -1039,6 +1040,10 @@ function setTopbarHidden(hidden: boolean): void {
   try { localStorage.setItem("topbarShown", hidden ? "0" : "1"); } catch { /* opcional */ }
   paintMini();
 }
+/** O nome da máquina (ou da pessoa, na janela de suporte) no canto esquerdo da barra: o mesmo que a barra recolhida mostra. */
+function paintTopbarHost(): void {
+  topbarHost.textContent = windowHost === "" ? "" : windowPersonName ?? hostLabel(windowHost);
+}
 function paintMini(): void {
   if (topbarMini.hidden) return;
   const st = hostStatus.get(windowHost);
@@ -1509,6 +1514,7 @@ async function restoreTabs(): Promise<void> {
 function applySettings(view: SettingsView): void {
   settings = view;
   setHostNicknames(view.hostNames);
+  paintTopbarHost();
   rethemeTerminals();
   if (windowHost !== "" && caps.chat) document.title = `${caps.titulo} · ${hostLabel(windowHost)}`;
   if (tutorialsReady) paintTutCount(); // o tour concluído sai da contagem de ativos
@@ -2001,6 +2007,7 @@ void (async () => {
     return;
   }
   document.title = `${caps.titulo} · ${hostLabel(windowHost)}`;
+  paintTopbarHost();
   document.documentElement.style.setProperty("--host-accent", hostAccent(windowHost));
   // Estado do WhatsApp da última vez: o modo WhatsApp e a lista em cache aparecem antes do SSH responder.
   { const c = cacheRead<WhatsappStatus>("waStatus", true); if (c !== null && waStatus === null && typeof c.value.connected === "boolean" && c.value.capacidades !== undefined) { waStatus = c.value; paintListMode(); } }
