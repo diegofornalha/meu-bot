@@ -128,6 +128,15 @@ export function faltasParaPublicar({ produtos, existe, notas }) {
 
 /** Espera depois do último merge antes de soltar o staging: junta merges seguidos numa release só. */
 export const QUIETUDE_MS = 10 * 60 * 1000;
+/**
+ * A espera deste Mac, em minutos, vinda de MEU_BOT_RELEASE_QUIETUDE_MIN (null = a padrão). Serve ao SEGUNDO Mac que
+ * publica: com uma espera maior (25, por exemplo) ele só solta o staging se o principal não soltou; quando o
+ * principal solta, o HEAD ganha a tag e `decideRodada` daqui passa a aguardar. Fora de 10 a 180, vale a padrão.
+ */
+export function quietudeMinDoAmbiente(env = {}) {
+  const n = Number(String(env.MEU_BOT_RELEASE_QUIETUDE_MIN ?? "").trim());
+  return Number.isInteger(n) && n >= 10 && n <= 180 ? n : null;
+}
 /** Quanto o staging fica no ar antes de virar estável (se passou na prova de saúde). */
 export const SOAK_MS = 24 * 60 * 60 * 1000;
 
@@ -190,12 +199,12 @@ export function stagingMaisNovo(base, tags) {
  * `mudouDesdeRelease` = arquivos do diff entre a última tag v* e o HEAD (null = não sei).
  * Datas em ms. `saude` = { ok, motivo } de saudeStaging (só conta quando há staging no HEAD).
  */
-export function decideRodada({ base, tagsTodas, tagsNoHead, commitEm, stagingEm, saude, agora, mudouDesdeRelease = null }) {
+export function decideRodada({ base, tagsTodas, tagsNoHead, commitEm, stagingEm, saude, agora, mudouDesdeRelease = null, quietudeMs = QUIETUDE_MS }) {
   if (tagsTodas.some((t) => t.trim() === `v${base}`)) return { acao: "subir-base", motivo: `v${base} já é estável: a base do main precisa subir` };
   const tag = stagingMaisNovo(base, tagsNoHead);
   if (tag === null) {
     if (mudouDesdeRelease !== null && mudouDesdeRelease.every((f) => SO_VERSAO.has(f))) return { acao: "aguardar", motivo: "nada novo desde a última release além da versão e do CHANGELOG" };
-    const falta = commitEm + QUIETUDE_MS - agora;
+    const falta = commitEm + quietudeMs - agora;
     if (falta > 0) return { acao: "aguardar", motivo: `último merge há pouco: staging em ${Math.ceil(falta / 60000)} min, se nada mais entrar` };
     return { acao: "staging", motivo: `main sem staging da ${base}` };
   }
@@ -492,7 +501,7 @@ const xml = (t) => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
  * A partida é do próprio node (`node -e`), não um `sh -c`: a permissão do macOS para ler a Mesa é do executável que o
  * launchd chama, e o /bin/sh não a tem ("getcwd: Operation not permitted").
  */
-export function plistDoAgente({ rotulo, node, principal, wt, path, log, intervalo = 600 }) {
+export function plistDoAgente({ rotulo, node, principal, wt, path, log, intervalo = 600, quietudeMin = null }) {
   const partida = [
     `const { existsSync } = require("node:fs"), { spawnSync } = require("node:child_process");`,
     `const p = ${JSON.stringify(principal)}, wt = ${JSON.stringify(wt)};`,
@@ -506,7 +515,7 @@ export function plistDoAgente({ rotulo, node, principal, wt, path, log, interval
   <key>Label</key><string>${xml(rotulo)}</string>
   <key>ProgramArguments</key><array><string>${xml(node)}</string><string>-e</string><string>${xml(partida)}</string></array>
   <key>WorkingDirectory</key><string>${xml(principal)}</string>
-  <key>EnvironmentVariables</key><dict><key>PATH</key><string>${xml(path)}</string></dict>
+  <key>EnvironmentVariables</key><dict><key>PATH</key><string>${xml(path)}</string>${quietudeMin === null ? "" : `<key>MEU_BOT_RELEASE_QUIETUDE_MIN</key><string>${Number(quietudeMin)}</string>`}</dict>
   <key>StartInterval</key><integer>${intervalo}</integer>
   <key>RunAtLoad</key><true/>
   <key>StandardOutPath</key><string>${xml(log)}</string>
