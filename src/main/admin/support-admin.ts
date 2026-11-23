@@ -788,6 +788,19 @@ export async function esquecerUsuario(rootAlias: string, nome: string): Promise<
   return true;
 }
 
+/**
+ * Fecha a conexão SSH que este app mantém como o usuário `nome` da máquina-raiz (o túnel e o master do suporte dele).
+ * Antes de apagar o usuário: com a sessão aberta o `userdel` recusa ("currently used by process"), e o túnel do
+ * próprio admin reabria a sessão a cada tentativa (o box-1 só saiu na segunda vez, 23 nov 2026).
+ */
+export function fecharConexaoDoUsuario(rootAlias: string, nome: string): string | null {
+  const entry = load().get(idDoUsuario(raizDe(rootAlias).code, nome));
+  if (entry === undefined) return null;
+  const alias = supportAlias(entry.code);
+  closeTunnel(alias);
+  return alias;
+}
+
 /** Os usuários da máquina-raiz que já estão no seletor do admin (pelo nome de login). */
 export function usuariosNoSeletor(rootAlias: string): Set<string> {
   const raiz = raizDe(rootAlias);
