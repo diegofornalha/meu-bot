@@ -112,3 +112,15 @@ test("intermediário: todas as contas no limite → 429 com os cabeçalhos de li
   const r3 = relay.respostaEsgotado(res, Math.floor(Date.now() / 1000) - 10);
   assert.ok(r3 > Math.floor(Date.now() / 1000));
 });
+
+test("intermediário: só o 429 de limite da assinatura tira a conta do rodízio; o passageiro da Anthropic não", () => {
+  const r = (headers) => ({ statusCode: 429, headers });
+  assert.equal(relay.limiteDaAssinatura(r({ "anthropic-ratelimit-unified-status": "rejected", "anthropic-ratelimit-unified-reset": "1795404193" })), true);
+  assert.equal(relay.limiteDaAssinatura(r({ "anthropic-ratelimit-unified-status": "allowed", "anthropic-ratelimit-unified-7d-status": "rejected" })), true, "a janela semanal rejeitada também é limite");
+  assert.equal(relay.limiteDaAssinatura(r({ "anthropic-ratelimit-unified-5h-status": "Rejected" })), true);
+  // "Server is temporarily limiting requests (not your usage limit)": sem status rejeitado, com ou sem os cabeçalhos de uso.
+  assert.equal(relay.limiteDaAssinatura(r({ "retry-after": "5" })), false);
+  assert.equal(relay.limiteDaAssinatura(r({ "anthropic-ratelimit-unified-status": "allowed", "anthropic-ratelimit-unified-5h-utilization": "0.13" })), false);
+  assert.equal(relay.limiteDaAssinatura(r({})), false);
+  assert.equal(relay.limiteDaAssinatura(null), false);
+});
