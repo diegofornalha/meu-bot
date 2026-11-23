@@ -62,7 +62,8 @@ function fonteAtual(produto: string): FonteModulos {
  * (app de GUI tem PATH mínimo). Nunca pede senha: ver `ambienteGit`. Prazo de 2 min; estourado, conta como sem rede.
  */
 function git(args: string[]): Promise<SaidaGit> {
-  const PATH = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", process.env["PATH"] ?? ""].join(":");
+  // No Windows o separador é ";" e as pastas do Homebrew não existem: o PATH fica como veio (o Git for Windows se põe nele).
+  const PATH = process.platform === "win32" ? (process.env["PATH"] ?? "") : ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", process.env["PATH"] ?? ""].join(":");
   return new Promise((resolve) => {
     let stdout = ""; let stderr = ""; let fim = false;
     const acabar = (r: SaidaGit): void => { if (!fim) { fim = true; clearTimeout(prazo); resolve(r); } };
