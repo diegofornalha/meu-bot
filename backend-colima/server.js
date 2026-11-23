@@ -730,7 +730,8 @@ async function chatCompletions(req, res) {
       // WhatsApp do Hermes: o nível do tutorial 7, lido a cada turno (mudou no app, vale na próxima mensagem).
       const nivelTurno = profile.nivel ? nivel.nivelAtual() : 'age';
       const bloqueadas = profile.nivel ? nivel.ferramentasBloqueadas(nivelTurno) : [];
-      const avisoNivel = profile.nivel ? nivel.avisoDoNivel(nivelTurno) : '';
+      // Junto do nível, o aviso de que as respostas a áudio saem em voz (quando a voz está ligada no Hermes desta conta).
+      const avisoNivel = profile.nivel ? [nivel.avisoDoNivel(nivelTurno), nivel.avisoDaVoz()].filter(Boolean).join('\n\n') : '';
       // O modelo sabe quem é (a pergunta "qual modelo é você?" não depende do que ele acha de si).
       // Módulos de produto (meu-bot-diego…) ligados para este perfil e liberados pela licença: regras, MCPs e o ajuste
       // de "ação" (mensagem que pede uma tarefa ganha mais passos e um adendo). Sem módulos, tudo como antes.

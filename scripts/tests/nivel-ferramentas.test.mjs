@@ -26,6 +26,27 @@ test("nível do WhatsApp: lido do objetivo.json; sem arquivo ou inválido, 'age'
   fs.writeFileSync(f, "{lixo"); assert.equal(nivel.nivelAtual(f), "age");
 });
 
+test("voz do Hermes: com voice.auto_tts ligado, o agente é avisado de que as respostas a áudio saem em voz", () => {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), "voz-"));
+  const f = path.join(d, "config.yaml");
+  assert.equal(nivel.vozLigada(f), false, "sem config.yaml");
+  assert.equal(nivel.avisoDaVoz(f), "");
+  // Como o app deixa numa box com a voz ligada (a ordem das chaves varia de máquina para máquina).
+  fs.writeFileSync(f, "stt:\n  enabled: true\ntts:\n  provider: voz-local\n  edge:\n    voice: pt-BR-FranciscaNeural\nvoice:\n  auto_tts: true\nplugins:\n  enabled:\n    - meu-bot-pausa\n");
+  assert.equal(nivel.vozLigada(f), true);
+  assert.match(nivel.avisoDaVoz(f), /enviada como áudio automaticamente/);
+  assert.match(nivel.avisoDaVoz(f), /Nunca diga que não consegue mandar áudio/);
+  fs.writeFileSync(f, "voice:\n  auto_tts: false\ntts:\n  provider: voz-local\n");
+  assert.equal(nivel.vozLigada(f), false);
+  // `auto_tts: true` fora do bloco `voice:` do topo não conta (outra seção com a mesma chave, ou aninhada mais fundo em outra).
+  fs.writeFileSync(f, "outra:\n  auto_tts: true\nvoice:\n  record_key: ctrl+b\n");
+  assert.equal(nivel.vozLigada(f), false);
+  fs.writeFileSync(f, "voice:\n  auto_tts: true   # ligado pelo app\n");
+  assert.equal(nivel.vozLigada(f), true);
+  const src = fs.readFileSync(new URL("../../backend-colima/server.js", import.meta.url), "utf8");
+  assert.match(src, /nivel\.avisoDaVoz\(\)/, "o aviso entra no prompt do perfil whatsapp");
+});
+
 test("backend: o perfil whatsapp existe, passa --disallowedTools e segue a corrente do agente (Grok de reserva)", () => {
   const src = fs.readFileSync(new URL("../../backend-colima/server.js", import.meta.url), "utf8");
   assert.match(src, /whatsapp: \{[^}]*nivel: true/);
