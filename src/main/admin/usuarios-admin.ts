@@ -13,7 +13,8 @@ import { RECURSOS_PADRAO, pressaoDe, recentesDe, type MarcaBox, conferirMinimo, 
 import { runSsh } from "../whatsapp/whatsapp";
 import { registrar } from "../auditoria/auditoria";
 import { log } from "../maquina/backend";
-import { adicionarUsuario, apelidoDoUsuarioNoSeletor, esquecerUsuario, pessoasPorMaquina, usuariosNoSeletor } from "./support-admin";
+import { adicionarUsuario, apelidoDoUsuarioNoSeletor, esquecerUsuario, fecharConexaoDoUsuario, pessoasPorMaquina, usuariosNoSeletor } from "./support-admin";
+import { closeTunnel } from "../maquina/tunnel";
 import { refreshPickerIfOpen, resondarNoSeletor } from "../maquina/picker";
 import { bundledBackendVersion, fusoDesteMac, installBackend, installClaudeCode, installStatusLine, pausaPluginFonte, probeHost } from "../maquina/hostProbe";
 import { portaParaInstalar } from "../maquina/porta-backend-core";
@@ -190,6 +191,11 @@ export async function definirLimite(host: string, nome: unknown, pct: unknown): 
 export async function apagarUsuario(host: string, nome: unknown): Promise<UsuariosVisao> {
   const n = nomeValido(nome);
   if (RESERVADOS.has(n) || PROTEGIDOS.has(n)) throw new Error(`"${n}" é usado pelo sistema ou pelo meu-bot: não dá para apagar por aqui`);
+  // A conexão do próprio app como esse usuário (túnel do suporte, e o alias do meu-bot dele se este app o abriu)
+  // seguraria uma sessão aberta: o userdel recusa. Fecha antes; o master leva um instante para sair.
+  try { const a = fecharConexaoDoUsuario(host, n); if (a !== null) log(`[usuarios] ${host}: fechei a conexão de ${a} antes de apagar ${n}`); } catch { /* não é pessoa conhecida do suporte */ }
+  closeTunnel(aliasNoMeuBot(host, n).alias);
+  await new Promise((res) => setTimeout(res, 1500));
   const r = await runSsh(host, `${apagarSh(n)}\n`, 60_000);
   saida(r.stdout, /^APAGADO=/m, `não consegui apagar ${n}`);
   log(`[usuarios] ${host}: apagou o usuário ${n}`);
