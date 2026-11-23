@@ -353,6 +353,12 @@ export const hardKbDe = (kb: number): number => (kb === 0 ? 0 : kb + Math.max(Ma
 export const limiteSh = (nome: string, limiteKb: number): string => `id '${nome}' >/dev/null 2>&1 || { echo "ERRO=não existe o usuário ${nome}"; exit 0; }
 setquota -u '${nome}' ${limiteKb} ${hardKbDe(limiteKb)} 0 0 / && { setquota -t 604800 604800 / >/dev/null 2>&1 || true; echo LIMITE=ok; } || echo "ERRO=não consegui gravar o limite"`;
 
+/**
+ * A saída do apagarSh diz que o userdel ainda viu uma sessão do usuário ("currently used by process"): vale uma segunda
+ * rodada depois que o app fechou as próprias conexões (o master SSH sai em segundo plano).
+ */
+export const sessaoAindaAberta = (saida: string): boolean => /^ERRO=.*currently used by process/m.test(saida);
+
 /** Apaga o usuário `nome` (já validado) e a pasta dele; recusa quem tem sudo ou uid de sistema. Saída `APAGADO=` ou `ERRO=`. */
 export const apagarSh = (nome: string): string => `N='${nome}'
 id "$N" >/dev/null 2>&1 || { echo "ERRO=não existe o usuário $N"; exit 0; }

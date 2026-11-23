@@ -9,7 +9,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { MotorNovoUsuario, UsuariosVisao } from "../../shared/ipc";
-import { RECURSOS_PADRAO, pressaoDe, recentesDe, type MarcaBox, conferirMinimo, pctMinimo, motivoSsh, PREFIXO_USUARIO, boxesDesatualizadas, capacidadeDe, governancaDe, isolamentoTodosSh, reservaDe, reservaHostSh, nomeParaCriar, motorDe, openclawSemearSh, usuarioComChavesSh, lingerSh, aliasDoUsuario, blocoSshUsuario, candidatosAoSeletor, configTemHost, removerBlocoUsuario, semChaveDesteMac, apelidoSh, apelidoValido, swapLigarSh, recursosSh, apagarItemSh, caminhoDentro, lerMaiores, maioresSh, apagarSh, hermesGlobalSh, openclawGlobalSh, transcritorSh, COTA_LIGAR_SH, limiteKbDe, limiteSh, LISTAR_SH, lerUsuarios, NOME_USUARIO_RE, PROTEGIDOS, RESERVADOS, whatsappAlvoSh } from "./usuarios-core";
+import { RECURSOS_PADRAO, pressaoDe, recentesDe, type MarcaBox, conferirMinimo, pctMinimo, motivoSsh, PREFIXO_USUARIO, boxesDesatualizadas, capacidadeDe, governancaDe, isolamentoTodosSh, reservaDe, reservaHostSh, nomeParaCriar, motorDe, openclawSemearSh, usuarioComChavesSh, lingerSh, aliasDoUsuario, blocoSshUsuario, candidatosAoSeletor, configTemHost, removerBlocoUsuario, semChaveDesteMac, apelidoSh, apelidoValido, swapLigarSh, recursosSh, apagarItemSh, caminhoDentro, lerMaiores, maioresSh, apagarSh, sessaoAindaAberta, hermesGlobalSh, openclawGlobalSh, transcritorSh, COTA_LIGAR_SH, limiteKbDe, limiteSh, LISTAR_SH, lerUsuarios, NOME_USUARIO_RE, PROTEGIDOS, RESERVADOS, whatsappAlvoSh } from "./usuarios-core";
 import { runSsh } from "../whatsapp/whatsapp";
 import { registrar } from "../auditoria/auditoria";
 import { log } from "../maquina/backend";
@@ -193,10 +193,19 @@ export async function apagarUsuario(host: string, nome: unknown): Promise<Usuari
   if (RESERVADOS.has(n) || PROTEGIDOS.has(n)) throw new Error(`"${n}" é usado pelo sistema ou pelo meu-bot: não dá para apagar por aqui`);
   // A conexão do próprio app como esse usuário (túnel do suporte, e o alias do meu-bot dele se este app o abriu)
   // seguraria uma sessão aberta: o userdel recusa. Fecha antes; o master leva um instante para sair.
-  try { const a = fecharConexaoDoUsuario(host, n); if (a !== null) log(`[usuarios] ${host}: fechei a conexão de ${a} antes de apagar ${n}`); } catch { /* não é pessoa conhecida do suporte */ }
+  // fecharConexaoDoUsuario devolve null para quem não está no suporte; o que lança aqui é a janela que não é de uma
+  // pessoa conhecida (raizDe): fica no log, e o apagar segue (o userdel diz se ainda há sessão).
+  try { const a = fecharConexaoDoUsuario(host, n); if (a !== null) log(`[usuarios] ${host}: fechei a conexão de ${a} antes de apagar ${n}`); }
+  catch (e) { log(`[usuarios] ${host}: não fechei a conexão do suporte de ${n}: ${e instanceof Error ? e.message : String(e)}`); }
   closeTunnel(aliasNoMeuBot(host, n).alias);
-  await new Promise((res) => setTimeout(res, 1500));
-  const r = await runSsh(host, `${apagarSh(n)}\n`, 60_000);
+  // O closeTunnel encerra o master em segundo plano: em vez de esperar um tempo fixo, uma segunda rodada do apagarSh
+  // (que já tenta cinco vezes por dentro) quando o userdel ainda viu a sessão.
+  let r = await runSsh(host, `${apagarSh(n)}\n`, 60_000);
+  if (!/^APAGADO=/m.test(r.stdout) && sessaoAindaAberta(r.stdout)) {
+    log(`[usuarios] ${host}: ${n} ainda tinha sessão aberta; tentando de novo`);
+    await new Promise((res) => setTimeout(res, 3000));
+    r = await runSsh(host, `${apagarSh(n)}\n`, 60_000);
+  }
   saida(r.stdout, /^APAGADO=/m, `não consegui apagar ${n}`);
   log(`[usuarios] ${host}: apagou o usuário ${n}`);
   void registrar(host, "usuarios.apagar", n);

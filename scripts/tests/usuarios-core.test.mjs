@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
-const { lerUsuarios, NOME_USUARIO_RE, RESERVADOS, LISTAR_SH, limiteKbDe, pctMinimo, conferirMinimo, MINIMO_CONTA_KB, caminhoDentro, lerMaiores, apagarSh, PROTEGIDOS, lingerSh, nivelUso } = createRequire(import.meta.url)("../../dist/main/admin/usuarios-core.js");
+const { lerUsuarios, NOME_USUARIO_RE, RESERVADOS, LISTAR_SH, limiteKbDe, pctMinimo, conferirMinimo, MINIMO_CONTA_KB, caminhoDentro, lerMaiores, apagarSh, PROTEGIDOS, lingerSh, nivelUso, sessaoAindaAberta } = createRequire(import.meta.url)("../../dist/main/admin/usuarios-core.js");
 
 test("usuários: lê a saída do script (só root vê), ordena por uid e ignora lixo", () => {
   const out = "ROOT\nDISCO=1000000\nCOTA=1\nU\tbox\t1002\t/home/box\t/bin/bash\t1\t1\t1\t500\t0\nU\tdebian\t1000\t/home/debian\t/bin/bash\t0\t0\t0\t20\t100000\nlixo\nU\tNome Ruim\t1005\t/x\t/bin/bash\t0\t0\t0\t\t\n";
@@ -403,4 +403,11 @@ test("limite mínimo da conta padrão: 3 GB; pctMinimo é a menor % que dá isso
   assert.throws(() => conferirMinimo(1, 100 * 1024 * 1024), /1% deste disco dá 1024 MB, menos que os 3 GB.*use pelo menos 3%/);
   assert.doesNotThrow(() => conferirMinimo(3, 100 * 1024 * 1024));
   assert.doesNotThrow(() => conferirMinimo(0, 100 * 1024 * 1024), "0 = sem limite");
+});
+
+test("apagar: uma segunda rodada só quando o userdel ainda viu sessão do usuário (a conexão do próprio admin saindo)", () => {
+  assert.equal(sessaoAindaAberta("ERRO=não consegui apagar box-1: userdel: user box-1 is currently used by process 1809300\n"), true);
+  assert.equal(sessaoAindaAberta("APAGADO=box-1\n"), false);
+  assert.equal(sessaoAindaAberta("ERRO=box-1 tem sudo: tire o sudo antes de apagar\n"), false);
+  assert.equal(sessaoAindaAberta("ERRO=não existe o usuário box-1\n"), false);
 });
