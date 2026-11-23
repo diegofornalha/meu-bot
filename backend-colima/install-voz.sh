@@ -141,9 +141,12 @@ if [ "$VOZ" != faber ]; then
   command -v python3 >/dev/null 2>&1 || { echo "python3 não encontrado: a voz $VOZ precisa dele"; exit 1; }
   # Numa box com teto de RAM (cgroup da conta), o Kokoro precisa de ~550 MB de pico além do que o gateway e os claude já
   # usam; sem isso a síntese entra em thrashing no teto e o teste de voz do OpenClaw cai mudo depois de 2 min. Confere antes.
+  # O memory.current conta o cache de arquivos, que o kernel devolve quando falta: depois de um download grande (o
+  # Ollama, o próprio Kokoro) ele passava de 2 GB numa box com 400 MB de programas e a voz era recusada à toa. O
+  # inactive_file do memory.stat volta a contar como livre.
   CG=/sys/fs/cgroup/user.slice/user-$(id -u).slice
   if [ -r "$CG/memory.max" ] && [ "$(cat "$CG/memory.max")" != max ]; then
-    LIVRE=$(( ($(cat "$CG/memory.max") - $(cat "$CG/memory.current" 2>/dev/null || echo 0)) / 1048576 ))
+    LIVRE=$(( ($(cat "$CG/memory.max") - $(cat "$CG/memory.current" 2>/dev/null || echo 0) + $(awk '/^inactive_file /{print $2; f=1} END{if(!f) print 0}' "$CG/memory.stat" 2>/dev/null || echo 0)) / 1048576 ))
     [ "$LIVRE" -ge 700 ] || { echo "a voz $VOZ precisa de ~700 MB livres no teto de RAM desta conta e só há $LIVRE MB (teto de $(( $(cat "$CG/memory.max") / 1048576 )) MB). Peça ao admin para subir o teto de RAM na aba Usuários (3 GB é o padrão); a voz faber (Piper) não precisa disso."; exit 4; }
   fi
   if [ ! -x "$K/venv/bin/python" ] || ! "$K/venv/bin/python" -c "import kokoro_onnx, soundfile" 2>/dev/null; then
