@@ -64,6 +64,8 @@ export function resumoDoInstalador(linhas: readonly string[], n = 5): string {
 }
 /** Claude Code Global: o intermediário do root, o que ele lê e o instalador (rodado como root pelo admin). */
 export const CLAUDE_GLOBAL_FILES = ["claude-global.js", "contas-claude.js", "account-status.js", "install-claude-global.sh"];
+/** Modo grátis para todos: o instalador do Ollama da máquina (rodado como root pelo admin, no Preparar máquina). */
+export const OLLAMA_GLOBAL_FILES = ["install-ollama-global.sh"];
 /**
  * A biblioteca de shell que põe a skill semente nos destinos dos agentes da máquina (~/.claude/skills e, com Hermes,
  * ~/.hermes/skills). Todo instalador que instala skill a carrega de ao lado dele (`. "$HERE/skills-lib.sh"`) e sai com 1

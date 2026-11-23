@@ -143,6 +143,8 @@ export interface OllamaStatus {
   remoto?: true;
   /** Tamanho do download do programa, em MB (ausente = o do Mac, ~0,2 GB). */
   programaMb?: number;
+  /** A máquina tem o modo grátis para todos (um Ollama do root, install-ollama-global.sh): a conta não baixa nada e não liga nem para o serviço. */
+  global?: true;
 }
 /** Progresso do preparo/remoção do Ollama: uma linha do log. */
 export interface OllamaEvento { text: string }

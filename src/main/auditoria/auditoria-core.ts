@@ -135,6 +135,7 @@ export const ACOES = {
   "maquina.openclaw-leve": (a: string) => `deixou os gateways do OpenClaw desta máquina leves${a ? ` (${a})` : ""}`,
   "usuarios.preparar": (a: string) => `preparou a conta de ${a} (Claude Code, backend do meu-bot, Hermes e transcrição)`,
   "maquina.claude-global": (a: string) => `instalou o Claude Code Global desta máquina${a ? ` (conta ${a})` : ""}`,
+  "maquina.ollama-global": (a: string) => `instalou o modo grátis para todos (Ollama da máquina)${a ? ` (${a})` : ""}`,
   "maquina.claude-global-conta": (a: string) => `pôs uma conta no rodízio do Claude Code Global (${a})`,
   "usuarios.claude-global-ligar": (a: string) => `ligou o Claude Code Global para ${a}`,
   "usuarios.claude-global-desligar": (a: string) => `desligou o Claude Code Global para ${a}`,
