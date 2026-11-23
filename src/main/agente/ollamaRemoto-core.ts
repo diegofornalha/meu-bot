@@ -16,6 +16,9 @@ const PROGRAMA_EXTRAIDO_MB = 2_500;
 /** Espaço que a instalação pede: o pacote, ele extraído, o modelo e 2 GB de folga. */
 export const espacoNecessarioRemotoMb = (): number => PACOTE_MB + PROGRAMA_EXTRAIDO_MB + modeloParaMaquinaRemota().downloadMb + 2_048;
 
+/** A marca do modo grátis para todos (install-ollama-global.sh): porta, modelo e versão, legível por todas as contas. */
+export const OLLAMA_GLOBAL_MARCA = "/opt/meu-bot-ollama/global.json";
+
 /** Variáveis que o install-ollama.sh espera (versão, sha256, URL e modelo têm fonte única no ollamaLocal-core.ts). */
 export const envDoInstalador = (): string =>
   `OLLAMA_VERSION=${OLLAMA_VERSION_LOCAL} OLLAMA_SHA256=${OLLAMA_SHA256_LINUX} OLLAMA_URL='${OLLAMA_URL_LINUX}' OLLAMA_MODELO='${modeloParaMaquinaRemota().id}' OLLAMA_PACOTE_MB=${PACOTE_MB}`;
@@ -28,19 +31,22 @@ export const OLLAMA_STATUS_SH = [
   BACKEND_DIR_SH,
   `BPORT=$(grep -h '^PORT=' "$BD/.env" 2>/dev/null | head -1 | cut -d= -f2 | tr -dc '0-9'); [ -n "$BPORT" ] || BPORT=8080; OPORT=$((BPORT-200))`,
   `PX="$HOME/.local/share/meu-bot/ollama"`,
+  // Modo grátis para todos: a marca do root diz que a máquina tem o global; $PX/global (a porta) diz que esta conta já usa.
+  `if [ -r "\${MEU_BOT_OLLAMA_GLOBAL:-${OLLAMA_GLOBAL_MARCA}}" ]; then echo glob=1; else echo glob=0; fi`,
+  `GP=$(head -1 "$PX/global" 2>/dev/null | tr -dc '0-9'); [ -n "$GP" ] && OPORT=$GP`,
   `echo "os=$(uname -s)"; echo "arch=$(uname -m)"`,
   `if systemctl --user show-environment >/dev/null 2>&1; then echo sd=1; else echo sd=0; fi`,
   `if [ -f "$BD/providers.js" ]; then echo bk=1; else echo bk=0; fi`,
   `echo "mem=$(awk '/MemTotal/{print int($2/1024)}' /proc/meminfo 2>/dev/null)"`,
   `echo "livre=$(df -Pm "$HOME" 2>/dev/null | awk 'NR==2{print $4}')"`,
-  `if [ -x "$PX/v${OLLAMA_VERSION_LOCAL}/bin/ollama" ]; then echo inst=1; else echo inst=0; fi`,
+  `if [ -n "$GP" ] || [ -x "$PX/v${OLLAMA_VERSION_LOCAL}/bin/ollama" ]; then echo inst=1; else echo inst=0; fi`,
   `M=$(head -1 "$PX/modelo" 2>/dev/null | tr -dc 'A-Za-z0-9.:_-'); grep -q '"ollama-local"' "$BD/providers.json" 2>/dev/null || M=""; echo "modelo=$M"`,
   `if curl -fsS -m 3 "http://127.0.0.1:$OPORT/api/version" >/dev/null 2>&1; then echo run=1; else echo run=0; fi`,
   `if [ -n "$M" ] && curl -fsS -m 4 "http://127.0.0.1:$OPORT/api/tags" 2>/dev/null | grep -q "\"$M\""; then echo pronto=1; else echo pronto=0; fi`,
 ].join("\n");
 
 /** "ligar"/"parar" da lateral: o serviço do usuário que o instalador criou. Sai com erro (e a frase do systemctl) se ele falhar. */
-export const ollamaLigarSh = (ligado: boolean): string => `systemctl --user ${ligado ? "start" : "stop"} meu-bot-ollama.service 2>&1 || exit 1; sleep ${ligado ? 2 : 1}`;
+export const ollamaLigarSh = (ligado: boolean): string => `[ -s "$HOME/.local/share/meu-bot/ollama/global" ] && { echo "o modo grátis desta máquina é para todos: quem administra a máquina liga e para"; exit 1; }; systemctl --user ${ligado ? "start" : "stop"} meu-bot-ollama.service 2>&1 || exit 1; sleep ${ligado ? 2 : 1}`;
 
 /** A resposta do OLLAMA_STATUS_SH no formato do status do Mac; null = a máquina não respondeu o que se esperava. */
 export function lerStatusRemoto(stdout: string): OllamaStatus | null {
@@ -52,11 +58,13 @@ export function lerStatusRemoto(stdout: string): OllamaStatus | null {
   const instalado = v.get("inst") === "1";
   const modelo = v.get("modelo") !== undefined && v.get("modelo") !== "" ? (v.get("modelo") as string) : null;
   const rodando = instalado && v.get("run") === "1";
-  // Linux x86_64 com systemd de usuário, o backend do meu-bot com providers.js e memória para o modelo.
-  const possivel = v.get("os") === "Linux" && v.get("arch") === "x86_64" && v.get("sd") === "1" && v.get("bk") === "1" && (memMb === null || memMb >= MEM_MINIMA_REMOTA_MB);
+  // Com o modo grátis para todos, a conta só aponta o providers.json: basta o backend com providers.js (o Ollama, a
+  // memória e o disco são da máquina). Sem ele: Linux x86_64 com systemd de usuário, o backend e memória para o modelo.
+  const global = v.get("glob") === "1";
+  const possivel = v.get("os") === "Linux" && v.get("bk") === "1" && (global || (v.get("arch") === "x86_64" && v.get("sd") === "1" && (memMb === null || memMb >= MEM_MINIMA_REMOTA_MB)));
   return {
     possivel, instalado, rodando, pronto: rodando && modelo !== null && v.get("pronto") === "1", modelo,
-    recomendado: modeloParaMaquinaRemota(), memMb, livreMb: num("livre"), necessarioMb: espacoNecessarioRemotoMb(), versao: OLLAMA_VERSION_LOCAL,
-    remoto: true, programaMb: PACOTE_MB,
+    recomendado: modeloParaMaquinaRemota(), memMb, livreMb: num("livre"), necessarioMb: global ? 0 : espacoNecessarioRemotoMb(), versao: OLLAMA_VERSION_LOCAL,
+    remoto: true, programaMb: global ? 0 : PACOTE_MB, ...(global ? { global: true as const } : {}),
   };
 }

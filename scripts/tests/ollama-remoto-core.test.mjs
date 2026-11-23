@@ -122,3 +122,65 @@ test("install-ollama.sh: sintaxe, e a mescla do providers.json preserva as outra
   assert.equal(chamar(p, "por", "7883", "qwen2.5:3b").status, 0);
   assert.deepEqual(JSON.parse(readFileSync(p, "utf8")).map((e) => e.name), ["agente", "ollama-local"]);
 });
+
+// Modo grátis para todos: um Ollama do root na máquina; a conta só aponta o providers.json para ele.
+const GLOBAL_SH = resolve("backend-colima/install-ollama-global.sh");
+const marcaGlobal = (m, j = { porta: 18760, modelo: "qwen2.5:3b", versao: o.OLLAMA_VERSION_LOCAL }) => { const f = join(m.home, "global.json"); writeFileSync(f, typeof j === "string" ? j : JSON.stringify(j)); return f; };
+const rodarCom = (m, env, script) => spawnSync("bash", ["-c", script], { encoding: "utf8", env: { ...process.env, HOME: m.home, PATH: `${m.bin}:${process.env.PATH}`, ...env } });
+
+test("install-ollama.sh com o modo grátis para todos: não baixa nada, aponta o providers.json para a porta da máquina e larga o Ollama próprio", () => {
+  const m = maquina({ providers: JSON.stringify([{ name: "agente", type: "claude", priority: 0 }]), instalado: true, modelo: "qwen2.5:3b", responde: true, tags: '{"models":[{"name":"qwen2.5:3b"}]}' });
+  const marca = marcaGlobal(m);
+  // Sem OLLAMA_URL nem sha256: se tentasse baixar, pararia no "falta OLLAMA_VERSION".
+  const out = rodarCom(m, { MEU_BOT_OLLAMA_GLOBAL: marca }, `bash "${resolve("backend-colima/install-ollama.sh")}"`);
+  assert.equal(out.status, 0, out.stdout + out.stderr);
+  assert.match(out.stdout, /nada para baixar/);
+  assert.match(out.stdout, /pronto: o modo grátis responde/);
+  const px = join(m.home, ".local/share/meu-bot/ollama");
+  assert.equal(readFileSync(join(px, "global"), "utf8").trim(), "18760");
+  assert.equal(readFileSync(join(px, "modelo"), "utf8").trim(), "qwen2.5:3b");
+  assert.equal(spawnSync("test", ["-e", join(px, `v${o.OLLAMA_VERSION_LOCAL}`)]).status, 1, "a cópia própria do programa sai");
+  assert.equal(o.modeloNoProviders(readFileSync(join(m.bd, "providers.json"), "utf8"), 18760), "qwen2.5:3b", "o ollama-local aponta para a porta da máquina");
+  const log = readFileSync(join(m.home, "curl.log"), "utf8");
+  assert.match(log, /127\.0\.0\.1:18760\/api\/tags/);
+  assert.doesNotMatch(log, /github\.com/, "nenhum download");
+
+  // O estado passa a ser lido na porta da máquina, e a conta não precisa de memória nem de disco para o modelo.
+  const s = r.lerStatusRemoto(rodarCom(m, { MEU_BOT_OLLAMA_GLOBAL: marca }, r.OLLAMA_STATUS_SH).stdout);
+  assert.deepEqual([s.global, s.possivel, s.instalado, s.rodando, s.pronto, s.modelo, s.necessarioMb, s.programaMb], [true, true, true, true, true, "qwen2.5:3b", 0, 0]);
+  // "ligar/parar" não mexe num serviço que é da máquina.
+  const liga = rodar(m, r.ollamaLigarSh(false));
+  assert.equal(liga.status, 1); assert.match(liga.stdout, /para todos/);
+});
+
+test("install-ollama.sh com o global fora do ar ou marca ilegível: para com a explicação, sem baixar os 3,4 GB na conta", () => {
+  const fora = maquina({ responde: false });
+  const a = rodarCom(fora, { MEU_BOT_OLLAMA_GLOBAL: marcaGlobal(fora) }, `bash "${resolve("backend-colima/install-ollama.sh")}"`);
+  assert.equal(a.status, 1); assert.match(a.stdout, /não respondeu com o modelo/);
+  const lixo = maquina({ responde: true });
+  const b = rodarCom(lixo, { MEU_BOT_OLLAMA_GLOBAL: marcaGlobal(lixo, '{"porta": "18760; rm -rf /"}') }, `bash "${resolve("backend-colima/install-ollama.sh")}"`);
+  assert.equal(b.status, 1); assert.match(b.stdout, /ilegível/);
+});
+
+test("lerStatusRemoto com o global: basta o backend na conta (pouca memória e sem systemd de usuário não impedem)", () => {
+  const s = r.lerStatusRemoto(saida({ glob: 1, sd: 0, mem: 2000, arch: "x86_64" }));
+  assert.deepEqual([s.possivel, s.global, s.necessarioMb], [true, true, 0]);
+  assert.equal(r.lerStatusRemoto(saida({ glob: 1, bk: 0 })).possivel, false, "sem o backend do meu-bot não há providers.json para apontar");
+  assert.equal(r.lerStatusRemoto(saida({ glob: 0, mem: 2000 })).global, undefined);
+});
+
+test("install-ollama-global.sh: sintaxe, só root, sha256 conferido, serviço sem root e a marca gravada por último", () => {
+  assert.equal(spawnSync("bash", ["-n", GLOBAL_SH], { encoding: "utf8" }).status, 0);
+  const g = readFileSync(GLOBAL_SH, "utf8");
+  assert.match(g, /\[ "\$\(id -u\)" = 0 \] \|\| \{ echo "ERRO=/);
+  assert.match(g, /sha256sum -c/);
+  assert.match(g, /curl -fsSL --retry 5 --retry-delay 5 -C - /, "o download retoma de onde parou");
+  assert.match(g, /useradd --system/); assert.match(g, /^User=\$USR$/m);
+  assert.match(g, /OLLAMA_HOST=127\.0\.0\.1:\$P/, "só escuta nesta máquina");
+  assert.ok(g.includes(r.OLLAMA_GLOBAL_MARCA.replace("/opt/meu-bot-ollama", "$D")), "a marca é a que as contas leem");
+  assert.ok(g.lastIndexOf('> "$MARCA.tmp"') > g.indexOf("/api/pull"), "a marca só existe com o modelo baixado");
+  for (const v of ["OLLAMA_VERSION", "OLLAMA_SHA256", "OLLAMA_URL", "OLLAMA_MODELO"]) assert.ok(g.includes(v), v);
+  assert.deepEqual(req("../../dist/main/maquina/backend-bundle-core.js").OLLAMA_GLOBAL_FILES, ["install-ollama-global.sh"]);
+  // Como usuário comum: recusa antes de qualquer coisa.
+  if (process.getuid && process.getuid() !== 0) assert.match(spawnSync("bash", [GLOBAL_SH], { encoding: "utf8" }).stdout, /^ERRO=o modo grátis para todos precisa ser instalado como root/);
+});

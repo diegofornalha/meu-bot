@@ -35,7 +35,10 @@ backend_restart() {
 NODE=$(grep -h '^ExecStart=' "$USER_UNIT" "$SYS_UNIT" 2>/dev/null | head -1 | awk '{print $1}' | sed 's/^ExecStart=//' || true)
 if [ -z "$NODE" ] || [ ! -x "$NODE" ]; then NODE=$(command -v node || true); fi
 [ -n "$NODE" ] || { echo "node não encontrado nesta máquina (o backend do meu-bot precisa dele)"; exit 1; }
-if ! command -v systemctl >/dev/null 2>&1 || ! systemctl --user show-environment >/dev/null 2>&1; then echo "esta conta não tem systemd de usuário; o modo grátis precisa dele para o Ollama ficar no ar"; exit 1; fi
+# A marca do modo grátis para todos (install-ollama-global.sh, pelo root): com ela o Ollama é o da máquina e esta conta
+# não precisa de systemd de usuário nem de download.
+GMARCA=${MEU_BOT_OLLAMA_GLOBAL:-/opt/meu-bot-ollama/global.json}
+if [ ! -r "$GMARCA" ] && { ! command -v systemctl >/dev/null 2>&1 || ! systemctl --user show-environment >/dev/null 2>&1; }; then echo "esta conta não tem systemd de usuário; o modo grátis precisa dele para o Ollama ficar no ar"; exit 1; fi
 
 # Porta do Ollama: a do backend desta conta - 200 (cada conta da máquina tem a sua, como o backend).
 BPORT=$(grep -h '^PORT=' "$BACKEND/.env" 2>/dev/null | head -1 | cut -d= -f2 | tr -dc '0-9' || true)
@@ -67,6 +70,27 @@ if [ "$ACAO" = "remover" ]; then
   if [ -f "$P" ] && grep -q '"ollama-local"' "$P"; then providers_ollama "$P" tirar; echo "ollama-local tirado do providers.json"; backend_restart; fi
   rm -rf "${HOME:?}/.local/share/meu-bot/ollama"
   echo "pronto: modo grátis removido desta máquina"
+  exit 0
+fi
+
+# Modo grátis para todos (install-ollama-global.sh, pelo root): a máquina já tem UM Ollama no ar com o modelo, e a
+# marca dele diz a porta. Esta conta não baixa nada (eram ~3,4 GB por conta, e o modelo carregado mal cabia no teto de
+# RAM de uma box): só aponta o providers.json para ele e larga o Ollama próprio, se tinha.
+if [ -r "$GMARCA" ]; then
+  GP=$("$NODE" -e 'try { const j = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); if (Number.isInteger(j.porta) && j.porta > 1023 && j.porta < 65536 && /^[A-Za-z0-9.:_-]{1,80}$/.test(String(j.modelo))) console.log(j.porta + " " + j.modelo); } catch (_) {}' "$GMARCA" || true)
+  [ -n "$GP" ] || { echo "a marca do modo grátis desta máquina ($GMARCA) está ilegível; peça a quem administra para reinstalar o modo grátis para todos"; exit 1; }
+  GPORTA=${GP%% *}; GMOD=${GP#* }
+  curl -fsS -m 5 "http://127.0.0.1:$GPORTA/api/tags" 2>/dev/null | grep -q "\"$GMOD\"" || { echo "o modo grátis desta máquina (Ollama para todos, porta $GPORTA) não respondeu com o modelo $GMOD; peça a quem administra para conferir em Preparar máquina"; exit 1; }
+  echo "esta máquina já tem o modo grátis para todos: nada para baixar"
+  systemctl --user disable --now "$UNIT" >/dev/null 2>&1 || true
+  rm -f "${U:?}/${UNIT:?}"; systemctl --user daemon-reload >/dev/null 2>&1 || true
+  rm -rf "${PREFIX:?}"; mkdir -p "$PREFIX"
+  providers_ollama "$P" por "$GPORTA" "$GMOD"
+  printf '%s\n' "$GMOD" > "$PREFIX/modelo"
+  printf '%s\n' "$GPORTA" > "$PREFIX/global"
+  echo "ollama-local apontado para o Ollama da máquina (porta $GPORTA, modelo $GMOD)"
+  backend_restart
+  echo "pronto: o modo grátis responde nesta máquina"
   exit 0
 fi
 

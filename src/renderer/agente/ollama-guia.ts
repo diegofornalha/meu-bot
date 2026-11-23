@@ -40,6 +40,8 @@ function paintOllamaLine(): void {
   ollamaLine.className = `wa-line cl-line ${s.pronto ? "on" : "off"}`;
   ollamaLineText.textContent = s.pronto ? `Ollama · ${s.modelo} (${aqui()})` : `Ollama · ${s.modelo} · parado · o ollama-local não responde`;
   ollamaLineBtn.textContent = st.toggling ? "…" : s.rodando ? "parar" : "ligar";
+  // Modo grátis para todos: o serviço é da máquina; quem administra é que liga e para.
+  ollamaLineBtn.hidden = s.global === true;
   ollamaLineBtn.disabled = st.toggling || st.preparing || st.removing;
 }
 
@@ -84,11 +86,13 @@ function paintOllamaGuide(): void {
   if (s === null) { check.aviso.textContent = "Consultando a máquina…"; check.remover.hidden = true; }
   else {
     const li = (t: string): void => { check.info.append(el("li", "", t)); };
-    if (s.remoto === true) li(s.possivel ? "Máquina Linux x86_64 com o backend do meu-bot: ok (o modelo roda na CPU, mais devagar que num Mac)" : "Esta máquina não roda o modo grátis: ele precisa de Linux x86_64, do backend do meu-bot instalado e de pelo menos 6 GB de memória.");
+    if (s.global === true) li(s.possivel ? "Esta máquina já tem o modo grátis para todos (um Ollama da máquina): esta conta não baixa nada" : "Esta conta ainda não tem o backend do meu-bot: instale pelo seletor antes.");
+    else if (s.remoto === true) li(s.possivel ? "Máquina Linux x86_64 com o backend do meu-bot: ok (o modelo roda na CPU, mais devagar que num Mac)" : "Esta máquina não roda o modo grátis: ele precisa de Linux x86_64, do backend do meu-bot instalado e de pelo menos 6 GB de memória.");
     else li(s.possivel ? "Chip Apple: ok" : "Este Mac não tem chip Apple: o modo grátis precisa de um M1 ou mais novo.");
-    if (s.memMb !== null) li(`Memória: ${gb(s.memMb)} GB → modelo ${s.recomendado.rotulo}`);
-    li(`Download: ~${gb(s.recomendado.downloadMb)} GB do modelo, mais ~${gb(s.programaMb ?? 200)} GB do programa`);
-    if (s.livreMb !== null) li(`Espaço livre: ${gb(s.livreMb)} GB (precisa de ~${gb(s.necessarioMb)} GB)`);
+    if (s.global === true) li(`Modelo: ${s.recomendado.rotulo}, compartilhado com as outras contas desta máquina`);
+    else if (s.memMb !== null) li(`Memória: ${gb(s.memMb)} GB → modelo ${s.recomendado.rotulo}`);
+    if (s.global !== true) li(`Download: ~${gb(s.recomendado.downloadMb)} GB do modelo, mais ~${gb(s.programaMb ?? 200)} GB do programa`);
+    if (s.global !== true && s.livreMb !== null) li(`Espaço livre: ${gb(s.livreMb)} GB (precisa de ~${gb(s.necessarioMb)} GB)`);
     const falta = s.livreMb !== null && s.livreMb < s.necessarioMb && !s.pronto;
     check.aviso.textContent = s.pronto ? `Modo grátis instalado: ${s.modelo ?? ""}.` : falta ? "Falta espaço: libere alguns GB e volte aqui (o passo se confere sozinho)." : "Tudo certo para instalar.";
     check.remover.hidden = !s.instalado || st.preparing;
@@ -97,9 +101,10 @@ function paintOllamaGuide(): void {
   }
   const pronto = s?.pronto === true;
   prep.status.textContent = st.preparing || st.removing ? st.status : pronto ? `Pronto: o ${s?.modelo ?? "modelo"} responde ${aqui()}.` : st.result === "fail" ? st.status
-    : s === null ? "" : `Vou baixar ~${gb(s.recomendado.downloadMb + (s.programaMb ?? 200))} GB para ~/.local/share/meu-bot/ollama ${s.remoto === true ? "na máquina (só do meu-bot; sem sudo)" : "(só do meu-bot; nada em Aplicativos)"}. Dá para remover depois.`;
+    : s === null ? "" : s.global === true ? "É só ligar nesta conta: leva alguns segundos e não baixa nada. Dá para remover depois."
+    : `Vou baixar ~${gb(s.recomendado.downloadMb + (s.programaMb ?? 200))} GB para ~/.local/share/meu-bot/ollama ${s.remoto === true ? "na máquina (só do meu-bot; sem sudo)" : "(só do meu-bot; nada em Aplicativos)"}. Dá para remover depois.`;
   prep.start.hidden = st.preparing || st.removing || pronto || s === null || !s.possivel;
-  prep.start.textContent = st.result === "fail" ? "Tentar de novo" : "Instalar o modo grátis";
+  prep.start.textContent = st.result === "fail" ? "Tentar de novo" : s?.global === true ? "Ligar o modo grátis nesta conta" : "Instalar o modo grátis";
   prep.start.classList.toggle("pulse", !prep.start.hidden);
   prep.log.hidden = !st.preparing && !st.removing && st.log.length === 0;
   prep.log.textContent = st.log.join("\n");

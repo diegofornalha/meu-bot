@@ -8,13 +8,13 @@ const todos = [...PACOTES_BASE, ...PACOTES_TELA, "chromium"];
 const pacotes = (faltam = []) => todos.map((p) => `${p}=${faltam.includes(p) ? 0 : 1}`).join(" ");
 const saida = (o = {}) => [
   "ROOT", `RAM=${o.ram ?? 32000000}`, `SWAP=${o.swap ?? 8388604}`, `COTA=${o.cota ?? 1}`, `LLMNR=${o.llmnr ?? "off"}`, `RESERVA=${o.reserva ?? 1}`, `SEMISO=${o.semiso ?? ""}`,
-  `PACOTES=${o.pacotes ?? pacotes()}`, `GH=${o.gh ?? "2.103.3"}`, `HERMES=${o.hermes ?? "global"}`, `TRANSCRITOR=${o.transcritor ?? 1}`, `OPENCLAW=${o.openclaw ?? "global"}`, `OCLEVE=${o.ocleve ?? "2 2"}`, `CONTEXTO=${o.contexto ?? "2 2"}`, `CG=${o.cg ?? "1 1 1"}`, `LP=${o.lp ?? "1 1 1 1 agentesgrok.com"}`, `OS=${o.os ?? "debian"}`,
+  `PACOTES=${o.pacotes ?? pacotes()}`, `GH=${o.gh ?? "2.103.3"}`, `HERMES=${o.hermes ?? "global"}`, `TRANSCRITOR=${o.transcritor ?? 1}`, `OPENCLAW=${o.openclaw ?? "global"}`, `OCLEVE=${o.ocleve ?? "2 2"}`, `CONTEXTO=${o.contexto ?? "2 2"}`, `CG=${o.cg ?? "1 1 1"}`, `OG=${o.og ?? "1 1 1"}`, `LP=${o.lp ?? "1 1 1 1 agentesgrok.com"}`, `OS=${o.os ?? "debian"}`,
 ].join("\n") + "\n";
 
 test("preparar: máquina pronta → tudo ok, nada a aplicar; NAOROOT → root=false", () => {
   const v = lerPreparar(saida());
   assert.equal(v.root, true);
-  assert.deepEqual(v.itens.map((i) => [i.id, i.estado]), [["swap", "ok"], ["cota", "ok"], ["governanca", "ok"], ["llmnr", "ok"], ["pacotes", "ok"], ["gh", "ok"], ["hermes", "ok"], ["transcritor", "ok"], ["openclaw", "ok"], ["openclaw-leve", "ok"], ["claude-global", "ok"], ["contexto", "ok"], ["link-publico", "ok"], ["chromium", "ok"]]);
+  assert.deepEqual(v.itens.map((i) => [i.id, i.estado]), [["swap", "ok"], ["cota", "ok"], ["governanca", "ok"], ["llmnr", "ok"], ["pacotes", "ok"], ["gh", "ok"], ["hermes", "ok"], ["transcritor", "ok"], ["openclaw", "ok"], ["openclaw-leve", "ok"], ["claude-global", "ok"], ["ollama", "ok"], ["contexto", "ok"], ["link-publico", "ok"], ["chromium", "ok"]]);
   assert.deepEqual(v.faltam, []);
   assert.equal(v.ramKb, 32000000);
   assert.match(v.itens.find((i) => i.id === "link-publico").detalhe, /agentesgrok\.com/);
@@ -87,9 +87,25 @@ test("preparar: pacotesSh valida nomes e protege contra o lock do apt; GH_GLOBAL
 test("preparar: o script de estado começa pelo guard de root, reaproveita os trechos de cota e Hermes e tem uma chave por item", () => {
   assert.match(PREPARAR_ESTADO_SH, /^\[ "\$\(id -u\)" = 0 \] \|\| \{ echo "NAOROOT"; exit 0; \}/);
   assert.ok(PREPARAR_ESTADO_SH.includes(COTA_ESTADO_SH)); assert.ok(PREPARAR_ESTADO_SH.includes(HERMES_ESTADO_SH)); assert.ok(PREPARAR_ESTADO_SH.includes(OPENCLAW_ESTADO_SH));
-  for (const k of ["RAM=", "SWAP=", "LLMNR=", "RESERVA=", "SEMISO=", "PACOTES=", "GH=", "TRANSCRITOR=", "OCLEVE=", "CONTEXTO=", "CG=", "LP=", "OS="]) assert.ok(PREPARAR_ESTADO_SH.includes(k), k);
+  for (const k of ["RAM=", "SWAP=", "LLMNR=", "RESERVA=", "SEMISO=", "PACOTES=", "GH=", "TRANSCRITOR=", "OCLEVE=", "CONTEXTO=", "CG=", "OG=", "LP=", "OS="]) assert.ok(PREPARAR_ESTADO_SH.includes(k), k);
   assert.match(PREPARAR_ESTADO_SH, /\/usr\/local\/bin\/gh --version/); assert.match(PREPARAR_ESTADO_SH, /dpkg-query/);
-  assert.deepEqual([...ORDEM_PREPARAR], ["swap", "cota", "governanca", "llmnr", "pacotes", "gh", "hermes", "transcritor", "openclaw", "openclaw-leve", "claude-global", "contexto", "chromium"]);
+  assert.deepEqual([...ORDEM_PREPARAR], ["swap", "cota", "governanca", "llmnr", "pacotes", "gh", "hermes", "transcritor", "openclaw", "openclaw-leve", "claude-global", "ollama", "contexto", "chromium"]);
+});
+
+test("preparar: modo grátis para todos é opcional (não entra no 'aplicar o que falta'), e o passo vai por scp com 40 min", () => {
+  const og = (s) => lerPreparar(saida({ og: s })).itens.find((i) => i.id === "ollama");
+  assert.deepEqual([og("0 0 0").estado, og("0 0 0").opcional], ["falta", true]);
+  assert.match(og("0 0 0").detalhe, /cada conta baixa/);
+  assert.match(og("1 0 0").detalhe, /parado/);
+  assert.match(og("1 1 0").detalhe, /sem o modelo/);
+  assert.equal(og("1 1 1").estado, "ok");
+  // Saída de um admin antigo, sem a chave OG=: falta, sem quebrar a leitura.
+  assert.equal(lerPreparar(saida().replace(/^OG=.*\n/m, "")).itens.find((i) => i.id === "ollama").estado, "falta");
+  const v = lerPreparar(saida({ og: "0 0 0" }));
+  assert.deepEqual(v.faltam, [], "opcional não entra no que falta");
+  const p = passosPreparar(["ollama"], v);
+  assert.deepEqual([p[0].id, p[0].sh, p[0].timeoutMs, p[0].acao], ["ollama", null, 40 * 60_000, "maquina.ollama-global"]);
+  assert.ok(p[0].ok.test("OLLAMA_GLOBAL=ok 18760\n"));
 });
 
 test("preparar: OpenClaw para todos ao lado do Hermes (o app é agnóstico de motor): só no root ou em nenhum lugar → falta; passo como root com a versão fixada", () => {

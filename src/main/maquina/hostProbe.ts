@@ -5,7 +5,7 @@
  *
  * Usa ssh/scp avulsos (ControlMaster=no, sem o mux do túnel) para não interferir no túnel ativo.
  */
-import { BUNDLE_FILES, CLAUDE_GLOBAL_FILES, CRM_FILES, CRM_PLUGIN_FILES, GUARDA_FILES, GUARDA_PLUGIN_FILES, NAVEGADOR_FILES, TELA_FILES, TELA_PLUGIN_FILES, TELA_SKILL_FILES, VOZ_FILES } from "./backend-bundle-core";
+import { BUNDLE_FILES, CLAUDE_GLOBAL_FILES, OLLAMA_GLOBAL_FILES, CRM_FILES, CRM_PLUGIN_FILES, GUARDA_FILES, GUARDA_PLUGIN_FILES, NAVEGADOR_FILES, TELA_FILES, TELA_PLUGIN_FILES, TELA_SKILL_FILES, VOZ_FILES } from "./backend-bundle-core";
 import { NAV_MCP_VERSAO } from "../navegador/navegador-whatsapp-core";
 import { GMAIL_MCP_VERSAO } from "../google/gmail-core";
 import { VOZES, isVozId } from "../whatsapp/vozes-core";
@@ -512,6 +512,27 @@ async function rodarInstaladorOllama(host: string, acao: "instalar" | "remover",
   const inst = await run("ssh", [...sshBase(host), "--", host, cmd], timeoutMs, say);
   if (inst.code !== 0) return { ok: false, log: [...lines, lines.at(-1) ?? `instalador saiu com código ${inst.code ?? "timeout"}`] };
   return { ok: true, log: lines };
+}
+/**
+ * Modo grátis para todos (root): envia o install-ollama-global.sh e o roda como root. `host` é o alias do root. Um
+ * Ollama só, em /opt/meu-bot-ollama, que as contas usam sem baixar nada. Até 40 min (download de ~3,4 GB, que retoma).
+ */
+export async function installOllamaGlobal(host: string, onLine?: (line: string) => void): Promise<{ ok: boolean; porta: number | null; erro: string | null }> {
+  const falha = (erro: string): { ok: false; porta: null; erro: string } => ({ ok: false, porta: null, erro });
+  if (host === LOCAL_HOST || !isValidHost(host)) return falha("máquina inválida");
+  const mk = await run("ssh", [...sshBase(host), "--", host, `${limparStage("ollama-global")}; mkdir -p ${stageDe("ollama-global")}`], 20_000);
+  if (mk.code !== 0) return falha(`falha ao preparar a pasta remota: ${lastLine(mk.stderr)}`);
+  const arquivos = OLLAMA_GLOBAL_FILES.map((f) => path.join(backendBundleDir(), f));
+  const scp = await run("scp", ["-q", ...sshBase(host), "--", ...arquivos, `${host}:${stageDe("ollama-global")}/`], 60_000);
+  if (scp.code !== 0) return falha(`scp falhou: ${lastLine(scp.stderr)}`);
+  let saida = "";
+  const r = await run("ssh", [...sshBase(host), "--", host, `${envDoInstalador()} bash ${stageDe("ollama-global")}/install-ollama-global.sh 2>&1`], 40 * 60_000, (l) => { saida += `${l}\n`; if (!/^(OLLAMA_GLOBAL|ERRO)=/.test(l)) onLine?.(l); });
+  const out = `${r.stdout}\n${saida}`;
+  const erro = /^ERRO=(.*)$/m.exec(out)?.[1];
+  if (erro !== undefined) return falha(erro);
+  const ok = /^OLLAMA_GLOBAL=ok (\d+)$/m.exec(out);
+  if (ok === null) return falha(lastLine(out) || lastLine(r.stderr) || "o instalador não respondeu");
+  return { ok: true, porta: Number(ok[1]), erro: null };
 }
 /** Passo 2 do tutorial 16 na máquina: baixa o Ollama e o modelo, sobe o serviço e aponta o backend (até 40 min de download). */
 export const prepareOllamaRemoto = (host: string, onLine?: (line: string) => void): Promise<InstallBackendResult> => rodarInstaladorOllama(host, "instalar", 40 * 60_000, onLine);
