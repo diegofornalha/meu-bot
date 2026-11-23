@@ -757,7 +757,7 @@ export const hermesSttCmdSh = (bin: string = TRANSCRITOR_BIN): string => `echo "
  * O que a tela mostra do áudio do Hermes, a partir das linhas `stt= prov= whisper= cmd= tts=` (e `audiomaq= audiooff=`,
  * quando vieram); null = não deu para ler.
  */
-export function lerHermesAudio(out: string): { audioIn: boolean; audioOut: "off" | "inbound" | "always"; audioVoice?: VozId | null; audioMaquina?: boolean; audioDesligado?: boolean } | null {
+export function lerHermesAudio(out: string): { audioIn: boolean; audioOut: "off" | "inbound" | "always"; audioSoAudio?: boolean; audioVoice?: VozId | null; audioMaquina?: boolean; audioDesligado?: boolean } | null {
   const stt = /^stt=([01])$/m.exec(out); const tts = /^tts=(off|inbound|always)$/m.exec(out);
   if (stt === null || tts === null) return null;
   const kv = new Map<string, string>(); for (const l of out.split("\n")) { const i = l.indexOf("="); if (i > 0) kv.set(l.slice(0, i), l.slice(i + 1).trim()); }
@@ -768,7 +768,11 @@ export function lerHermesAudio(out: string): { audioIn: boolean; audioOut: "off"
   const ouve = stt[1] === "1" && (prov === "local" || prov === "" ? whisper : prov === "local_command" ? cmd : true);
   // `vozid=` vem do hermes-voz.sh da máquina (HERMES_VOZ_ID_SH); vazio = nenhuma voz instalada ainda.
   const vozid = kv.get("vozid");
-  return { audioIn: ouve, audioOut: tts[1] as "off" | "inbound" | "always", ...(vozid === undefined ? {} : { audioVoice: isVozId(vozid) ? vozid : null }), ...lerAudioEstado(kv) };
+  // "sempre" e "só áudio" são da marca do app (whatsapp-lista.json › audio), que o plugin meu-bot-pausa aplica: o
+  // Hermes só tem o áudio sempre por conversa e não tem como mandar o áudio sem o texto. Sem a chave: como antes.
+  const sempre = tts[1] !== "off" && kv.get("sempre") === "1";
+  const so = kv.get("soaudio");
+  return { audioIn: ouve, audioOut: sempre ? "always" : tts[1] as "off" | "inbound" | "always", ...(so === undefined ? {} : { audioSoAudio: so === "1" }), ...(vozid === undefined ? {} : { audioVoice: isVozId(vozid) ? vozid : null }), ...lerAudioEstado(kv) };
 }
 export function hermesAudioPatch(setup: { kind: "in"; off?: boolean; compartilhado?: boolean } | { kind: "out"; mode: "off" | "inbound" | "always" }): Record<string, unknown> {
   if (setup.kind === "in" && setup.off !== true && setup.compartilhado === true) return { "stt.enabled": true, "stt.provider": "local_command", "stt.language": "pt" };
@@ -776,6 +780,33 @@ export function hermesAudioPatch(setup: { kind: "in"; off?: boolean; compartilha
   if (setup.mode === "off") return { "voice.auto_tts": false };
   // O provedor padrão (voz-local) entra por hermesVozLocalSh, que precisa do caminho da máquina e da voz escolhida.
   return { "voice.auto_tts": true, "tts.piper.voice": HERMES_PIPER_VOICE, "tts.edge.voice": "pt-BR-FranciscaNeural" };
+}
+/**
+ * CONTORNO #7 (Hermes): o gateway não tem "responder em áudio sempre" como padrão (só por conversa, /voice tts) nem
+ * "mandar só o áudio" (no WhatsApp o texto vai sempre depois do áudio). O que fazemos: a escolha do painel fica na
+ * marca do app (whatsapp-lista.json › audio), e o plugin meu-bot-pausa (≥ 1.3.0) a aplica a cada mensagem.
+ * Sai quando: o Hermes tiver as duas opções no config.yaml. Tabela: docs/guia/contornos.md.
+ * Mescla só as chaves dadas (as outras marcas do arquivo ficam). Saída `audiomarca=ok`.
+ */
+export function hermesAudioMarcaSh(a: { sempre?: boolean; soAudio?: boolean }): string {
+  const b64 = Buffer.from(JSON.stringify(a), "utf8").toString("base64");
+  return `python3 -c '
+import base64, json, os, sys
+f = os.path.expanduser("~/.local/share/meu-bot/whatsapp-lista.json")
+try:
+    cur = json.load(open(f))
+    assert isinstance(cur, dict)
+except Exception:
+    cur = {}
+a = cur.get("audio") if isinstance(cur.get("audio"), dict) else {}
+a.update({k: v for k, v in json.loads(base64.b64decode(sys.argv[1])).items() if k in ("sempre", "soAudio") and isinstance(v, bool)})
+cur["audio"] = a
+os.makedirs(os.path.dirname(f), exist_ok=True)
+tmp = f + ".audio.tmp"
+with open(tmp, "w") as o: json.dump(cur, o, indent=1, ensure_ascii=False)
+os.chmod(tmp, 0o600); os.replace(tmp, f)
+print("audiomarca=ok")
+' ${b64}`;
 }
 /** Script de voz do meu-bot na máquina: acha o Python do gateway na hora e roda o Piper (WAV). */
 export const HERMES_VOZ_SH_FILE = "$HOME/.local/share/meu-bot/hermes-voz.sh";

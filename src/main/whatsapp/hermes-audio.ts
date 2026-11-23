@@ -35,9 +35,16 @@ print("stt=" + ("1" if en else "0"))
 print("prov=" + str(s.get("provider") or ""))
 v = c.get("voice") or {}
 print("tts=" + ("inbound" if v.get("auto_tts") else "off"))
+import json
+try:
+    a = json.load(open(os.path.expanduser("~/.local/share/meu-bot/whatsapp-lista.json"))).get("audio") or {}
+except Exception:
+    a = {}
+print("sempre=" + ("1" if a.get("sempre") is True else "0"))
+print("soaudio=" + ("1" if a.get("soAudio") is True else "0"))
 ' 2>/dev/null`;
 
-export interface HermesAudio { audioIn: boolean; audioOut: VoiceReplyMode; audioVoice?: VozId | null; audioMaquina?: boolean; audioDesligado?: boolean }
+export interface HermesAudio { audioIn: boolean; audioOut: VoiceReplyMode; audioSoAudio?: boolean; audioVoice?: VozId | null; audioMaquina?: boolean; audioDesligado?: boolean }
 
 /** Estado do áudio no Hermes da máquina; null se não deu para ler (a tela fica sem a linha, sem inventar). */
 export async function hermesAudioStatus(host: string): Promise<HermesAudio | null> {

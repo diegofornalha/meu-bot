@@ -40,7 +40,7 @@ export type VoiceReplyMode = "off" | "inbound" | "always";
 /** "in" liga a transcrição (padrão do app ao parear); `off: true` desliga. "out" é a voz, pelo modo. */
 /** Voz das respostas em áudio: faber (masculina, Piper), dora (feminina, Kokoro), alex (masculina natural, Kokoro). */
 export type VozId = "faber" | "dora" | "alex";
-export type AudioSetup = { kind: "in"; off?: boolean } | { kind: "out"; mode: VoiceReplyMode; voz?: VozId };
+export type AudioSetup = { kind: "in"; off?: boolean } | { kind: "out"; mode: VoiceReplyMode; voz?: VozId; /** Hermes: mandar só o áudio, sem o texto embaixo nem o eco da transcrição (ausente = não mexe). */ soAudio?: boolean };
 
 /** Tutorial 7 · objetivo do WhatsApp: a escolha da pessoa (rótulo do cartão + frase livre; "outro" exige a frase). */
 export interface ObjectiveChoice { id: string; label: string; text: string }

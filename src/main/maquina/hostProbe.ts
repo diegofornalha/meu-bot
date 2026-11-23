@@ -12,7 +12,7 @@ import { VOZES, isVozId } from "../whatsapp/vozes-core";
 import { WA_MOTOR_SH } from "../whatsapp/whatsapp-capacidades";
 import { audioMarcaSh } from "../whatsapp/transcritor-core";
 import { hermesPausaPluginSh, lerPausaPlugin, versaoDoPluginYaml, type PausaPluginFonte } from "../whatsapp/whatsapp-hermes-pausa-core";
-import { HERMES_PIPER_VOICE, HERMES_PY_SH, HERMES_RESTART_SH, HERMES_VENV_PY_SH, HERMES_VOZ_ID_SH, hermesAudioPatch, hermesConfigSetSh, hermesPmExtraSh, hermesSttLigarSh, hermesVozLocalSh } from "../whatsapp/whatsapp-hermes-core";
+import { HERMES_PIPER_VOICE, HERMES_PY_SH, HERMES_RESTART_SH, HERMES_VENV_PY_SH, HERMES_VOZ_ID_SH, hermesAudioPatch, hermesAudioMarcaSh, hermesConfigSetSh, hermesPmExtraSh, hermesSttLigarSh, hermesVozLocalSh } from "../whatsapp/whatsapp-hermes-core";
 import { sshHostInfo } from "./sshConfig";
 import { scriptLocal } from "../whatsapp/whatsapp-local-core";
 import { STATUSLINE_SH } from "./statusline-probe-core";
@@ -443,7 +443,12 @@ export async function installAudio(host: string, setup: AudioSetup, onLine?: (li
     // ali e, reprovada, o script sai (7) sem gravar `voice.auto_tts` nem reiniciar o gateway: nada muda na máquina.
     // Ligar ou desligar a transcrição mexe na marca "desligada de propósito" (o app só religa sozinho sem ela).
     const marca = setup.kind === "in" ? `${audioMarcaSh(setup.off === true)}\n` : "";
-    const b64 = Buffer.from(`set -e\n${marca}${extra}${ligarVoz ? `${HERMES_PY_SH}\n${hermesVozLocalSh(voz)}\n` : ""}${ligarStt ? stt : `${hermesConfigSetSh(hermesAudioPatch(setup))}\n`}${HERMES_RESTART_SH}\n`, "utf8").toString("base64");
+    // "Sempre" e "só áudio" não existem no config do Hermes: vão na marca que o plugin meu-bot-pausa aplica (CONTORNO #7).
+    // O eco da transcrição ("🎙️ …") é nativo: com o só áudio ele sai junto. Depois do config: voz reprovada não grava nada.
+    const soAudio = setup.kind === "out" ? setup.soAudio : undefined;
+    const ecoPatch: Record<string, unknown> = soAudio === undefined ? {} : { "stt.echo_transcripts": !soAudio };
+    const audioMarca = setup.kind === "out" ? `${hermesAudioMarcaSh({ sempre: setup.mode === "always", ...(soAudio === undefined ? {} : { soAudio }) })}\n` : "";
+    const b64 = Buffer.from(`set -e\n${marca}${extra}${ligarVoz ? `${HERMES_PY_SH}\n${hermesVozLocalSh(voz)}\n` : ""}${ligarStt ? stt : `${hermesConfigSetSh({ ...hermesAudioPatch(setup), ...ecoPatch })}\n`}${audioMarca}${HERMES_RESTART_SH}\n`, "utf8").toString("base64");
     const r = await run("ssh", [...sshBase(host), "--", host, `echo ${b64} | base64 -d | bash`], 25 * 60_000);
     if (/extra=falhou/.test(r.stdout)) return { ok: false, log: [...lines, ligarStt ? "não consegui instalar o faster-whisper no Hermes (hermes pm install --extra stt-whisper); veja a máquina" : "não consegui instalar a voz Piper no Hermes (hermes pm install --extra piper); veja a máquina"] };
     // A voz nova não falou a frase de teste: o script saiu antes de mexer no config e de reiniciar o gateway.
@@ -452,7 +457,7 @@ export async function installAudio(host: string, setup: AudioSetup, onLine?: (li
     if (/restart=falhou/.test(r.stdout)) return { ok: false, log: [...lines, "gravei, mas não consegui reiniciar o gateway do Hermes; reinicie-o na máquina para valer"] };
     say(setup.kind === "in"
       ? (ligarStt ? (/stt=compartilhado/.test(r.stdout) ? "✓ Transcrição ligada: o agente entende áudios em português, com o transcritor compartilhado da máquina" : "✓ Transcrição ligada: o agente entende áudios em português (o modelo, ~150 MB, baixa no primeiro áudio)") : "✓ Transcrição desligada")
-      : setup.mode === "off" ? "✓ O agente responde só em texto" : `✓ O agente responde em áudio quando recebe áudio, com a voz ${rotulo} local em português${/voz=nao-baixou/.test(r.stdout) ? " (a voz baixa na primeira resposta; ela demora um pouco mais)" : ""}${/ffmpeg=falta/.test(r.stdout) ? ". Falta o ffmpeg e esta máquina não deixa instalar programas sem senha: o admin instala uma vez (pelo app dele: Preparar máquina › Pacotes do sistema); até lá o áudio chega como arquivo, não como mensagem de voz" : ""}`);
+      : setup.mode === "off" ? "✓ O agente responde só em texto" : `✓ O agente responde em áudio ${setup.mode === "always" ? "sempre" : "quando recebe áudio"}${soAudio === true ? " (só o áudio, sem texto)" : soAudio === false ? " (com o texto embaixo)" : ""}, com a voz ${rotulo} local em português${/voz=nao-baixou/.test(r.stdout) ? " (a voz baixa na primeira resposta; ela demora um pouco mais)" : ""}${/ffmpeg=falta/.test(r.stdout) ? ". Falta o ffmpeg e esta máquina não deixa instalar programas sem senha: o admin instala uma vez (pelo app dele: Preparar máquina › Pacotes do sistema); até lá o áudio chega como arquivo, não como mensagem de voz" : ""}`);
     return { ok: true, log: lines };
   }
   const file = setup.kind === "in" ? "install-transcricao.sh" : "install-voz.sh";

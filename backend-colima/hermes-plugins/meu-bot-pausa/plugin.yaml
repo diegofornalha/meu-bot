@@ -1,5 +1,5 @@
 name: meu-bot-pausa
-version: "1.2.0"
+version: "1.3.0"
 description: "Pausa por contato no WhatsApp (meu-bot): descarta as mensagens de quem está pausado lendo a marca do app, guarda o que chegou e entrega ao agente numa nota só ao retomar. Aceita /pausar 2h|24h e /retomar. Dá ao agente a ferramenta que desliga a resposta em áudio da conversa quando a pessoa pede."
 author: meu-bot
 provides_hooks:

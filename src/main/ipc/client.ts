@@ -415,7 +415,7 @@ export function registerClientIpc(): void {
     const p = payload as { kind?: unknown; mode?: unknown } | null;
     const voz = (p as { voz?: unknown } | null)?.voz;
     const setup: AudioSetup | null = p?.kind === "in" ? { kind: "in", ...((p as { off?: unknown }).off === true ? { off: true } : {}) }
-      : p?.kind === "out" && (p.mode === "off" || p.mode === "inbound" || p.mode === "always") ? { kind: "out", mode: p.mode, ...(isVozId(voz) ? { voz } : {}) } : null;
+      : p?.kind === "out" && (p.mode === "off" || p.mode === "inbound" || p.mode === "always") ? { kind: "out", mode: p.mode, ...(isVozId(voz) ? { voz } : {}), ...(typeof (p as { soAudio?: unknown }).soAudio === "boolean" ? { soAudio: (p as { soAudio: boolean }).soAudio } : {}) } : null;
     if (setup === null) throw new Error("pedido inválido");
     const r = await installAudio(h.host, setup);
     esquecerWhatsapp(h.host);

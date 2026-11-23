@@ -76,6 +76,8 @@ export interface WhatsappStatus {
   audioErro?: string;
   /** Quando o agente responde em áudio (OpenClaw: `tts.auto`; Hermes: `voice.auto_tts`); null = sem voz configurada. */
   audioOut?: VoiceReplyMode | null;
+  /** Hermes: a resposta em áudio vai sem o texto embaixo e sem o eco da transcrição (marca do app + plugin meu-bot-pausa ≥ 1.3.0). */
+  audioSoAudio?: boolean;
   /** Voz das respostas em áudio instalada na máquina (null = nenhuma escolhida ainda; a faber de antes conta como faber). */
   audioVoice?: VozId | null;
   /** Quando o agente mostra "digitando…" (OpenClaw: `typingMode` do agente ou o padrão); null = chave vazia (OpenClaw: a regra automática; Hermes: o padrão, ligado). Ausente = PicoClaw, que não mostra. */
