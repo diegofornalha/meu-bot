@@ -125,7 +125,7 @@ export function ligarEnvio(): void {
 
 /**
  * O backend recusou o chat porque este computador passou do limite de devices: o aviso explica e traz os dois caminhos,
- * adicionar um device no console e conferir se a vaga já abriu (reemite a licença da conta na máquina e apresenta o Mac).
+ * adicionar um device no console e conferir se a vaga já abriu (reemite a licença da conta na máquina e apresenta o computador).
  */
 function avisarDevicePendente(tab: Tab): void {
   const box = el("div", "notice notice-warn");
