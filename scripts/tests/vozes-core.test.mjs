@@ -1,7 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 const { VOZES, isVozId } = createRequire(import.meta.url)("../../dist/main/whatsapp/vozes-core.js");
 const root = join(import.meta.dirname, "..", "..");
@@ -29,4 +31,23 @@ test("ffmpeg que falta aponta o admin (Preparar máquina), não um apt que a box
     assert.match(s, /apt-get install -y -q ffmpeg/, f);
     assert.ok(s.indexOf("ffmpeg_ou_avisa()") < s.indexOf('ffmpeg_ou_avisa "'), `${f}: a função vem antes do uso`);
   }
+});
+
+test("voz Kokoro: o cache de arquivos inativo conta como livre no teto de RAM (download grande não recusa a voz)", () => {
+  const sh = readFileSync(join(root, "backend-colima/install-voz.sh"), "utf8");
+  const linha = sh.split("\n").find((l) => l.trim().startsWith("LIVRE=$(("));
+  assert.ok(linha, "a conta do LIVRE existe");
+  const cg = mkdtempSync(join(tmpdir(), "voz-cg-"));
+  const mb = 1048576;
+  // box-4 do meu-root-hermes em 23 nov: teto 3072, current 2628, cache inativo 1598 → 2041 livres (antes, 443).
+  writeFileSync(join(cg, "memory.max"), `${3072 * mb}\n`);
+  writeFileSync(join(cg, "memory.current"), `${2628 * mb}\n`);
+  writeFileSync(join(cg, "memory.stat"), `anon ${429 * mb}\nfile ${2053 * mb}\nactive_file ${455 * mb}\ninactive_file ${1598 * mb}\n`);
+  const livre = (dir) => execFileSync("bash", ["-c", `CG="$1"\n${linha.trim()}\necho "$LIVRE"`, "_", dir], { encoding: "utf8" }).trim();
+  assert.equal(livre(cg), "2042");
+  // Sem memory.stat (kernel antigo): cai na conta de antes, sem quebrar.
+  const sem = mkdtempSync(join(tmpdir(), "voz-cg-"));
+  writeFileSync(join(sem, "memory.max"), `${3072 * mb}\n`);
+  writeFileSync(join(sem, "memory.current"), `${2628 * mb}\n`);
+  assert.equal(livre(sem), "444");
 });
