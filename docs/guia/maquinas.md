@@ -478,6 +478,7 @@ numa infraestrutura prioritária nova antes de migrar uma pessoa para lá.
 | gh | `/usr/local/bin/gh` (root 755) | `/usr/local/bin/gh --version` |
 | Hermes | `/opt/hermes` + `/usr/local/bin/hermes` | `hermes --version` como qualquer usuário |
 | Transcritor | `/opt/transcriber` (venv, modelo, `bin/transcrever` do Hermes e `bin/transcrever-texto` do OpenClaw; sem ffmpeg) | `grep meu-bot-transcritor /opt/transcriber/bin/transcrever && test -x /opt/transcriber/bin/transcrever-texto` |
+| Voz para todos (opcional) | `/opt/meu-bot-voz` (venv do kokoro-onnx, `kokoro-v1.0.onnx`, `voices-v1.0.bin`, marca `global.json`; `install-voz-global.sh`). O `install-voz.sh` de cada conta acha a marca e troca venv e modelos da pasta dela por links para cá; a instalação aproveita a cópia que alguma conta já tem, se o sha256 conferir | `test -r /opt/meu-bot-voz/global.json && runuser -u nobody -- /opt/meu-bot-voz/venv/bin/python -c "import kokoro_onnx"` |
 | Claude Code Global | `/opt/meu-bot-claude-global`, `/etc/meu-bot/claude-global`, unit `meu-bot-claude-global`; login do root em `/root/.claude` (humano) | `systemctl is-active meu-bot-claude-global` |
 | Link Público | nginx + cloudflared, `/etc/meu-bot-link-publico/config.json`, `/var/www/publico` (1733), `/root/.cloudflared/cert.pem` (humano), túnel em `/etc/cloudflared/config.yml` | `systemctl is-active nginx cloudflared` |
 
