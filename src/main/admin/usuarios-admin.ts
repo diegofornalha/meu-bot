@@ -9,7 +9,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { MotorNovoUsuario, UsuariosVisao } from "../../shared/ipc";
-import { RECURSOS_PADRAO, pressaoDe, recentesDe, type MarcaBox, conferirMinimo, pctMinimo, motivoSsh, PREFIXO_USUARIO, boxesDesatualizadas, capacidadeDe, governancaDe, isolamentoTodosSh, reservaDe, reservaHostSh, nomeParaCriar, motorDe, openclawSemearSh, usuarioComChavesSh, lingerSh, aliasDoUsuario, blocoSshUsuario, candidatosAoSeletor, podeIrAoSeletor, configTemHost, removerBlocoUsuario, semChaveDesteMac, apelidoSh, apelidoValido, swapLigarSh, recursosSh, apagarItemSh, caminhoDentro, lerMaiores, maioresSh, apagarSh, sessaoAindaAberta, hermesGlobalSh, openclawGlobalSh, transcritorSh, COTA_LIGAR_SH, limiteKbDe, limiteSh, LISTAR_SH, lerUsuarios, NOME_USUARIO_RE, PROTEGIDOS, RESERVADOS, whatsappAlvoSh } from "./usuarios-core";
+import { RECURSOS_PADRAO, pressaoDe, recentesDe, type MarcaBox, conferirMinimo, pctMinimo, motivoSsh, PREFIXO_USUARIO, boxesDesatualizadas, capacidadeDe, governancaDe, isolamentoTodosSh, reservaDe, reservaHostSh, nomeParaCriar, motorDe, openclawSemearSh, usuarioComChavesSh, lingerSh, aliasDoUsuario, blocoSshUsuario, candidatosAoSeletor, podeIrAoSeletor, configTemHost, removerBlocoUsuario, apelidoSh, apelidoValido, swapLigarSh, recursosSh, apagarItemSh, caminhoDentro, lerMaiores, maioresSh, apagarSh, sessaoAindaAberta, hermesGlobalSh, openclawGlobalSh, transcritorSh, COTA_LIGAR_SH, limiteKbDe, limiteSh, LISTAR_SH, lerUsuarios, NOME_USUARIO_RE, PROTEGIDOS, RESERVADOS, whatsappAlvoSh } from "./usuarios-core";
 import { runSsh } from "../whatsapp/whatsapp";
 import { registrar } from "../auditoria/auditoria";
 import { log } from "../maquina/backend";
@@ -102,7 +102,11 @@ export async function atualizarBackends(host: string, onLine?: (line: string) =>
     for (const nome of boxesDesatualizadas(v.usuarios, want)) {
       const alias = aliasNoMeuBot(host, nome).alias;
       const feito = (estado: "atualizada" | "pulada" | "falhou", motivo: string): void => { atualizacao.push({ nome, estado, motivo }); onLine?.(`${estado === "atualizada" ? "✓" : estado === "pulada" ? "·" : "✗"} ${nome}: ${motivo}`); log(`[backends] ${host} ${nome}: ${estado} (${motivo})`); };
-      if (!configTemHost(texto, alias)) { feito("pulada", "sem alias neste Mac: use Nos seletores e tente de novo"); continue; }
+      // Box que este Mac ainda não conhece (criada pelo admin de outro Mac): adota aqui (chave deste Mac + seletores) e segue.
+      if (!configTemHost(texto, alias)) {
+        try { await chaveDesteMacNaConta(host, nome); await porNosSeletores(host, nome); }
+        catch (e) { feito("falhou", `não consegui pôr nos seletores deste Mac: ${e instanceof Error ? e.message : String(e)}`); continue; }
+      }
       const configurada = getBackendPort(alias);
       const probe = await probeHost(alias, configurada);
       if (!probe.reachable) { feito("falhou", probe.error ?? "não consegui entrar na conta dela"); continue; }
@@ -507,37 +511,44 @@ export async function nosSeletores(host: string, nome: unknown): Promise<{ alias
   const v = await usuariosDaMaquina(host);
   const u = v.usuarios.find((x) => x.nome === n);
   if (u === undefined) throw new Error(`não existe o usuário ${n}`);
-  if (!podeIrAoSeletor(u)) throw new Error(`${n} tem sudo ou é do meu-bot: não entra no seletor por aqui`);
+  if (!podeIrAoSeletor(u)) throw new Error(`${n} tem sudo ou é do sistema: não entra no seletor por aqui`);
   await chaveDesteMacNaConta(host, n);
   return porNosSeletores(host, n);
 }
 
-/** Autoriza a chave deste Mac no authorized_keys de um usuário comum que já existe (o script não duplica a que já está lá). */
-async function chaveDesteMacNaConta(host: string, n: string): Promise<void> {
+/**
+ * Autoriza a chave deste Mac no authorized_keys de um usuário comum que já existe (o script não duplica a que já está
+ * lá). Devolve se a chave entrou agora; só aí vai para a auditoria (a sincronização passa por aqui a cada box que falta).
+ */
+async function chaveDesteMacNaConta(host: string, n: string): Promise<boolean> {
   const { chave } = await acessoDesteMac(host);
   const r = await runSsh(host, `${usuarioComChavesSh(n, [chave], "chaves")}\n`, 60_000);
   const erro = /^ERRO=(.*)$/m.exec(r.stdout)?.[1];
   if (erro !== undefined) throw new Error(erro);
   if (!/^JAEXISTIA=/m.test(r.stdout)) throw new Error(`não consegui pôr a chave deste Mac em ${n}: ${(r.stderr.trim() || r.stdout.trim()).split("\n").pop() ?? "sem resposta"}`);
-  log(`[usuarios] ${host}: chave deste Mac em ${n}`);
-  void registrar(host, "usuarios.chave", n);
+  const posta = Number(/^CHAVES_NOVAS=(\d+)$/m.exec(r.stdout)?.[1] ?? "0") > 0;
+  if (posta) { log(`[usuarios] ${host}: chave deste Mac em ${n}`); void registrar(host, "usuarios.chave", n); }
+  return posta;
 }
 
 /**
- * Ao abrir a aba: os usuários comuns com a chave deste Mac que ainda faltam em algum seletor entram (um por vez; quem já
- * está nos dois não custa SSH). Sem preparar nada nas contas.
+ * Ao abrir a aba: todo usuário comum que ainda falta em algum seletor ganha a chave deste Mac (como root) e entra, um
+ * por vez; quem já está nos dois não custa SSH. É assim que a box criada pelo admin de outro Mac aparece aqui sem
+ * ninguém clicar. Sem preparar nada nas contas.
  */
-export async function sincronizarSeletores(host: string): Promise<{ entraram: string[]; semChave: string[]; falhas: { nome: string; motivo: string }[] }> {
+export async function sincronizarSeletores(host: string): Promise<{ entraram: string[]; chavePosta: string[]; falhas: { nome: string; motivo: string }[] }> {
   const v = await usuariosDaMaquina(host);
   const noAdmin = usuariosNoSeletor(host);
   const { texto } = lerSshConfig();
-  const entraram: string[] = []; const falhas: { nome: string; motivo: string }[] = [];
+  const entraram: string[] = []; const chavePosta: string[] = []; const falhas: { nome: string; motivo: string }[] = [];
   for (const u of candidatosAoSeletor(v.usuarios)) {
     if (configTemHost(texto, aliasNoMeuBot(host, u.nome).alias) && noAdmin.has(u.nome)) continue;
-    try { const r = await porNosSeletores(host, u.nome); if (r.novo) entraram.push(u.nome); if (r.aviso !== null) falhas.push({ nome: u.nome, motivo: r.aviso }); }
-    catch (e) { falhas.push({ nome: u.nome, motivo: e instanceof Error ? e.message : String(e) }); }
+    try {
+      if (await chaveDesteMacNaConta(host, u.nome)) chavePosta.push(u.nome);
+      const r = await porNosSeletores(host, u.nome); if (r.novo) entraram.push(u.nome); if (r.aviso !== null) falhas.push({ nome: u.nome, motivo: r.aviso });
+    } catch (e) { falhas.push({ nome: u.nome, motivo: e instanceof Error ? e.message : String(e) }); }
   }
-  return { entraram, semChave: semChaveDesteMac(v.usuarios), falhas };
+  return { entraram, chavePosta, falhas };
 }
 
 /**

@@ -108,19 +108,21 @@ test("usuários: todo usuário novo nasce com 3 GB de RAM e 200% de CPU (9 boxes
   assert.match(recursosSh("ana", RECURSOS_PADRAO.ramMb, RECURSOS_PADRAO.cpuPct), /MemoryHigh=2764M MemoryMax=3072M CPUQuota=200%/);
 });
 
-test("seletores: entram os comuns com a chave deste Mac; sudo, meu-bot, sistema e sem chave ficam de fora", () => {
-  const { candidatosAoSeletor, semChaveDesteMac } = createRequire(import.meta.url)("../../dist/main/admin/usuarios-core.js");
+test("seletores: toda conta comum entra (preparada ou não, com ou sem chave); sudo, protegidos e sistema ficam de fora", () => {
+  const { candidatosAoSeletor, podeIrAoSeletor } = createRequire(import.meta.url)("../../dist/main/admin/usuarios-core.js");
   const u = (nome, o = {}) => ({ nome, uid: 1001, home: `/home/${nome}`, shell: "/bin/bash", sudo: false, meuBot: false, chave: true, usadoKb: null, limiteKb: null, ramKb: 0, ramMaxMb: null, cpuMaxPct: null, apelido: "", ligado: true, ...o });
-  const lista = [u("ana"), u("box", { sudo: true }), u("openclaw", { meuBot: true }), u("hermes"), u("bia", { chave: false }), u("admin")];
-  assert.deepEqual(candidatosAoSeletor(lista).map((x) => x.nome), ["ana"]);
-  assert.deepEqual(semChaveDesteMac(lista), ["bia"]);
+  // box-4: criada pelo admin de outro Mac, já preparada (tem ~/.local/share/meu-bot) e com a chave de lá no authorized_keys.
+  const lista = [u("ana"), u("box-4", { meuBot: true }), u("bia", { chave: false }), u("box", { sudo: true }), u("openclaw", { meuBot: true }), u("hermes"), u("auditoria"), u("admin")];
+  assert.deepEqual(candidatosAoSeletor(lista).map((x) => x.nome), ["ana", "box-4", "bia"]);
+  assert.deepEqual(lista.filter(podeIrAoSeletor).map((x) => x.nome), ["ana", "box-4", "bia"], "o botão da linha aceita os mesmos");
 });
 
-test("Nos seletores: aceita o comum sem chave (o botão põe a deste Mac); sudo, meu-bot e sistema continuam de fora", () => {
-  const { podeIrAoSeletor } = createRequire(import.meta.url)("../../dist/main/admin/usuarios-core.js");
-  const u = (nome, o = {}) => ({ nome, uid: 1001, home: `/home/${nome}`, shell: "/bin/bash", sudo: false, meuBot: false, chave: true, usadoKb: null, limiteKb: null, ramKb: 0, ramMaxMb: null, cpuMaxPct: null, apelido: "", ligado: true, ...o });
-  const lista = [u("ana"), u("bia", { chave: false }), u("box", { sudo: true }), u("openclaw", { meuBot: true }), u("hermes"), u("admin")];
-  assert.deepEqual(lista.filter(podeIrAoSeletor).map((x) => x.nome), ["ana", "bia"]);
+test("chaves numa conta que já existe: o script conta quantas entraram (a auditoria só registra quando entrou)", () => {
+  const { usuarioComChavesSh } = createRequire(import.meta.url)("../../dist/main/admin/usuarios-core.js");
+  const sh = usuarioComChavesSh("box-4", ["ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakeFakeFakeFakeFakeFakeFakeFakeFakeFakeFake meu-bot-admin"], "chaves");
+  assert.match(sh, /ANTES=\$\(wc -l < "\$H\/\.ssh\/authorized_keys"\)/);
+  assert.match(sh, /echo "CHAVES_NOVAS=\$\(\( \$\(wc -l < "\$H\/\.ssh\/authorized_keys"\) - ANTES \)\)"/);
+  assert.ok(sh.indexOf("CHAVES_NOVAS=") < sh.indexOf('echo "$ACAO=$N"'), "antes da linha final, que o chamador confere");
 });
 
 test("removerBlocoUsuario: tira só o bloco do admin (marca + Host + indentadas) e não leva o comentário do bloco seguinte", () => {

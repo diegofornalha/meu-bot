@@ -727,7 +727,8 @@ const CHAVE_PUB_RE = /^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp\d+) [A-Za-z0-9+/=]{
 /**
  * Usuário comum (sem sudo, bash, home própria) com estas chaves no authorized_keys, como root na máquina. `seExistir`:
  * "erro" (aba Usuários do meu-bot-admin: nome novo) ou "chaves" (meu-bot-admin-mac ligando uma conta do Mac à VM: o
- * usuário que já existe só ganha as chaves que faltam). Imprime `CRIADO=<n>` ou `JAEXISTIA=<n>`, ou `ERRO=<motivo>`.
+ * usuário que já existe só ganha as chaves que faltam). Imprime `CHAVES_NOVAS=<quantas entraram agora>` e `CRIADO=<n>` ou
+ * `JAEXISTIA=<n>`, ou `ERRO=<motivo>`.
  */
 export function usuarioComChavesSh(nome: string, chaves: readonly string[], seExistir: "erro" | "chaves"): string {
   if (!NOME_USUARIO_RE.test(nome) || RESERVADOS.has(nome)) throw new Error("nome inválido");
@@ -743,22 +744,22 @@ else useradd -m -s /bin/bash "$N"; ACAO=CRIADO; fi
 H=$(getent passwd "$N" | cut -d: -f6)
 install -d -m 700 -o "$N" -g "$N" "$H/.ssh"
 touch "$H/.ssh/authorized_keys"
+ANTES=$(wc -l < "$H/.ssh/authorized_keys")
 printf '%s' '${b64}' | base64 -d | while IFS= read -r k; do [ -n "$k" ] && ! grep -qF "$(echo "$k" | cut -d' ' -f2)" "$H/.ssh/authorized_keys" && echo "$k" >> "$H/.ssh/authorized_keys"; done; true
+echo "CHAVES_NOVAS=$(( $(wc -l < "$H/.ssh/authorized_keys") - ANTES ))"
 chown "$N:$N" "$H/.ssh/authorized_keys"; chmod 600 "$H/.ssh/authorized_keys"
 echo "$ACAO=$N"`;
 }
 
-/** Usuários que entram sozinhos nos seletores: comuns (sem sudo, fora do meu-bot e do sistema) e com a chave deste Mac. */
-export const candidatosAoSeletor = (usuarios: UsuarioMaquina[]): UsuarioMaquina[] =>
-  usuarios.filter((u) => !u.sudo && !u.meuBot && u.chave && !RESERVADOS.has(u.nome) && !PROTEGIDOS.has(u.nome));
 /**
- * Quem o botão "Nos seletores" aceita: os comuns (sem sudo, fora do meu-bot e do sistema), com ou sem chave. A coluna
- * `chave` só diz que o authorized_keys não está vazio, não que a chave é deste Mac: o botão põe a deste Mac antes.
+ * Quem vai aos seletores (sozinho, ao abrir a aba, e pelo botão "Nos seletores"): todo usuário de login sem sudo que não
+ * é do sistema nem um dos protegidos (openclaw, hermes, auditoria). Não olha `meuBot` nem `chave`: `meuBot` é "tem
+ * ~/.local/share/meu-bot", o que toda box preparada tem (era o filtro que deixava de fora justo as boxes), e `chave` só
+ * diz que o authorized_keys não está vazio, não que a chave é deste Mac (a de outro Mac contava). A chave deste Mac
+ * quem põe é a sincronização, como root, antes de entrar.
  */
-export const podeIrAoSeletor = (u: UsuarioMaquina): boolean => !u.sudo && !u.meuBot && !RESERVADOS.has(u.nome) && !PROTEGIDOS.has(u.nome);
-/** Comuns que ficam de fora por não terem a chave deste Mac (a sincronização ao abrir a aba não entra neles; o botão "Nos seletores" põe a chave). */
-export const semChaveDesteMac = (usuarios: UsuarioMaquina[]): string[] =>
-  usuarios.filter((u) => !u.sudo && !u.meuBot && !u.chave && !RESERVADOS.has(u.nome) && !PROTEGIDOS.has(u.nome)).map((u) => u.nome);
+export const podeIrAoSeletor = (u: UsuarioMaquina): boolean => !u.sudo && !RESERVADOS.has(u.nome) && !PROTEGIDOS.has(u.nome);
+export const candidatosAoSeletor = (usuarios: UsuarioMaquina[]): UsuarioMaquina[] => usuarios.filter(podeIrAoSeletor);
 
 /**
  * Tira do ~/.ssh/config só o bloco que o admin escreveu para `alias` (`blocoSshUsuario`): o comentário-marca, a linha

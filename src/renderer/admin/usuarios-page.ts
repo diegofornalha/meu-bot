@@ -68,13 +68,13 @@ export function mountUsuariosPage(deps: UsuariosPageDeps): { open: () => void } 
     jobLog.push(l); render();
   });
 
-  /** Uma vez ao abrir a aba: os usuários comuns com a chave deste Mac que faltam em algum seletor entram (em segundo plano). */
+  /** Uma vez ao abrir a aba: os usuários comuns que faltam em algum seletor ganham a chave deste Mac e entram (em segundo plano). */
   async function sincronizar(): Promise<void> {
     try {
       const r = await deps.api.adminUsuariosSincronizar();
       const partes: string[] = [];
       if (r.entraram.length > 0) partes.push(`${r.entraram.length === 1 ? "1 usuário entrou" : `${r.entraram.length} usuários entraram`} nos seletores (meu-bot e admin): ${r.entraram.join(", ")}.`);
-      if (r.semChave.length > 0) partes.push(`Sem a chave deste Mac, fora dos seletores: ${r.semChave.join(", ")}. "Nos seletores" na linha põe a chave.`);
+      if (r.chavePosta.length > 0) partes.push(`Chave deste Mac autorizada em: ${r.chavePosta.join(", ")}.`);
       for (const f of r.falhas) partes.push(`${f.nome}: ${f.motivo}.`);
       sincronia = partes.length > 0 ? partes.join(" ") : null;
       if (r.entraram.length > 0) await ler(); else render();
@@ -348,10 +348,10 @@ export function mountUsuariosPage(deps: UsuariosPageDeps): { open: () => void } 
           tdPct.append(ip, " ", sv);
           const tdAp = el("td", "usuarios-acoes");
           // "Nos seletores": refaz, para este usuário, o que criar e a sincronização ao abrir a aba já fazem (meu-bot e admin).
-          // Também sem chave: o botão põe a chave deste Mac na conta antes (sem ela o admin não entra e o "Atualizar todas" pula).
-          if (!u.sudo && !u.meuBot) {
+          // Vale para toda conta comum, preparada ou não: é a nova tentativa quando a sincronização falhou. Põe a chave deste Mac antes.
+          if (!u.sudo && !PROTEGIDOS.has(u.nome)) {
             const ab = el("button", "btn btn-ghost btn-small", ocupado === `abrir:${u.nome}` ? "…" : "Nos seletores"); ab.type = "button"; ab.disabled = ocupado !== null;
-            ab.title = `${u.chave ? "" : "Autoriza a chave deste Mac na conta (como root) e "}${u.chave ? "Põe" : "põe"} este usuário no seletor do meu-bot e do staging (~/.ssh/config deste Mac, com cópia antes) e no do admin, sem instalar nada na conta`;
+            ab.title = `Autoriza a chave deste Mac na conta (como root, se ainda falta) e põe este usuário no seletor do meu-bot e do staging (~/.ssh/config deste Mac, com cópia antes) e no do admin, sem instalar nada na conta`;
             ab.addEventListener("click", () => {
               ocupado = `abrir:${u.nome}`; msg = null; render();
               void deps.api.adminUsuarioNosSeletores(u.nome)

@@ -707,11 +707,14 @@ tira dos dois; ninguém instala nada na conta (Claude Code, login e backend fica
   chave `meu-bot-admin` no authorized_keys) e guarda a pessoa com `usuarioDe: <id da raiz>`, sem `adotada`, então o
   "Atualizar pessoas" não a prepara. `esquecerUsuario` acha a pessoa pela identidade (`machineId` da raiz com
   `user = nome`) e a tira sem SSH na conta apagada; o fim do `removePerson` virou `esquecer(id)`, comum aos dois.
-- **Os que já existem:** ao abrir a aba, `admin:usuarios-sincronizar` põe os comuns com a chave deste Mac
-  (`candidatosAoSeletor`: sem sudo, fora do meu-bot e do sistema) que faltam em algum seletor; quem já está nos dois
-  não custa SSH. Sem a chave deste Mac ficam fora, e a aba diz quais. O botão "Nos seletores" da linha
-  (`admin:usuario-seletores`, antes `admin:usuario-abrir`/"No meu-bot", que só gravava o ~/.ssh/config) refaz isso
-  para um usuário. Auditoria: `usuarios.seletor`.
+- **Os que já existem:** ao abrir a aba, `admin:usuarios-sincronizar` pega todo usuário comum (`candidatosAoSeletor`
+  = `podeIrAoSeletor`: sem sudo, fora dos protegidos e do sistema) que falta em algum seletor, autoriza a chave deste
+  Mac na conta como root (`chaveDesteMacNaConta`) e o põe nos dois; quem já está nos dois não custa SSH. É assim que a
+  box criada pelo admin de outro Mac aparece aqui sem clique (23 nov: antes o filtro exigia `!meuBot`, que é "tem
+  ~/.local/share/meu-bot" e deixava de fora toda box preparada, e `chave`, que só diz que o authorized_keys não está
+  vazio). A aba diz em quais a chave entrou. O botão "Nos seletores" da linha (`admin:usuario-seletores`) refaz isso
+  para um usuário e serve de nova tentativa. Auditoria: `usuarios.chave` (só quando a chave entrou) e
+  `usuarios.seletor`.
 - **O seletor vê na hora:** o do admin é atualizado depois de cada entrada/saída (`refreshPickerIfOpen`); o do meu-bot
   (outro processo) relê a lista ao ganhar foco, e só reenvia (e sonda de novo) se ela mudou (`lastHostsKey`), mantendo
   a máquina selecionada (`PickerInit.manterSelecao`).
@@ -767,8 +770,8 @@ tira dos dois; ninguém instala nada na conta (Claude Code, login e backend fica
   deslocaria as seguintes). A tabela ganha a coluna **Backend** (`1.9.0`; `1.8.2 · desatualizado`; `sem versão ·
   desatualizado` para quem foi instalado antes do VERSION) e, quando alguma está atrás do que o app traz
   (`bundledBackendVersion()`), o botão **Atualizar todas (N)**: `atualizarBackends` reinstala uma por vez pelo
-  alias de cada box neste Mac, pulando quem não tem alias ("Nos seletores" resolve) e quem está com chat em
-  andamento (`/health.ativos`, a mesma regra da atualização ociosa); auditoria `backend.instalar` por box; a
+  alias de cada box neste Mac (a que não tem alias ganha a chave deste Mac e entra nos seletores antes), pulando quem
+  está com chat em andamento (`/health.ativos`, a mesma regra da atualização ociosa); auditoria `backend.instalar` por box; a
   mensagem final lista puladas e falhas. O guard do `admin:action` aceita `install-backend`, e um teste em
   `admin-view.test.mjs` confere todo id de `ADMIN_ACTIONS` contra o main.
 
