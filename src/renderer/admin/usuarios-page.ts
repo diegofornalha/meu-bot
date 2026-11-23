@@ -74,7 +74,7 @@ export function mountUsuariosPage(deps: UsuariosPageDeps): { open: () => void } 
       const r = await deps.api.adminUsuariosSincronizar();
       const partes: string[] = [];
       if (r.entraram.length > 0) partes.push(`${r.entraram.length === 1 ? "1 usuário entrou" : `${r.entraram.length} usuários entraram`} nos seletores (meu-bot e admin): ${r.entraram.join(", ")}.`);
-      if (r.semChave.length > 0) partes.push(`Sem a chave deste Mac, fora dos seletores: ${r.semChave.join(", ")}.`);
+      if (r.semChave.length > 0) partes.push(`Sem a chave deste Mac, fora dos seletores: ${r.semChave.join(", ")}. "Nos seletores" na linha põe a chave.`);
       for (const f of r.falhas) partes.push(`${f.nome}: ${f.motivo}.`);
       sincronia = partes.length > 0 ? partes.join(" ") : null;
       if (r.entraram.length > 0) await ler(); else render();
@@ -348,9 +348,10 @@ export function mountUsuariosPage(deps: UsuariosPageDeps): { open: () => void } 
           tdPct.append(ip, " ", sv);
           const tdAp = el("td", "usuarios-acoes");
           // "Nos seletores": refaz, para este usuário, o que criar e a sincronização ao abrir a aba já fazem (meu-bot e admin).
-          if (!u.sudo && !u.meuBot && u.chave) {
+          // Também sem chave: o botão põe a chave deste Mac na conta antes (sem ela o admin não entra e o "Atualizar todas" pula).
+          if (!u.sudo && !u.meuBot) {
             const ab = el("button", "btn btn-ghost btn-small", ocupado === `abrir:${u.nome}` ? "…" : "Nos seletores"); ab.type = "button"; ab.disabled = ocupado !== null;
-            ab.title = "Põe este usuário no seletor do meu-bot e do staging (~/.ssh/config deste Mac, com cópia antes) e no do admin, sem instalar nada na conta";
+            ab.title = `${u.chave ? "" : "Autoriza a chave deste Mac na conta (como root) e "}${u.chave ? "Põe" : "põe"} este usuário no seletor do meu-bot e do staging (~/.ssh/config deste Mac, com cópia antes) e no do admin, sem instalar nada na conta`;
             ab.addEventListener("click", () => {
               ocupado = `abrir:${u.nome}`; msg = null; render();
               void deps.api.adminUsuarioNosSeletores(u.nome)

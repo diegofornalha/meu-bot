@@ -116,6 +116,13 @@ test("seletores: entram os comuns com a chave deste Mac; sudo, meu-bot, sistema 
   assert.deepEqual(semChaveDesteMac(lista), ["bia"]);
 });
 
+test("Nos seletores: aceita o comum sem chave (o botão põe a deste Mac); sudo, meu-bot e sistema continuam de fora", () => {
+  const { podeIrAoSeletor } = createRequire(import.meta.url)("../../dist/main/admin/usuarios-core.js");
+  const u = (nome, o = {}) => ({ nome, uid: 1001, home: `/home/${nome}`, shell: "/bin/bash", sudo: false, meuBot: false, chave: true, usadoKb: null, limiteKb: null, ramKb: 0, ramMaxMb: null, cpuMaxPct: null, apelido: "", ligado: true, ...o });
+  const lista = [u("ana"), u("bia", { chave: false }), u("box", { sudo: true }), u("openclaw", { meuBot: true }), u("hermes"), u("admin")];
+  assert.deepEqual(lista.filter(podeIrAoSeletor).map((x) => x.nome), ["ana", "bia"]);
+});
+
 test("removerBlocoUsuario: tira só o bloco do admin (marca + Host + indentadas) e não leva o comentário do bloco seguinte", () => {
   const { removerBlocoUsuario, blocoSshUsuario } = createRequire(import.meta.url)("../../dist/main/admin/usuarios-core.js");
   const bloco = blocoSshUsuario({ alias: "meu-root-ana", hostname: "203.0.113.7", port: "22", user: "ana", chave: "~/.ssh/id_ed25519", maquina: "meu-root" });
