@@ -751,7 +751,12 @@ echo "$ACAO=$N"`;
 /** Usuários que entram sozinhos nos seletores: comuns (sem sudo, fora do meu-bot e do sistema) e com a chave deste Mac. */
 export const candidatosAoSeletor = (usuarios: UsuarioMaquina[]): UsuarioMaquina[] =>
   usuarios.filter((u) => !u.sudo && !u.meuBot && u.chave && !RESERVADOS.has(u.nome) && !PROTEGIDOS.has(u.nome));
-/** Comuns que ficam de fora por não terem a chave deste Mac (o admin não entra neles para pô-los no seletor). */
+/**
+ * Quem o botão "Nos seletores" aceita: os comuns (sem sudo, fora do meu-bot e do sistema), com ou sem chave. A coluna
+ * `chave` só diz que o authorized_keys não está vazio, não que a chave é deste Mac: o botão põe a deste Mac antes.
+ */
+export const podeIrAoSeletor = (u: UsuarioMaquina): boolean => !u.sudo && !u.meuBot && !RESERVADOS.has(u.nome) && !PROTEGIDOS.has(u.nome);
+/** Comuns que ficam de fora por não terem a chave deste Mac (a sincronização ao abrir a aba não entra neles; o botão "Nos seletores" põe a chave). */
 export const semChaveDesteMac = (usuarios: UsuarioMaquina[]): string[] =>
   usuarios.filter((u) => !u.sudo && !u.meuBot && !u.chave && !RESERVADOS.has(u.nome) && !PROTEGIDOS.has(u.nome)).map((u) => u.nome);
 

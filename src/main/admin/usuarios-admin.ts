@@ -9,7 +9,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { MotorNovoUsuario, UsuariosVisao } from "../../shared/ipc";
-import { RECURSOS_PADRAO, pressaoDe, recentesDe, type MarcaBox, conferirMinimo, pctMinimo, motivoSsh, PREFIXO_USUARIO, boxesDesatualizadas, capacidadeDe, governancaDe, isolamentoTodosSh, reservaDe, reservaHostSh, nomeParaCriar, motorDe, openclawSemearSh, usuarioComChavesSh, lingerSh, aliasDoUsuario, blocoSshUsuario, candidatosAoSeletor, configTemHost, removerBlocoUsuario, semChaveDesteMac, apelidoSh, apelidoValido, swapLigarSh, recursosSh, apagarItemSh, caminhoDentro, lerMaiores, maioresSh, apagarSh, sessaoAindaAberta, hermesGlobalSh, openclawGlobalSh, transcritorSh, COTA_LIGAR_SH, limiteKbDe, limiteSh, LISTAR_SH, lerUsuarios, NOME_USUARIO_RE, PROTEGIDOS, RESERVADOS, whatsappAlvoSh } from "./usuarios-core";
+import { RECURSOS_PADRAO, pressaoDe, recentesDe, type MarcaBox, conferirMinimo, pctMinimo, motivoSsh, PREFIXO_USUARIO, boxesDesatualizadas, capacidadeDe, governancaDe, isolamentoTodosSh, reservaDe, reservaHostSh, nomeParaCriar, motorDe, openclawSemearSh, usuarioComChavesSh, lingerSh, aliasDoUsuario, blocoSshUsuario, candidatosAoSeletor, podeIrAoSeletor, configTemHost, removerBlocoUsuario, semChaveDesteMac, apelidoSh, apelidoValido, swapLigarSh, recursosSh, apagarItemSh, caminhoDentro, lerMaiores, maioresSh, apagarSh, sessaoAindaAberta, hermesGlobalSh, openclawGlobalSh, transcritorSh, COTA_LIGAR_SH, limiteKbDe, limiteSh, LISTAR_SH, lerUsuarios, NOME_USUARIO_RE, PROTEGIDOS, RESERVADOS, whatsappAlvoSh } from "./usuarios-core";
 import { runSsh } from "../whatsapp/whatsapp";
 import { registrar } from "../auditoria/auditoria";
 import { log } from "../maquina/backend";
@@ -496,14 +496,31 @@ async function porNosSeletores(host: string, n: string): Promise<{ alias: string
  */
 const resondarPessoa = (sel: { alias: string; aliasAdmin: string | null }): void => resondarNoSeletor(sel.aliasAdmin === null ? [sel.alias] : [sel.alias, sel.aliasAdmin]);
 
-/** Botão "Nos seletores" da linha (refaz o que a sincronização faz, para um usuário). */
+/**
+ * Botão "Nos seletores" da linha: põe a chave deste Mac na conta (como root; a que já está lá não se repete) e refaz o
+ * que a sincronização faz, para um usuário. Sem a chave, a conta ficava fora dos seletores e o "Atualizar todas" a
+ * pulava ("sem alias neste Mac") sem ter por onde resolver no app: a coluna `chave` só diz que o authorized_keys não
+ * está vazio, então nem uma conta com a chave de outro Mac tinha garantia de entrar.
+ */
 export async function nosSeletores(host: string, nome: unknown): Promise<{ alias: string; novo: boolean; aviso: string | null }> {
   const n = nomeValido(nome);
   const v = await usuariosDaMaquina(host);
   const u = v.usuarios.find((x) => x.nome === n);
   if (u === undefined) throw new Error(`não existe o usuário ${n}`);
-  if (candidatosAoSeletor([u]).length === 0) throw new Error(u.chave ? `${n} tem sudo ou é do meu-bot: não entra no seletor por aqui` : `${n} não tem a chave deste Mac: o admin não entra nele`);
+  if (!podeIrAoSeletor(u)) throw new Error(`${n} tem sudo ou é do meu-bot: não entra no seletor por aqui`);
+  await chaveDesteMacNaConta(host, n);
   return porNosSeletores(host, n);
+}
+
+/** Autoriza a chave deste Mac no authorized_keys de um usuário comum que já existe (o script não duplica a que já está lá). */
+async function chaveDesteMacNaConta(host: string, n: string): Promise<void> {
+  const { chave } = await acessoDesteMac(host);
+  const r = await runSsh(host, `${usuarioComChavesSh(n, [chave], "chaves")}\n`, 60_000);
+  const erro = /^ERRO=(.*)$/m.exec(r.stdout)?.[1];
+  if (erro !== undefined) throw new Error(erro);
+  if (!/^JAEXISTIA=/m.test(r.stdout)) throw new Error(`não consegui pôr a chave deste Mac em ${n}: ${(r.stderr.trim() || r.stdout.trim()).split("\n").pop() ?? "sem resposta"}`);
+  log(`[usuarios] ${host}: chave deste Mac em ${n}`);
+  void registrar(host, "usuarios.chave", n);
 }
 
 /**
