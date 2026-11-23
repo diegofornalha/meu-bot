@@ -733,7 +733,8 @@ const CHAVE_PUB_RE = /^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp\d+) [A-Za-z0-9+/=]{
 export function usuarioComChavesSh(nome: string, chaves: readonly string[], seExistir: "erro" | "chaves"): string {
   if (!NOME_USUARIO_RE.test(nome) || RESERVADOS.has(nome)) throw new Error("nome inválido");
   if (chaves.length === 0 || !chaves.every((c) => CHAVE_PUB_RE.test(c.trim()))) throw new Error("chave pública inválida");
-  // Uma por linha, com a quebra no fim: o `read` do shell pula a última linha sem quebra.
+  // Uma por linha, com a quebra no fim: o `read` do shell pula a última linha sem quebra. O laço usa `if`, não `a && b`:
+  // com a chave já na conta o `&&` deixava o laço com saída 1 e o `set -e` encerrava antes do JAEXISTIA (sem resposta).
   const b64 = Buffer.from(`${chaves.map((c) => c.trim()).join("\n")}\n`, "utf8").toString("base64");
   return `set -e
 [ "$(id -u)" = 0 ] || { echo "ERRO=o admin não entra como root nesta máquina"; exit 0; }
@@ -745,7 +746,7 @@ H=$(getent passwd "$N" | cut -d: -f6)
 install -d -m 700 -o "$N" -g "$N" "$H/.ssh"
 touch "$H/.ssh/authorized_keys"
 ANTES=$(wc -l < "$H/.ssh/authorized_keys")
-printf '%s' '${b64}' | base64 -d | while IFS= read -r k; do [ -n "$k" ] && ! grep -qF "$(echo "$k" | cut -d' ' -f2)" "$H/.ssh/authorized_keys" && echo "$k" >> "$H/.ssh/authorized_keys"; done; true
+printf '%s' '${b64}' | base64 -d | while IFS= read -r k; do if [ -n "$k" ] && ! grep -qF "$(echo "$k" | cut -d' ' -f2)" "$H/.ssh/authorized_keys"; then echo "$k" >> "$H/.ssh/authorized_keys"; fi; done
 echo "CHAVES_NOVAS=$(( $(wc -l < "$H/.ssh/authorized_keys") - ANTES ))"
 chown "$N:$N" "$H/.ssh/authorized_keys"; chmod 600 "$H/.ssh/authorized_keys"
 echo "$ACAO=$N"`;

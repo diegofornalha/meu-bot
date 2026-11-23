@@ -1,6 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 const { lerUsuarios, NOME_USUARIO_RE, RESERVADOS, LISTAR_SH, limiteKbDe, pctMinimo, conferirMinimo, MINIMO_CONTA_KB, caminhoDentro, lerMaiores, apagarSh, PROTEGIDOS, lingerSh, nivelUso, sessaoAindaAberta } = createRequire(import.meta.url)("../../dist/main/admin/usuarios-core.js");
 
 test("usuários: lê a saída do script (só root vê), ordena por uid e ignora lixo", () => {
@@ -123,6 +127,12 @@ test("chaves numa conta que já existe: o script conta quantas entraram (a audit
   assert.match(sh, /ANTES=\$\(wc -l < "\$H\/\.ssh\/authorized_keys"\)/);
   assert.match(sh, /echo "CHAVES_NOVAS=\$\(\( \$\(wc -l < "\$H\/\.ssh\/authorized_keys"\) - ANTES \)\)"/);
   assert.ok(sh.indexOf("CHAVES_NOVAS=") < sh.indexOf('echo "$ACAO=$N"'), "antes da linha final, que o chamador confere");
+  // Roda o laço de verdade: com a chave já no arquivo, a saída tem de ser 0 (com `a && b` no corpo o `set -e` matava o script).
+  const dir = mkdtempSync(path.join(tmpdir(), "chaves-"));
+  const laco = sh.split("\n").filter((l) => /^(ANTES=|printf '%s'|echo "CHAVES_NOVAS=)/.test(l)).join("\n");
+  const rodar = () => execFileSync("bash", ["-c", `set -e\nH='${dir}'; mkdir -p "$H/.ssh"; [ -e "$H/.ssh/authorized_keys" ] || : > "$H/.ssh/authorized_keys"\n${laco}\necho FIM`], { encoding: "utf8" });
+  assert.equal(rodar(), "CHAVES_NOVAS=1\nFIM\n");
+  assert.equal(rodar(), "CHAVES_NOVAS=0\nFIM\n", "a segunda rodada não duplica nem encerra o script");
 });
 
 test("removerBlocoUsuario: tira só o bloco do admin (marca + Host + indentadas) e não leva o comentário do bloco seguinte", () => {
