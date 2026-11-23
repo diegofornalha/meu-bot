@@ -39,4 +39,32 @@ function avisoDoNivel(nivel) {
   return '';
 }
 
-module.exports = { OBJETIVO, NIVEIS, nivelAtual, ferramentasBloqueadas, avisoDoNivel };
+const HERMES_CONFIG = path.join(os.homedir(), '.hermes', 'config.yaml');
+
+/**
+ * O Hermes desta conta responde em áudio quando recebe áudio? É o `voice.auto_tts: true` do ~/.hermes/config.yaml, que
+ * o app grava ao ligar "Responder em áudio". Lido sem biblioteca de YAML: a chave `auto_tts` dentro do bloco `voice:`
+ * do topo. Sem arquivo, sem o bloco ou ilegível: false.
+ */
+function vozLigada(arquivo = HERMES_CONFIG) {
+  let texto;
+  try { texto = fs.readFileSync(arquivo, 'utf8'); } catch (_) { return false; }
+  let dentro = false;
+  for (const linha of texto.split('\n')) {
+    if (/^\S/.test(linha)) { dentro = /^voice:\s*(#.*)?$/.test(linha); continue; }
+    if (dentro && /^\s+auto_tts:\s*(true|yes|on)\s*(#.*)?$/i.test(linha)) return true;
+  }
+  return false;
+}
+
+/**
+ * A frase que conta ao agente que ele fala. Quem converte a resposta em voz é o Hermes, depois que o modelo escreve; o
+ * modelo não fica sabendo e, perguntado, respondia "só respondo em texto" (e no nível "só conversa", "não crio
+ * arquivos") num áudio que dizia que não mandava áudio.
+ */
+function avisoDaVoz(arquivo = HERMES_CONFIG) {
+  if (!vozLigada(arquivo)) return '';
+  return 'Respostas em áudio: quando a pessoa manda uma mensagem de voz, a sua resposta é convertida em voz e enviada como áudio automaticamente pelo sistema, sem você usar ferramenta nem criar arquivo. Nunca diga que não consegue mandar áudio nem que só responde em texto. A mensagem de texto continua recebendo texto. Ao responder a um áudio, escreva frases corridas, fáceis de ouvir, sem listas, tabelas nem links longos.';
+}
+
+module.exports = { OBJETIVO, NIVEIS, nivelAtual, ferramentasBloqueadas, avisoDoNivel, vozLigada, avisoDaVoz };
