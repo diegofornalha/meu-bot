@@ -80,6 +80,19 @@ test("rotas da licença na máquina: vincular, vaga, renovar, tirar, limite do a
   diz("o admin inicial continua super no banco", (await DB.prepare("SELECT papel FROM admins WHERE email = 'dona@exemplo.com'").first())?.papel === "super");
   r = await chamar("GET", "/admin/visao", undefined, tadm); diz("a visão marca só o admin inicial como fixo", r.corpo.perfis.find((p) => p.email === "dona@exemplo.com")?.fixo === true && r.corpo.perfis.find((p) => p.email === "outro@exemplo.com")?.fixo === false, JSON.stringify(r.corpo.perfis));
   r = await chamar("DELETE", "/admin/perfis/outro%40exemplo.com", undefined, tadm); diz("outro super admin continua removível", r.status === 200, `${r.status} ${r.corpo.erro}`);
+  // O super admin (aqui o admin inicial) não tem limite de devices: a licença assinada para a máquina leva o teto que ela
+  // aceita, e o banco continua com o número gravado.
+  const D = "2d2a8e3f-8f3a-4d9a-9e77-2f8c5a3e4a33", MD = "3e3b9f4a-9a4b-4eab-8f88-3a9d6b4f5b44";
+  await DB.prepare("INSERT INTO contas (id, firebase_uid, email, email_verificado, criada_em, atualizada_em) VALUES (?1, ?2, 'dona@exemplo.com', 1, ?3, ?3)").bind(D, "uid-" + D, agora).run();
+  await DB.prepare("INSERT INTO licencas (conta_id, plan, status, interval, member_since, expires_at, device_limit, produtos, updated_at, updated_by) VALUES (?1, 'pro', 'active', 'month', ?2, NULL, 2, '[]', ?2, 'system')").bind(D, agora).run();
+  r = await chamar("POST", "/conta/maquinas", { id: MD, apelido: "Do super" }, await tok(D, "super"));
+  const vd = be.verificaLicencaAssinada(r.corpo.licenca, { chaves, maquina: MD });
+  diz("super: a máquina recebe o teto de devices", r.status === 200 && vd.ok === true && vd.payload.licenca.deviceLimit === 100, `${r.status} ${JSON.stringify(vd.payload?.licenca?.deviceLimit)}`);
+  const tres = { "a1b2c3d4e5f6": { status: "active", firstSeen: "2026-11-01T00:00:00.000Z" }, "0123456789ab": { status: "active", firstSeen: "2026-11-02T00:00:00.000Z" }, "fedcba987654": { status: "pending", firstSeen: "2026-11-03T00:00:00.000Z" } };
+  diz("super: o 3º computador entra na máquina", be.admitDevice(be.licencaEmVigor(null, r.corpo.licenca, MD, { chaves }).license, tres, "fedcba987654") === "active");
+  diz("super: o banco continua com o limite gravado", (await DB.prepare("SELECT device_limit FROM licencas WHERE conta_id = ?1").bind(D).first())?.device_limit === 2);
+  const gravadaB = (await DB.prepare("SELECT device_limit FROM licencas WHERE conta_id = ?1").bind(B).first())?.device_limit ?? 2;
+  diz("conta comum segue com o número gravado", vb.payload.licenca.deviceLimit === gravadaB, `${vb.payload.licenca.deviceLimit} vs ${gravadaB}`);
   // Chave que não é Ed25519: 503, e nada foi gravado (a máquina não ocupa vaga sem licença).
   const M9 = "8b4e3e2c-5b3d-4c74-8d0a-3b4c5d6e7f8a";
   await chamar("DELETE", "/conta/maquinas/9a5f4f3d-6c4e-4d85-8e1b-4c5d6e7f8a9b", { apagada: true }, tb);

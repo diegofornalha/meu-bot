@@ -7,6 +7,7 @@
  * grava na máquina, ao lado do `licenca.json` do admin.
  */
 import type { License } from "./tipos.js";
+import type { Papel } from "./pagamento-core.js";
 
 /** Quanto a cópia assinada vale sem renovar (LICENCA_VALIDADE_MS do app); o app renova bem antes. */
 export const LICENCA_VALIDADE_MS = 30 * 24 * 60 * 60 * 1000;
@@ -16,6 +17,11 @@ export const LICENCA_KID = "licenca-2026-11";
 export const DEVICES_INCLUSOS = 2;
 /** Teto do limite de máquinas de uma conta (validaPatchLicenca). */
 export const MAQUINA_LIMITE_MAX = 50;
+/**
+ * O maior limite de devices que a máquina aceita numa licença (parseLicense do backend-colima/licenca.js e do app,
+ * src/main/licenca/licenca.ts: 1..100). Acima disso a máquina ignora o número e volta ao padrão (1).
+ */
+export const DEVICE_LIMITE_NA_MAQUINA = 100;
 /** Quantas vezes em 30 dias a conta abre a vaga na hora ao tirar a licença pelo app; além disso a vaga espera a emissão vencer. */
 export const TROCAS_NA_HORA = 3;
 
@@ -42,6 +48,13 @@ export function montarPayload(conta: { id: string; email: string }, maquina: str
     licenca, devices: devices.map((d) => ({ id: d.id, status: d.status === "pending" ? "pending" as const : "active" as const })),
   };
 }
+
+/**
+ * A licença que vai assinada para a máquina. O super admin não tem limite de devices (limiteDoPapel), mas a máquina
+ * decide o device só pelo `deviceLimit` da licença: o dele vai no teto que a máquina aceita, e não no número gravado,
+ * que continua o mesmo no banco e nas respostas da API. Os outros papéis levam a licença como está.
+ */
+export const licencaParaMaquina = (licenca: License, papel: Papel): License => (papel === "super" ? { ...licenca, deviceLimit: DEVICE_LIMITE_NA_MAQUINA } : licenca);
 
 /** Assina o payload com a privada (PKCS#8 DER em base64, o secret LICENCA_PRIVATE_KEY); lança se a chave não presta. */
 export async function assinarLicenca(p: PayloadLicenca, privadaB64: string, kid: string = LICENCA_KID): Promise<LicencaAssinada> {

@@ -2,7 +2,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { generateKeyPairSync, verify } from "node:crypto";
-import { LICENCA_KID, LICENCA_VALIDADE_MS, TROCAS_NA_HORA, MAQUINA_LIMITE_MAX, abreVagaNaHora, admitirMaquina, cabeNoLimite, limiteComExtras, assinarLicenca, licencaJsonV2, montarPayload, ocupaVaga, valeAte, validaApelido } from "../dist/licenca-core.js";
+import { createRequire } from "node:module";
+import { DEVICE_LIMITE_NA_MAQUINA, LICENCA_KID, LICENCA_VALIDADE_MS, TROCAS_NA_HORA, MAQUINA_LIMITE_MAX, abreVagaNaHora, admitirMaquina, cabeNoLimite, limiteComExtras, assinarLicenca, licencaJsonV2, licencaParaMaquina, montarPayload, ocupaVaga, valeAte, validaApelido } from "../dist/licenca-core.js";
 import { validaPatchLicenca } from "../dist/sessao-core.js";
 
 const AGORA = Date.parse("2026-11-18T12:00:00.000Z");
@@ -117,4 +118,21 @@ test("renovação no limite: com mais máquinas vinculadas do que o plano cobre,
 test("todo plano inclui 2 devices", async () => {
   const { DEVICES_INCLUSOS } = await import("../dist/licenca-core.js");
   assert.equal(DEVICES_INCLUSOS, 2);
+});
+
+test("super admin: a licença assinada leva o teto de devices que a máquina aceita; o resto leva o número gravado", () => {
+  const be = createRequire(import.meta.url)("../../backend-colima/licenca.js");
+  const gravada = { ...PRO, deviceLimit: 2 };
+  const doSuper = licencaParaMaquina(gravada, "super");
+  assert.equal(doSuper.deviceLimit, DEVICE_LIMITE_NA_MAQUINA);
+  assert.equal(gravada.deviceLimit, 2, "a licença gravada não muda");
+  assert.equal(licencaParaMaquina(gravada, "admin").deviceLimit, 2);
+  assert.equal(licencaParaMaquina(gravada, null).deviceLimit, 2);
+  // O teto é o da máquina: um a mais e ela ignoraria o número e voltaria a 1.
+  assert.equal(be.parseLicense(doSuper).deviceLimit, DEVICE_LIMITE_NA_MAQUINA);
+  assert.equal(be.parseLicense({ ...gravada, deviceLimit: DEVICE_LIMITE_NA_MAQUINA + 1 }).deviceLimit, 1);
+  // O 3º computador do super entra na máquina; com o número gravado ficaria esperando vaga.
+  const dois = { "a1b2c3d4e5f6": { status: "active", firstSeen: "2026-11-01T00:00:00.000Z" }, "0123456789ab": { status: "active", firstSeen: "2026-11-02T00:00:00.000Z" }, "fedcba987654": { status: "pending", firstSeen: "2026-11-03T00:00:00.000Z" } };
+  assert.equal(be.admitDevice(doSuper, dois, "fedcba987654"), "active");
+  assert.equal(be.admitDevice(gravada, dois, "fedcba987654"), "pending");
 });
