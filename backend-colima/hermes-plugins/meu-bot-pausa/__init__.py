@@ -18,6 +18,15 @@ guarda de onde veio a última mensagem de cada número e a ferramenta chama `_ap
 As ferramentas recebem os argumentos como o Hermes manda (`handler(args, task_id=…, session_id=…)`) e acham o número
 da conversa pela chave da sessão no state.db: até a 1.1.0 a `pausar_conversa` esperava outra forma e nunca funcionava.
 
+Áudio da marca do app (1.3.0; CONTORNO #7, docs/guia/contornos.md): duas escolhas do painel que o Hermes não tem
+como opção, lidas de whatsapp-lista.json › audio a cada mensagem (sem reiniciar o gateway):
+- `sempre`: responder em áudio também a mensagem de texto. O Hermes só tem isso por conversa (`/voice tts`, modo
+  "all"); o hook liga o modo na conversa que ainda não escolheu nenhum e desfaz só as que ele mesmo marcou.
+- `soAudio`: mandar só o áudio, sem o texto embaixo. No WhatsApp o gateway manda o áudio e depois o mesmo texto (só o
+  Telegram pula, pela legenda). Embrulhamos `send_voice`, `_play_tts_file` e `_send_final_text` do adapter: o texto só
+  é pulado quando o áudio daquela conversa saiu com sucesso há instantes; áudio que falha deixa o texto sair.
+Sai quando: o Hermes tiver as duas opções no config (issue upstream a abrir; ver a tabela).
+
 Regras: o dono (me.id/me.lid do creds.json e, se gravado pelo app, `dono.numero` de whatsapp-lista.json — a pessoa
 falando do celular dela quando o agente roda num chip dedicado) nunca é descartado nem pausado; um contato só pausa a si mesmo e só com
 prazo (pausado ele não consegue pedir para voltar); o dono pausa qualquer um, com ou sem prazo. Grupos passam reto.
@@ -32,7 +41,7 @@ import re
 import time
 from datetime import datetime, timedelta, timezone
 
-VERSAO = "1.2.0"  # igual ao plugin.yaml (o teste confere)
+VERSAO = "1.3.0"  # igual ao plugin.yaml (o teste confere)
 NOME = "meu-bot-pausa"
 log = logging.getLogger(NOME)
 
@@ -102,6 +111,8 @@ LISTA = "whatsapp-lista.json"
 PAUSADOS = "whatsapp-pausados.jsonl"
 LIDS = "whatsapp-lid.json"
 CARREGADO = "whatsapp-pausa.carregado"
+AUDIO_SEMPRE = "whatsapp-audio-sempre.json"  # conversas em que ESTE plugin ligou o modo "all" (só elas são desfeitas)
+VOZ_JANELA_S = 90  # o texto final vem logo depois do áudio; passado isso, a marca do áudio não vale mais
 CREDS = os.path.join(".hermes", "whatsapp", "session", "creds.json")
 
 
@@ -496,6 +507,7 @@ async def pre_gateway_dispatch(event=None, gateway=None, session_store=None, **k
         eu = _dono()
         dono = bool(nums & eu)
         _lembrar_conversa(nums, gateway, src)
+        _audio_da_marca(gateway, src)
         texto = (getattr(event, "text", "") or "").strip()
         paused = _expirar(agora)
         cmd = _parse_comando(texto)
@@ -523,6 +535,115 @@ async def pre_gateway_dispatch(event=None, gateway=None, session_store=None, **k
     except Exception:
         log.exception("%s: erro no hook; a mensagem segue normal", NOME)
         return None
+
+
+# ------------------------------------------------------------------ áudio da marca do app (sempre / só áudio)
+_audio_cache = {"mt": None, "cfg": (False, False)}
+_voz_enviada = {}  # chat_id -> (monotonic, SendResult) do último áudio que saiu com sucesso
+_sempre_marcadas = None  # {voice_key: chat_id}, lido do disco na primeira vez
+
+
+def _audio_cfg():
+    """(sempre, so_audio) de whatsapp-lista.json › audio; relê só quando o arquivo muda. Sem arquivo ou chave: tudo desligado."""
+    try:
+        mt = os.stat(_caminho(LISTA)).st_mtime
+    except Exception:
+        return (False, False)
+    if _audio_cache["mt"] != mt:
+        a = _ler_json(_caminho(LISTA), {})
+        a = a.get("audio") if isinstance(a, dict) else None
+        a = a if isinstance(a, dict) else {}
+        _audio_cache["mt"], _audio_cache["cfg"] = mt, (a.get("sempre") is True, a.get("soAudio") is True)
+    return _audio_cache["cfg"]
+
+
+def _aplicar_sempre(gateway, src):
+    """Liga o modo "all" na conversa sem modo escolhido quando a marca diz `sempre`; desligada a marca, desfaz só o
+    que este plugin ligou. Quem pediu "só texto" (modo "off", pelo /voice ou pela ferramenta) nunca é tocado."""
+    global _sempre_marcadas
+    try:
+        if _sempre_marcadas is None:
+            lido = _ler_json(_caminho(AUDIO_SEMPRE), {})
+            _sempre_marcadas = lido if isinstance(lido, dict) else {}
+        sempre = _audio_cfg()[0]
+        if not sempre and not _sempre_marcadas:
+            return  # nada ligado e nada a desfazer: não toca no gateway
+        chave = gateway._voice_key_for_source(src)
+        modo = gateway._voice_mode.get(chave)
+        if sempre and modo is None:
+            gateway._apply_voice_mode(gateway._delivery_adapter_for(src), chave, src.chat_id, "all")
+            _sempre_marcadas[chave] = str(src.chat_id)
+            _gravar_json(_caminho(AUDIO_SEMPRE), _sempre_marcadas)
+            log.info("%s: áudio sempre ligado na conversa %s", NOME, src.chat_id)
+        elif not sempre and chave in _sempre_marcadas:
+            if modo == "all":
+                gateway._voice_mode.pop(chave, None)
+                gateway._save_voice_modes()
+                gateway._toggle_adapter_auto_tts_set(gateway._delivery_adapter_for(src), src.chat_id, False, enable=True)
+                log.info("%s: áudio sempre desligado na conversa %s", NOME, src.chat_id)
+            _sempre_marcadas.pop(chave, None)
+            _gravar_json(_caminho(AUDIO_SEMPRE), _sempre_marcadas)
+    except Exception:
+        log.exception("%s: não apliquei o áudio sempre; a conversa segue como estava", NOME)
+
+
+def _embrulhar_so_audio(adapter):
+    """Uma vez por adapter: com `soAudio` na marca, o texto final é pulado quando o áudio da conversa acabou de sair.
+    Qualquer erro aqui chama o original: a pessoa nunca fica sem resposta."""
+    try:
+        if adapter is None or getattr(adapter, "_meu_bot_so_audio", False):
+            return
+        voz, tocar, texto = (getattr(adapter, n, None) for n in ("send_voice", "_play_tts_file", "_send_final_text"))
+        if not (callable(voz) and callable(tocar) and callable(texto)):
+            return
+
+        async def send_voice(*a, **k):
+            r = await voz(*a, **k)
+            try:
+                chat = k.get("chat_id", a[0] if a else None)
+                if chat is not None and getattr(r, "success", False):
+                    _voz_enviada[str(chat)] = (time.monotonic(), r)
+            except Exception:
+                pass
+            return r
+
+        async def _play_tts_file(event, *a, **k):
+            r = await tocar(event, *a, **k)
+            try:
+                saiu = _voz_enviada.pop(str(event.source.chat_id), None)
+                # True = "o texto já foi junto": é o sinal que o gateway usa no Telegram para não mandar o texto depois.
+                if saiu is not None and _audio_cfg()[1]:
+                    return True
+            except Exception:
+                pass
+            return r
+
+        async def _send_final_text(*a, **k):
+            try:
+                event, efemera, registrar = a[0], a[4], a[6]
+                saiu = _voz_enviada.pop(str(event.source.chat_id), None)
+                if saiu is not None and not efemera and _audio_cfg()[1] and time.monotonic() - saiu[0] <= VOZ_JANELA_S:
+                    registrar(saiu[1])  # a entrega do turno foi o áudio
+                    log.info("%s: só áudio para %s (texto não enviado)", NOME, event.source.chat_id)
+                    return None
+            except Exception:
+                log.exception("%s: erro ao decidir o só áudio; o texto segue", NOME)
+            return await texto(*a, **k)
+
+        adapter.send_voice, adapter._play_tts_file, adapter._send_final_text = send_voice, _play_tts_file, _send_final_text
+        adapter._meu_bot_so_audio = True
+    except Exception:
+        log.exception("%s: não embrulhei o adapter; o áudio segue com o texto", NOME)
+
+
+def _audio_da_marca(gateway, src):
+    if gateway is None or src is None:
+        return
+    try:
+        _embrulhar_so_audio(gateway._delivery_adapter_for(src))
+    except Exception:
+        pass
+    _aplicar_sempre(gateway, src)
 
 
 # ------------------------------------------------------------------ ferramenta para o agente (só a própria conversa)

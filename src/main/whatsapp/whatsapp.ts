@@ -63,7 +63,7 @@ async function lerStatusCompleto(host: string): Promise<WhatsappStatus> {
   // Hermes: ouvir e responder em áudio moram no config.yaml dele (hermes-audio.ts); uma leitura a mais, só com o WhatsApp pronto.
   const audio = st.gateway === "hermes" && st.ready ? await hermesAudioStatus(host) : null;
   const proprio = st.alvo?.proprio !== false;
-  return { ...st, ...(audio === null ? {} : { audioIn: audio.audioIn, audioOut: audio.audioOut, ...(audio.audioVoice !== undefined ? { audioVoice: audio.audioVoice } : {}), ...(audio.audioMaquina !== undefined ? { audioMaquina: audio.audioMaquina } : {}), ...(audio.audioDesligado !== undefined ? { audioDesligado: audio.audioDesligado } : {}) }), capacidades: capacidadesDe(st.gateway, st.ready, st.connected, { pausaModo: whatsappPausaModoOf(host), proprio }) };
+  return { ...st, ...(audio === null ? {} : { audioIn: audio.audioIn, audioOut: audio.audioOut, ...(audio.audioSoAudio !== undefined ? { audioSoAudio: audio.audioSoAudio } : {}), ...(audio.audioVoice !== undefined ? { audioVoice: audio.audioVoice } : {}), ...(audio.audioMaquina !== undefined ? { audioMaquina: audio.audioMaquina } : {}), ...(audio.audioDesligado !== undefined ? { audioDesligado: audio.audioDesligado } : {}) }), capacidades: capacidadesDe(st.gateway, st.ready, st.connected, { pausaModo: whatsappPausaModoOf(host), proprio }) };
 }
 /**
  * A máquina tem um alvo gravado (conta nomeada ou gateway de outro usuário): o ramo do OpenClaw que rodou no alias dela

@@ -240,7 +240,7 @@ async function saveReplyList(text: string): Promise<void> {
 /** Quando o agente responde em áudio (os três cartões). */
 const VOICE_OPTIONS: readonly { id: VoiceReplyMode; title: string; text: string; isDefault: boolean }[] = [
   { id: "off", title: "Nunca", text: "Responde sempre em texto.", isDefault: true },
-  { id: "inbound", title: "Quando receber áudio", text: "Áudio vira áudio; texto continua texto.", isDefault: false },
+  { id: "inbound", title: "Quando receber áudio", text: "Dinâmico: áudio vira áudio; texto continua texto.", isDefault: false },
   { id: "always", title: "Sempre", text: "Toda resposta vira nota de voz.", isDefault: false },
 ];
 /** Vozes (cópia mínima de src/main/vozes-core.ts; o teste confere que batem). */
@@ -254,6 +254,12 @@ let waVozEscolhida: VozId | null = null;
 let waVozBusy: VozId | null = null;
 /** O que está sendo aplicado agora ("in" = transcrição; um modo = voz) e o último recado (erro ou aviso). */
 let waAudioBusy: "in" | VoiceReplyMode | null = null;
+/** Hermes, "Texto junto do áudio": a escolha sendo gravada (true = só o áudio); null = parado. */
+let waSoAudioBusy: boolean | null = null;
+const SO_AUDIO_OPTIONS: readonly { on: boolean; title: string; text: string }[] = [
+  { on: false, title: "Áudio com o texto embaixo", text: "A pessoa recebe o áudio e o mesmo texto escrito." },
+  { on: true, title: "Só o áudio", text: "Sem o texto embaixo e sem repetir o que a pessoa falou." },
+];
 /** A última tentativa daqui de ligar a transcrição saiu com código 3 (precisa do admin); o próximo status limpa. */
 let waAudioPrecisaAdmin = false;
 let waAudioMsg: { text: string; bad: boolean; kind: "in" | "out" } | null = null;
@@ -300,8 +306,8 @@ export function renderAudioControls(container: HTMLElement): void {
   box.append(speak);
   const cards = el("div", "reply-cards voice-cards");
   const marked = waAudioBusy !== null && waAudioBusy !== "in" ? waAudioBusy : current;
-  // O Hermes só responde em áudio quando recebe áudio (voice.auto_tts): sem "sempre". A voz escolhe-se como no OpenClaw.
-  for (const o of hermes ? VOICE_OPTIONS.filter((v) => v.id !== "always") : VOICE_OPTIONS) {
+  // O "sempre" do Hermes é por conversa (/voice tts): o plugin meu-bot-pausa liga em cada uma a partir da marca do app.
+  for (const o of VOICE_OPTIONS) {
     const saving = waAudioBusy === o.id;
     const card = el("button", `reply-card${marked === o.id ? " on" : ""}${saving ? " saving" : ""}`);
     card.type = "button"; card.disabled = waAudioBusy !== null || st === null || !st.connected;
@@ -316,6 +322,29 @@ export function renderAudioControls(container: HTMLElement): void {
     cards.append(card);
   }
   box.append(cards);
+  // Hermes, com o áudio ligado: mandar o áudio com o texto embaixo (como o gateway faz) ou só o áudio.
+  if (hermes && current !== "off") {
+    const so = waSoAudioBusy ?? (st?.audioSoAudio === true);
+    box.append(el("p", "hint strong-hint", "Texto junto do áudio"));
+    const linha = el("div", "reply-cards voice-cards");
+    for (const o of SO_AUDIO_OPTIONS) {
+      const saving = waSoAudioBusy === o.on;
+      const card = el("button", `reply-card${so === o.on ? " on" : ""}${saving ? " saving" : ""}`);
+      card.type = "button"; card.disabled = waAudioBusy !== null || waVozBusy !== null || waSoAudioBusy !== null || st === null || !st.connected;
+      card.setAttribute("role", "radio"); card.setAttribute("aria-checked", String(so === o.on));
+      const title = el("div", "reply-title"); title.append(el("strong", "", o.title));
+      if (!o.on) title.append(el("span", "reply-default", "Padrão"));
+      const body = el("div", "reply-body"); body.append(title, el("p", "", o.text));
+      card.append(saving ? el("span", "reply-spin") : el("span", "reply-radio"), body);
+      card.addEventListener("click", () => {
+        if (o.on === so) return;
+        waSoAudioBusy = o.on; ctx.paintGuide();
+        void runAudioSetup({ kind: "out", mode: current, soAudio: o.on, ...(st?.audioVoice ? { voz: st.audioVoice } : {}) }).finally(() => { waSoAudioBusy = null; ctx.paintGuide(); });
+      });
+      linha.append(card);
+    }
+    box.append(linha);
+  }
   if (hermes) box.append(el("p", "hint", "Mudar o modo ou a voz reinicia o WhatsApp da máquina por alguns segundos."));
   // Voz: com o áudio ligado, troca na hora; desligado, fica guardada para quando ligar. Todas rodam na máquina.
   box.append(el("p", "hint strong-hint", "Voz"));
@@ -375,7 +404,7 @@ async function runPausaPlugin(): Promise<void> {
 }
 async function runAudioSetup(setup: AudioSetup): Promise<void> {
   if (waAudioBusy !== null) return;
-  waAudioBusy = setup.kind === "in" ? "in" : waVozBusy !== null ? null : setup.mode; waAudioMsg = null;
+  waAudioBusy = setup.kind === "in" ? "in" : waVozBusy !== null || waSoAudioBusy !== null ? null : setup.mode; waAudioMsg = null;
   ctx.paintGuide();
   segurarConexao();
   try {
