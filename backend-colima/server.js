@@ -1013,7 +1013,7 @@ const server = http.createServer(async (req, res) => {
     if (/^[a-f0-9]{12}$/.test(devId)) {
       const entry = (readJson(MACHINES_FILE, {}) || {})[devId];
       if (entry && licenca.deviceStatus(entry) === 'pending') {
-        return json(res, 403, { error: { message: 'este Mac passou do limite de devices do plano: adicione um device na conta ou peça ao admin', type: 'forbidden', code: 'device_pending' } });
+        return json(res, 403, { error: { message: 'este computador passou do limite de devices do plano: adicione um device na conta ou peça ao admin', type: 'forbidden', code: 'device_pending' } });
       }
     }
     chatCompletions(req, res).catch((e) => { log(`falha inesperada: ${e.stack || e.message}`); if (!res.headersSent) json(res, 500, { error: { message: e.message, type: 'server_error' } }); else { try { res.end(); } catch (_) {} } });
