@@ -104,8 +104,13 @@ export async function atualizarBackends(host: string, onLine?: (line: string) =>
       const feito = (estado: "atualizada" | "pulada" | "falhou", motivo: string): void => { atualizacao.push({ nome, estado, motivo }); onLine?.(`${estado === "atualizada" ? "✓" : estado === "pulada" ? "·" : "✗"} ${nome}: ${motivo}`); log(`[backends] ${host} ${nome}: ${estado} (${motivo})`); };
       // Box que este Mac ainda não conhece (criada pelo admin de outro Mac): adota aqui (chave deste Mac + seletores) e segue.
       if (!configTemHost(texto, alias)) {
-        try { await chaveDesteMacNaConta(host, nome); await porNosSeletores(host, nome); }
-        catch (e) { feito("falhou", `não consegui pôr nos seletores deste Mac: ${e instanceof Error ? e.message : String(e)}`); continue; }
+        const u = v.usuarios.find((x) => x.nome === nome);
+        if (u === undefined || !podeIrAoSeletor(u)) { feito("pulada", "sem alias neste Mac, e a conta tem sudo ou é do sistema: não entra nos seletores por aqui"); continue; }
+        try {
+          await chaveDesteMacNaConta(host, nome);
+          const r = await porNosSeletores(host, nome);
+          if (r.aviso !== null) onLine?.(`· ${nome}: ${r.aviso}`);
+        } catch (e) { feito("falhou", `não consegui pôr nos seletores deste Mac: ${e instanceof Error ? e.message : String(e)}`); continue; }
       }
       const configurada = getBackendPort(alias);
       const probe = await probeHost(alias, configurada);

@@ -745,9 +745,12 @@ else useradd -m -s /bin/bash "$N"; ACAO=CRIADO; fi
 H=$(getent passwd "$N" | cut -d: -f6)
 install -d -m 700 -o "$N" -g "$N" "$H/.ssh"
 touch "$H/.ssh/authorized_keys"
-ANTES=$(wc -l < "$H/.ssh/authorized_keys")
+A="$H/.ssh/authorized_keys"
+# Última linha sem quebra: a chave nova colaria nela e quebraria as duas. A quebra entra antes.
+if [ -s "$A" ] && [ -n "$(tail -c1 "$A")" ]; then echo >> "$A"; fi
+ANTES=$(grep -c '' "$A" || true)
 printf '%s' '${b64}' | base64 -d | while IFS= read -r k; do if [ -n "$k" ] && ! grep -qF "$(echo "$k" | cut -d' ' -f2)" "$H/.ssh/authorized_keys"; then echo "$k" >> "$H/.ssh/authorized_keys"; fi; done
-echo "CHAVES_NOVAS=$(( $(wc -l < "$H/.ssh/authorized_keys") - ANTES ))"
+echo "CHAVES_NOVAS=$(( $(grep -c '' "$A" || true) - ANTES ))"
 chown "$N:$N" "$H/.ssh/authorized_keys"; chmod 600 "$H/.ssh/authorized_keys"
 echo "$ACAO=$N"`;
 }
