@@ -28,6 +28,15 @@ test("fonte dos módulos: resultado do git (rede antes de acesso) e estados", ()
   assert.equal(F.mostraModulos("sem-rede", true), true);
 });
 
+test("fonte dos módulos: sem git, o aviso ensina o caminho da plataforma (no Windows não há xcode-select)", () => {
+  assert.match(F.mensagemFonte("sem-git", "d/r", false, "", false), /^Este Mac não tem o git.*xcode-select --install/);
+  const w = F.mensagemFonte("sem-git", "d/r", true, "", true);
+  assert.match(w, /^Este computador não tem o git.*winget install --id Git\.Git -e.*git-scm\.com/);
+  assert.doesNotMatch(w, /Mac|xcode/);
+  assert.match(w, /Mostrando os módulos já baixados\.$/);
+  assert.doesNotMatch(F.mensagemFonte("sem-acesso", "d/r", false, "", true), /Mac/);
+});
+
 test("fonte dos módulos: a cópia só vale para a URL de onde veio; linha de origem", () => {
   const gravada = F.parseFonteGravada(JSON.stringify({ url: "https://github.com/a/b.git", commit: "abc1234", em: "2026-11-17T10:00:00Z" }));
   const f = F.montarFonte({ url: "https://github.com/a/b", gravada, temManifesto: true, estado: "em-dia", agora: Date.parse("2026-11-17T10:05:00Z") });

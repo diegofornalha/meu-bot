@@ -94,16 +94,21 @@ export function haQuanto(ms: number): string {
   const d = Math.floor(h / 24);
   return d === 1 ? "há 1 dia" : `há ${d} dias`;
 }
-/** O aviso de cada estado, em uma frase; "" quando não há o que avisar. `detalhe`: a última linha do git no caso "erro". */
-export function mensagemFonte(estado: EstadoFonte, repositorio: string, baixados: boolean, detalhe = ""): string {
+/**
+ * O aviso de cada estado, em uma frase; "" quando não há o que avisar. `detalhe`: a última linha do git no caso "erro".
+ * `windows`: o app também roda no Windows, onde o git não vem do `xcode-select` (o Mac) e sim do Git for Windows.
+ */
+export function mensagemFonte(estado: EstadoFonte, repositorio: string, baixados: boolean, detalhe = "", windows = process.platform === "win32"): string {
   const ja = baixados ? " Mostrando os módulos já baixados." : "";
   switch (estado) {
     case "atualizado": return "Módulos atualizados.";
     case "em-dia": return "Os módulos já estavam em dia.";
     case "nunca": return "";
-    case "sem-acesso": return `Sem acesso aos módulos: este Mac não tem acesso git ao repositório ${repositorio}.`;
+    case "sem-acesso": return `Sem acesso aos módulos: este computador não tem acesso git ao repositório ${repositorio}.`;
     case "sem-rede": return baixados ? "Sem rede para conferir o repositório: mostrando os módulos já baixados." : "Sem rede: não consegui baixar os módulos. Tente de novo quando a internet voltar.";
-    case "sem-git": return `Este Mac não tem o git, que baixa os módulos (instale com \`xcode-select --install\`).${ja}`;
+    case "sem-git": return windows
+      ? `Este computador não tem o git, que baixa os módulos (instale o Git for Windows: \`winget install --id Git.Git -e\` no terminal, ou pelo site git-scm.com, e abra o app de novo).${ja}`
+      : `Este Mac não tem o git, que baixa os módulos (instale com \`xcode-select --install\`).${ja}`;
     case "erro": return `Não consegui atualizar os módulos${detalhe ? `: ${detalhe}` : "."}${detalhe ? "." : ""}${ja}`.replace(/\.\.$/, ".");
   }
 }

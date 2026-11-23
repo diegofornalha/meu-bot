@@ -17,7 +17,7 @@ import { UUID_RE, agoraIso, janelaMinuto } from "../sessao-core.js";
 import { json, lerJson, type Autenticado } from "../http.js";
 import { catalogoAddons, extrasAVenda } from "./pagamentos.js";
 import { limiteDoPapel } from "../pagamento-core.js";
-import { LICENCA_VALIDADE_MS, abreVagaNaHora, admitirMaquina, assinarLicenca, cabeNoLimite, licencaJsonV2, montarPayload, ocupaVaga, validaApelido, type Vinculo } from "../licenca-core.js";
+import { LICENCA_VALIDADE_MS, abreVagaNaHora, admitirMaquina, assinarLicenca, cabeNoLimite, licencaJsonV2, licencaParaMaquina, montarPayload, ocupaVaga, validaApelido, type Vinculo } from "../licenca-core.js";
 
 export const licencaLigada = (env: Env): boolean => typeof env.LICENCA_PRIVATE_KEY === "string" && env.LICENCA_PRIVATE_KEY.trim() !== "";
 const DESLIGADA = "a licença da conta na máquina ainda não está ligada; fale com o suporte";
@@ -44,7 +44,8 @@ async function assinar(auth: Autenticado, env: Env, maquina: string, agoraMs: nu
   // O papel é lido da tabela agora, não do token (que vale 1 h): esta emissão vale 30 dias na máquina.
   const papel = await papelAdmin(env.DB, auth.conta.email, env.ADMIN_BOOTSTRAP_EMAIL);
   const [licenca, devices] = await Promise.all([licencaDaConta(env.DB, auth.conta, papel, catalogoAddons(env), agoraIso(agoraMs)), devicesDaConta(env.DB, auth.conta.id)]);
-  const p = montarPayload(auth.conta, maquina, licenca, devices, agoraMs);
+  // O super admin não tem limite de devices, e a máquina só sabe disso pelo número da licença (licencaParaMaquina).
+  const p = montarPayload(auth.conta, maquina, licencaParaMaquina(licenca, papel), devices, agoraMs);
   try { return licencaJsonV2(p, await assinarLicenca(p, env.LICENCA_PRIVATE_KEY ?? "")); }
   catch (e) { console.log(`[licenca] não deu para assinar: ${e instanceof Error ? e.message : String(e)}`); return null; }
 }

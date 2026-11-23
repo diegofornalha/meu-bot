@@ -67,6 +67,9 @@ function centralSsh(): string[] | null {
 function sshComEntrada(args: string[], entrada: string, timeout = 60_000): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = execFile("ssh", args, { timeout, maxBuffer: 64 * 1024 * 1024, windowsHide: true }, (err, out, errOut) => (err ? reject(new Error(String(errOut).trim().split("\n").pop() || err.message)) : resolve(String(out))));
+    // Sem ouvinte, um EPIPE (o ssh saiu antes de ler: central fora, host que não resolve) vira exceção não tratada no
+    // processo principal e o macOS mostra "A JavaScript error occurred". O erro de verdade chega pelo callback.
+    child.stdin?.on("error", () => { /* o ssh saiu antes de ler */ });
     child.stdin?.end(entrada);
   });
 }

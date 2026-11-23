@@ -5,7 +5,7 @@
 /* ---------- janela principal ---------- */
 body.admin-mode .composer, body.admin-mode #tab-plus, body.admin-mode #btn-new,
 body.admin-mode #cl-line, body.admin-mode #xai-line, body.admin-mode #ollama-line, body.admin-mode #acervo-line, body.admin-mode #tutoriais-line,
-body.admin-mode #conta-google-line,
+body.admin-mode #conta-google-line, body.admin-mode #gmail-line,
 body.admin-mode #wa-line, body.admin-mode #rest { display: none !important; }
 /* O rodapé "arquivadas" (.sidebar-foot) fica: o admin arquiva pelo menu "…" e precisa ver o que arquivou. */
 body.admin-mode #suporte-line[hidden] { display: flex !important; }
