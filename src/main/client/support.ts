@@ -288,6 +288,7 @@ function deliverFromMac(b: SupportBundle, id: string, codeText: string): Promise
     const child = execFile("ssh", ["-i", tmp, "-o", "IdentitiesOnly=yes", "-o", "IdentityAgent=none", "-o", "BatchMode=yes", "-o", "ConnectTimeout=20",
       "-o", "HostKeyAlias=meu-bot-caixa", "-o", `UserKnownHostsFile=${b.knownHostsPath}`, "-o", "StrictHostKeyChecking=yes",
       "-p", String(b.inbox.port), `${b.inbox.user}@${b.inbox.hostname}`], { timeout: 30_000, windowsHide: true }, (err) => (err ? reject(err) : resolve()));
+    child.stdin?.on("error", () => { /* o ssh saiu antes de ler (EPIPE); o callback diz o erro */ });
     child.stdin?.end(`${id}\n${codeText}\n`);
   });
 }

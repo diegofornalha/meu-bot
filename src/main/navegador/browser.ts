@@ -68,6 +68,7 @@ function entregarNaMaquina(host: string, url: string): Promise<{ code: number; l
     child.stdout.on("data", (d: Buffer) => { out += d.toString("utf8"); });
     child.on("close", () => { clearTimeout(t); const m = /^(\d{3})\s(.*)$/m.exec(out.trim()); resolve(m ? { code: Number(m[1]), location: m[2]!.trim() || null, erro: null } : { code: 0, location: null, erro: "a máquina não respondeu (a CLI ainda está esperando o login?)" }); });
     child.on("error", (e) => { clearTimeout(t); resolve({ code: 0, location: null, erro: e.message }); });
+    child.stdin.on("error", () => { /* o ssh saiu antes de ler (EPIPE) */ });
     child.stdin.end(`U=$(printf '%s' '${b64}' | base64 -d); curl -s -m 30 -o /dev/null -w '%{http_code} %{redirect_url}\\n' -- "$U"\n`);
   }));
 }
