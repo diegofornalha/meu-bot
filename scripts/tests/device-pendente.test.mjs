@@ -19,7 +19,7 @@ test("device pendente: o aviso diz o que houve e os dois caminhos, sem preço (o
 });
 
 test("device pendente: o resultado da conferência conforme o que o backend respondeu", () => {
-  assert.deepEqual(resultadoDaConferencia("active"), { texto: "Pronto: este Mac entrou. Pode mandar a mensagem de novo.", ok: true });
+  assert.deepEqual(resultadoDaConferencia("active"), { texto: "Pronto: este computador entrou. Pode mandar a mensagem de novo.", ok: true });
   assert.equal(resultadoDaConferencia("pending").ok, false); assert.match(resultadoDaConferencia("pending").texto, /Ainda não há vaga/);
   assert.equal(resultadoDaConferencia(null).ok, false); assert.match(resultadoDaConferencia(null).texto, /não respondeu/);
 });
