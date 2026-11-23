@@ -149,18 +149,30 @@ if [ "$VOZ" != faber ]; then
     LIVRE=$(( ($(cat "$CG/memory.max") - $(cat "$CG/memory.current" 2>/dev/null || echo 0) + $(awk '/^inactive_file /{print $2; f=1} END{if(!f) print 0}' "$CG/memory.stat" 2>/dev/null || echo 0)) / 1048576 ))
     [ "$LIVRE" -ge 700 ] || { echo "a voz $VOZ precisa de ~700 MB livres no teto de RAM desta conta e só há $LIVRE MB (teto de $(( $(cat "$CG/memory.max") / 1048576 )) MB). Peça ao admin para subir o teto de RAM na aba Usuários (3 GB é o padrão); a voz faber (Piper) não precisa disso."; exit 4; }
   fi
+  # Voz para todos (install-voz-global.sh, pelo root): a máquina já tem o Kokoro pronto em /opt/meu-bot-voz. Esta conta
+  # não baixa nem instala nada: a pasta dela aponta para lá (links), e a cópia própria, se tinha, sai e devolve a cota.
+  G=${MEU_BOT_VOZ_GLOBAL:-/opt/meu-bot-voz}
+  if [ -r "$G/global.json" ] && [ -x "$G/venv/bin/python" ] && [ -r "$G/kokoro-v1.0.onnx" ] && [ -r "$G/voices-v1.0.bin" ]; then
+    mkdir -p "$K"
+    for f in venv kokoro-v1.0.onnx voices-v1.0.bin; do
+      [ "$(readlink "$K/$f" 2>/dev/null)" = "$G/$f" ] || { rm -rf "${K:?}/$f"; ln -s "$G/$f" "$K/$f"; }
+    done
+    echo "esta máquina já tem a voz para todos: nada para baixar"
+  fi
   if [ ! -x "$K/venv/bin/python" ] || ! "$K/venv/bin/python" -c "import kokoro_onnx, soundfile" 2>/dev/null; then
     echo "preparando o Kokoro (uma vez)…"
+    # Link para um global que saiu da máquina: sai o link, e a conta volta a ter a cópia dela.
+    for f in venv kokoro-v1.0.onnx voices-v1.0.bin; do [ -L "$K/$f" ] && rm -f "${K:?}/$f"; done
     mkdir -p "$K"
     venv_ou_avisa "$K/venv" "a voz $VOZ funciona aqui" || exit 3
     "$K/venv/bin/pip" -q install "$KOKORO_PKG" soundfile >/dev/null 2>&1 || { echo "não consegui instalar o $KOKORO_PKG"; exit 1; }
   fi
-  if [ "$(stat -c %s "$K/kokoro-v1.0.onnx" 2>/dev/null || echo 0)" -lt 300000000 ]; then
+  if [ "$(stat -L -c %s "$K/kokoro-v1.0.onnx" 2>/dev/null || echo 0)" -lt 300000000 ]; then
     echo "baixando a voz natural (Kokoro, ~325 MB; só na primeira vez)…"
     curl -fsSL --retry 5 -C - -o "$K/kokoro-v1.0.onnx" "$KOKORO_URL/kokoro-v1.0.onnx"
   fi
-  [ "$(stat -c %s "$K/voices-v1.0.bin" 2>/dev/null || echo 0)" -ge 25000000 ] || curl -fsSL --retry 5 -C - -o "$K/voices-v1.0.bin" "$KOKORO_URL/voices-v1.0.bin"
-  [ "$(stat -c %s "$K/kokoro-v1.0.onnx")" -ge 300000000 ] && [ "$(stat -c %s "$K/voices-v1.0.bin")" -ge 25000000 ] || { echo "a voz baixou incompleta; rode de novo"; exit 1; }
+  [ "$(stat -L -c %s "$K/voices-v1.0.bin" 2>/dev/null || echo 0)" -ge 25000000 ] || curl -fsSL --retry 5 -C - -o "$K/voices-v1.0.bin" "$KOKORO_URL/voices-v1.0.bin"
+  [ "$(stat -L -c %s "$K/kokoro-v1.0.onnx")" -ge 300000000 ] && [ "$(stat -L -c %s "$K/voices-v1.0.bin")" -ge 25000000 ] || { echo "a voz baixou incompleta; rode de novo"; exit 1; }
   cat > "$K/falar.py" <<'PY'
 # Texto na entrada, WAV em argv[2] com a voz argv[1] (pt-BR). Chamado pelo meu-bot-falar.
 import os, sys, soundfile as sf

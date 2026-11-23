@@ -9,7 +9,7 @@ import { ORDEM_PREPARAR, PREPARAR_ESTADO_SH, TITULOS, faltamAoCriarUsuario, lerP
 import { runSsh } from "../whatsapp/whatsapp";
 import { registrar } from "../auditoria/auditoria";
 import { log } from "../maquina/backend";
-import { installClaudeGlobal, installOllamaGlobal } from "../maquina/hostProbe";
+import { installClaudeGlobal, installOllamaGlobal, installVozGlobal } from "../maquina/hostProbe";
 
 const visaoDe = (l: PrepararLido): PrepararVisao => ({ root: l.root, itens: l.itens, faltam: l.faltam });
 
@@ -47,6 +47,10 @@ export async function aplicarPreparar(host: string, ids?: unknown, onLine?: (lin
           const r = await installOllamaGlobal(host, onLine);
           if (!r.ok) throw new Error(r.erro ?? "o instalador não respondeu");
           alvo = r.porta !== null ? `porta ${r.porta}` : "";
+        } else if (p.sh === null && p.id === "voz") {
+          const r = await installVozGlobal(host, onLine);
+          if (!r.ok) throw new Error(r.erro ?? "o instalador não respondeu");
+          alvo = "/opt/meu-bot-voz";
         } else if (p.sh === null) {
           const r = await installClaudeGlobal(host);
           if (!r.ok) throw new Error(r.erro ?? "o instalador não respondeu");
