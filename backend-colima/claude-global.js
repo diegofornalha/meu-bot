@@ -164,6 +164,15 @@ function anotarUsoDaConta(c, r) {
   if (sessao || semanal) { try { contas.registrarUso(c.id, { sessao, semanal }); } catch (_) { /* uso é cortesia */ } }
 }
 const resetDe = (r) => { const v = Number(r.headers['anthropic-ratelimit-unified-reset']); return Number.isFinite(v) && v > 0 ? Math.floor(v > 1e12 ? v / 1000 : v) : null; };
+/**
+ * O 429 é o limite da assinatura (e não um aperto passageiro do servidor)? A Anthropic marca o limite de verdade com
+ * `anthropic-ratelimit-unified-status: rejected` (ou a janela 5h/7d rejeitada); o passageiro vem sem isso.
+ */
+function limiteDaAssinatura(r) {
+  const h = (r && r.headers) || {};
+  return ['anthropic-ratelimit-unified-status', 'anthropic-ratelimit-unified-5h-status', 'anthropic-ratelimit-unified-7d-status']
+    .some((k) => String(h[k] || '').toLowerCase() === 'rejected');
+}
 function erro(res, status, tipo, msg) {
   res.writeHead(status, { 'content-type': 'application/json' });
   res.end(JSON.stringify({ type: 'error', error: { type: tipo, message: msg } }));
@@ -219,7 +228,12 @@ async function atender(req, res, corpo, usuario) {
     }
     if (r.statusCode === 401) { r.resume(); contas.marcar(c.id, 'bloqueada', 'login do root recusado: entre de novo no admin'); continue; }
     if (r.statusCode === 429) {
-      contas.marcar(c.id, 'esgotada', 'limite da assinatura', resetDe(r));
+      // Só o 429 de limite da assinatura tira a conta do rodízio. O passageiro ("Server is temporarily limiting
+      // requests (not your usage limit)") não diz nada sobre a conta: marcado, deixava a máquina inteira uma hora
+      // sem Claude com as contas em 13% de uso. Ele tenta a próxima conta e, sem nenhuma, volta intacto ao Claude
+      // Code, que sabe esperar e tentar de novo.
+      if (limiteDaAssinatura(r)) contas.marcar(c.id, 'esgotada', 'limite da assinatura', resetDe(r));
+      else log(`conta ${c.id}: 429 passageiro da Anthropic (não é o limite da assinatura); conta mantida no rodízio`);
       if (ultimo429) ultimo429.resume();
       ultimo429 = r;
       continue;
@@ -257,4 +271,4 @@ if (require.main === module) {
   servir(porta);
 }
 
-module.exports = { servir, usuarioDaChave, cabecalhos, anotarUsoDaConta, respostaEsgotado, PERMITIDO, CHAVE_RE, USUARIO_RE, carregarChaves };
+module.exports = { servir, usuarioDaChave, cabecalhos, anotarUsoDaConta, respostaEsgotado, limiteDaAssinatura, PERMITIDO, CHAVE_RE, USUARIO_RE, carregarChaves };
