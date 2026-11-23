@@ -151,6 +151,11 @@ test("adicionar por host do ~/.ssh/config: alvo, ssh -G, script e chave do servi
   assert.equal(statSync(join(home, ".ssh", "authorized_keys")).mode & 0o777, 0o600);
   // Termux (Android): o sshd mora no prefixo, não em /etc/ssh.
   assert.match(sh, /\$\{PREFIX:-\/usr\}\/etc\/ssh\/ssh_host_ed25519_key\.pub/);
-  const hk = execFileSync("bash", ["-c", sh], { env: { ...process.env, HOME: home }, encoding: "utf8" });
+  // A chave sai de /etc/ssh quando a máquina tem sshd (Linux da CI); sem ele (Mac sem Login Remoto) o script cai no
+  // PREFIX, que aqui aponta para uma chave de mentira: o teste não depende do sshd de quem o roda.
+  const prefix = mkdtempSync(join(tmpdir(), "adopt-prefix-"));
+  mkdirSync(join(prefix, "etc", "ssh"), { recursive: true });
+  writeFileSync(join(prefix, "etc", "ssh", "ssh_host_ed25519_key.pub"), `${HOSTKEY} root@termux\n`);
+  const hk = execFileSync("bash", ["-c", sh], { env: { ...process.env, HOME: home, PREFIX: prefix }, encoding: "utf8" });
   assert.match(hk, /^HOSTKEY ssh-ed25519 AAAA/m);
 });
