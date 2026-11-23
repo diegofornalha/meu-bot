@@ -101,7 +101,7 @@ export function mountUsuariosPage(deps: UsuariosPageDeps): { open: () => void } 
     if (!Number.isInteger(p) || p < 0 || p > 100) { msg = { text: "Limite: uma porcentagem inteira de 0 a 100 (vazio = sem limite).", bad: true }; render(); return; }
     // Mais boxes do que cabem na RAM com o teto padrão: avisa, não bloqueia (a conta é do admin; a coluna Pressão mostra o efeito).
     const cap = visao?.capacidade ?? null;
-    const avisoCap = cap !== null && cap.boxes + 1 > cap.cabem ? ` Atenção: com este serão ${cap.boxes + 1} boxes, mais que as ${cap.cabem} que cabem na RAM com ${cap.padraoMb} MB cada; acompanhe a coluna Pressão.` : "";
+    const avisoCap = cap !== null && cap.boxes + 1 > cap.cabem ? ` Atenção: com este serão ${cap.boxes + 1} boxes, ${cap.cabem === 1 ? "mais que o 1 que cabe" : `mais que os ${cap.cabem} que cabem`} na RAM com ${cap.padraoMb} MB cada; acompanhe a coluna Pressão.` : "";
     if (await rodar("criar", () => deps.api.adminUsuarioCriar(n, p, motorNovo), `✓ Usuário ${n} criado (sem sudo)${p > 0 ? `, com ${p}% do disco` : ""}.`)) {
       // Já entrou nos seletores (meu-bot e admin): a mensagem diz com que nome, ou o que faltou.
       const sel = visao?.seletores;
