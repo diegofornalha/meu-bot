@@ -1,6 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 const { lerUsuarios, NOME_USUARIO_RE, RESERVADOS, LISTAR_SH, limiteKbDe, pctMinimo, conferirMinimo, MINIMO_CONTA_KB, caminhoDentro, lerMaiores, apagarSh, PROTEGIDOS, lingerSh, nivelUso, sessaoAindaAberta } = createRequire(import.meta.url)("../../dist/main/admin/usuarios-core.js");
 
 test("usuários: lê a saída do script (só root vê), ordena por uid e ignora lixo", () => {
@@ -108,19 +112,34 @@ test("usuários: todo usuário novo nasce com 3 GB de RAM e 200% de CPU (9 boxes
   assert.match(recursosSh("ana", RECURSOS_PADRAO.ramMb, RECURSOS_PADRAO.cpuPct), /MemoryHigh=2764M MemoryMax=3072M CPUQuota=200%/);
 });
 
-test("seletores: entram os comuns com a chave deste Mac; sudo, meu-bot, sistema e sem chave ficam de fora", () => {
-  const { candidatosAoSeletor, semChaveDesteMac } = createRequire(import.meta.url)("../../dist/main/admin/usuarios-core.js");
+test("seletores: toda conta comum entra (preparada ou não, com ou sem chave); sudo, protegidos e sistema ficam de fora", () => {
+  const { candidatosAoSeletor, podeIrAoSeletor } = createRequire(import.meta.url)("../../dist/main/admin/usuarios-core.js");
   const u = (nome, o = {}) => ({ nome, uid: 1001, home: `/home/${nome}`, shell: "/bin/bash", sudo: false, meuBot: false, chave: true, usadoKb: null, limiteKb: null, ramKb: 0, ramMaxMb: null, cpuMaxPct: null, apelido: "", ligado: true, ...o });
-  const lista = [u("ana"), u("box", { sudo: true }), u("openclaw", { meuBot: true }), u("hermes"), u("bia", { chave: false }), u("admin")];
-  assert.deepEqual(candidatosAoSeletor(lista).map((x) => x.nome), ["ana"]);
-  assert.deepEqual(semChaveDesteMac(lista), ["bia"]);
+  // box-4: criada pelo admin de outro Mac, já preparada (tem ~/.local/share/meu-bot) e com a chave de lá no authorized_keys.
+  const lista = [u("ana"), u("box-4", { meuBot: true }), u("bia", { chave: false }), u("box", { sudo: true }), u("openclaw", { meuBot: true }), u("hermes"), u("auditoria"), u("admin")];
+  assert.deepEqual(candidatosAoSeletor(lista).map((x) => x.nome), ["ana", "box-4", "bia"]);
+  assert.deepEqual(lista.filter(podeIrAoSeletor).map((x) => x.nome), ["ana", "box-4", "bia"], "o botão da linha aceita os mesmos");
 });
 
-test("Nos seletores: aceita o comum sem chave (o botão põe a deste Mac); sudo, meu-bot e sistema continuam de fora", () => {
-  const { podeIrAoSeletor } = createRequire(import.meta.url)("../../dist/main/admin/usuarios-core.js");
-  const u = (nome, o = {}) => ({ nome, uid: 1001, home: `/home/${nome}`, shell: "/bin/bash", sudo: false, meuBot: false, chave: true, usadoKb: null, limiteKb: null, ramKb: 0, ramMaxMb: null, cpuMaxPct: null, apelido: "", ligado: true, ...o });
-  const lista = [u("ana"), u("bia", { chave: false }), u("box", { sudo: true }), u("openclaw", { meuBot: true }), u("hermes"), u("admin")];
-  assert.deepEqual(lista.filter(podeIrAoSeletor).map((x) => x.nome), ["ana", "bia"]);
+test("chaves numa conta que já existe: o script conta quantas entraram (a auditoria só registra quando entrou)", () => {
+  const { usuarioComChavesSh } = createRequire(import.meta.url)("../../dist/main/admin/usuarios-core.js");
+  const sh = usuarioComChavesSh("box-4", ["ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakeFakeFakeFakeFakeFakeFakeFakeFakeFakeFake meu-bot-admin"], "chaves");
+  assert.ok(sh.indexOf("CHAVES_NOVAS=") < sh.indexOf('echo "$ACAO=$N"'), "antes da linha final, que o chamador confere");
+  // Roda o laço de verdade: com a chave já no arquivo, a saída tem de ser 0 (com `a && b` no corpo o `set -e` matava o script).
+  const dir = mkdtempSync(path.join(tmpdir(), "chaves-"));
+  const arq = path.join(dir, ".ssh", "authorized_keys");
+  mkdirSync(path.join(dir, ".ssh"));
+  // Já existe a chave de outro Mac, e o arquivo termina sem quebra de linha: a nova não pode colar nela.
+  writeFileSync(arq, "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOutroMacOutroMacOutroMacOutroMacOutroMacOu meu-bot-admin");
+  const de = sh.split("\n").findIndex((l) => l.startsWith('A="$H/.ssh/authorized_keys"')); const ate = sh.split("\n").findIndex((l) => l.startsWith('echo "CHAVES_NOVAS='));
+  assert.ok(de > 0 && ate > de);
+  const laco = sh.split("\n").slice(de, ate + 1).join("\n");
+  const rodar = () => execFileSync("bash", ["-c", `set -e\nH='${dir}'\n${laco}\necho FIM`], { encoding: "utf8" });
+  assert.equal(rodar(), "CHAVES_NOVAS=1\nFIM\n");
+  assert.equal(rodar(), "CHAVES_NOVAS=0\nFIM\n", "a segunda rodada não duplica nem encerra o script");
+  const linhas = readFileSync(arq, "utf8").split("\n").filter(Boolean);
+  assert.equal(linhas.length, 2, "uma chave por linha");
+  assert.ok(linhas.every((l) => /^ssh-ed25519 \S+ meu-bot-admin$/.test(l)));
 });
 
 test("removerBlocoUsuario: tira só o bloco do admin (marca + Host + indentadas) e não leva o comentário do bloco seguinte", () => {
