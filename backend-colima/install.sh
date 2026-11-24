@@ -139,9 +139,13 @@ tirar_grok_sem_modulo() { # $1 = providers.json da máquina  $2 = pasta das unid
   [ -e "$HOME/.local/share/meu-bot/modulos/grok/ligado" ] && return 0
   if [ -f "$p" ] && grep -q 'grok-4' "$p" 2>/dev/null; then
     # Só regrava se o arquivo é uma lista JSON com uma entrada de nome grok-4; a cópia do original é feita uma vez.
-    if "$NODE" -e '
+    # Sai com 3 quando não há o que tirar (inclusive arquivo que não é JSON: o backend já o ignora e usa o padrão, só
+    # o agente); qualquer outro código é falha de verdade ao gravar, e aí avisa.
+    local rc=0
+    "$NODE" -e '
       const fs = require("node:fs"); const [p, copia] = process.argv.slice(1);
-      const texto = fs.readFileSync(p, "utf8"); const lista = JSON.parse(texto);
+      let texto; let lista;
+      try { texto = fs.readFileSync(p, "utf8"); lista = JSON.parse(texto); } catch (_) { process.exit(3); }
       if (!Array.isArray(lista)) process.exit(3);
       const eGrok = (e) => e !== null && typeof e === "object" && String(e.name || "").trim().toLowerCase() === "grok-4";
       if (!lista.some(eGrok)) process.exit(3);
@@ -149,8 +153,12 @@ tirar_grok_sem_modulo() { # $1 = providers.json da máquina  $2 = pasta das unid
       const fica = lista.filter((e) => !eGrok(e));
       fs.writeFileSync(`${p}.novo`, fica.length === 0 ? "[]\n" : `[\n${fica.map((e) => `  ${JSON.stringify(e)}`).join(",\n")}\n]\n`);
       fs.renameSync(`${p}.novo`, p);
-    ' "$p" "$p.antes-de-tirar-o-grok" 2>/dev/null; then
+    ' "$p" "$p.antes-de-tirar-o-grok" 2>/dev/null || rc=$?
+    if [ "$rc" -eq 0 ]; then
       echo "Grok: saiu do providers.json desta máquina (agora ele é um módulo à parte); o arquivo anterior ficou em $p.antes-de-tirar-o-grok"
+    elif [ "$rc" -ne 3 ]; then
+      rm -f "$p.novo" 2>/dev/null || true
+      echo "aviso: não consegui tirar o grok-4 de $p (sem permissão ou sem espaço para gravar); tire a entrada à mão, senão o backend ainda tenta o Grok quando o Claude falha"
     fi
   fi
   for n in meu-bot-xai-proxy.service hermes-xai-proxy.service; do

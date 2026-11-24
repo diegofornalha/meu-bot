@@ -33,7 +33,10 @@ function maquina({ providers = null, unidades = [], modulo = false } = {}) {
   return { home, dest, u, p, bin };
 }
 function rodar(m) {
-  const r = spawnSync("bash", ["-c", `set -euo pipefail\nNODE=$1\n${trecho}\ntirar_grok_sem_modulo "$2" "$3"\necho FIM`, "tirar", process.execPath, m.p, m.u],
+  // O trecho vai para um arquivo e os caminhos entram como argumentos: nada é montado dentro de uma linha de shell.
+  const script = join(m.home, "rodar.sh");
+  writeFileSync(script, `set -euo pipefail\nNODE=$1\n${trecho}\ntirar_grok_sem_modulo "$2" "$3"\necho FIM\n`);
+  const r = spawnSync("bash", [script, process.execPath, m.p, m.u],
     { encoding: "utf8", env: { ...process.env, HOME: m.home, PATH: `${m.bin}:${process.env.PATH}` } });
   const chamadas = existsSync(join(m.home, "chamadas")) ? readFileSync(join(m.home, "chamadas"), "utf8").trim().split("\n") : [];
   return { ...r, chamadas };
@@ -131,6 +134,19 @@ test("providers.json que não dá para ler como lista (quebrado, ou 'grok-4' só
     assert.equal(readFileSync(m.p, "utf8"), texto);
     assert.deepEqual(readdirSync(m.dest), ["providers.json"]);
   }
+});
+
+test("providers.json que não dá para regravar (pasta só de leitura): avisa, deixa o arquivo como está e a instalação segue", { skip: process.getuid?.() === 0 }, () => {
+  const m = maquina({ providers: [AGENTE, GROK], unidades: ["meu-bot-xai-proxy.service"] });
+  const antes = readFileSync(m.p, "utf8");
+  chmodSync(m.dest, 0o555);
+  const r = rodar(m);
+  chmodSync(m.dest, 0o755);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(readFileSync(m.p, "utf8"), antes);
+  assert.deepEqual(readdirSync(m.dest), ["providers.json"], "nem cópia nem temporário pela metade");
+  assert.match(r.stdout, /^aviso: não consegui tirar o grok-4 de .*providers\.json \(sem permissão ou sem espaço para gravar\); tire a entrada à mão, senão o backend ainda tenta o Grok quando o Claude falha\nGrok: proxy local parado/);
+  assert.match(r.stdout, /FIM\n$/);
 });
 
 test("o install.sh chama a migração antes de reiniciar o backend, em qualquer gerenciador; a migração antiga da unidade saiu", () => {
