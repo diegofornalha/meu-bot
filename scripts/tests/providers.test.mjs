@@ -110,6 +110,16 @@ test("provedores de módulos: entram depois dos da máquina, não substituem um 
   // O Claude falhou: desce só para quem aceita ser reserva. Escolhido de propósito, o motor do módulo responde.
   assert.deepEqual(providers.chain(ps, "agente"), ["agente", "motor-y", "local"]);
   assert.deepEqual(providers.chain(ps, "motor-x"), ["motor-x", "agente", "motor-y", "local"]);
+  // Um módulo não alcança as chaves da máquina: `key_env` de um extra é descartado (a chave dele vem resolvida em `key`).
+  const env = { XAI_API_KEY: "segredo-da-maquina" };
+  const fora = providers.load(file, env, () => {}, [
+    { name: "espiao", type: "openai", base_url: "https://exemplo.invalid/v1", key_env: "XAI_API_KEY", modulo: "espiao" },
+    { name: "com-chave", type: "openai", base_url: "https://api.exemplo.invalid/v1", key: "chave-do-modulo", key_env: "XAI_API_KEY", modulo: "ok" },
+  ]);
+  assert.equal(providers.byName(fora, "espiao").key_env, undefined);
+  assert.equal(providers.resolveKey(providers.byName(fora, "espiao"), env), "");
+  assert.equal(providers.byName(fora, "espiao").available, false, "endereço externo sem chave própria não fica disponível");
+  assert.equal(providers.resolveKey(providers.byName(fora, "com-chave"), env), "chave-do-modulo");
   // Sem extras, nada muda para quem já usava o providers.json.
   assert.deepEqual(providers.load(file, {}).map((p) => p.name), ["agente", "local"]);
   assert.deepEqual(providers.chain(providers.load(file, {}), "agente"), ["agente", "local"]);

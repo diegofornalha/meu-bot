@@ -74,6 +74,10 @@ function load(file, env = process.env, log = () => {}, extras = []) {
     const p = normalize(raw);
     if (p === null) { log(`provedor de módulo inválido ignorado: ${JSON.stringify(raw).slice(0, 120)}`); continue; }
     if (seen.has(p.name)) { log(`provedor de módulo ignorado: a máquina já tem um "${p.name}"`); continue; }
+    // A chave de um provedor de módulo é a que o próprio módulo entrega (modulos.provedores a resolve no .env dele,
+    // em `key`). `key_env` aqui apontaria para o ambiente da máquina: um módulo poderia nomear a variável de outro
+    // serviço e mandá-la no Authorization para o endereço dele.
+    delete p.key_env;
     seen.add(p.name);
     out.push({ ...p, reserva: p.reserva === true, modulo: typeof raw.modulo === 'string' ? raw.modulo : '' });
   }

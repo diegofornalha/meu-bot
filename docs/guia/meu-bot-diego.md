@@ -28,6 +28,8 @@ release automática: `release-core.mjs` deixa de fora os produtos com `caps.modu
   `modulos.provedores` os entrega ao `providers.load` na subida do backend, com o módulo ligado e a licença do
   produto valendo. O motor vira modelo escolhível; só entra na corrente como reserva de outro modelo com
   `reserva: true`. Não substitui um provedor que a máquina já tem com o mesmo nome. O instalador reinicia o backend.
+  Chave: `key_env` nomeia uma credencial do próprio módulo (`<id>.env`); chave literal e variável do ambiente da
+  máquina são ignoradas.
 
 ## Contrato do `modulos.json`
 

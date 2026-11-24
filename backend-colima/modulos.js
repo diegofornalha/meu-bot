@@ -106,8 +106,9 @@ function arquivoMcp(mcp, { base = BASE } = {}) {
  * Provedores que os módulos ligados e liberados pela licença trazem (provedores.json de cada um), para o
  * providers.load juntar aos da máquina. Lido uma vez, na subida do backend: o instalador do módulo reinicia o backend.
  * Só `openai` (endpoint compatível): um módulo não redefine os modelos do Claude. Cada entrada leva `modulo: <id>`.
+ * `key_env` é resolvido só no ~/.config/meu-bot/modulos/<id>.env do módulo, nunca no ambiente da máquina.
  */
-function provedores(produtoOk, { base = BASE } = {}) {
+function provedores(produtoOk, { base = BASE, conf = CONF } = {}) {
   const out = [];
   let ids = [];
   try { ids = fs.readdirSync(base).filter((d) => ID_RE.test(d)).sort(); } catch (_) { return out; }
@@ -119,8 +120,14 @@ function provedores(produtoOk, { base = BASE } = {}) {
     if (t === null || typeof t !== 'object' || typeof t.produto !== 'string' || !produtoOk(t.produto)) continue;
     try { lista = JSON.parse(fs.readFileSync(path.join(dir, 'provedores.json'), 'utf8')); } catch (_) { continue; }
     if (!Array.isArray(lista)) continue;
-    for (const p of lista.slice(0, MAX_PROVEDORES)) {
-      if (p !== null && typeof p === 'object' && String(p.type || '').toLowerCase() === 'openai') out.push({ ...p, modulo: id });
+    const env = lerEnv(path.join(conf, `${id}.env`));
+    for (const bruto of lista.slice(0, MAX_PROVEDORES)) {
+      if (bruto === null || typeof bruto !== 'object' || String(bruto.type || '').toLowerCase() !== 'openai') continue;
+      // A chave só vem das credenciais do próprio módulo (<id>.env): `key_env` nomeia uma delas e vira `key`; chave
+      // literal no arquivo e variável do ambiente da máquina não valem.
+      const { key: _literal, key_env: nomeDaChave, ...p } = bruto;
+      const chave = typeof nomeDaChave === 'string' && Object.prototype.hasOwnProperty.call(env, nomeDaChave) ? env[nomeDaChave] : '';
+      out.push({ ...p, ...(chave !== '' ? { key: chave } : {}), modulo: id });
     }
   }
   return out;
