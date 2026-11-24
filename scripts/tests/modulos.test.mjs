@@ -127,8 +127,9 @@ test("variante meu-bot-diego-staging: só ela leva os módulos (abre na página 
   assert.equal(produtoDe("diego-staging").abreEm, "modulos");
   for (const v of ["client", "client-staging", "inspector-staging", "admin"]) assert.equal(capsFor(v).modulos, null, v);
   assert.ok(ADDONS.some((a) => a.nome === "meu-bot-diego"));
-  // Add-on com módulos por licença: o Financeiro, do repositório público meu-bot-finance (issue #312).
-  assert.deepEqual(ADDONS.filter((a) => a.modulos).map((a) => a.nome), ["meu-bot-finance"]);
+  // Add-ons com módulos por licença: o Financeiro, do repositório público meu-bot-finance (issue #312), e o Grok (xAI),
+  // do repositório privado meu-bot-grok (o Grok saiu do produto base e virou módulo opcional).
+  assert.deepEqual(ADDONS.filter((a) => a.modulos).map((a) => a.nome), ["meu-bot-finance", "meu-bot-grok"]);
   for (const v of ["client", "diego-staging"]) assert.deepEqual(capsFor(v).addons.map((a) => [a.nome, a.modulos]), ADDONS.map((a) => [a.nome, a.modulos]), v);
   assert.ok(require("../../backend-colima/licenca.js").produtoOk({ plan: "free", status: "active", produtos: ["meu-bot-diego"] }, "meu-bot-diego"));
 });
@@ -237,6 +238,9 @@ test("módulos sem licença: o meu-bot-diego vale sem o add-on (a trava é o rep
   assert.equal(lic.moduloOk({ ...vazia, produtos: ["meu-bot-finance"] }, "meu-bot-finance"), true);
   assert.equal(lic.moduloOk({ ...vazia, status: "expired", produtos: ["meu-bot-finance"] }, "meu-bot-finance"), false);
   assert.deepEqual(ADDONS.filter((a) => a.semLicenca).map((a) => a.nome), ["meu-bot-diego"]);
+  // O Grok (xAI) é módulo com licença: sem o add-on meu-bot-grok, o modelo dele não entra (turno e provedores).
+  assert.equal(lic.moduloOk(vazia, "meu-bot-grok"), false);
+  assert.equal(lic.moduloOk({ ...vazia, produtos: ["meu-bot-grok"] }, "meu-bot-grok"), true);
   // No turno do agente: o módulo do Diego entra sem o add-on na licença; um módulo de produto pago, não.
   const base = mkdtempSync(join(tmpdir(), "mod-sem-lic-"));
   for (const [id, produto] of [["sendfy-mcp", "meu-bot-diego"], ["financas", "meu-bot-finance"]]) {

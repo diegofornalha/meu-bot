@@ -64,7 +64,8 @@ Regras do renderer:
   `tutoriais/` fica só o motor; em `renderer.ts`, só a chamada `ligar<X>Guia()`.
 - `backend-colima/` — o backend que roda em cada máquina (Node puro): `server.js` (rotas), `crm-*`
   (modelo puro + API) e o plugin `crm/`. O Financeiro não mora mais aqui: é o módulo Finanças, no repositório
-  `meu-bot-finance` (issue #312).
+  `meu-bot-finance` (issue #312). O Grok (xAI) também é um módulo: add-on `meu-bot-grok`, repositório privado
+  `diegofornalha/meu-bot-grok` (`docs/guia/meu-bot-diego.md`).
 - `scripts/tests/` — um teste por módulo puro, importando de `dist/`.
 - `docs/guia/` — o diário técnico por assunto (índice em `docs/GUIA.md`). Mudança nova: uma seção datada no fim do guia
   do assunto dela; `docs/guia/historia.md` é o começo (REA do Grok Bot, 13–14 out) e não recebe coisa nova.
