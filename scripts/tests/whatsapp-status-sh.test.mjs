@@ -76,7 +76,8 @@ test("máquina pronta: uma chamada só da CLI (channels status) e o resto vem do
   assert.equal(kv.get("typing"), "instant", "o typingMode vem do json, sem chamada da CLI");
   assert.equal(kv.get("me"), "5511999999999:12@s.whatsapp.net");
   assert.deepEqual(JSON.parse(kv.get("oc")), { linked: true, connected: true, state: "connected", lifecycle: "running", loggedOut: null, e164: "+5511999999999", starting: false, conta: true });
-  assert.equal(kv.get("ocmodel"), "0"); assert.equal(kv.get("ocfallback"), "0"); // modelo e reserva já existem: nada a gravar (e nenhum config set nas chamadas)
+  assert.equal(kv.get("ocmodel"), "0"); // o modelo já existe: nada a gravar (e nenhum config set nas chamadas)
+  assert.equal(kv.has("ocfallback"), false, "o status não cuida mais de reserva de modelo");
 });
 
 test("typingMode: a entrada do agente vence o padrão; sem a chave, vazio (a regra automática do motor)", () => {
@@ -117,16 +118,16 @@ test("conta pelo Claude Code Global (sem login próprio): o modelo também é gr
   assert.ok(!r.chamadas.some((c) => c.startsWith("config set agents.defaults.models ")), "sem login e sem Global, o modelo fica como está");
 });
 
-test("VM nova: sem modelo e sem reserva o script grava os dois (só então chama a CLI); plugin não achado pelos arquivos confirma pela CLI", () => {
+test("VM nova: sem modelo o script grava o Claude (só então chama a CLI) e não grava reserva nenhuma, mesmo com outro provedor no OpenClaw; plugin não achado pelos arquivos confirma pela CLI", () => {
   const m = maquina({ config: { plugins: { entries: {} }, channels: {}, models: { providers: { grok: { models: [{ id: "grok-4.7" }] } } } }, extensao: false });
   const { kv, chamadas } = status(m);
   fs.rmSync(m.home, { recursive: true, force: true });
   assert.equal(kv.get("plugin"), "1", "a CLI disse que o plugin está lá");
   assert.ok(chamadas.includes("plugins list --json"));
   assert.ok(chamadas.some((c) => c.startsWith("config set agents.defaults.models ")), "modelo gravado");
-  // A reserva vai como JSON válido: antes o shell recebia "["grok/…"]" (aspas internas perdidas) e o OpenClaw recusava em silêncio.
-  assert.ok(chamadas.includes('config set agents.defaults.model.fallbacks ["grok/grok-4.7"] --strict-json'), `reserva gravada como JSON: ${chamadas.join(" | ")}`);
-  assert.equal(kv.get("ocmodel"), "set"); assert.equal(kv.get("ocfallback"), "set");
+  // O produto base só põe o Claude no agente: a lista de reservas do OpenClaw é de quem configura a máquina (ou de um módulo).
+  assert.ok(!chamadas.some((c) => c.includes("fallbacks")), `nenhuma reserva gravada nem lida: ${chamadas.join(" | ")}`);
+  assert.equal(kv.get("ocmodel"), "set"); assert.equal(kv.has("ocfallback"), false);
   assert.equal(kv.get("dmpolicy"), "", "sem política autorada");
 });
 
