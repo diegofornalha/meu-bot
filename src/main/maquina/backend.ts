@@ -11,7 +11,7 @@ import { lerCotaJson } from "../agente/espaco-core";
 import type { AlertPrefs, AccountStatus, ClaudeSessionRef, BackendModel, ContaClaude, ContasClaudeView, LicenseView, LimiaresClaude, ToolEvent } from "../../shared/ipc";
 import type { MainEventChannel, MainEvents } from "../../shared/ipc";
 import { persistConversations, saveTranscript, setConversationModel, type BackendMessage, type Conversation } from "../conversa/conversation";
-import { lerProvedores, modeloDeRecuo, tempoLimiteMs } from "../../shared/modelos";
+import { lerProvedores, recuoDoTurno, tempoLimiteMs } from "../../shared/modelos";
 import { alreadySeenPrefix, buildSummaryRequest, estimateTokens, planContext, toWire, validateSummary, type OutgoingMessage } from "../conversa/context";
 import { applyOps, buildMemoryRequest, getMemory, memorySystemMessage, NOTAS_MAX, parseOps, PERFIL_MAX, setMemory } from "../conversa/memory";
 import { getBackendModel, getBackendPort, getContextBudget, getMemoryEveryTurns } from "../app/settings";
@@ -671,7 +671,7 @@ async function turno(conv: Conversation, userText: string, podeRecuar: boolean):
     }
     const backendCode = (err as { backendCode?: unknown } | null)?.backendCode;
     // A máquina não tem o modelo da conversa: a pergunta saiu do histórico acima e quem chamou a refaz no recuo.
-    const recuo = podeRecuar && backendCode === "model_not_found" && partial.trim() === "" && !cancelled() ? modeloDeRecuo(model, getBackendModel(host)) : null;
+    const recuo = recuoDoTurno({ codigo: backendCode, modelo: model, padraoDaMaquina: getBackendModel(host), parcial: partial, cancelado: cancelled(), jaRecuou: !podeRecuar });
     if (recuo !== null) {
       // A nota de troca pendente volta: setConversationModel a refaz com o destino certo.
       if (troca !== undefined) conv.pendingSwitch = troca;

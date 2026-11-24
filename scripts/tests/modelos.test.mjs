@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ehPerfilClaude, lerProvedores, matizDoModelo, modeloDeRecuo, modelosDaMaquina, nomeDeModeloValido, rotuloDoModelo, serveDeReserva, tempoLimiteMs } from "../../dist/shared/modelos.js";
+import { ehPerfilClaude, lerProvedores, matizDoModelo, modeloDeRecuo, modelosDaMaquina, nomeDeModeloValido, recuoDoTurno, rotuloDoModelo, serveDeReserva, tempoLimiteMs, trocaPendente } from "../../dist/shared/modelos.js";
 
 const CLAUDE = ["claudecode", "agente", "rene-dm", "rene"];
 const nomes = (l) => l.map((m) => m.nome);
@@ -82,4 +82,27 @@ test("cor e tempo-limite saem de regra, sem tabela por nome de provedor", () => 
   // Só o chat puro do Claude é curto; quem tem ferramentas ou pode cair para a reserva tem o tempo longo.
   assert.equal(tempoLimiteMs("claudecode"), 120_000);
   for (const n of ["agente", "rene", "rene-dm", "ollama-local", "motor-x"]) assert.equal(tempoLimiteMs(n), 600_000, n);
+});
+
+test("turno com o modelo que sumiu: recua uma vez, só no model_not_found e só antes de qualquer resposta", () => {
+  const e = { codigo: "model_not_found", modelo: "motor-x", padraoDaMaquina: "agente", parcial: "", cancelado: false, jaRecuou: false };
+  assert.equal(recuoDoTurno(e), "agente");
+  assert.equal(recuoDoTurno({ ...e, padraoDaMaquina: "motor-x" }), "agente", "o padrão da máquina é o que sumiu");
+  assert.equal(recuoDoTurno({ ...e, parcial: " \n" }), "agente", "espaço em branco não é resposta");
+  assert.equal(recuoDoTurno({ ...e, jaRecuou: true }), null, "a segunda tentativa não recua de novo: sem laço");
+  assert.equal(recuoDoTurno({ ...e, cancelado: true }), null);
+  assert.equal(recuoDoTurno({ ...e, parcial: "Olá" }), null);
+  assert.equal(recuoDoTurno({ ...e, modelo: "agente" }), null, "sem para onde voltar");
+  for (const codigo of ["model_limit", "auth", undefined, null, 404]) assert.equal(recuoDoTurno({ ...e, codigo }), null, String(codigo));
+});
+
+test("nota de troca no recuo: o novo modelo fica sabendo de quem foram as respostas anteriores", () => {
+  // Conversa nova (sem histórico): nada a avisar.
+  assert.equal(trocaPendente("motor-x", "agente", undefined, false), undefined);
+  // O motor-x respondeu antes e sumiu: o agente recebe "trocou de motor-x para agente".
+  assert.deepEqual(trocaPendente("motor-x", "agente", undefined, true), { from: "motor-x", to: "agente" });
+  // A pessoa tinha acabado de trocar agente → motor-x (nota pendente, que o turno devolve) e ele não existe: voltar ao agente desfaz a nota.
+  assert.equal(trocaPendente("motor-x", "agente", { from: "agente", to: "motor-x" }, true), undefined);
+  // Idem, mas o recuo é outro modelo: a origem continua sendo quem respondeu de fato.
+  assert.deepEqual(trocaPendente("motor-x", "ollama-local", { from: "agente", to: "motor-x" }, true), { from: "agente", to: "ollama-local" });
 });

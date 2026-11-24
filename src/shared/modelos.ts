@@ -119,3 +119,34 @@ export function modeloDeRecuo(sumiu: string, padraoDaMaquina: string): string | 
   const recuo = padraoDaMaquina !== sumiu ? padraoDaMaquina : MODELO_PADRAO;
   return recuo === sumiu ? null : recuo;
 }
+
+/** O que o turno sabe quando o backend devolve erro. */
+export interface ErroDoTurno {
+  /** `code` do erro do backend ("model_not_found", "model_limit"…). */
+  codigo: unknown;
+  modelo: string;
+  padraoDaMaquina: string;
+  /** Texto que já chegou da resposta: com algum, o modelo existe e respondeu. */
+  parcial: string;
+  /** A conversa foi fechada no meio. */
+  cancelado: boolean;
+  /** Este turno já é a segunda tentativa (no recuo): não recua de novo. */
+  jaRecuou: boolean;
+}
+/** O turno deve ser refeito noutro modelo? Só quando a máquina disse que não tem o da conversa, uma vez por turno. */
+export function recuoDoTurno(e: ErroDoTurno): string | null {
+  if (e.jaRecuou || e.cancelado || e.codigo !== "model_not_found" || e.parcial.trim() !== "") return null;
+  return modeloDeRecuo(e.modelo, e.padraoDaMaquina);
+}
+
+/** Nota de troca que o próximo turno leva ao novo modelo: de quem foram as respostas anteriores. */
+export interface TrocaDeModelo { from: string; to: string }
+/**
+ * A troca pendente depois de a conversa passar de `atual` para `novo`. Sem histórico não há o que avisar; trocas em
+ * sequência sem turno no meio guardam a origem da primeira; voltar ao modelo de origem desfaz a nota.
+ */
+export function trocaPendente(atual: string, novo: string, pendente: TrocaDeModelo | undefined, temHistorico: boolean): TrocaDeModelo | undefined {
+  if (!temHistorico) return pendente;
+  const from = pendente?.from ?? atual;
+  return from === novo ? undefined : { from, to: novo };
+}
