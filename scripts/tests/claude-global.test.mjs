@@ -124,3 +124,52 @@ test("intermediário: só o 429 de limite da assinatura tira a conta do rodízio
   assert.equal(relay.limiteDaAssinatura(r({})), false);
   assert.equal(relay.limiteDaAssinatura(null), false);
 });
+
+test("intermediário: só o erro do login bloqueia a conta; queda de rede e 5xx na renovação não", () => {
+  assert.equal(relay.erroDeLogin("conta do root sem login").login, true);
+  for (const st of [400, 401, 403]) assert.equal(relay.recusaDeLogin(st), true, String(st));
+  for (const st of [408, 429, 500, 502, 503, 529]) assert.equal(relay.recusaDeLogin(st), false, String(st));
+  // Um erro comum (o `read ECONNRESET` do https) não traz a marca.
+  assert.equal(Boolean(Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" }).login), false);
+});
+
+/** O laço das contas com o registro, o envio e o token encenados; devolve o que a pessoa recebeu e o que foi marcado. */
+async function encenar({ ids, enviar, tokenDe = async () => "TOKEN" }) {
+  const marcadas = [];
+  const contas = {
+    escolher: ({ excluir }) => { const id = ids.find((i) => !excluir.includes(i) && !marcadas.some((m) => m.id === i)); return id === undefined ? null : { id }; },
+    marcar: (id, estado, motivo) => { marcadas.push({ id, estado, motivo }); },
+    proximaDisponivelEm: () => null,
+  };
+  const res = { status: null, headers: null, corpo: "", writeHead(st, h) { this.status = st; this.headers = h; }, end(t) { this.corpo += t ?? ""; } };
+  await relay.atender({ headers: {}, url: "/v1/messages", method: "POST" }, res, Buffer.from("{}"), "box-1", { contas, enviar, tokenDe });
+  return { res, marcadas };
+}
+const resposta = (statusCode, headers = {}) => ({ statusCode, headers, resume() {}, pipe(res) { res.end("da Anthropic"); } });
+const quedaDeRede = () => Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" });
+
+test("laço das contas: queda de rede não bloqueia a conta, tenta a seguinte e, sem nenhuma resposta, devolve 502", async () => {
+  // A primeira conta cai na rede, a segunda responde: a pessoa recebe a resposta e nenhuma conta é marcada.
+  let n = 0;
+  const umaCai = await encenar({ ids: ["a", "b"], enviar: async () => { n += 1; if (n === 1) throw quedaDeRede(); return resposta(200); } });
+  assert.equal(umaCai.res.status, 200); assert.deepEqual(umaCai.marcadas, []);
+  // Todas caem na rede (o caso de 23 nov 2026): 502 api_error, que o Claude Code repete, e não "no limite".
+  const todasCaem = await encenar({ ids: ["a", "b"], enviar: async () => { throw quedaDeRede(); } });
+  assert.equal(todasCaem.res.status, 502); assert.equal(JSON.parse(todasCaem.res.corpo).error.type, "api_error");
+  assert.deepEqual(todasCaem.marcadas, []);
+  // Renovação que falhou com 5xx também é passageira.
+  const renova5xx = await encenar({ ids: ["a"], enviar: async () => resposta(200), tokenDe: async () => { throw Object.assign(new Error("renovação recusada (503)"), { login: relay.recusaDeLogin(503) }); } });
+  assert.equal(renova5xx.res.status, 502); assert.deepEqual(renova5xx.marcadas, []);
+});
+
+test("laço das contas: o erro do login bloqueia a conta; o 429 de verdade vence a falha de rede", async () => {
+  const semLogin = await encenar({ ids: ["a"], enviar: async () => resposta(200), tokenDe: async () => { throw relay.erroDeLogin("conta do root sem login"); } });
+  assert.deepEqual(semLogin.marcadas, [{ id: "a", estado: "bloqueada", motivo: "login do root: conta do root sem login" }]);
+  assert.equal(semLogin.res.status, 429, "sem conta e sem falha de rede, a resposta é a de limite");
+  assert.equal(semLogin.res.headers["anthropic-ratelimit-unified-status"], "rejected");
+  // Uma conta no limite da assinatura e a outra com a rede caída: passa o 429 da Anthropic, intacto.
+  let n = 0;
+  const limiteERede = await encenar({ ids: ["a", "b"], enviar: async () => { n += 1; if (n === 1) return resposta(429, { "anthropic-ratelimit-unified-status": "rejected" }); throw quedaDeRede(); } });
+  assert.equal(limiteERede.res.status, 429); assert.equal(limiteERede.res.corpo, "da Anthropic");
+  assert.deepEqual(limiteERede.marcadas.map((m) => [m.id, m.estado]), [["a", "esgotada"]]);
+});
