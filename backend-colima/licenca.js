@@ -163,7 +163,7 @@ const crmOk = proOk;
  * Add-ons que este backend conhece (cópia de ADDONS em src/main/app/variant-core.ts; o teste produtos-alinhados confere).
  * O backend roda na máquina, sem acesso ao código do app: por isso a cópia.
  */
-const ADDONS = ['meu-bot-finance', 'meu-bot-diego'];
+const ADDONS = ['meu-bot-finance', 'meu-bot-diego', 'meu-bot-grok'];
 /**
  * Produtos de módulos que não pedem o add-on na licença: a trava é o acesso git ao repositório privado (cópia de
  * `Addon.semLicenca` em src/main/app/variant-core.ts; o teste produtos-alinhados confere).

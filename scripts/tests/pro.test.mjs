@@ -123,9 +123,10 @@ test("proBlockText: módulo Computador tem texto próprio e manda assinar pelo s
 });
 
 test("modulosNaLicenca: só add-on com módulos e liberado nesta máquina traz a página Módulos", () => {
-  const addons = [{ nome: "meu-bot-finance", modulos: true }, { nome: "meu-bot-diego", modulos: false }];
+  const addons = [{ nome: "meu-bot-finance", modulos: true }, { nome: "meu-bot-diego", modulos: false }, { nome: "meu-bot-grok", modulos: true }];
   assert.equal(modulosNaLicenca(lic({ produtos: ["meu-bot-finance"] }), "agente-box", addons), true);
   assert.equal(modulosNaLicenca(lic({ produtos: ["meu-bot-diego"] }), "agente-box", addons), false, "add-on sem módulos");
+  assert.equal(modulosNaLicenca(lic({ produtos: ["meu-bot-grok"] }), "agente-box", addons), true, "só o Grok (xAI) já abre a página Módulos");
   assert.equal(modulosNaLicenca(lic({ produtos: ["meu-bot-finance"], expiresAt: "2020-01-01T00:00:00Z" }), "agente-box", addons), false, "vencida");
   assert.equal(modulosNaLicenca(lic({ produtos: ["meu-bot-finance"] }), "local", addons), false, "este Mac");
   assert.equal(modulosNaLicenca(null, "agente-box", addons), false, "licença ainda não lida");

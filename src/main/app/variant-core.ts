@@ -87,6 +87,7 @@ export interface Addon {
 export const ADDONS: readonly Addon[] = [
   { nome: "meu-bot-finance", rotulo: "Finanças", descricao: "O agente vira o financeiro da pessoa no WhatsApp e no chat; página Finanças e Curva ABC. É o módulo Finanças (página Módulos).", modulos: true, semLicenca: false },
   { nome: "meu-bot-diego", rotulo: "Módulos do Diego", descricao: "Os módulos do produto meu-bot-diego (Salvy, Sendfy…), baixados do repositório dele e ligados um a um na página Módulos, cada um com o seu tutorial.", modulos: false, semLicenca: true },
+  { nome: "meu-bot-grok", rotulo: "Grok (xAI)", descricao: "O Grok da xAI como mais um modelo do agente, com o login da conta xAI da pessoa e sem chave de API; pode servir de reserva quando o Claude falha. É o módulo Grok (xAI) (página Módulos).", modulos: true, semLicenca: false },
 ];
 /** Nomes na licença que não são add-on: o admin, e o meu-bot-crm (o CRM entrou no Pro em 22 out). */
 export const NAO_ADDON: readonly string[] = ["meu-bot-admin", "meu-bot-crm"];

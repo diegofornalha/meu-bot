@@ -30,6 +30,13 @@ release automática: `release-core.mjs` deixa de fora os produtos com `caps.modu
   `reserva: true`. Não substitui um provedor que a máquina já tem com o mesmo nome. O instalador reinicia o backend.
   Chave: `key_env` nomeia uma credencial do próprio módulo (`<id>.env`); chave literal e variável do ambiente da
   máquina são ignoradas.
+- **O Grok (xAI) é um módulo (23 nov):** add-on `meu-bot-grok` (com licença), no repositório privado
+  `diegofornalha/meu-bot-grok`, módulo `grok`. O instalador dele sobe o `meu-bot-xai-proxy.service`, grava o
+  `provedores.json` com o `grok-4` e tira do `providers.json` da máquina só o `grok-4` antigo (com cópia). A opção
+  `reserva` do módulo (desligada de início) é o que deixa o Grok responder quando o Claude falha. O login da xAI é um
+  comando que a pessoa roda no terminal do app (`entrar.sh` na pasta do módulo): o contrato dos módulos ainda não tem
+  passo interativo. Como o app só marca `ligado` depois do instalador, um instalador que traz provedor marca
+  `ligado` ele mesmo antes de reiniciar o backend; senão o backend sobe sem ver o módulo.
 
 ## Contrato do `modulos.json`
 
