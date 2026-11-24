@@ -49,7 +49,7 @@ Tudo da ficha é texto puro, cortado nos limites: o repositório é de fora, ent
 ## Motor de IA trazido por módulo (24 nov 2026)
 
 No produto base só o Claude responde: a corrente de provedores da máquina (`providers.json`, ao lado do backend) nasce
-só com o `agente` (PR #514). Outro motor de IA entra por um módulo, que a pessoa liga e desliga na página Módulos. É o
+só com o `agente` (#514, backend 1.18.8). Outro motor de IA entra por um módulo, que a pessoa liga e desliga na página Módulos. É o
 lugar único desta regra; o mecanismo da corrente e do fallback está em [agente.md](agente.md).
 
 ### Como o motor chega ao agente
@@ -123,8 +123,8 @@ O `instalar.sh` do módulo:
 - instala o Hermes 0.22.2 em `~/.local` se a máquina não o tem nessa versão;
 - escreve `~/.config/systemd/user/meu-bot-xai-proxy.service` (`hermes proxy start --provider xai`, só em 127.0.0.1),
   na porta que o serviço já usa ou na primeira livre a partir de 8645, e liga o linger da conta;
-- só habilita e inicia o serviço **com a xAI já logada**. Sem login o proxy sai na hora e o `Restart=always` viraria
-  um laço de reinícios; o serviço fica parado e fora do boot até o login;
+- só habilita e inicia o serviço **com a xAI já logada** (módulo 1.0.1). Sem login o proxy sai na hora e o
+  `Restart=always` viraria um laço de reinícios; o serviço fica parado e fora do boot até o login;
 - grava na pasta do módulo o `provedores.json` (uma entrada: `grok-4`, `type: "openai"`, `priority: 1`, `base_url`
   no proxy local, `rotulo: "Grok (xAI)"`, `reserva` conforme a opção), o `turno.json`
   (`{ "produto": "meu-bot-grok", "perfis": [] }`) e uma cópia do `entrar.sh`;
@@ -159,11 +159,15 @@ lista de modelos). Ficam: o Hermes (pode ser o motor do WhatsApp da conta), as o
 máquina. O login da xAI só sai quando foi o `entrar.sh` do módulo que o fez; outro login fica, e o script diz como sair
 (`hermes auth logout xai-oauth`).
 
-**Máquina que tinha o Grok de antes, sem o módulo (PR #514):** a cada instalação ou atualização do backend, o
+**Máquina que tinha o Grok de antes, sem o módulo (#514, backend 1.18.8):** a cada instalação ou atualização do backend, o
 `install.sh` (`tirar_grok_sem_modulo`) tira a entrada `grok-4` do `providers.json` (cópia em
 `providers.json.antes-de-tirar-o-grok`, as outras entradas ficam) e para e remove `meu-bot-xai-proxy.service` e a
 legada `hermes-xai-proxy.service`. Com `modulos/grok/ligado` na máquina, não toca em nada. O Hermes e a credencial da
 xAI não saem. A reserva `grok/<id>` que o app gravou no `openclaw.json` de uma máquina também não é desfeita.
+
+**Este Mac:** o módulo não cobre a máquina "Este Mac" (o `instalar.sh` exige systemd de usuário, numa máquina por
+SSH), e o app não sobe mais o proxy da xAI no Mac. O que o app antigo deixou no `providers.json` local sai na subida
+do backend local (`limparGrokHerdado`; detalhe em [agente.md](agente.md) › "Grok (xAI): virou módulo").
 
 ## A página Módulos
 

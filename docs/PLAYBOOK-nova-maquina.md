@@ -171,7 +171,7 @@ em arquivo: `cmd | tail` devolve o status do `tail` e mascara falha.
 
 ### 3b½. Provedores e fallback (`providers.json`, vale para os dois)
 
-Lista ordenada ao lado do backend. Padrão: só o `agente` (Claude, prioridade 0; PR #514). O backend tenta o modelo
+Lista ordenada ao lado do backend. Padrão: só o `agente` (Claude, prioridade 0). O backend tenta o modelo
 pedido; se ele falhar antes de responder, desce para o próximo que aceita ser reserva e avisa o app (aviso amarelo na
 conversa). Com a corrente só no `agente` não há para onde descer. Outro motor de IA chega por dois caminhos:
 - modo grátis: o `install-ollama.sh` mescla a entrada `ollama-local` no `providers.json`; ou

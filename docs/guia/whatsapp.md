@@ -619,9 +619,10 @@ Os avisos (Mac novo, vigia, cota) vão só pelo WhatsApp da pessoa: o e-mail pel
   mandava `npm install -g openclaw@latest`, e a versão do Hermes (0.22.2) estava repetida em três lugares.
 - Fonte única: `backend-colima/motor-versoes.sh` (só `CHAVE=valor`, para os scripts da máquina) com o espelho
   `src/main/maquina/motor-versoes.ts` (o app). `OPENCLAW_VERSAO`, `OPENCLAW_WA_PLUGIN_VERSAO`, `HERMES_VERSAO` e
-  `MOTOR_NODE`. `usuarios-core.ts` reexporta `HERMES_VERSAO` de lá; `scripts/tests/motor-versoes.test.mjs` recusa
-  divergência com o pedido ao agente (e com o `install-grok-oauth.sh`, até ele sair na PR do app
-  `grok-fora-do-app`), e recusa `@latest` ou plugin sem versão em `src/` e `backend-colima/`.
+  `MOTOR_NODE`. `usuarios-core.ts` reexporta `HERMES_VERSAO` de lá; `scripts/tests/motor-versoes.test.mjs` confere
+  o `HERMES_VERSAO` contra o "Hermes de todos" do admin (`hermesGlobalSh`, que instala em `/opt/hermes`) e contra o
+  pedido ao agente (`hermes-agent@<versão>`), e recusa `@latest` ou plugin sem versão em `src/` e `backend-colima/`;
+  `usuarios-core.test.mjs` confere o mesmo `HERMES_VERSAO` contra o `motor-versoes.sh`.
 - Pareamento (`whatsapp.ts`): o plugin vai na versão do OpenClaw da máquina (`openclaw --version`), e sem conseguir
   lê-la, na fixada; não há mais a tentativa sem versão. `--accept-capabilities` primeiro (sem terminal, a pergunta do
   instalador travava), e sem a opção se o runtime não a conhece.

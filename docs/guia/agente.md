@@ -5,7 +5,7 @@
 ## Provedores com fallback (15 out 2026; só o Claude no produto base desde 24 nov)
 
 - `providers.json` ao lado do backend: lista ordenada `{ name, type: claude|openai, priority, … }`.
-  Padrão: só o `agente` (claude, 0). Até a PR #514 o padrão era `agente` → `grok-4`. Entrada openai tem `base_url`,
+  Padrão: só o `agente` (claude, 0); até 24 nov (#514) era `agente` → `grok-4`. Entrada openai tem `base_url`,
   `model`, `key_env`/`key` e `timeout_ms`; sem chave só fica disponível com endpoint local (127.0.0.1 ou localhost).
 - De onde vêm os outros provedores:
   - **Modo grátis:** o `install-ollama.sh` mescla a entrada `ollama-local` no `providers.json` da máquina (endpoint
@@ -27,8 +27,8 @@
 - Backend genérico (`server.js`): `attempts = chain(model)`, laço de tentativas, `used` vira o model dos
   chunks. Com a corrente só no `agente`, uma falha do Claude não tem para onde descer: o erro vai ao cliente.
   `/v1/models` lista os openai disponíveis.
-- Backend do Hermes (`backend-vm/`, máquina legada; a #514 deixa o `providers.json` e o `openai-compat.js` de lá
-  como estão): `_serveOpenai` atende direto o provedor openai; `_streamLive` com `ctx.canFallback` devolve o erro
+- Backend do Hermes (`backend-vm/`, máquina legada; o `providers.json` e o `openai-compat.js` de lá ficaram
+  como estavam): `_serveOpenai` atende direto o provedor openai; `_streamLive` com `ctx.canFallback` devolve o erro
   ao chamador em vez de responder 503, e aí `_nextOpenai(reqModel)` decide. Deploy: `backend-vm/deploy-agente.sh`
   leva `openai-compat.js` + `providers.js` e cria `providers.json` só se faltar.
 - App (24 nov, #515): a lista de modelos vem da máquina, não de uma tabela no código. `src/shared/modelos.ts`
@@ -128,8 +128,8 @@
   disso (bypass vai por flag).
 - Lista de conversas ganhou linhas de conta no topo: WhatsApp do Hermes e Claude Code
   (`claudeAuthInfo`: `claude auth status` + e-mail do `~/.claude.json`; "sair" = `claude auth logout`
-  e já abre o login). A terceira linha, "xAI (Grok)", e o `xaiLogin.ts` que a servia saem na PR do app (branch
-  `grok-fora-do-app`): o login da xAI passou a ser o `entrar.sh` do módulo do Grok
+  e já abre o login). A terceira linha, "xAI (Grok)", o modal "Entrar na xAI" e o `xaiLogin.ts` que os servia saíram em
+  24 nov (#518): o login da xAI passou a ser o `entrar.sh` do módulo do Grok
   ([meu-bot-diego.md](meu-bot-diego.md#motor-de-ia-trazido-por-módulo-24-nov-2026)).
   Modais: um botão só (Cancelar enquanto roda, Fechar depois), "Começar" some ao concluir e vira
   "Tentar de novo" se falhar; fecham sozinhos no sucesso.
@@ -149,13 +149,32 @@
 - Agora o produto base só tem o Claude, e o Grok é o módulo `grok` do complemento `meu-bot-grok` (com licença). O que
   ele instala, o login (`entrar.sh` no terminal do app), a opção `reserva` e como desinstalar estão num lugar só:
   [meu-bot-diego.md › Motor de IA trazido por módulo](meu-bot-diego.md#motor-de-ia-trazido-por-módulo-24-nov-2026).
-- O que sai do repositório, e por qual PR: o padrão `agente → grok-4` do `providers.json` e a reserva do Grok no
-  OpenClaw (`oc_fallback_ensure`) saem na #514, que também tira o `grok-4` e o proxy das máquinas sem o módulo
-  (`tirar_grok_sem_modulo`, `install.sh`). O `install-grok-oauth.sh`, `src/main/agente/xai*`, os canais `xai-login:*`
-  e o tutorial "Entrar na xAI (Grok)" saem na PR do app (branch `grok-fora-do-app`). O tutorial `fallback-contas`
-  ("Fallback: Claude e Grok", 17 out) pedia as duas contas logadas e vinha depois do da xAI (`after: "xai-login"`);
-  o destino dele é da mesma PR.
-- O que fica no app é genérico: a lista de modelos vem da máquina (`src/shared/modelos.ts`) e o primário e a reserva
+- O que saiu do backend (#514, backend 1.18.8): o padrão `agente → grok-4` do `providers.json` e a reserva do Grok no
+  OpenClaw (`oc_fallback_ensure`). O `install.sh` tira o `grok-4` e o proxy das máquinas sem o módulo
+  (`tirar_grok_sem_modulo`).
+- O que saiu do app (#518): `src/main/agente/xai*`, os canais `xai-login:*`, a linha "xAI (Grok)" da lateral, o modal
+  "Entrar na xAI", a opção "Tenho Grok" da primeira abertura, a linha da xAI na saúde do admin e o
+  `backend-colima/install-grok-oauth.sh`. O tutorial 4 (`xai-login`, "Entrar na xAI (Grok)") saiu e o número 4 ficou
+  vago: os outros tutoriais não foram renumerados.
+- **Tutorial 5 · Fallback: primário e reserva** (`fallback-contas`; era "Fallback: Claude e Grok", 17 out): ficou, sem
+  `after` nem `needsXai`. Aparece quando a corrente da máquina tem um provedor que não é perfil do Claude
+  (`needsOutroModelo` → `temOutroModelo`, `lib/fallback.ts`): o modo grátis ou o motor de um módulo. Passos: (1) "Outro
+  modelo pronto nesta máquina", concluído com `outroModeloPronto` (um provedor que não é Claude e está disponível);
+  (2) "Escolher primário e reserva" (corpo `fallback-order`, `renderFallbackOrder`), salvo na hora com
+  `setSettings({ backendModelForHost })`, concluído com a flag `fallbackChosen` e o primário na corrente; (3) "Ver a
+  reserva assumir": a flag `fallbackSeen` é gravada quando um `chat:done` traz `fallback`, ou pelo botão "Entendi como
+  funciona".
+- Primeira abertura: a escolha de IA guardada de uma versão anterior é relida por `parseAiChoice`
+  (`lib/onboarding.ts`): `"ambos"` vira `"claude"`; `"grok"` não existe mais e vira "sem escolha" (a pergunta volta
+  sem nada marcado).
+- **Este Mac:** o app não sobe mais o proxy da xAI no Mac. Na subida do backend local, `limparGrokHerdado`
+  (`src/main/maquina/localBackend.ts`; regras puras em `providers-local-core.ts`) tira do `providers.json` local a
+  entrada `grok-4` do proxy antigo (`semProviderDoProxyAntigo`: nome e endereço exatos, 100 portas abaixo do backend)
+  e o `grok-4` do padrão antigo (`semProviderDoPadraoAntigo`: `https://api.x.ai/v1` com `key_env: XAI_API_KEY`), este
+  só quando não há `XAI_API_KEY` no `.env` do backend local nem no ambiente (`temChaveXai`); com a chave ele fica.
+  Antes da primeira mudança o arquivo é copiado para `providers.json.antes-de-tirar-o-grok`. O módulo do Grok não
+  cobre "Este Mac": o instalador dele exige systemd de usuário, numa máquina por SSH.
+- O que ficou no app é genérico: a lista de modelos vem da máquina (`src/shared/modelos.ts`) e o primário e a reserva
   saem da corrente que o backend informa (`lib/fallback.ts`), como descrito nas duas primeiras seções deste guia.
 
 ## Limite do Fable: o turno refaz com o Opus 5.5 (19 out 2026)
@@ -213,7 +232,7 @@
   (`needsLinkPublico` + `linkPublicoPossivel: false` no contexto): o link público é das contas de usuário, o admin não
   liga para o root. Antes o passo 1 ficava eternamente em "o admin liga" e "Conferir de novo" não mudava nada.
 
-- **`link-publico`, number 14, after 1, só em máquina por SSH (`needsXai`):** o link `https://<nome>.<domínio>/` que o
+- **`link-publico`, number 14, after 1, só em máquina por SSH (`needsLinkPublico`; o `needsXai` que ele também levava saiu em 24 nov, #518):** o link `https://<nome>.<domínio>/` que o
   admin liga para a pessoa (Link Público Global, `guia/maquinas.md`). Fonte `linkpublico` (`window.meuBot.linkPublico()`,
   um SSH como ela: `~/.local/share/meu-bot/link-publico.json` + quantos itens em `~/publico`).
   1. **Ver o seu link:** concluído quando o admin ligou (o json existe). Desligado, o passo diz quem liga.

@@ -917,7 +917,16 @@ nele): a barra lateral ganha o botão **Inspector** e a janela abre nessa págin
   [meu-bot-diego.md › Motor de IA trazido por módulo](meu-bot-diego.md#motor-de-ia-trazido-por-módulo-24-nov-2026).
 - Já no `main`: o complemento em `ADDONS` (`src/main/app/variant-core.ts`, #516) e a lista de modelos vinda da máquina
   (`src/shared/modelos.ts`, #515), sem nome de provedor escrito no app.
-- Sai na PR do app (branch `grok-fora-do-app`): `src/main/agente/xai*`, os canais `xai-login:*`, o tutorial "Entrar na
-  xAI (Grok)", a fatia `xai` do contexto dos tutoriais e o `backend-colima/install-grok-oauth.sh` com a subpasta
-  `grok/` do stage. As seções mais antigas deste guia que citam o tutorial da xAI (os mapas de renumeração da trilha,
-  por exemplo) ficam como registro da época.
+- Saiu do app em 24 nov (#518): `src/main/agente/xai*`, os canais `xai-login:*`, a linha "xAI (Grok)" da lateral, o
+  modal "Entrar na xAI", a fatia `xai` do contexto dos tutoriais, a opção "Tenho Grok" da primeira abertura
+  (`parseAiChoice`: `"ambos"` vira `"claude"`, `"grok"` vira "sem escolha") e o `backend-colima/install-grok-oauth.sh`
+  com a subpasta `grok/` do stage.
+- Tutoriais: o 4 (`xai-login`) saiu e o número ficou vago, sem renumerar os outros. O 5 (`fallback-contas`) ficou
+  como "Fallback: primário e reserva", sem `after` nem `needsXai`: aparece quando a corrente da máquina tem um
+  provedor que não é perfil do Claude (`needsOutroModelo`). Os tutoriais 11 (Conectar contas na máquina) e 12 (Seu
+  link público) perderam o `needsXai` e só dependem do 1 (`after: "claude-login"`). Detalhe em
+  [agente.md](agente.md) › "Grok (xAI): virou módulo".
+- "Este Mac": o app não sobe mais o proxy da xAI, e `limparGrokHerdado` (`src/main/maquina/localBackend.ts`) tira do
+  `providers.json` local o que o app antigo deixou. O módulo não cobre "Este Mac".
+- As seções mais antigas deste guia que citam o tutorial da xAI (os mapas de renumeração da trilha, por exemplo)
+  ficam como registro da época.

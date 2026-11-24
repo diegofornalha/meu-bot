@@ -122,14 +122,13 @@ Para dar suporte a 2–3 pessoas sem servidor. Um projeto, dois apps: o **meu-bo
   `removeDeliverySh` agora é puro em support-code.ts), marca a pessoa "off" e a tira do conf. Caso de uso:
   deixou de pagar. Ela volta se salvar o nome de novo; aí o admin arquiva ou desliga outra vez.
 - Login como passo a passo (16 out): `src/renderer/lib/login-steps.ts` (puro, testado com a sequência
-  real) transforma os eventos url/log/done em passos com estado (conectar, pedir, aprovar no navegador,
-  guardar a credencial), código do dispositivo em destaque com Copiar, e o que sobrar em "detalhes técnicos"
-  recolhido; o main já não repassa "Connection to … closed". Nasceu para o login da xAI, que saiu do app (24 nov:
-  virou o `entrar.sh` do módulo do Grok, [meu-bot-diego.md](meu-bot-diego.md#motor-de-ia-trazido-por-módulo-24-nov-2026));
-  o componente também atende o login do Claude (passos conectar, link, código, conferir).
-- xAI na saúde do admin (16 out): a linha `AdminHealth.xai` lia o login da xAI pelo `xaiAuthInfo` do app. Sai com o
-  `xaiLogin.ts`, na PR do app (branch `grok-fora-do-app`). O estado do Grok numa máquina passa a ser o do módulo:
-  página Módulos, "Testar conexão".
+  real) transforma os eventos url/log/done em passos com estado, código do dispositivo em destaque e o que sobrar em
+  "detalhes técnicos" recolhido; o main já não repassa "Connection to … closed". Nasceu para o login da xAI, que saiu
+  do app em 24 nov (#518; virou o `entrar.sh` do módulo do Grok,
+  [meu-bot-diego.md](meu-bot-diego.md#motor-de-ia-trazido-por-módulo-24-nov-2026)). O arquivo ficou só com o Claude
+  (`LoginProvider = "claude"`) e hoje nenhuma tela o usa: só o teste `login-steps.test.mjs` o importa.
+- xAI na saúde do admin (16 out): a linha `AdminHealth.xai` saiu em 24 nov (#518), com o `xaiLogin.ts`. O estado do
+  Grok numa máquina é o do módulo: página Módulos, "Testar conexão".
 - Versão e atividade dela no admin (16 out): o progresso que o meu-bot dela grava leva `app: { version,
   openedAt }` (versão do app e quando a sessão abriu; `WindowInfo.version`). A saúde mostra "meu-bot X no Mac
   dela · aberto há N" e acusa em vermelho quando está atrás da versão do admin (`compareVersions`): ela ainda
@@ -537,9 +536,9 @@ Para dar suporte a 2–3 pessoas sem servidor. Um projeto, dois apps: o **meu-bo
   offline; aviso "✓ internet de volta" na conversa ativa. O grid do `body` ganhou linhas fixas por elemento
   (`grid-row`): antes, com a barra recolhida e a update-bar visível, o `1fr` caía na update-bar.
 - Tutorial "Entrar na xAI (Grok)" (16 out): preparava o Grok na máquina (`install-grok-oauth.sh`), fazia o login da
-  xAI pelo app e conferia a resposta do `grok-4`. O Grok virou módulo (24 nov) e o tutorial, os canais `xai-login:*` e
-  o instalador saem na PR do app (branch `grok-fora-do-app`). Os primeiros passos do módulo fazem esse papel (ligar,
-  entrar pelo `entrar.sh`, testar a conexão):
+  xAI pelo app e conferia a resposta do `grok-4`. Saiu em 24 nov (#518) com os canais `xai-login:*` e o instalador; o
+  número 4 ficou vago, sem renumerar os outros. Os primeiros passos do módulo fazem esse papel (ligar, entrar pelo
+  `entrar.sh`, testar a conexão):
   [meu-bot-diego.md › Motor de IA trazido por módulo](meu-bot-diego.md#motor-de-ia-trazido-por-módulo-24-nov-2026).
 - Selo da lateral com duas notificações (16 out): o **número** são as pendências (interruptor "avisar na
   lateral" desliga); o **pulso** é novidade — tutorial visível, pendente e nunca visto (`localStorage
