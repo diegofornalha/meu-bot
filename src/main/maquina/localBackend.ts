@@ -12,7 +12,7 @@ import os from "node:os";
 import path from "node:path";
 import { backendBundleDir } from "./hostProbe";
 import { BACKEND_RUNTIME_FILES } from "./backend-bundle-core";
-import { semProviderDoProxyAntigo } from "./providers-local-core";
+import { semProviderDoPadraoAntigo, semProviderDoProxyAntigo, temChaveXai, temGrokDoPadraoAntigo } from "./providers-local-core";
 import { ehNossoOrfao, pidsDoLsof } from "./backend-local-orfao-core";
 import { produto } from "../app/variant";
 import { temOllamaNoProviders } from "../agente/ollamaLocal-core";
@@ -90,6 +90,34 @@ function readOrCreateEnv(d: string, claude: string): string {
   return key;
 }
 
+/**
+ * O Grok saiu do app (virou módulo): tira do providers.json local o que o app deixou e não responde mais. 1) o grok-4
+ * do proxy que o app subia neste Mac; 2) o grok-4 do padrão antigo (API da xAI), se não há XAI_API_KEY: com a chave, a
+ * pessoa o configurou de propósito e ele fica. Antes da primeira mudança, o arquivo é copiado ao lado. Roda antes do
+ * readOrCreateEnv, que reescreve o .env.
+ */
+function limparGrokHerdado(d: string): void {
+  const arquivo = path.join(d, "providers.json");
+  const antes = lerProvidersLocal(d);
+  let atual = antes;
+  const feito: string[] = [];
+  const semProxy = semProviderDoProxyAntigo(atual, localPort());
+  if (semProxy !== null) { atual = semProxy; feito.push("o grok-4 do proxy que o app subia"); }
+  let envTexto: string | null = null;
+  try { envTexto = fs.readFileSync(path.join(d, ".env"), "utf8"); } catch { /* sem .env ainda */ }
+  const chave = temChaveXai(envTexto, process.env);
+  const semPadrao = semProviderDoPadraoAntigo(atual, chave);
+  if (semPadrao !== null) { atual = semPadrao; feito.push("o grok-4 do padrão antigo (API da xAI, sem chave)"); }
+  else if (chave && temGrokDoPadraoAntigo(atual)) log("providers.json local: o grok-4 pela API da xAI fica, porque há XAI_API_KEY configurada");
+  if (antes === null || atual === null || feito.length === 0) return;
+  try {
+    const copia = `${arquivo}.antes-de-tirar-o-grok`;
+    if (!fs.existsSync(copia)) fs.writeFileSync(copia, antes);
+    fs.writeFileSync(arquivo, atual);
+    log(`providers.json local: saiu ${feito.join(" e ")} (o Grok agora é um módulo); o arquivo de antes está em ${path.basename(copia)}`);
+  } catch (err) { log(`providers.json local: não consegui tirar o Grok herdado (${err instanceof Error ? err.message : String(err)})`); }
+}
+
 function portOpen(port: number): Promise<boolean> {
   return new Promise((resolve) => {
     const sock = net.connect({ port, host: "127.0.0.1" });
@@ -142,9 +170,7 @@ export function ensureLocalBackend(onStatus?: (detail: string) => void): Promise
       // subida. providers.json é configuração: só na primeira vez.
       for (const f of BACKEND_RUNTIME_FILES) if (f !== "providers.json") fs.copyFileSync(path.join(bundle, f), path.join(d, f));
       if (!fs.existsSync(path.join(d, "providers.json"))) fs.copyFileSync(path.join(bundle, "providers.json"), path.join(d, "providers.json"));
-      // Quem preparou o Grok por uma versão anterior do app: a entrada do proxy que o app subia sai (o proxy não existe mais).
-      const semAntigo = semProviderDoProxyAntigo(lerProvidersLocal(d), localPort());
-      if (semAntigo !== null) { fs.writeFileSync(path.join(d, "providers.json"), semAntigo); log("providers.json local: saiu o grok-4 do proxy que o app subia (o Grok agora é um módulo)"); }
+      limparGrokHerdado(d);
       const apiKey = readOrCreateEnv(d, claude);
       if (state !== undefined) { try { state.child.kill("SIGTERM"); } catch { /* já morto */ } state = undefined; }
       if (await portOpen(localPort()) && !(await liberarOrfao(localPort(), path.join(d, "server.js")))) throw new Error(`A porta ${localPort()} já está em uso neste Mac por outro programa.`);
