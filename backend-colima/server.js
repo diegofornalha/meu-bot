@@ -346,8 +346,12 @@ const MODELS = {
 
 const CONV_ID_RE = /^[A-Za-z0-9._:-]{1,128}$/;
 
-/** providers.json: ordem de fallback (agente → grok-4 por padrão) e os provedores OpenAI-compatíveis (xAI). */
-const PROVIDERS = providers.load(path.join(ROOT, 'providers.json'), { ...process.env, ...ENV }, log);
+/**
+ * providers.json: a ordem de fallback e os provedores OpenAI-compatíveis da máquina, mais os que os módulos ligados
+ * e liberados pela licença trazem (modulos.provedores). Lido na subida: mudou o arquivo ou o módulo, o backend reinicia.
+ */
+const provedoresDeModulos = () => { try { const lic = licenseView().license; return modulos.provedores((produto) => licenca.moduloOk(lic, produto)); } catch (e) { log(`provedores de módulos: ${e.message}`); return []; } };
+const PROVIDERS = providers.load(path.join(ROOT, 'providers.json'), { ...process.env, ...ENV }, log, provedoresDeModulos());
 const listedModels = () => [
   ...Object.entries(MODELS).map(([id, p]) => ({ id, object: 'model', created: 0, owned_by: 'meu-bot', description: p.description })),
   ...providers.openaiModels(PROVIDERS).map((p) => ({ id: p.name, object: 'model', created: 0, owned_by: p.base_url, description: p.description })),
@@ -951,7 +955,7 @@ const server = http.createServer(async (req, res) => {
     const c = contas.conta(ultimaConta) || contas.escolher({ permitirAviso: true }) || contas.conta('padrao');
     atualizarUsoPelaApi(c).then((why) => {
       if (why !== lastLimitsWhy) { lastLimitsWhy = why; if (why !== 'fresh') log(`limites da conta ${c.id}: ${why}`); }
-      json(res, 200, { claude: c.global ? statusGlobal(c) : readClaudeStatus(os.homedir(), contas.configDir(c)), model: currentModelLabel(c), providers: PROVIDERS.map((p) => ({ name: p.name, type: p.type, available: p.available })), contas: contas.resumo(c.id), cota: vigiaCota.ultima });
+      json(res, 200, { claude: c.global ? statusGlobal(c) : readClaudeStatus(os.homedir(), contas.configDir(c)), model: currentModelLabel(c), providers: PROVIDERS.map((p) => ({ name: p.name, type: p.type, available: p.available, reserva: p.reserva !== false, ...(p.rotulo ? { rotulo: p.rotulo } : {}), ...(p.modulo ? { modulo: p.modulo } : {}) })), contas: contas.resumo(c.id), cota: vigiaCota.ultima });
     });
     return;
   }

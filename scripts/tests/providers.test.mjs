@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
@@ -86,4 +86,48 @@ test("openaiCompletion: stream SSE vira texto + deltas; erro HTTP vira upstream_
   assert.deepEqual(out.usage, { input_tokens: 3, output_tokens: 2 });
   await assert.rejects(providers.openaiCompletion({ provider, env: {}, messages: [{ role: "user", content: "falha" }] }), (e) => e.code === "upstream_401" && /sem credencial/.test(e.message));
   server.close();
+});
+
+test("provedores de módulos: entram depois dos da máquina, não substituem um nome que ela já tem e só viram reserva se pedirem", () => {
+  const dir = tmp();
+  const file = join(dir, "providers.json");
+  writeFileSync(file, JSON.stringify([
+    { name: "agente", type: "claude", priority: 0 },
+    { name: "local", type: "openai", priority: 9, base_url: "http://127.0.0.1:7884/v1", model: "qwen2.5:3b" },
+  ]));
+  const avisos = [];
+  const extras = [
+    { name: "motor-x", type: "openai", priority: 1, base_url: "http://127.0.0.1:8646/v1", model: "x-1", rotulo: "Motor X", modulo: "motor-x" },
+    { name: "motor-y", type: "openai", priority: 2, base_url: "http://127.0.0.1:8650/v1", model: "y-1", reserva: true, modulo: "motor-y" },
+    { name: "local", type: "openai", base_url: "http://127.0.0.1:1/v1", modulo: "intruso" },
+    { name: "Nome Ruim", type: "openai", base_url: "http://127.0.0.1:1/v1" },
+  ];
+  const ps = providers.load(file, {}, (m) => avisos.push(m), extras);
+  assert.deepEqual(ps.map((p) => [p.name, p.reserva, p.modulo ?? ""]), [["agente", true, ""], ["motor-x", false, "motor-x"], ["motor-y", true, "motor-y"], ["local", true, ""]]);
+  assert.equal(providers.byName(ps, "local").base_url, "http://127.0.0.1:7884/v1", "o da máquina fica");
+  assert.equal(providers.byName(ps, "motor-x").rotulo, "Motor X");
+  assert.equal(avisos.length, 2);
+  // O Claude falhou: desce só para quem aceita ser reserva. Escolhido de propósito, o motor do módulo responde.
+  assert.deepEqual(providers.chain(ps, "agente"), ["agente", "motor-y", "local"]);
+  assert.deepEqual(providers.chain(ps, "motor-x"), ["motor-x", "agente", "motor-y", "local"]);
+  // Um módulo não alcança as chaves da máquina: `key_env` de um extra é descartado (a chave dele vem resolvida em `key`).
+  const env = { XAI_API_KEY: "segredo-da-maquina" };
+  const fora = providers.load(file, env, () => {}, [
+    { name: "espiao", type: "openai", base_url: "https://exemplo.invalid/v1", key_env: "XAI_API_KEY", modulo: "espiao" },
+    { name: "com-chave", type: "openai", base_url: "https://api.exemplo.invalid/v1", key: "chave-do-modulo", key_env: "XAI_API_KEY", modulo: "ok" },
+  ]);
+  assert.equal(providers.byName(fora, "espiao").key_env, undefined);
+  assert.equal(providers.resolveKey(providers.byName(fora, "espiao"), env), "");
+  assert.equal(providers.byName(fora, "espiao").available, false, "endereço externo sem chave própria não fica disponível");
+  assert.equal(providers.resolveKey(providers.byName(fora, "com-chave"), env), "chave-do-modulo");
+  // Sem extras, nada muda para quem já usava o providers.json.
+  assert.deepEqual(providers.load(file, {}).map((p) => p.name), ["agente", "local"]);
+  assert.deepEqual(providers.chain(providers.load(file, {}), "agente"), ["agente", "local"]);
+  // Do próprio providers.json também dá para tirar um provedor da corrente.
+  writeFileSync(file, JSON.stringify([{ name: "agente", type: "claude", priority: 0 }, { name: "local", type: "openai", priority: 9, base_url: "http://127.0.0.1:7884/v1", reserva: false }]));
+  assert.deepEqual(providers.chain(providers.load(file, {}), "agente"), ["agente"]);
+});
+
+test("providers.js: a cópia do backend-vm é idêntica à do backend-colima", () => {
+  assert.equal(readFileSync(new URL("../../backend-vm/services/providers.js", import.meta.url), "utf8"), readFileSync(new URL("../../backend-colima/providers.js", import.meta.url), "utf8"));
 });

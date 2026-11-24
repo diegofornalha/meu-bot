@@ -32,6 +32,10 @@ function normalize(raw) {
   if (!NAME_RE.test(name) || (type !== 'claude' && type !== 'openai')) return null;
   const priority = Number.isFinite(Number(raw.priority)) ? Number(raw.priority) : 100;
   const p = { name, type, priority, description: typeof raw.description === 'string' ? raw.description : '' };
+  // `reserva`: entra na corrente quando OUTRO modelo falha. Do providers.json da máquina vale por padrão (como
+  // sempre foi); o provedor que um módulo traz só entra se o módulo disser `reserva: true` (ver `load`).
+  if (typeof raw.reserva === 'boolean') p.reserva = raw.reserva;
+  if (typeof raw.rotulo === 'string' && raw.rotulo.trim() !== '') p.rotulo = raw.rotulo.trim().slice(0, 60);
   if (type === 'openai') {
     p.base_url = String(raw.base_url || '').replace(/\/+$/, '');
     if (!/^https?:\/\//.test(p.base_url)) return null;
@@ -43,8 +47,12 @@ function normalize(raw) {
   return p;
 }
 
-/** Lê providers.json (ou usa o padrão), valida cada entrada e ordena por prioridade. */
-function load(file, env = process.env, log = () => {}) {
+/**
+ * Lê providers.json (ou usa o padrão), valida cada entrada e ordena por prioridade. `extras` são os provedores que os
+ * módulos ligados trazem (modulos.js › provedores): entram depois, não substituem um nome que a máquina já tem, e só
+ * servem de reserva de outro modelo se pedirem (`reserva: true`); escolhidos de propósito, respondem sempre.
+ */
+function load(file, env = process.env, log = () => {}, extras = []) {
   let list = DEFAULT_PROVIDERS;
   try {
     const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -60,7 +68,18 @@ function load(file, env = process.env, log = () => {}) {
     if (p === null) { log(`provedor inválido ignorado: ${JSON.stringify(raw).slice(0, 120)}`); continue; }
     if (seen.has(p.name)) continue;
     seen.add(p.name);
-    out.push(p);
+    out.push({ reserva: true, ...p });
+  }
+  for (const raw of Array.isArray(extras) ? extras : []) {
+    const p = normalize(raw);
+    if (p === null) { log(`provedor de módulo inválido ignorado: ${JSON.stringify(raw).slice(0, 120)}`); continue; }
+    if (seen.has(p.name)) { log(`provedor de módulo ignorado: a máquina já tem um "${p.name}"`); continue; }
+    // A chave de um provedor de módulo é a que o próprio módulo entrega (modulos.provedores a resolve no .env dele,
+    // em `key`). `key_env` aqui apontaria para o ambiente da máquina: um módulo poderia nomear a variável de outro
+    // serviço e mandá-la no Authorization para o endereço dele.
+    delete p.key_env;
+    seen.add(p.name);
+    out.push({ ...p, reserva: p.reserva === true, modulo: typeof raw.modulo === 'string' ? raw.modulo : '' });
   }
   out.sort((a, b) => a.priority - b.priority || a.name.localeCompare(b.name));
   return out.map((p) => ({ ...p, available: available(p, env) }));
@@ -83,13 +102,13 @@ function available(p, env = process.env) {
 const byName = (providers, name) => providers.find((p) => p.name === name) || null;
 
 /**
- * Ordem de tentativa para o modelo pedido: ele primeiro, depois os outros disponíveis por
+ * Ordem de tentativa para o modelo pedido: ele primeiro, depois os outros disponíveis que aceitam ser reserva, por
  * prioridade. Modelo fora da lista → [] (sem fallback; o backend roda como sempre).
  */
 function chain(providers, requested) {
   const first = byName(providers, requested);
   if (first === null) return [];
-  return [first.name, ...providers.filter((p) => p.name !== requested && p.available).map((p) => p.name)];
+  return [first.name, ...providers.filter((p) => p.name !== requested && p.available && p.reserva !== false).map((p) => p.name)];
 }
 
 /** Entradas para GET /v1/models: só os openai disponíveis (os claude o backend já lista). */

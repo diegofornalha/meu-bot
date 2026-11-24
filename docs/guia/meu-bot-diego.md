@@ -23,6 +23,13 @@ release automática: `release-core.mjs` deixa de fora os produtos com `caps.modu
   subiram de versão.
 - `backend-colima/modulos.js` (na máquina): monta os MCPs e as regras de cada turno a partir do `turno.json` de cada
   módulo ligado, trocando `${VAR}` pelas credenciais só no arquivo do turno (0600).
+- **Motor de IA de um módulo (24 nov):** o instalador do módulo pode gravar `provedores.json` na pasta dele na
+  máquina (lista no formato do `providers.json`, só `type: "openai"`, com `rotulo` e `reserva` opcionais).
+  `modulos.provedores` os entrega ao `providers.load` na subida do backend, com o módulo ligado e a licença do
+  produto valendo. O motor vira modelo escolhível; só entra na corrente como reserva de outro modelo com
+  `reserva: true`. Não substitui um provedor que a máquina já tem com o mesmo nome. O instalador reinicia o backend.
+  Chave: `key_env` nomeia uma credencial do próprio módulo (`<id>.env`); chave literal e variável do ambiente da
+  máquina são ignoradas.
 
 ## Contrato do `modulos.json`
 

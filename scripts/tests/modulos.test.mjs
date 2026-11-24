@@ -101,6 +101,26 @@ test("backend: só módulos ligados, do perfil e liberados pela licença; ${VAR}
   assert.ok(existsSync(f));
 });
 
+test("backend: provedores de um módulo só entram com o módulo ligado e liberado pela licença; só endpoints compatíveis com OpenAI", () => {
+  const base = mkdtempSync(join(tmpdir(), "modulos-prov-"));
+  const mod = (id, produto, provedores, ligado = true) => { mkdirSync(join(base, id), { recursive: true }); writeFileSync(join(base, id, "turno.json"), JSON.stringify({ produto, perfis: [] })); if (provedores !== undefined) writeFileSync(join(base, id, "provedores.json"), typeof provedores === "string" ? provedores : JSON.stringify(provedores)); if (ligado) writeFileSync(join(base, id, "ligado"), ""); };
+  mod("motor-x", "meu-bot-x", [{ name: "motor-x", type: "openai", base_url: "http://127.0.0.1:8646/v1", model: "x-1" }, { name: "agente", type: "claude" }, null, "lixo"]);
+  mod("desligado", "meu-bot-x", [{ name: "d", type: "openai", base_url: "http://127.0.0.1:1/v1" }], false);
+  mod("sem-licenca", "meu-bot-outro", [{ name: "o", type: "openai", base_url: "http://127.0.0.1:1/v1" }]);
+  mod("quebrado", "meu-bot-x", "{lixo");
+  mod("sem-arquivo", "meu-bot-x", undefined);
+  const ok = (p) => p === "meu-bot-x";
+  assert.deepEqual(mb.provedores(ok, { base }), [{ name: "motor-x", type: "openai", base_url: "http://127.0.0.1:8646/v1", model: "x-1", modulo: "motor-x" }]);
+  assert.deepEqual(mb.provedores(() => false, { base }), []);
+  // Chave: só a das credenciais do próprio módulo; literal no arquivo e nome de variável sem valor ali não valem.
+  const conf = mkdtempSync(join(tmpdir(), "modulos-prov-conf-"));
+  mod("com-chave", "meu-bot-x", [{ name: "nuvem", type: "openai", base_url: "https://api.exemplo.invalid/v1", key_env: "NUVEM_KEY", key: "literal" }, { name: "outra", type: "openai", base_url: "https://b.invalid/v1", key_env: "XAI_API_KEY" }]);
+  writeFileSync(join(conf, "com-chave.env"), "NUVEM_KEY=sk-do-modulo\n");
+  const comChave = mb.provedores(ok, { base, conf }).filter((p) => p.modulo === "com-chave");
+  assert.deepEqual(comChave, [{ name: "nuvem", type: "openai", base_url: "https://api.exemplo.invalid/v1", key: "sk-do-modulo", modulo: "com-chave" }, { name: "outra", type: "openai", base_url: "https://b.invalid/v1", modulo: "com-chave" }]);
+  assert.deepEqual(mb.provedores(ok, { base: join(base, "nao-existe") }), []);
+});
+
 test("variante meu-bot-diego-staging: só ela leva os módulos (abre na página Módulos); o add-on está no catálogo e na cópia do backend", () => {
   assert.equal(capsFor("diego-staging").modulos, "meu-bot-diego");
   assert.equal(produtoDe("diego-staging").nome, "meu-bot-diego-staging");
