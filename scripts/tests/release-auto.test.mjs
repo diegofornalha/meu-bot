@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { commitNoAr, dataPorExtenso, decideRodada, decideSite, decideSiteStaging, desfazDeploy, dirDoEstado, estavelMaisNova, faltasDeConteudo, faltasDoSite, fecharChangelog, lerConfigJs, ordemDosAmbientes, plistDoAgente, podeAprovar, podePublicarProducao, podePublicarStaging, proximaBase, QUIETUDE_MS, saudeStaging, SOAK_MS, stagingMaisNovo, varsDoWrangler } from "../release-core.mjs";
+import { quietudeMinDoAmbiente, commitNoAr, dataPorExtenso, decideRodada, decideSite, decideSiteStaging, desfazDeploy, dirDoEstado, estavelMaisNova, faltasDeConteudo, faltasDoSite, fecharChangelog, lerConfigJs, ordemDosAmbientes, plistDoAgente, podeAprovar, podePublicarProducao, podePublicarStaging, proximaBase, QUIETUDE_MS, saudeStaging, SOAK_MS, stagingMaisNovo, varsDoWrangler } from "../release-core.mjs";
 
 const AGORA = Date.parse("2026-11-10T15:00:00Z");
 const ok = { ok: true, motivo: "ok" };
@@ -241,4 +241,19 @@ test("plist do agente: parte do checkout principal, pelo node, e recria o worktr
   // A partida é JavaScript válido depois de desfazer o XML.
   const js = /<string>-e<\/string><string>([\s\S]*?)<\/string><\/array>/.exec(p)[1].replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
   assert.doesNotThrow(() => new Function("require", "process", js));
+});
+
+test("segundo Mac: com a espera maior ele só solta o staging se o principal não soltou; a variável vai para o plist", () => {
+  const ha15 = { ...base, commitEm: AGORA - 15 * 60_000 };
+  assert.equal(decideRodada(ha15).acao, "staging", "o principal (10 min) já solta");
+  const segundo = decideRodada({ ...ha15, quietudeMs: 25 * 60_000 });
+  assert.equal(segundo.acao, "aguardar"); assert.match(segundo.motivo, /staging em 10 min/);
+  assert.equal(decideRodada({ ...base, commitEm: AGORA - 26 * 60_000, quietudeMs: 25 * 60_000 }).acao, "staging", "passados 25 min sem staging, o segundo solta");
+  // O principal soltou: o HEAD tem a tag e o segundo não publica outra.
+  assert.notEqual(decideRodada({ ...base, commitEm: AGORA - 26 * 60_000, quietudeMs: 25 * 60_000, tagsNoHead: ["v0.80.0-staging.1"], stagingEm: AGORA - 60_000, saude: { ok: false, motivo: "x" } }).acao, "staging");
+  assert.equal(quietudeMinDoAmbiente({ MEU_BOT_RELEASE_QUIETUDE_MIN: "25" }), 25);
+  for (const v of [undefined, "", "5", "999", "25.5", "abc"]) assert.equal(quietudeMinDoAmbiente({ MEU_BOT_RELEASE_QUIETUDE_MIN: v }), null, String(v));
+  const args = { rotulo: "com.x.agente", node: "/n", principal: "/p", wt: "/w", path: "/bin", log: "/l" };
+  assert.match(plistDoAgente({ ...args, quietudeMin: 25 }), /<key>MEU_BOT_RELEASE_QUIETUDE_MIN<\/key><string>25<\/string>/);
+  assert.doesNotMatch(plistDoAgente(args), /QUIETUDE/);
 });

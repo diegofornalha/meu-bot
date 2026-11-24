@@ -20,6 +20,7 @@
 //   node scripts/release-auto.mjs --religar      regrava o plist e recarrega o agente, sem mexer nos apps staging
 //   node scripts/release-auto.mjs --desinstalar  tira o agente
 //   node scripts/release-auto.mjs --segurar "motivo"  o agente não promove a estável (staging e base seguem) até --soltar
+//   MEU_BOT_RELEASE_QUIETUDE_MIN=25 … --instalar   segundo Mac: espera 25 min (o principal espera 10) e só publica se ele não publicou
 //   node scripts/release-auto.mjs --soltar       tira a trava; a promoção volta na rodada seguinte, se ainda couber
 import { execFileSync, spawnSync } from "node:child_process";
 import { appendFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
@@ -27,7 +28,7 @@ import { createHash } from "node:crypto";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { commitNoAr, dataPorExtenso, decideRodada, decideSite, decideSiteStaging, dirDoEstado, estavelMaisNova, fecharChangelog, plistDoAgente, proximaBase, SITE_NO_AR, stagingMaisNovo, travaOrfa } from "./release-core.mjs";
+import { commitNoAr, dataPorExtenso, decideRodada, decideSite, decideSiteStaging, dirDoEstado, estavelMaisNova, fecharChangelog, plistDoAgente, QUIETUDE_MS, quietudeMinDoAmbiente, proximaBase, SITE_NO_AR, stagingMaisNovo, travaOrfa } from "./release-core.mjs";
 import { bundleDoStaging, saudeDesteMac } from "./release-saude.mjs";
 import { arquivosDeFragmento, lerFragmentos } from "./changelog-fragmentos.mjs";
 
@@ -39,6 +40,8 @@ const SEGURAR = join(ESTADO, "segurar-estavel");
 const motivoSegurar = () => { try { return readFileSync(SEGURAR, "utf8").trim() || "sem motivo escrito"; } catch { return null; } };
 const LOG = process.env.MEU_BOT_RELEASE_LOG ?? join(HOME, "Library", "Logs", "meu-bot-release.log");
 const ROTULO = "com.meu-bot.release-auto";
+// Segundo Mac que publica: MEU_BOT_RELEASE_QUIETUDE_MIN=25 no --instalar (vai para o plist) faz este esperar mais que o principal.
+const ESPERA_MIN = quietudeMinDoAmbiente(process.env);
 const PLIST = join(HOME, "Library", "LaunchAgents", `${ROTULO}.plist`);
 const STAGING_APPS = ["meu-bot-staging", "meu-bot-inspector-staging"];
 /** Uma ação que falhou (testes, chave negada…) só é tentada de novo no mesmo commit depois disto. */
@@ -81,7 +84,7 @@ function olhar() {
   }
   const ultima = shOu("git", ["describe", "--tags", "--abbrev=0", "--match", "v*", sha]);
   const mudouDesdeRelease = ultima ? (shOu("git", ["diff", "--name-only", `${ultima}..${sha}`]) ?? "").split("\n").filter(Boolean) : null;
-  return { sha, base, tag, decisao: decideRodada({ base, tagsTodas, tagsNoHead, commitEm, stagingEm, saude, agora: Date.now(), mudouDesdeRelease }) };
+  return { sha, base, tag, decisao: decideRodada({ base, tagsTodas, tagsNoHead, commitEm, stagingEm, saude, agora: Date.now(), mudouDesdeRelease, quietudeMs: ESPERA_MIN === null ? QUIETUDE_MS : ESPERA_MIN * 60_000 }) };
 }
 
 /** O worktree da release no commit da vez, com o que o git não guarda (como o meu-bot-build-main do hook de rebuild). */
@@ -300,7 +303,7 @@ function instalarAgente() {
   const path = ["/opt/homebrew/bin", "/usr/local/bin", join(homedir(), ".local", "bin"), dirname(process.execPath), "/usr/bin", "/bin", "/usr/sbin", "/sbin"].join(":");
   // Conta nova no macOS não tem ~/Library/LaunchAgents até alguém criar um agente.
   mkdirSync(dirname(PLIST), { recursive: true });
-  writeFileSync(PLIST, plistDoAgente({ rotulo: ROTULO, node: process.execPath, principal: PRINCIPAL, wt: WT, path, log: LOG }));
+  writeFileSync(PLIST, plistDoAgente({ rotulo: ROTULO, node: process.execPath, principal: PRINCIPAL, wt: WT, path, log: LOG, quietudeMin: ESPERA_MIN }));
   spawnSync("launchctl", ["bootout", `gui/${uid}/${ROTULO}`], { stdio: "ignore" });
   // O bootout é assíncrono: o bootstrap logo em seguida pode dar "Input/output error" enquanto o antigo descarrega.
   let ok = false, ultimoErro = "";
