@@ -1,4 +1,5 @@
 /** Contrato IPC · Contas e ferramentas do agente: Claude, xAI, status line, objetivo, voz. Só tipos (nada é emitido); reexportado por src/shared/ipc.ts. */
+import type { ProvedorDaMaquina } from "../modelos";
 
 /** Segmentos da status line (barra do Claude Code na máquina e rodapé do app): ligar/desligar. `espaco` só existe no rodapé (o statusline.sh ignora). */
 export interface StatusLineSegments { model: boolean; ctx: boolean; account: boolean; session: boolean; weekly: boolean; espaco: boolean }
@@ -22,7 +23,7 @@ export interface AccountStatus {
   weeklyResets: number | null;
   updated: number | null;
   /** Corrente de provedores do backend, em ordem de prioridade. */
-  providers: { name: string; type: "claude" | "openai"; available: boolean }[];
+  providers: ProvedorDaMaquina[];
   /** Modelo que o Claude Code da máquina usa agora ("Fable 5.1", ou "Opus 5.5" durante o limite); null = backend antigo. */
   modelName?: string | null;
   /** Contas do Claude na máquina: a que respondeu por último, quantas há e quantas estão fora (limite/bloqueio); null = backend antigo. */

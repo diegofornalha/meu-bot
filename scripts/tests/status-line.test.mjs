@@ -25,8 +25,8 @@ test("segmentos para modelo Claude: modelo, ctx, turno, conta, sessão, semanal,
   assert.equal(segs[5].text, "Semanal: 37% · 5d0h");
 });
 
-test("grok-4 não mostra conta nem limites do Claude; sem dados, só o modelo", () => {
-  const segs = buildSegments({ model: "grok-4", ctx: null, turn: null, account, nowMs: NOW });
+test("outro-motor não mostra conta nem limites do Claude; sem dados, só o modelo", () => {
+  const segs = buildSegments({ model: "outro-motor", ctx: null, turn: null, account, nowMs: NOW });
   assert.deepEqual(segs.map((s) => s.kind), ["model"]);
   assert.deepEqual(buildSegments({ model: "agente", ctx: null, turn: null, account: null }).map((s) => s.kind), ["model"]);
 });
@@ -53,7 +53,7 @@ test("modelo: o nome que o backend informa vence o modo (Opus 5.5 durante o limi
   const base = { email: null, assento: null, sessionPct: null, weeklyPct: null, sessionResets: null, weeklyResets: null, updated: null, providers: [] };
   assert.equal(buildSegments({ model: "agente", ctx: null, turn: null, account: { ...base, modelName: "Opus 5.5" } })[0].text, "Opus 5.5");
   assert.equal(buildSegments({ model: "agente", ctx: null, turn: null, account: { ...base, modelName: null } })[0].text, "agente");
-  assert.equal(buildSegments({ model: "grok-4", ctx: null, turn: null, account: { ...base, modelName: "Opus 5.5" } })[0].text, "grok-4");
+  assert.equal(buildSegments({ model: "outro-motor", ctx: null, turn: null, account: { ...base, modelName: "Opus 5.5" } })[0].text, "outro-motor");
 });
 
 test("espaço da conta (cota de disco): segmento de qualquer modelo, amarelo a 80 e vermelho a 95; desligável; aviso em 80/95", () => {
@@ -61,7 +61,7 @@ test("espaço da conta (cota de disco): segmento de qualquer modelo, amarelo a 8
   const segs = buildSegments({ model: "agente", ctx: null, turn: null, account: { ...account, cota }, nowMs: NOW });
   const e = segs.find((s) => s.kind === "espaco");
   assert.deepEqual([e.text, e.tone], ["Espaço: 82%", "warn"]); assert.match(e.title, /3,2 GB de 3,9 GB/);
-  assert.equal(buildSegments({ model: "grok-4", ctx: null, turn: null, account: { ...account, cota }, nowMs: NOW }).map((s) => s.kind).join(), "model,espaco", "é da máquina, não do Claude");
+  assert.equal(buildSegments({ model: "outro-motor", ctx: null, turn: null, account: { ...account, cota }, nowMs: NOW }).map((s) => s.kind).join(), "model,espaco", "é da máquina, não do Claude");
   assert.equal(buildSegments({ model: "agente", ctx: null, turn: null, account: { ...account, cota: { ...cota, pct: 96 } }, nowMs: NOW }).find((s) => s.kind === "espaco").tone, "bad");
   assert.equal(buildSegments({ model: "agente", ctx: null, turn: null, account: { ...account, cota: { ...cota, pct: 40 } }, nowMs: NOW }).find((s) => s.kind === "espaco").tone, undefined);
   assert.equal(buildSegments({ model: "agente", ctx: null, turn: null, account: { ...account, cota }, nowMs: NOW, segments: { model: true, ctx: true, account: true, session: true, weekly: true, espaco: false } }).some((s) => s.kind === "espaco"), false);

@@ -18,7 +18,7 @@ test("aba do meu-bot: caminho vindo do backend com ~; sem sessão, plano B com o
   assert.match(conversationReferenceText("conv-1", "colima", null), /^meu-bot · colima · conversa conv-1 \(ainda sem transcrição/);
   assert.match(conversationReferenceText("conv-1", "colima", null, "claudecode"), /ainda sem transcrição/);
   // Grok e Hermes não passam pelo Claude Code: nunca haverá .jsonl; o texto diz isso em vez de mandar tentar de novo.
-  assert.equal(conversationReferenceText("conv-1", "agente-box", null, "grok-4"), "meu-bot · agente-box · conversa conv-1 · grok-4 (o histórico fica só neste app, não há transcrição na máquina)");
+  assert.equal(conversationReferenceText("conv-1", "agente-box", null, "outro-motor"), "meu-bot · agente-box · conversa conv-1 · outro-motor (o histórico fica só neste app, não há transcrição na máquina)");
 });
 
 test("whatsapp: número, chave e sessão; uma linha por sessão; sem UUID omite; sem sessão avisa", () => {

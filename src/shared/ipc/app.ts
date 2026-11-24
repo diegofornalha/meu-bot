@@ -3,7 +3,11 @@ import type { Compilacao } from "./depuracao";
 import type { PlanName } from "./licenca";
 import type { NavWorkspaces } from "./navegador";
 
-export type BackendModel = "claudecode" | "agente" | "rene-dm" | "rene" | "grok-4" | "ollama-local";
+/**
+ * Nome do modelo de uma conversa: um perfil do Claude ou um provedor que o backend da máquina informa (os do
+ * providers.json e os que os módulos trazem). Não é uma lista fechada: quem diz o que existe é src/shared/modelos.ts.
+ */
+export type BackendModel = string;
 export type Theme = "system" | "light" | "dark";
 /** Quem usa uma aba do Navegador ou um terminal: conversa do meu-bot, conversa do WhatsApp ou o Claude Code deste Mac. */
 export type OrigemDono = "meu-bot" | "whatsapp" | "claude-code";

@@ -10,10 +10,11 @@ import path from "node:path";
 import { lerCotaJson } from "../agente/espaco-core";
 import type { AlertPrefs, AccountStatus, ClaudeSessionRef, BackendModel, ContaClaude, ContasClaudeView, LicenseView, LimiaresClaude, ToolEvent } from "../../shared/ipc";
 import type { MainEventChannel, MainEvents } from "../../shared/ipc";
-import { persistConversations, saveTranscript, type BackendMessage, type Conversation } from "../conversa/conversation";
+import { persistConversations, saveTranscript, setConversationModel, type BackendMessage, type Conversation } from "../conversa/conversation";
+import { lerProvedores, modeloDeRecuo, tempoLimiteMs } from "../../shared/modelos";
 import { alreadySeenPrefix, buildSummaryRequest, estimateTokens, planContext, toWire, validateSummary, type OutgoingMessage } from "../conversa/context";
 import { applyOps, buildMemoryRequest, getMemory, memorySystemMessage, NOTAS_MAX, parseOps, PERFIL_MAX, setMemory } from "../conversa/memory";
-import { getBackendPort, getContextBudget, getMemoryEveryTurns } from "../app/settings";
+import { getBackendModel, getBackendPort, getContextBudget, getMemoryEveryTurns } from "../app/settings";
 import { ensureTunnel, execNaMaquina, markDegraded, TunnelFatalError } from "./tunnel";
 import { COMANDO_LOG_BACKEND, classificarPreflight, detalheTentativa, dicaDoLog, erroFinal, podeDiagnosticar, textoPreflight, type FalhaPreflight } from "./preflight-core";
 import { evento } from "../app/depuracao";
@@ -31,17 +32,17 @@ class Sender {
   }
 }
 
-const MODEL_LABEL: Record<BackendModel, string> = {
+/** Como a nota de troca descreve cada perfil do Claude; um provedor de fora vai pelo nome (quem ele é, o backend diz a ele). */
+const PERFIL_LABEL: Readonly<Record<string, string>> = {
   claudecode: "claudecode (Claude Code, chat)", agente: "agente (Claude Code com ferramentas, bypass)",
-  "rene-dm": "rene-dm (agente René, Claude Code)", rene: "rene (agente René, Claude Code)", "grok-4": "grok-4 (Grok da xAI)",
-  "ollama-local": "ollama-local (modo grátis: Ollama neste Mac)",
+  "rene-dm": "rene-dm (agente René, Claude Code)", rene: "rene (agente René, Claude Code)",
 };
+const modelLabel = (model: BackendModel): string => PERFIL_LABEL[model] ?? model;
 /** Nota invisível na tela, enviada junto da próxima mensagem depois de trocar o modelo. */
 const switchNote = (from: BackendModel, to: BackendModel): string =>
-  `[Nota do app meu-bot, não é fala do usuário: o usuário acabou de trocar o modelo desta conversa de ${MODEL_LABEL[from]} para ${MODEL_LABEL[to]}. As respostas anteriores foram do modelo anterior, não suas. Daqui em diante quem responde é ${to}; não atribua a si o que foi dito antes, e se perguntarem qual modelo é você, responda ${to}.]`;
+  `[Nota do app meu-bot, não é fala do usuário: o usuário acabou de trocar o modelo desta conversa de ${modelLabel(from)} para ${modelLabel(to)}. As respostas anteriores foram do modelo anterior, não suas. Daqui em diante quem responde é ${to}; não atribua a si o que foi dito antes, e se perguntarem qual modelo é você, responda ${to}.]`;
 
-/** agente/rene/rene-dm rodam ferramentas e podem levar minutos; claudecode é chat puro. */
-const timeoutFor = (model: BackendModel): number => (model === "claudecode" || model === "grok-4" ? 120_000 : 600_000);
+const timeoutFor = tempoLimiteMs;
 
 interface ChatCompletion {
   choices?: { message?: { content?: string }; finish_reason?: string }[];
@@ -488,7 +489,7 @@ export async function fetchAccountStatus(host: string): Promise<AccountStatus | 
       res.on("end", () => {
         if (res.statusCode !== 200) { resolve(null); return; }
         try {
-          const j = JSON.parse(Buffer.concat(chunks).toString("utf8")) as { claude?: Partial<AccountStatus>; providers?: AccountStatus["providers"]; model?: unknown; contas?: { atual?: unknown; rotulo?: unknown; total?: unknown; esgotadas?: unknown; proximaEm?: unknown } | null; cota?: unknown };
+          const j = JSON.parse(Buffer.concat(chunks).toString("utf8")) as { claude?: Partial<AccountStatus>; providers?: unknown; model?: unknown; contas?: { atual?: unknown; rotulo?: unknown; total?: unknown; esgotadas?: unknown; proximaEm?: unknown } | null; cota?: unknown };
           const c = j.claude ?? {};
           const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
           const str = (v: unknown): string | null => (typeof v === "string" && v.length <= 80 ? v : null);
@@ -498,7 +499,7 @@ export async function fetchAccountStatus(host: string): Promise<AccountStatus | 
             sessionPct: num(c.sessionPct), weeklyPct: num(c.weeklyPct), sessionResets: num(c.sessionResets), weeklyResets: num(c.weeklyResets), updated: num(c.updated),
             modelName: typeof j.model === "string" && j.model.length <= 40 ? j.model : null,
             contas: ct && typeof ct === "object" ? { atual: str(ct.atual), rotulo: str(ct.rotulo), total: num(ct.total) ?? 1, esgotadas: num(ct.esgotadas) ?? 0, proximaEm: num(ct.proximaEm) } : null,
-            providers: Array.isArray(j.providers) ? j.providers.filter((p) => p && typeof p.name === "string").map((p) => ({ name: p.name, type: p.type === "openai" ? "openai" : "claude", available: p.available === true })) : [],
+            providers: lerProvedores(j.providers),
             // Backend 1.9+: a cota de disco dela (null = sem cota); antes disso o campo não vem (a tela diz "backend antigo").
             ...("cota" in j ? { cota: lerCotaJson(j.cota) } : {}),
           });
@@ -573,7 +574,25 @@ function maybeExtractMemory(out: Sender, conv: Conversation): void {
   });
 }
 
+/**
+ * Um turno da conversa. Se a máquina não tem mais o modelo dela (módulo desligado, provedor removido: o backend
+ * responde `model_not_found`), a conversa volta para o modelo padrão, avisa uma vez e a mesma pergunta é refeita
+ * nele: a pessoa não fica presa num modelo que não responde.
+ */
 export async function runBackendTurn(conv: Conversation, userText: string): Promise<void> {
+  const recuo = await turno(conv, userText, true);
+  if (recuo === null) return;
+  const sumiu = conv.model;
+  setConversationModel(conv.id, recuo);
+  log(`modelo ${conv.id}: ${sumiu} não existe mais em ${conv.host}; a conversa passa para ${recuo}`);
+  const out = new Sender(conv.host);
+  out.send("chat:model", { conversationId: conv.id, model: recuo });
+  out.send("chat:notice", { conversationId: conv.id, text: `⚠ O modelo ${sumiu} não existe mais nesta máquina. A conversa passou para o ${recuo}, que responde esta mensagem; para usar outro, troque no menu de modos.` });
+  await turno(conv, userText, false);
+}
+
+/** Devolve o modelo de recuo quando o turno parou porque a máquina não tem o modelo da conversa (só com `podeRecuar`); senão null. */
+async function turno(conv: Conversation, userText: string, podeRecuar: boolean): Promise<BackendModel | null> {
   const out = new Sender(conv.host);
   const host = conv.host;
   const model = conv.model;
@@ -588,10 +607,12 @@ export async function runBackendTurn(conv: Conversation, userText: string): Prom
   const notes = [conv.pendingNote, conv.pendingSwitch === undefined ? undefined : switchNote(conv.pendingSwitch.from, conv.pendingSwitch.to)]
     .filter((n): n is string => n !== undefined && n !== "");
   const note = notes.length === 0 ? undefined : notes.join("\n\n");
+  const troca = conv.pendingSwitch;
   delete conv.pendingSwitch;
   const userMsg: BackendMessage = { role: "user", content: userText, ...(note === undefined ? {} : { note }) };
   conv.backendMessages.push(userMsg);
-  out.send("chat:assistant-start", { conversationId });
+  // Na segunda passada (recuo) a bolha da resposta já está aberta na tela.
+  if (podeRecuar) out.send("chat:assistant-start", { conversationId });
   try {
     out.send("backend:status", { host, state: "connecting", detail: "verificando a VM…" });
     const plan = planContext(conv.backendMessages, conv.summary, getContextBudget());
@@ -620,7 +641,7 @@ export async function runBackendTurn(conv: Conversation, userText: string): Prom
       out.send("chat:notice", { conversationId, text: `⚠ ${notice}` });
       if (tipo !== "conta") out.send("backend:status", { host, state: "degraded", detail: notice });
     }, (tool) => { if (!cancelled()) out.send("chat:tool", { conversationId, tool }); });
-    if (cancelled()) return;
+    if (cancelled()) return null;
     // Quem respondeu fica na mensagem (a bolha mostra, o export leva, e sobrevive ao fechar/abrir).
     conv.backendMessages.push({ role: "assistant", content: text, provider, ...(fallbackNote === undefined ? {} : { fallback: fallbackNote }) });
     conv.serverSeen = conv.backendMessages.length;
@@ -640,7 +661,7 @@ export async function runBackendTurn(conv: Conversation, userText: string): Prom
       if (partial.trim() !== "") conv.backendMessages.push({ role: "assistant", content: `${partial}\n\n[interrompido]` });
       else if (conv.backendMessages.at(-1)?.role === "user") conv.backendMessages.pop();
       if (!cancelled()) out.send("chat:done", { conversationId, stopReason: "cancelled" });
-      return;
+      return null;
     }
     if (partial.trim() !== "") {
       // Resposta parcial vale mais que nada; marca o corte.
@@ -648,15 +669,23 @@ export async function runBackendTurn(conv: Conversation, userText: string): Prom
     } else if (conv.backendMessages.at(-1)?.role === "user") {
       conv.backendMessages.pop();
     }
+    const backendCode = (err as { backendCode?: unknown } | null)?.backendCode;
+    // A máquina não tem o modelo da conversa: a pergunta saiu do histórico acima e quem chamou a refaz no recuo.
+    const recuo = podeRecuar && backendCode === "model_not_found" && partial.trim() === "" && !cancelled() ? modeloDeRecuo(model, getBackendModel(host)) : null;
+    if (recuo !== null) {
+      // A nota de troca pendente volta: setConversationModel a refaz com o destino certo.
+      if (troca !== undefined) conv.pendingSwitch = troca;
+      return recuo;
+    }
     const offline = errCode(err) === "OFFLINE" || (isConnectionError(err) && (await noteNetworkError(err)));
     const message = offline ? offlineMessage("chat") : describeFetchError(err, model);
     if (isConnectionError(err)) markDegraded(host, errCode(err));
     out.send("backend:status", { host, state: "error", detail: offline ? "sem internet" : message });
-    const backendCode = (err as { backendCode?: unknown } | null)?.backendCode;
     if (!cancelled()) out.send("chat:error", { conversationId, kind: "backend", message, ...(typeof backendCode === "string" ? { code: backendCode } : {}) });
   } finally {
     delete conv.abort;
     if (conv.pendingNote !== undefined && conv.backendMessages.includes(userMsg)) { delete conv.pendingNote; persistConversations(); }
     saveTranscript(conv);
   }
+  return null;
 }
