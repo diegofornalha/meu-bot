@@ -456,7 +456,7 @@ function waAgentPrompt(st: WhatsappStatus): string {
       "Falta: " + (st.missing ?? "o bridge do WhatsApp") + ".",
       "",
       "Passos (pule o que já estiver feito):",
-      "1. Se o comando `hermes` não existir (confira com `command -v hermes`; o da máquina toda fica em /usr/local/bin/hermes): `npm install -g --prefix ~/.local hermes-agent@0.22.2` (a mesma versão do Grok do meu-bot). Se já existir, não instale outro.",
+      "1. Se o comando `hermes` não existir (confira com `command -v hermes`; o da máquina toda fica em /usr/local/bin/hermes): `npm install -g --prefix ~/.local hermes-agent@0.22.2` (a versão que o meu-bot fixa). Se já existir, não instale outro.",
       "2. A pasta do Hermes é a linha `Install directory:` de `hermes --version`. Confira o bridge em `<pasta>/scripts/whatsapp-bridge/bridge.js`. Se a pasta for /opt/hermes (o Hermes de todos os usuários, do root), não mexa nela: se faltar algo lá, me diga para usar \"Instalar Hermes para todos\" no meu-bot-admin. As dependências do bridge e o `.env` do WhatsApp o meu-bot ajusta sozinho ao gerar o QR.",
       "3. Não mexa no backend do meu-bot, no `model:` do ~/.hermes/config.yaml (o meu-bot liga o Hermes ao Claude desta máquina) nem rode `hermes whatsapp` ou `hermes setup` (são interativos).",
       "",
@@ -501,7 +501,7 @@ function waAgentPromptMac(st: WhatsappStatus): string {
 /** Os dois agentes que atendem o WhatsApp, como a pessoa os vê (o app trabalha igual com os dois). */
 const AGENTE_OPTIONS: readonly { id: WhatsappAgente; title: string; text: string; recomendado: boolean }[] = [
   { id: "openclaw", title: "OpenClaw", text: "Responde pelo Claude Code desta máquina. É o mais usado com o meu-bot.", recomendado: true },
-  { id: "hermes", title: "Hermes", text: "Responde pelo Claude do meu-bot desta máquina, com troca automática de contas e, com a xAI logada, o Grok de reserva.", recomendado: false },
+  { id: "hermes", title: "Hermes", text: "Responde pelo Claude do meu-bot desta máquina, com troca automática de contas e a reserva que a máquina tiver.", recomendado: false },
 ];
 /** Agente que vale agora: o escolhido, senão o que a máquina já tem. */
 export const agenteAtual = (st: WhatsappStatus | null): WhatsappAgente | null =>

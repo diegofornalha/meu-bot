@@ -17,7 +17,7 @@ export interface ProvedorDaMaquina {
   available: boolean;
   /** false = não é reserva de outro modelo; só responde quando escolhido. */
   reserva?: boolean;
-  /** Nome para a pessoa ler ("Grok (xAI)"); sem ele vale o `name`. */
+  /** Nome para a pessoa ler (o módulo que traz o provedor o informa); sem ele vale o `name`. */
   rotulo?: string;
   /** Módulo que trouxe o provedor; ausente = é do providers.json da máquina. */
   modulo?: string;

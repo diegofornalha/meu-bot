@@ -9,7 +9,7 @@ export type DadosGuia = Omit<GuideContext, "known">;
 export type FatiaGuia = { known: boolean; dados: Partial<DadosGuia> };
 /** Que campos do contexto cada fonte preenche. Puro e testado: cada campo tem exatamente uma fonte dona. */
 export const CAMPOS_POR_FONTE: Record<GuideSource, readonly (keyof DadosGuia)[]> = {
-  whatsapp: ["digitando"], claude: ["claude"], statusline: ["statusLine"], xai: ["xai"], fallback: ["fallback"], support: ["support"],
+  whatsapp: ["digitando"], claude: ["claude"], statusline: ["statusLine"], fallback: ["fallback"], support: ["support"],
   objective: ["objective"], guarda: ["guarda"], navegador: ["navegador"], crm: ["crm", "produto"], grupos: ["grupos"],
   contas: ["contas"], linkpublico: ["linkPublico", "linkPublicoPossivel"], quickentry: ["quickEntry"], google: ["gmail"], ollama: ["ollama"],
 };

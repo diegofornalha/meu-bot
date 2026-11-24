@@ -1,6 +1,6 @@
 /** Contrato IPC · A superfície exposta às telas (window.meuBot) e os eventos do main. Só tipos (nada é emitido); reexportado por src/shared/ipc.ts. */
 import type { BatimentoDepuracao, EstadoDepuracao, EventoDepuracao } from "./depuracao";
-import type { AccountStatus, AudioSetup, ClaudeAuthInfo, ClaudeLoginEvent, ContaEstado, ContaEvento, ContaId, ContasClaudeView, LinkPublicoInfo, LinkPublicoStatus, CotaInfo, LinkPublicoLista, LinkPublicoPublicado, FreedomLevel, LimiaresClaude, ObjectiveChoice, ObjectiveInfo, OllamaEvento, OllamaStatus, SkillImportada, SkillInstalada, SkillPreviaResultado, StatusLineSegments, XaiKeyStatus } from "./agente";
+import type { AccountStatus, AudioSetup, ClaudeAuthInfo, ClaudeLoginEvent, ContaEstado, ContaEvento, ContaId, ContasClaudeView, LinkPublicoInfo, LinkPublicoStatus, CotaInfo, LinkPublicoLista, LinkPublicoPublicado, FreedomLevel, LimiaresClaude, ObjectiveChoice, ObjectiveInfo, OllamaEvento, OllamaStatus, SkillImportada, SkillInstalada, SkillPreviaResultado, StatusLineSegments } from "./agente";
 import type { AlertPrefs, BackendModel, ClienteMcp, ControleRemotoView, DonoInfo, NetState, SettingsUpdate, SettingsView, WindowInfo, ZoomAction, ZoomState } from "./app";
 import type { ReleasePublicada, UpdateState } from "./atualizacao";
 import type { ContaView } from "./conta";
@@ -76,8 +76,6 @@ export interface MainEvents {
   "admin:usuarios-progresso": { line: string };
   /** Login do Claude Code em andamento. */
   "claude-login:event": ClaudeLoginEvent;
-  /** Login OAuth da xAI em andamento (mesmo formato). */
-  "xai-login:event": ClaudeLoginEvent;
   /** Uma linha do preparo ou da remoção do modo grátis (Ollama, tutorial 16). */
   "ollama:event": OllamaEvento;
   "contas:evento": ContaEvento;
@@ -153,7 +151,6 @@ export interface MeuBotSharedApi {
   /** WhatsApp do Hermes na máquina desta janela. */
   /** `force` pula a validade do cache do main (botão Atualizar); sem ele, dentro de 45 s a resposta é a da última consulta. */
   whatsappStatus(force?: boolean): Promise<WhatsappStatus>;
-  xaiKeyStatus(): Promise<XaiKeyStatus>;
   /** Terminal na máquina desta janela (pty-broker por ssh; neste Mac, local). Os dois apps; no admin fica no registro da pessoa. */
   termOpen(cols: number, rows: number): Promise<{ id: string }>;
   termInput(id: string, data: string | Uint8Array): void;
@@ -229,8 +226,6 @@ export interface MeuBotSharedApi {
   exportWhatsapp(number: string, format: ExportFormat): Promise<{ path: string } | null>;
   /** Conta do Claude Code na máquina desta janela (null se não deu para consultar). */
   claudeAuth(): Promise<ClaudeAuthInfo | null>;
-  /** OAuth da xAI na máquina (credencial xai-oauth, guardada pelo hermes-agent que o proxy usa); null se a máquina não o tem. `proxy` diz se o grok-4 já está apontado para o proxy local. */
-  xaiAuth(): Promise<ClaudeAuthInfo | null>;
   /** Contas de CLI desta máquina (Cloudflare, GitHub); null = máquina fora do alcance. */
   contasStatus(): Promise<ContaEstado[] | null>;
   /** Conta meu-bot deste Mac (login no navegador do sistema, volta por deep link). `forcar` relê a conta na API. */
@@ -350,9 +345,6 @@ export interface MeuBotClientApi {
   supportInfo(): Promise<SupportInfo>;
   setSupport(on: boolean, name: string): Promise<SupportInfo>;
   supportCode(): Promise<string>;
-  /** Há backend do meu-bot nesta máquina? (decide se a linha "xAI (Grok)" aparece antes do preparo). */
-  /** Prepara o Grok por OAuth na máquina (proxy local + providers.json); progresso em xai-login:event (log). */
-  xaiPrepare(): Promise<InstallBackendResult>;
   /** Status line do Claude na máquina desta janela: instalada? e instalar (progresso em statusline:progress). */
   statusLineInstalled(): Promise<boolean>;
   /** "Refazer do zero": desfaz a status line na máquina (script, settings.json, preferências). */
@@ -525,10 +517,6 @@ export interface MeuBotClientApi {
   /** Relê login, e-mail e uso da conta pela API. */
   contasClaudeConferir(id: string): Promise<ContasClaudeView | null>;
   contasClaudeLimiares(limiares: Partial<LimiaresClaude>): Promise<ContasClaudeView | null>;
-  /** `hermes auth add xai-oauth --type oauth --no-browser` (eventos em xai-login:event). */
-  xaiLogin(): Promise<void>;
-  xaiLoginCancel(): Promise<void>;
-  xaiLogout(): Promise<ClaudeAuthInfo | null>;
   /** Modo grátis no Mac (tutorial 16): o Ollama do meu-bot; null = a máquina desta janela não é este Mac. */
   ollamaStatus(): Promise<OllamaStatus | null>;
   /** Baixa o programa (versão fixa, sha256), sobe o serve, baixa o modelo e aponta o backend; progresso em ollama:event. */

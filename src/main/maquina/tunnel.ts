@@ -16,7 +16,6 @@ import os from "node:os";
 import path from "node:path";
 import { isValidHost } from "../app/settings";
 import { marcar } from "../app/depuracao";
-import { ensureLocalXaiProxy, stopLocalXaiProxy } from "../agente/xaiLocal";
 import { ensureLocalOllama, stopLocalOllama } from "../agente/ollamaLocal";
 import { checkLocalBackend, ensureLocalBackend, LOCAL_HOST, localBackendAlive, onLocalBackendExit, stopLocalBackend } from "./localBackend";
 
@@ -348,7 +347,6 @@ function ensureLocal(h: HostTunnel, onStatus?: (detail: string) => void): Promis
     try {
       if (h.state !== "ready" || !localBackendAlive()) setState(h, "connecting", "subindo backend local");
       const info = await ensureLocalBackend(onStatus);
-      ensureLocalXaiProxy();
       ensureLocalOllama();
       setState(h, "ready", "backend local pronto");
       return info;
@@ -559,7 +557,7 @@ async function teardown(h: HostTunnel, exitMasterToo: boolean): Promise<void> {
 export function closeTunnel(host?: string): void {
   const targets = host === undefined ? [...hosts.values()] : [entry(host)];
   for (const h of targets) {
-    if (h.host === LOCAL_HOST) { stopLocalBackend(); stopLocalXaiProxy(); stopLocalOllama(); setState(h, "idle", "teardown"); continue; }
+    if (h.host === LOCAL_HOST) { stopLocalBackend(); stopLocalOllama(); setState(h, "idle", "teardown"); continue; }
     closeForwardExtras(h.host);
     h.stopping = true;
     const prev = h.live;

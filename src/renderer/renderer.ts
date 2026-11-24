@@ -1,4 +1,4 @@
-import type { ZoomAction, ZoomState, BrowserAgentState, BrowserExtensionInfo, NavFavorito, NavService, NavWorkspace, NavWorkspaces, CrmInfo, CrmDiag, CrmLocal, LicenseView, NetState, UpdateState, AccountStatus, ClaudeAuthInfo, ClaudeLoginEvent, ContasClaudeView, ObjectiveChoice, ObjectiveInfo, WaMarkPatch, WhatsappChat, WhatsappEvent, WhatsappReplyChoice, WhatsappStatus, WhatsappThreadMessage, WhatsappMenuAction, WhatsappGroup, WhatsappGroups, WhatsappGroupMenuAction, WhatsappGroupPatch, WhatsappOrigin, WhatsappArchive, AudioSetup, VoiceReplyMode, VozId, SupportInfo, SupportShare, Capabilities, XaiKeyStatus, ToolEvent, BackendModel, BackendStatusEvent, ContextEvent, DoneEvent, ErrorEvent, ExportFormat, MemoryView, SettingsView, StoredConversationView, TabMenuAction, Theme, StatusLineSegments, ContaEstado, ContaEvento, ContaId , DonoInfo } from "../shared/ipc";
+import type { ZoomAction, ZoomState, BrowserAgentState, BrowserExtensionInfo, NavFavorito, NavService, NavWorkspace, NavWorkspaces, CrmInfo, CrmDiag, CrmLocal, LicenseView, NetState, UpdateState, AccountStatus, ClaudeAuthInfo, ClaudeLoginEvent, ContasClaudeView, ObjectiveChoice, ObjectiveInfo, WaMarkPatch, WhatsappChat, WhatsappEvent, WhatsappReplyChoice, WhatsappStatus, WhatsappThreadMessage, WhatsappMenuAction, WhatsappGroup, WhatsappGroups, WhatsappGroupMenuAction, WhatsappGroupPatch, WhatsappOrigin, WhatsappArchive, AudioSetup, VoiceReplyMode, VozId, SupportInfo, SupportShare, Capabilities, ToolEvent, BackendModel, BackendStatusEvent, ContextEvent, DoneEvent, ErrorEvent, ExportFormat, MemoryView, SettingsView, StoredConversationView, TabMenuAction, Theme, StatusLineSegments, ContaEstado, ContaEvento, ContaId , DonoInfo } from "../shared/ipc";
 import { hostAccent } from "./lib/host-color.js";
 import { byId as $, el } from "./lib/dom.js";
 import { deviceLine, licenseSummary } from "./lib/admin-view.js";
@@ -10,7 +10,6 @@ import { mountClaudeGlobalPage } from "./admin/claude-global-page.js";
 import { mountLinkPublicoPage } from "./admin/link-publico-page.js";
 import { mountPrepararPage } from "./admin/preparar-page.js";
 import { mountBotMirror, type BotMirror } from "./admin/bot-mirror.js";
-import { loginView, type LoginProvider, type LoginView } from "./lib/login-steps.js";
 import { ipcErrorText } from "./lib/ipc-error.js";
 import { avisoSemConta, estadoTexto, nomeConta, usoTexto } from "./lib/contas-claude.js";
 import { planMascots } from "./lib/intro-mascots.js";
@@ -46,7 +45,7 @@ import { favLabel, favOf, favTitleFor } from "./lib/favoritos.js";
 import { rankPalette, type PaletteItem } from "./lib/palette-rank.js";
 import { ESPACO_THRESHOLDS, buildSegments, previewLine, SL_TEST_COMMAND, thresholdToWarn, timeUntil } from "./lib/status-line.js";
 import { advanceOnboard, FINAL_MESSAGE, SKIPPED_MESSAGE, TOUR_INVITE, initialOnboardState, pickFeedback, welcomeMessage, type Feedback, type OnboardEvent, type OnboardState } from "./lib/onboarding.js";
-import { firstReplyOnHost, FALLBACK_TUTORIAL, XAI_TUTORIAL, clAuth, enterClaude, enterXai, ligarContasAgente, logoutClaude, logoutXai, navHostsIn, offerClaudeLogin, offerSkillFromTurn, refreshClaudeLine, refreshContasClaude, refreshXaiLine, renderContasClaude, contasClaudeView, xaiAuth, xaiKey } from "./agente/contas-agente.js";
+import { firstReplyOnHost, FALLBACK_TUTORIAL, clAuth, enterClaude, ligarContasAgente, logoutClaude, navHostsIn, offerClaudeLogin, offerSkillFromTurn, refreshClaudeLine, refreshContasClaude, renderContasClaude, contasClaudeView } from "./agente/contas-agente.js";
 import { ctx, ehRemoto } from "./app/ctx.js";
 import { conferirPassos } from "./tutoriais/passos.js";
 import { abaFixaAtual, inserirAba, activatePage, closePage, deactivatePage, definePage, pintarFixada, ehVazia, ligarPaginas, openPage, pageActive, pagePrev, pageShown, pages, preencherEsquerda, relayoutSplit, restoreSplit, splitColunaVazia, splitOff, splitOn, splitOnAny, splitPages, toggleSplit } from "./app/paginas.js";
@@ -142,7 +141,6 @@ const ctxImpl = {
   get disposeTerminal() { return disposeTerminal; },
   get ehVazia() { return ehVazia; },
   get enterClaude() { return enterClaude; },
-  get enterXai() { return enterXai; },
   get enterOllama() { return enterOllama; },
   get refreshOllamaLine() { return refreshOllamaLine; },
   get removerOllama() { return removerOllama; },
@@ -171,7 +169,6 @@ const ctxImpl = {
   get loadGuideFlags() { return loadGuideFlags; },
   get logoutClaude() { return logoutClaude; },
   get resetTutorial() { return resetTutorial; },
-  get logoutXai() { return logoutXai; },
   get maybeAskNotificationsOnce() { return maybeAskNotificationsOnce; },
   get maybeNotify() { return maybeNotify; },
   get motorCrm() { return motorCrm; },
@@ -246,7 +243,6 @@ const ctxImpl = {
   get refreshSupportState() { return refreshSupportState; },
   get refreshWaGroups() { return refreshWaGroups; },
   get refreshWhatsapp() { return refreshWhatsapp; },
-  get refreshXaiLine() { return refreshXaiLine; },
   get relayoutSplit() { return relayoutSplit; },
   get renderAssistant() { return renderAssistant; },
   get renderAudioControls() { return renderAudioControls; },
@@ -337,9 +333,6 @@ const ctxImpl = {
   get waSuccess() { return waSuccess; },
   get waTimer() { return waTimer; }, set waTimer(v) { waTimer = v; },
   get windowHost() { return windowHost; },
-  get XAI_TUTORIAL() { return XAI_TUTORIAL; },
-  get xaiAuth() { return xaiAuth; },
-  get xaiKey() { return xaiKey; },
   get xtermClass() { return xtermClass; },
 };
 export type AppCtx = typeof ctxImpl;
@@ -2096,7 +2089,6 @@ void (async () => {
   if (caps.install) void refreshSkillsImportadas();
   void refreshClaudeLine();
   void conferirBackend();
-  void refreshXaiLine();
   void refreshOllamaLine();
   // O que a lista de Tutoriais e o selo precisam saber vem todo na abertura, em paralelo: guarda, licença (Pro),
   // Navegador e CRM antes só eram consultados ao abrir o guia, e até lá os cartões ficavam "pendentes" por engano.

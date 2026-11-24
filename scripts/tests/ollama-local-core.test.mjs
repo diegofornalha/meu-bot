@@ -6,7 +6,6 @@ import { createRequire } from "node:module";
 const req = createRequire(import.meta.url);
 const p = req("../../dist/main/maquina/providers-local-core.js");
 const o = req("../../dist/main/agente/ollamaLocal-core.js");
-const x = req("../../dist/main/agente/xaiLocal-core.js");
 const nomes = (raw) => JSON.parse(raw).map((e) => e.name);
 
 test("mesclarProvider: põe ou troca pelo nome e preserva os outros na ordem", () => {
@@ -21,15 +20,59 @@ test("mesclarProvider: põe ou troca pelo nome e preserva os outros na ordem", (
   assert.equal(p.providerPorNome(null, "agente"), null);
 });
 
-test("Grok e Ollama convivem: preparar o Grok não apaga o modo grátis, e vice-versa", () => {
+test("o modo grátis convive com outro provedor do providers.json: preparar um não apaga o outro", () => {
+  const nuvem = { name: "nuvem", type: "openai", priority: 1, base_url: "https://api.exemplo.invalid/v1", model: "nuvem-1" };
   const comOllama = o.providersComOllama(null, 8591, "qwen2.5:7b");
-  const depoisDoGrok = x.providersComGrokLocal(8691, comOllama);
-  assert.deepEqual(nomes(depoisDoGrok), ["agente", "ollama-local", "grok-4"]);
-  assert.equal(o.modeloNoProviders(depoisDoGrok, 8591), "qwen2.5:7b");
-  assert.equal(x.providersApontaProxy(depoisDoGrok, 8691), true);
-  const depoisDoOllama = o.providersComOllama(x.providersComGrokLocal(8691), 8591, "qwen2.5:3b");
-  assert.equal(x.providersApontaProxy(depoisDoOllama, 8691), true, "o grok-4 continua apontado");
-  assert.deepEqual(nomes(x.providersComGrokLocal(8691)), ["agente", "grok-4"], "sem arquivo, como antes");
+  const depoisDaNuvem = p.mesclarProvider(comOllama, nuvem);
+  assert.deepEqual(nomes(depoisDaNuvem), ["agente", "ollama-local", "nuvem"]);
+  assert.equal(o.modeloNoProviders(depoisDaNuvem, 8591), "qwen2.5:7b");
+  const depoisDoOllama = o.providersComOllama(p.mesclarProvider(null, nuvem), 8591, "qwen2.5:3b");
+  assert.deepEqual(nomes(depoisDoOllama), ["agente", "nuvem", "ollama-local"]);
+  assert.equal(p.providerPorNome(depoisDoOllama, "nuvem").base_url, nuvem.base_url, "a outra entrada continua como estava");
+});
+
+test("herança do Grok no Mac: só sai o grok-4 que o app apontava para o proxy dele (porta do backend - 100)", () => {
+  const doApp = { name: "grok-4", type: "openai", priority: 1, base_url: "http://127.0.0.1:8691/v1", model: "grok-4" };
+  const comOllama = o.providersComOllama(p.mesclarProvider(null, doApp), 8591, "qwen2.5:7b");
+  assert.deepEqual(nomes(p.semProviderDoProxyAntigo(comOllama, 8791)), ["agente", "ollama-local"], "sai a entrada do app; o modo grátis fica");
+  assert.equal(p.semProviderDoProxyAntigo(comOllama, 8790), null, "outro app (outra porta): a entrada não é deste, fica");
+  const daPessoa = p.mesclarProvider(null, { ...doApp, base_url: "https://api.x.ai/v1", key_env: "XAI_API_KEY" });
+  assert.equal(p.semProviderDoProxyAntigo(daPessoa, 8791), null, "grok-4 por chave de API não é o do proxy do app: fica");
+  assert.equal(p.semProviderDoProxyAntigo(o.providersComOllama(null, 8591, "qwen2.5:7b"), 8791), null, "nada a tirar: não reescreve o arquivo");
+  assert.equal(p.semProviderDoProxyAntigo(null, 8791), null);
+  assert.equal(p.semProviderDoProxyAntigo("{lixo", 8791), null, "arquivo ilegível fica como está");
+});
+
+test("herança do Grok no Mac: o grok-4 do padrão antigo (API da xAI) só sai sem chave, e só a entrada exata", () => {
+  const agente = { name: "agente", type: "claude", priority: 0 };
+  const padrao = { name: "grok-4", type: "openai", priority: 1, base_url: "https://api.x.ai/v1", model: "grok-4", key_env: "XAI_API_KEY", description: "Grok da xAI" };
+  const ollama = { name: "ollama-local", type: "openai", priority: 9, base_url: "http://127.0.0.1:8591/v1", model: "qwen2.5:7b" };
+  const arq = (...l) => JSON.stringify(l, null, 2);
+  // sem chave: sai, e as outras entradas ficam na mesma ordem
+  assert.deepEqual(JSON.parse(p.semProviderDoPadraoAntigo(arq(agente, padrao, ollama), false)), [agente, ollama]);
+  // com chave: a pessoa configurou de propósito, nada muda
+  assert.equal(p.semProviderDoPadraoAntigo(arq(agente, padrao, ollama), true), null);
+  // outro nome, outro endereço, outra variável ou chave literal: não é a entrada do padrão, fica
+  for (const outra of [{ ...padrao, name: "grok-5" }, { ...padrao, base_url: "https://meu-proxy.exemplo.invalid/v1" }, { ...padrao, key_env: "OUTRA_KEY" }, { ...padrao, key: "literal" }]) {
+    assert.equal(p.semProviderDoPadraoAntigo(arq(agente, outra), false), null, JSON.stringify(outra));
+  }
+  // arquivo ilegível, fora do formato ou ausente: não toca
+  assert.equal(p.semProviderDoPadraoAntigo("{lixo", false), null);
+  assert.equal(p.semProviderDoPadraoAntigo('{"name":"grok-4"}', false), null);
+  assert.equal(p.semProviderDoPadraoAntigo(null, false), null);
+  assert.equal(p.semProviderDoPadraoAntigo(arq(agente, ollama), false), null, "nada a tirar: não reescreve");
+  assert.equal(p.temGrokDoPadraoAntigo(arq(agente, padrao)), true); assert.equal(p.temGrokDoPadraoAntigo(arq(agente)), false);
+});
+
+test("herança do Grok no Mac: XAI_API_KEY vale do .env do backend local ou do ambiente; vazia ou comentada não conta", () => {
+  assert.equal(p.temChaveXai(null, {}), false);
+  assert.equal(p.temChaveXai("OPENAI_COMPAT_KEY=abc\nPORT=8791\n", {}), false);
+  assert.equal(p.temChaveXai("PORT=8791\nXAI_API_KEY=xai-123\n", {}), true);
+  assert.equal(p.temChaveXai('export XAI_API_KEY="xai-123"\n', {}), true);
+  assert.equal(p.temChaveXai("XAI_API_KEY=\n", {}), false, "vazia");
+  assert.equal(p.temChaveXai("# XAI_API_KEY=xai-123\n", {}), false, "comentada");
+  assert.equal(p.temChaveXai(null, { XAI_API_KEY: "xai-123" }), true, "do ambiente");
+  assert.equal(p.temChaveXai(null, { XAI_API_KEY: "  " }), false);
 });
 
 test("ollama: porta própria por app, fora da 11434 padrão (um Ollama da pessoa fica intocado)", () => {

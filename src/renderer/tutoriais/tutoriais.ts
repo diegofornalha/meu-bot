@@ -32,12 +32,12 @@ function rememberTutorials(states: Map<string, TutorialState>): void {
 }
 export const tutState = (t: Tutorial): TutorialState => tutorialState(t, ctx.waStatus, loadGuideFlags(t), ctx.guideCtx(), loadTutMemory()[t.id] ?? null);
 export const tutorialDone = (t: Tutorial): boolean => tutState(t) === "done";
-/** Os tutoriais desta janela agora (pacote de suporte e trilha: o 2 e o 4 só depois do 1 concluído). */
+/** Os tutoriais desta janela agora (pacote de suporte e trilha: o 2 só depois do 1 concluído). */
 export const visibleNow = (): Tutorial[] => visibleTutorials(ctx.guideCtx(), tutorialDone);
 /**
  * Tutoriais já vistos nesta máquina (ids), só cresce: a pessoa "vê" ao abrir Tutoriais. Novidade = visível,
  * pendente e nunca visto (novo numa atualização, ou recém-destravado na trilha). Um que some e volta
- * (Refazer do 1 esconde o 2 e o 5; relogar mostra de novo) continua visto: reaparecer não é novidade.
+ * (Refazer do 1 esconde o 2; relogar mostra de novo) continua visto: reaparecer não é novidade.
  */
 const tutSeenKey = (): string => `tutVisto:${ctx.windowHost}`;
 export function loadTutSeen(): Set<string> {
@@ -158,13 +158,7 @@ function runGuideAction(target: GuideTarget, t: Tutorial): void {
   if (target === "none") return;
   if (target === "chat") {
     if (t.id === "navegador") { if (ctx.caps.agenteNavegador && !ctx.navAgent.on) void window.meuBot.browserAgent(true).then((st) => { ctx.navAgent = st; ctx.paintNav(); }); void ctx.goToChatFromGuide("Abra o site https://google.com no meu navegador e me diga o título da página.", "O agente vai abrir a página na aba Navegador e cada ação aparece aqui com 🌐; quando ele responder, o tutorial se conclui sozinho."); return; }
-    if (t.id === "xai-login") {
-      // O passo 3 só aparece com o Grok preparado e a xAI logada, mas a promessa do grok-4 não sai sem os dois (sem o proxy o backend nem conhece o grok-4).
-      const x = ctx.guideCtx().xai;
-      if (x.pronto !== true || x.loggedIn !== true) { const tab = ctx.active(); if (tab !== null) ctx.addNotice(tab, "Esta máquina ainda não tem o Grok preparado com a conta da xAI; faça os passos 1 e 2 do tutorial.", "warn"); return; }
-      void ctx.goToChatFromGuide("Oi! Qual modelo está respondendo agora? Uma linha.", "A conversa muda para o grok-4. Se a xAI responder, a pill do túnel mostra \"respondeu grok-4\" e o tutorial se conclui sozinho; se outro modelo responder, volte ao passo 2.", "grok-4");
-    }
-    else if (t.id === "ollama-local") {
+    if (t.id === "ollama-local") {
       if (ctx.guideCtx().ollama.status?.pronto !== true) { const tab = ctx.active(); if (tab !== null) ctx.addNotice(tab, "O modo grátis ainda não está pronto nesta máquina; faça o passo 2 do tutorial.", "warn"); return; }
       void ctx.goToChatFromGuide("Oi! Me responde em uma linha: quem é você?", "A conversa muda para o ollama-local. Quando a resposta do modelo instalado na máquina chegar, a pill do túnel mostra \"respondeu ollama-local\" e o tutorial se conclui sozinho.", "ollama-local");
     }
@@ -342,15 +336,6 @@ function renderGuide(t: Tutorial, panel: HTMLElement): void {
       manage.append(el("p", "hint strong-hint", "Suporte nesta máquina"));
       ctx.renderSupportParts(manage, ["name", "share", "delivery", "log"]);
       panel.append(manage);
-    } else if (t.id === "xai-login") {
-      const manage = el("div", "guide-manage");
-      manage.append(el("p", "hint strong-hint", "Conta da xAI nesta máquina"));
-      const row = el("div", "guide-note");
-      const swap = el("button", "btn btn-ghost btn-small", "Sair e entrar com outra conta"); swap.type = "button";
-      swap.addEventListener("click", () => ctx.armConfirm(swap, "Confirmar? o grok-4 para até entrar de novo", () => { void ctx.logoutXai(true); }));
-      row.append(`xAI (Grok) · ${ctx.xaiAuth?.email ?? "logada"}. `, swap);
-      manage.append(row, el("p", "hint", "Para o Grok assumir quando o Claude falhar: tutorial 5 · Fallback (em breve)."));
-      panel.append(manage);
     } else if (t.id === "claude-login") {
       const manage = el("div", "guide-manage");
       manage.append(el("p", "hint strong-hint", "Conta do Claude nesta máquina"));
@@ -427,7 +412,6 @@ export function openGuide(t: Tutorial): void {
   if (t.id === "guarda-whatsapp") void ctx.refreshGuarda();
   if (t.id === "navegador") { void ctx.refreshLicense().then(() => paintGuide()); void ctx.refreshNavInst(); }
   if (t.id === "crm-whatsapp" || t.id === "crm-gmail") { void ctx.refreshLicense().then(() => paintGuide()); void ctx.refreshCrm(); }
-  if (t.id === "xai-login") void ctx.refreshXaiLine();
   if (t.id === "whatsapp-grupos") void ctx.refreshWaGroups();
   if (t.id === "contas-cli") void ctx.refreshContas();
   if (t.id === "gmail") { void ctx.refreshLicense().then(() => paintGuide()); void ctx.refreshGmailGuia(); }
@@ -462,8 +446,6 @@ export async function resetTutorial(t: Tutorial): Promise<void> {
       await ctx.refreshWhatsapp();
     } else if (t.id === "claude-login") {
       await ctx.logoutClaude(false);
-    } else if (t.id === "xai-login") {
-      if (ctx.xaiAuth?.loggedIn === true) await ctx.logoutXai(false);
     } else if (t.id === "ollama-local") {
       await ctx.removerOllama(false);
     } else if (t.id === "whatsapp-objetivo") {

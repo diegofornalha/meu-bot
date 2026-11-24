@@ -5,7 +5,7 @@
  * sozinho pelo estado real da máquina (QR já lido = concluído). Puro: as regras ficam aqui, testáveis.
  */
 import type { ContaEstado, CrmLocal, ObjectiveInfo, OllamaStatus, QuickEntryStatus, StatusLineSegments, SupportInfo, WhatsappGroups, WhatsappStatus, CrmInfo, LinkPublicoInfo } from "../../shared/ipc";
-import { type FallbackProvider, primarioNaCorrente } from "./fallback.js";
+import { type FallbackProvider, primarioNaCorrente, temOutroModelo, outroModeloPronto } from "./fallback.js";
 import { grupoAlvo, nomeDoGrupo, quemEscolhido, quemResumo } from "./whatsapp-grupos.js";
 
 /**
@@ -18,11 +18,6 @@ export interface GuideContext {
   statusLine: { installed: boolean | null; limits: boolean; segments: StatusLineSegments | null };
   /** `contasExtras` = contas isoladas logadas (além do login da máquina); `trocas` = trocas automáticas já vistas (eventos). */
   claude: { loggedIn: boolean | null; email: string | null; /** Responde pelo Claude Code Global do admin (a sessão já existe). */ global: boolean; firstReply: boolean; contasExtras: number; trocas: number };
-  /**
-   * Grok pelo proxy local da máquina: `possible` = janela de máquina por SSH com o backend do meu-bot (false esconde o
-   * tutorial 4); `pronto` = proxy e providers.json preparados nesta conta; `loggedIn` = conta da xAI; `label` = rótulo da credencial.
-   */
-  xai: { possible: boolean | null; pronto: boolean | null; loggedIn: boolean | null; label: string | null };
   /** Guarda do WhatsApp: `possible` = o agente da máquina aceita a guarda (capacidade `guarda`; null = sem status ainda); `installed` = está lá? (null = não consultado). */
   guarda: { installed: boolean | null; possible: boolean | null };
   /** Tutorial 15: o agente da máquina aceita ligar/desligar o "digitando…" (capacidade `digitando`; null = sem status ainda). */
@@ -77,14 +72,13 @@ export interface GuideContext {
   known: Record<GuideSource, boolean>;
 }
 /** De onde vêm os fatos que concluem passos; cada tutorial declara as suas em `needs`. */
-export type GuideSource = "whatsapp" | "claude" | "statusline" | "xai" | "fallback" | "support" | "objective" | "guarda" | "navegador" | "crm" | "grupos" | "contas" | "linkpublico" | "quickentry" | "google" | "ollama";
-export const GUIDE_SOURCES: readonly GuideSource[] = ["whatsapp", "claude", "statusline", "xai", "fallback", "support", "objective", "guarda", "navegador", "crm", "grupos", "contas", "linkpublico", "quickentry", "google", "ollama"];
-const noneKnown = (): Record<GuideSource, boolean> => ({ whatsapp: false, claude: false, statusline: false, xai: false, fallback: false, support: false, objective: false, guarda: false, navegador: false, crm: false, grupos: false, contas: false, linkpublico: false, quickentry: false, google: false, ollama: false });
+export type GuideSource = "whatsapp" | "claude" | "statusline" | "fallback" | "support" | "objective" | "guarda" | "navegador" | "crm" | "grupos" | "contas" | "linkpublico" | "quickentry" | "google" | "ollama";
+export const GUIDE_SOURCES: readonly GuideSource[] = ["whatsapp", "claude", "statusline", "fallback", "support", "objective", "guarda", "navegador", "crm", "grupos", "contas", "linkpublico", "quickentry", "google", "ollama"];
+const noneKnown = (): Record<GuideSource, boolean> => ({ whatsapp: false, claude: false, statusline: false, fallback: false, support: false, objective: false, guarda: false, navegador: false, crm: false, grupos: false, contas: false, linkpublico: false, quickentry: false, google: false, ollama: false });
 export const emptyContext = (): GuideContext => ({
   support: null,
   statusLine: { installed: null, limits: false, segments: null },
   claude: { loggedIn: null, email: null, global: false, firstReply: false, contasExtras: 0, trocas: 0 },
-  xai: { possible: null, pronto: null, loggedIn: null, label: null },
   ollama: { possible: null, status: null },
   guarda: { installed: null, possible: null },
   digitando: { possible: null },
@@ -107,13 +101,13 @@ export const emptyContext = (): GuideContext => ({
 export type GuideTarget = "wa-line" | "wa-agent" | "wa-pair" | "wa-policy" | "chat" | "none";
 
 /** O que a pessoa marcou à mão (o app não tem como ver uma mensagem de teste chegar). */
-export interface GuideFlags { policyChosen: boolean; tested: boolean; statusTested: boolean; claudeSeen: boolean; grokReplied: boolean; fallbackChosen: boolean; fallbackSeen: boolean; guardaSeen: boolean; navAgentUsed: boolean; crmSeen: boolean; crmImportSeen: boolean; claudeReplied: boolean; gruposTested: boolean; githubPulado: boolean; cloudflareLogado: boolean; contasOrdemVista: boolean; contasTrocaVista: boolean; linkNomeVisto: boolean; quickUsado: boolean; digitandoVisto: boolean; gmailLido: boolean; gmailBuscou: boolean; gmailLixeira: boolean; ollamaReplied: boolean; /** Passos `lembrar` já vistos concluídos (fato que não se desfaz: abas fechadas não reabrem o tutorial). */ feitos?: string[]; number: string | null }
-export const emptyFlags = (): GuideFlags => ({ policyChosen: false, tested: false, statusTested: false, claudeSeen: false, grokReplied: false, fallbackChosen: false, fallbackSeen: false, guardaSeen: false, navAgentUsed: false, crmSeen: false, crmImportSeen: false, claudeReplied: false, gruposTested: false, githubPulado: false, cloudflareLogado: false, contasOrdemVista: false, contasTrocaVista: false, linkNomeVisto: false, quickUsado: false, digitandoVisto: false, gmailLido: false, gmailBuscou: false, gmailLixeira: false, ollamaReplied: false, number: null });
+export interface GuideFlags { policyChosen: boolean; tested: boolean; statusTested: boolean; claudeSeen: boolean; fallbackChosen: boolean; fallbackSeen: boolean; guardaSeen: boolean; navAgentUsed: boolean; crmSeen: boolean; crmImportSeen: boolean; claudeReplied: boolean; gruposTested: boolean; githubPulado: boolean; cloudflareLogado: boolean; contasOrdemVista: boolean; contasTrocaVista: boolean; linkNomeVisto: boolean; quickUsado: boolean; digitandoVisto: boolean; gmailLido: boolean; gmailBuscou: boolean; gmailLixeira: boolean; ollamaReplied: boolean; /** Passos `lembrar` já vistos concluídos (fato que não se desfaz: abas fechadas não reabrem o tutorial). */ feitos?: string[]; number: string | null }
+export const emptyFlags = (): GuideFlags => ({ policyChosen: false, tested: false, statusTested: false, claudeSeen: false, fallbackChosen: false, fallbackSeen: false, guardaSeen: false, navAgentUsed: false, crmSeen: false, crmImportSeen: false, claudeReplied: false, gruposTested: false, githubPulado: false, cloudflareLogado: false, contasOrdemVista: false, contasTrocaVista: false, linkNomeVisto: false, quickUsado: false, digitandoVisto: false, gmailLido: false, gmailBuscou: false, gmailLixeira: false, ollamaReplied: false, number: null });
 /**
- * Marcações que um passo pode pedir ("Testei, funcionou") ou que o app grava sozinho (`grokReplied`: resposta com
- * X-Provider grok-4; `fallbackChosen`: a pessoa escolheu o primário; `fallbackSeen`: uma resposta veio da reserva).
+ * Marcações que um passo pode pedir ("Testei, funcionou") ou que o app grava sozinho (`ollamaReplied`: resposta com
+ * X-Provider ollama-local; `fallbackChosen`: a pessoa escolheu o primário; `fallbackSeen`: uma resposta veio da reserva).
  */
-export type GuideFlagName = "policyChosen" | "tested" | "statusTested" | "claudeSeen" | "grokReplied" | "fallbackChosen" | "fallbackSeen" | "guardaSeen" | "navAgentUsed" | "crmSeen" | "crmImportSeen" | "claudeReplied" | "gruposTested" | "githubPulado" | "cloudflareLogado" | "contasOrdemVista" | "contasTrocaVista" | "linkNomeVisto" | "quickUsado" | "digitandoVisto" | "gmailLido" | "gmailBuscou" | "gmailLixeira" | "ollamaReplied";
+export type GuideFlagName = "policyChosen" | "tested" | "statusTested" | "claudeSeen" | "fallbackChosen" | "fallbackSeen" | "guardaSeen" | "navAgentUsed" | "crmSeen" | "crmImportSeen" | "claudeReplied" | "gruposTested" | "githubPulado" | "cloudflareLogado" | "contasOrdemVista" | "contasTrocaVista" | "linkNomeVisto" | "quickUsado" | "digitandoVisto" | "gmailLido" | "gmailBuscou" | "gmailLixeira" | "ollamaReplied";
 
 export interface GuideStep {
   id: string;
@@ -122,7 +116,7 @@ export interface GuideStep {
   text: string;
   target: GuideTarget;
   /** Corpo especial do passo no guia: cartões de quem responder, áudio, suporte ou a status line. */
-  body?: "contas-claude" | "agent-choice" | "reply-choice" | "support-name" | "support-switch" | "support-delivery" | "statusline-install" | "statusline-segments" | "statusline-test" | "claude-login" | "xai-prepare" | "xai-login" | "fallback-order" | "objective-choice" | "objective-level" | "objective-skill" | "guarda-install" | "digitando-escolher" | "navegador-pro" | "navegador-install" | "navegador-open" | "crm-pro" | "crm-install" | "crm-config" | "crm-test" | "crm-gmail" | "crm-importar" | "grupos-escolher" | "grupos-quem" | "grupos-modo" | "grupos-teste" | "crm-pipeline" | "cloudflare-entrar" | "conta-cloudflare" | "conta-github" | "link-publico-ver" | "link-publico-testar" | "link-publico-nome" | "quick-atalho" | "quick-testar" | "gmail-pro" | "gmail-conectar" | "gmail-ler" | "gmail-buscar" | "gmail-lixeira" | "ollama-check" | "ollama-prepare";
+  body?: "contas-claude" | "agent-choice" | "reply-choice" | "support-name" | "support-switch" | "support-delivery" | "statusline-install" | "statusline-segments" | "statusline-test" | "claude-login" | "fallback-order" | "objective-choice" | "objective-level" | "objective-skill" | "guarda-install" | "digitando-escolher" | "navegador-pro" | "navegador-install" | "navegador-open" | "crm-pro" | "crm-install" | "crm-config" | "crm-test" | "crm-gmail" | "crm-importar" | "grupos-escolher" | "grupos-quem" | "grupos-modo" | "grupos-teste" | "crm-pipeline" | "cloudflare-entrar" | "conta-cloudflare" | "conta-github" | "link-publico-ver" | "link-publico-testar" | "link-publico-nome" | "quick-atalho" | "quick-testar" | "gmail-pro" | "gmail-conectar" | "gmail-ler" | "gmail-buscar" | "gmail-lixeira" | "ollama-check" | "ollama-prepare";
   /** Concluído pelo estado real; `null` de status = ainda não consultado. */
   done: (status: WhatsappStatus | null, flags: GuideFlags, ctx: GuideContext) => boolean;
   /** Passo que a pessoa conclui com um botão no próprio cartão ("Testei, funcionou"). */
@@ -149,8 +143,9 @@ export interface Tutorial {
   id: string;
   /**
    * Número fixo do tutorial (o mesmo no app da pessoa, no admin e no GUIA), na ordem da trilha: o array é a ordem da
-   * lista, então os números sobem 1, 2, 3… sem buraco entre os que podem aparecer; os `oculto` ficam no fim (17, 18).
-   * Renumerados em 31 out e em 3 nov 2026 (mapas antigo → novo em docs/guia/app.md).
+   * lista, então os números sobem; os `oculto` ficam no fim (17, 18). Renumerados em 31 out e em 3 nov 2026 (mapas
+   * antigo → novo em docs/guia/app.md). O 4 ficou vago em nov 2026, quando o Grok saiu do app e virou módulo: os
+   * outros não foram renumerados, porque textos do app, da máquina e do guia citam os números.
    */
   number: number;
   title: string;
@@ -170,8 +165,8 @@ export interface Tutorial {
   oculto?: true;
   /** Só aparece quando o meu-bot veio com o pacote de suporte (e a janela é de máquina por SSH). */
   needsSupport?: true;
-  /** Só aparece onde o Grok é possível (máquina por SSH com o backend do meu-bot); some neste Mac. */
-  needsXai?: true;
+  /** Só onde a máquina tem outro modelo além do Claude (o modo grátis, o de um módulo); corrente não lida esconde. */
+  needsOutroModelo?: true;
   /** Só quando o CRM pelo Streak é o caminho (plano gratuito, ou motor Streak escolhido). */
   needsCrmStreak?: true;
   /** Só quando o CRM próprio no Gmail está liberado pela licença (plano Pro) e é o motor em uso. */
@@ -316,52 +311,23 @@ export const TUTORIAIS: readonly Tutorial[] = [
     steps: WHATSAPP_STEPS,
   },
   {
-    id: "xai-login",
-    number: 4,
-    needs: ["xai"],
-    after: "claude-login",
-    needsXai: true,
-    title: "Entrar na xAI (Grok)",
-    short: "Grok",
-    summary: "Com a conta da xAI logada nesta máquina, o modelo grok-4 responde e pode servir de reserva do Claude.",
-    minutes: 3,
-    icon: "chat",
-    reset: { what: "sai da conta da xAI nesta máquina (o proxy fica) e esquece a resposta de teste" },
-    steps: [
-      {
-        id: "preparar", title: "Preparar o Grok nesta máquina", target: "none", body: "xai-prepare",
-        text: "O grok-4 responde por um proxy local desta conta, com a sua conta da xAI. O app instala o proxy e aponta o backend para ele; na primeira vez pode levar alguns minutos.",
-        done: (_st, _f, c) => c.xai.pronto === true,
-      },
-      {
-        id: "entrar", title: "Entrar na conta da xAI", target: "none", body: "xai-login",
-        text: "Clique em Entrar: a página da xAI abre no navegador com um código já preenchido; você aprova por lá e volta. Aqui não há nada para colar.",
-        done: (_st, _f, c) => c.xai.pronto === true && c.xai.loggedIn === true,
-      },
-      {
-        id: "resposta", title: "Ver o grok-4 responder", target: "chat",
-        text: "Vá para a conversa: ela muda para o modelo grok-4 e manda uma mensagem; a resposta vem da xAI, e a pill do túnel mostra \"respondeu grok-4\".",
-        done: (_st, f, c) => c.xai.loggedIn === true && f.grokReplied,
-      },
-    ],
-  },
-  {
+    // Até nov 2026 este era "Fallback: Claude e Grok" e vinha depois do tutorial 4 (o login do Grok), que saiu do app com
+    // ele. Sem `after`: quem só tem o modo grátis (tutorial 16) chega aqui para deixá-lo de primário.
     id: "fallback-contas",
     number: 5,
-    needs: ["claude", "xai", "fallback"],
-    after: "xai-login",
-    needsXai: true,
-    title: "Fallback: Claude e Grok",
+    needs: ["fallback"],
+    needsOutroModelo: true,
+    title: "Fallback: primário e reserva",
     short: "Fallback",
-    summary: "Com as duas contas logadas nesta máquina, se uma falhar a outra responde. Escolha quem é o primário e quem é a reserva.",
+    summary: "Com mais de um modelo nesta máquina (o Claude e o modo grátis, ou o que um módulo traz), se um falhar o outro responde. Escolha quem é o primário e quem é a reserva.",
     minutes: 2,
     icon: "chat",
-    reset: { what: "esquece a escolha do primário e a reserva vista (as contas continuam logadas; o modelo padrão não muda)" },
+    reset: { what: "esquece a escolha do primário e a reserva vista (as contas e os modelos continuam; o modelo padrão não muda)" },
     steps: [
       {
-        id: "contas", title: "As duas contas nesta máquina", target: "none",
-        text: "O fallback precisa das duas contas logadas nesta máquina: Claude (tutorial 1) e xAI (tutorial 4). Se uma falhar antes de responder, a outra assume sem você fazer nada.",
-        done: (_st, _f, c) => c.claude.loggedIn === true && c.xai.loggedIn === true,
+        id: "contas", title: "Outro modelo pronto nesta máquina", target: "none",
+        text: "O fallback precisa de outro modelo além do Claude (tutorial 1) pronto nesta máquina: o modo grátis (tutorial 16) ou o que um módulo instalado traz. Se um falhar antes de responder, o outro assume sem você fazer nada.",
+        done: (_st, _f, c) => outroModeloPronto(c.fallback.chain),
       },
       {
         id: "ordem", title: "Escolher primário e reserva", target: "none", body: "fallback-order",
@@ -531,7 +497,6 @@ export const TUTORIAIS: readonly Tutorial[] = [
     number: 11,
     needs: ["contas"],
     after: "claude-login",
-    needsXai: true,
     title: "Conectar contas na máquina",
     short: "Contas",
     summary: "Um clique e a conta fica ligada na máquina: o agente passa a subir sites no Cloudflare e mexer no GitHub por você, sem terminal.",
@@ -563,7 +528,6 @@ export const TUTORIAIS: readonly Tutorial[] = [
     number: 12,
     needs: ["linkpublico"],
     after: "claude-login",
-    needsXai: true,
     needsLinkPublico: true,
     title: "Seu link público",
     short: "Link público",
@@ -688,7 +652,7 @@ export const TUTORIAIS: readonly Tutorial[] = [
     ],
   },
   {
-    // Modo grátis: o Ollama do meu-bot neste Mac (ollamaLocal.ts) ou na máquina por SSH (install-ollama.sh), para quem não tem Claude nem Grok. Sem `after`: é a
+    // Modo grátis: o Ollama do meu-bot neste Mac (ollamaLocal.ts) ou na máquina por SSH (install-ollama.sh), para quem não tem assinatura de IA. Sem `after`: é a
     // porta de entrada de quem respondeu "Não tenho nenhuma" na primeira abertura.
     id: "ollama-local",
     number: 16,
@@ -696,7 +660,7 @@ export const TUTORIAIS: readonly Tutorial[] = [
     needsOllama: true,
     title: "Modo grátis (Ollama)",
     short: "Modo grátis",
-    summary: "Sem assinatura de IA: um modelo roda na própria máquina (o seu Mac ou a máquina desta janela), de graça. Mais simples que Claude ou Grok, bom para conversar e testar o meu-bot.",
+    summary: "Sem assinatura de IA: um modelo roda na própria máquina (o seu Mac ou a máquina desta janela), de graça. Mais simples que o Claude, bom para conversar e testar o meu-bot.",
     minutes: 10,
     icon: "chat",
     reset: { what: "para o Ollama, tira o ollama-local do backend e apaga o programa e os modelos da pasta do meu-bot" },
@@ -905,16 +869,16 @@ export function guideView(t: Tutorial, status: WhatsappStatus | null, flags: Gui
 }
 
 /**
- * Os tutoriais desta janela: o do suporte só com o pacote de suporte disponível; o do Grok só onde ele é
- * possível, inclusive na máquina "local" (null = ainda não consultado = mostra); o da guarda só onde ela é possível (null = esconde); os da trilha (`after`) só depois que o anterior foi
+ * Os tutoriais desta janela: o do suporte só com o pacote de suporte disponível; o do fallback só onde a máquina tem
+ * outro modelo além do Claude (corrente não lida = esconde); o da guarda só onde ela é possível (null = esconde); os da trilha (`after`) só depois que o anterior foi
  * concluído (`finished` é do chamador: concluir depende de flags e da máquina). Um `after` escondido esconde
- * quem depende dele (o 6 some junto com o 5).
+ * quem depende dele.
  */
 export function visibleTutorials(ctx: GuideContext, finished: (t: Tutorial) => boolean = () => false): Tutorial[] {
   const visible = (t: Tutorial): boolean => {
     if (t.oculto === true) return false;
     if (t.needsSupport === true && ctx.support?.available !== true) return false;
-    if (t.needsXai === true && ctx.xai.possible === false) return false;
+    if (t.needsOutroModelo === true && !temOutroModelo(ctx.fallback.chain)) return false;
     if (t.needsLinkPublico === true && !ctx.linkPublicoPossivel) return false;
     if (t.needsCrmStreak === true && !ctx.produto.crmStreak) return false;
     if (t.needsCrmProprio === true && !ctx.produto.crmProprio) return false;

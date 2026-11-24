@@ -5,32 +5,29 @@ import { loginView, LOGIN_STEPS } from "../../dist/renderer/lib/login-steps.js";
 const ctx = { machine: "agente-box", running: true };
 const states = (v) => v.steps.map((s) => s.state);
 
-test("xAI: a sequência real vira passos; o código fica em destaque; o ruído do SSH some", () => {
-  const evs = [];
-  const at = () => loginView("xai", evs, ctx);
-  assert.equal(loginView("xai", [], { machine: "agente-box", running: false }).headline.startsWith("Abre o link da xAI"), true, "intro parada");
-  assert.deepEqual(states(at()), ["active", "pending", "pending", "pending"]);
-  evs.push({ kind: "log", text: "conectando a agente-box e pedindo o login da xAI" });
-  assert.deepEqual(states(at()), ["done", "active", "pending", "pending"]); assert.equal(at().headline, "Pedindo o login à xAI…");
-  evs.push({ kind: "url", url: "https://accounts.x.ai/device?code=VTSE-5Q48" }, { kind: "log", text: "código do dispositivo: VTSE-5Q48 (a página já vem com ele; confira e aprove)" });
-  let v = at(); assert.deepEqual(states(v), ["done", "done", "active", "pending"]); assert.equal(v.code, "VTSE-5Q48"); assert.match(v.headline, /aprove o dispositivo/);
-  evs.push({ kind: "log", text: "Waiting for approval (polling every 5s)..." });
-  v = at(); assert.equal(v.steps[2].detail, "Esperando você aprovar na página…");
-  evs.push({ kind: "log", text: 'Added xai-oauth OAuth credential #1: "xai-oauth-oauth-1"' }, { kind: "log", text: "Connection to 187.127.41.175 closed." });
-  v = at(); assert.deepEqual(states(v), ["done", "done", "done", "active"]); assert.equal(v.headline, "Aprovado! Guardando a credencial…");
-  assert.deepEqual(v.details, [], "nenhuma linha crua sobrou para a pessoa");
-  evs.push({ kind: "done", ok: true, text: "xAI logada nesta máquina (xai-oauth-oauth-1); o grok-4 já usa a conta nova." });
-  v = loginView("xai", evs, { ...ctx, running: false });
-  assert.deepEqual(states(v), ["done", "done", "done", "done"]); assert.equal(v.result, "ok"); assert.equal(v.code, null); assert.match(v.headline, /^✓ xAI logada/);
+test("Claude: parado mostra a intro com a máquina; começando, o primeiro passo fica em andamento", () => {
+  const parado = loginView("claude", [], { machine: "agente-box", running: false });
+  assert.match(parado.headline, /^Abre o link de autorização/); assert.match(parado.headline, /agente-box/);
+  assert.deepEqual(states(parado), ["pending", "pending", "pending", "pending"]);
+  assert.deepEqual(states(loginView("claude", [], ctx)), ["active", "pending", "pending", "pending"]);
 });
 
-test("xAI: falha marca o passo em andamento como falhou e guarda as linhas desconhecidas nos detalhes", () => {
-  const v = loginView("xai", [
-    { kind: "log", text: "conectando a colima e pedindo o login da xAI" },
-    { kind: "log", text: "hermes: command not found" },
-    { kind: "done", ok: false, text: "o login da xAI não concluiu (código 127)." },
+test("Claude: falha marca o passo em andamento como falhou; o ruído do SSH some e a linha desconhecida fica nos detalhes", () => {
+  const v = loginView("claude", [
+    { kind: "log", text: "conectando a colima e iniciando claude auth login" },
+    { kind: "log", text: "claude: command not found" },
+    { kind: "log", text: "Connection to 187.127.41.175 closed." },
+    { kind: "done", ok: false, text: "o login não concluiu (código 127)." },
   ], { machine: "colima", running: false });
-  assert.deepEqual(states(v), ["done", "bad", "pending", "pending"]); assert.equal(v.result, "fail"); assert.deepEqual(v.details, ["hermes: command not found"]);
+  assert.deepEqual(states(v), ["done", "bad", "pending", "pending"]); assert.equal(v.result, "fail"); assert.match(v.headline, /^✗ o login não concluiu/);
+  assert.deepEqual(v.details, ["claude: command not found"]);
+});
+
+test("código do dispositivo, quando o login traz um: fica em destaque e some depois de concluir", () => {
+  const evs = [{ kind: "log", text: "código do dispositivo: VTSE-5Q48 (a página já vem com ele; confira e aprove)" }];
+  assert.equal(loginView("claude", evs, ctx).code, "VTSE-5Q48");
+  assert.deepEqual(loginView("claude", evs, ctx).details, [], "a linha do código não vira detalhe cru");
+  assert.equal(loginView("claude", [...evs, { kind: "done", ok: true, text: "logado" }], { ...ctx, running: false }).code, null);
 });
 
 test("Claude: link → código → enviado → conferindo → logado", () => {
@@ -45,4 +42,5 @@ test("Claude: link → código → enviado → conferindo → logado", () => {
   v = loginView("claude", evs, { machine: "colima", running: false, codeSent: true });
   assert.deepEqual(states(v), ["done", "done", "done", "done"]);
   assert.equal(LOGIN_STEPS.claude.length, 4);
+  assert.deepEqual(Object.keys(LOGIN_STEPS), ["claude"], "o login da xAI saiu do app com o Grok");
 });

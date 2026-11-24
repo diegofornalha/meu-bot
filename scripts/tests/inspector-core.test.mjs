@@ -127,10 +127,10 @@ test("nada colide com os outros produtos: nome, bundleId, ícone, pasta de dados
   unico("nome", p.nome); unico("bundleId", p.bundleId); unico("icone", p.icone); unico("portaMcp", p.portaMcp);
   // userData null = a pasta padrão "meu-bot": compara pelo nome efetivo da pasta.
   unico("userData", p.userData, outros.map((x) => x.userData ?? "meu-bot"));
-  // Porta do backend local e a do proxy da xAI (100 abaixo): só entre os apps da pessoa, que abrem juntos (o admin não sobe backend local).
+  // Porta do backend local e a do Ollama do modo grátis (200 abaixo): só entre os apps da pessoa, que abrem juntos (o admin não sobe backend local).
   const pessoa = outros.filter((x) => x.caps.chat);
   unico("portaLocal", p.portaLocal, pessoa.map((x) => x.portaLocal));
-  unico("portaLocal", p.portaLocal - 100, pessoa.flatMap((x) => [x.portaLocal, x.portaLocal - 100, x.portaMcp]));
+  unico("portaLocal", p.portaLocal - 200, pessoa.flatMap((x) => [x.portaLocal, x.portaLocal - 200, x.portaMcp]));
   assert.deepEqual([p.portaLocal, p.portaMcp], [8793, 7835]);
   // E a tabela inteira continua sem repetição (a regra vale para o próximo produto também).
   for (const campo of ["nome", "bundleId", "icone", "portaMcp", "variant"]) { const vs = PRODUTOS.map((x) => x[campo]); assert.equal(new Set(vs).size, vs.length, `${campo} repetido na tabela`); }

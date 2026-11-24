@@ -19,7 +19,7 @@ async function backToChat(): Promise<Tab | null> {
 export async function goToChatFromGuide(message: string, hint: string, model?: BackendModel): Promise<void> {
   const tab = await backToChat();
   if (tab === null) return;
-  // Tutorial 4: a conversa passa a usar o grok-4 (o backend recebe a nota de troca de modelo, como pela paleta).
+  // Tutorial 16: a conversa passa a usar o modelo do passo (o backend recebe a nota de troca de modelo, como pela paleta).
   if (model !== undefined && tab.model !== model) { if (!ctx.prefersReducedMotion) ctx.showModeToast(model); ctx.setTabModel(tab, model); void window.meuBot.setConversationModel(tab.id, model); }
   if (ctx.inputEl.value.trim() === "") ctx.inputEl.value = message;
   ctx.addNotice(tab, `Vou enviar em 3, 2, 1 para você ver acontecendo (digitar ou Esc cancela; Enviar manda já). ${hint}`);

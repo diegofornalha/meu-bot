@@ -28,7 +28,6 @@ import { portaParaInstalar } from "../maquina/porta-backend-core";
 import { claudeAuthStatus } from "../agente/claudeLogin";
 import { closeTunnel } from "../maquina/tunnel";
 import { broadcast } from "../app/windows";
-import { xaiAuthInfo } from "../agente/xaiLogin";
 import { getBackendPort, getHostNames, isValidHost, setBackendPortForHost, settingsView } from "../app/settings";
 import { log } from "../maquina/backend";
 import net from "node:net";
@@ -451,16 +450,15 @@ export async function adminHealth(host: string): Promise<AdminHealth> {
     lida, aberturas,
     conta: await lerContaDoAdmin({ maquina: lida?.pistas.maquina ?? null, id: lida?.pistas.contaId ?? null, email: (aberturas ?? []).find((a) => a.conta !== "")?.conta ?? null }),
   }));
-  const [probe, wa, progress, xai, { lida, aberturas, conta }] = await Promise.all([
+  const [probe, wa, progress, { lida, aberturas, conta }] = await Promise.all([
     probeHost(host, getBackendPort(host)),
     share.whatsapp ? whatsappStatus(host).catch(() => null) : Promise.resolve(null),
     share.progress ? readProgress(host) : Promise.resolve(null),
-    xaiAuthInfo(host).catch(() => null),
     daConta,
   ]);
   const license = lida?.view ?? null;
   if (license !== null) rememberPlan(host, license.license.plan);
-  const h: AdminHealth = { probe, whatsapp: wa, progress, share, xai, license, aberturas, conta, ...(host === aliasDoEsteMac() ? { appsDoMac: await appsDoMac() } : {}) };
+  const h: AdminHealth = { probe, whatsapp: wa, progress, share, license, aberturas, conta, ...(host === aliasDoEsteMac() ? { appsDoMac: await appsDoMac() } : {}) };
   void enviarResumo(host, h);
   return h;
 }
@@ -614,7 +612,7 @@ export async function adminBotChats(host: string): Promise<BotChat[]> {
     echo
   done
 done
-# Diário do backend para provedores fora do Claude Code (Grok, Hermes): uma conversa por arquivo.
+# Diário do backend para provedores fora do Claude Code (os de módulo, o modo grátis, o Hermes): uma conversa por arquivo.
 for f in "${APP_CONVERSAS_DIR}"/*.jsonl; do
   [ -f "$f" ] || continue
   printf 'A\t%s\t%s\t%s\t%s\t' "$(basename "$f" .jsonl)" "$(stat -c %Y "$f")" "$(grep -o '"provider":"[^"]*"' "$f" | tail -n1 | cut -d'"' -f4)" "$(grep -c '"role":"assistant"' "$f")"

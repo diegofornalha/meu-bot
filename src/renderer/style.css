@@ -1030,7 +1030,7 @@ body.topbar-hidden .topbar { display: none; }
 .offline-bar { background: color-mix(in srgb, var(--warn) 18%, var(--card)); color: var(--fg); font-weight: 600; }
 .offline-bar .btn { font-weight: 600; }
 
-/* Login da xAI e do Claude como passo a passo (lib/login-steps.ts): bolinha por estado, código em destaque,
+/* Login como passo a passo (lib/login-steps.ts): bolinha por estado, código em destaque,
    detalhes técnicos recolhidos. O mesmo desenho no modal e no tutorial. */
 .login-steps-box { display: flex; flex-direction: column; gap: 10px; }
 .login-steps-box[hidden] { display: none; }

@@ -18,7 +18,7 @@ export const SHARED_CHANNELS = [
   "whatsapp:archive-crm",
   // grupos: ler, ligar/desligar o agente, quem aciona e reler a lista (a pessoa e o admin; mudanças na auditoria)
   "whatsapp:groups", "whatsapp:group-thread", "whatsapp:group-set", "whatsapp:groups-refresh", "ui:wa-group-menu",
-  "claude-login:auth", "xai-login:auth", "xai-key:status", "contas:status", "link-publico:status",
+  "claude-login:auth", "contas:status", "link-publico:status",
   // terminal na máquina da janela (os dois apps; no admin a pessoa vê no registro dela)
   "term:open", "term:input", "term:resize", "term:close", "term:replay",
   // atualização automática do próprio app
@@ -55,7 +55,6 @@ export const CLIENT_CHANNELS = [
   "claude-login:start", "claude-login:code", "claude-login:logout", "claude-login:cancel",
   // várias contas do Claude na máquina (rodízio no limite de uso)
   "contas-claude:listar", "contas-claude:criar", "contas-claude:entrar", "contas-claude:atualizar", "contas-claude:reordenar", "contas-claude:remover", "contas-claude:usar-agora", "contas-claude:conferir", "contas-claude:limiares",
-  "xai-login:prepare", "xai-login:start", "xai-login:logout", "xai-login:cancel",
   // modo grátis no Mac (tutorial 16): o Ollama do meu-bot
   "ollama:status", "ollama:prepare", "ollama:ligar", "ollama:remover",
   "contas:entrar", "contas:cancelar", "contas:sair", "contas:instalar-gh",

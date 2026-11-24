@@ -27,29 +27,37 @@ test("trilha numerada: números 1..N únicos na ordem; `after` aponta para um tu
   // na ordem da trilha (a lista aparece na ordem do array): os que podem entrar na lista são 1..16 (o 16, modo grátis,
   // entrou em 19 nov), sem buracos; os ocultos por decisão de produto ficam no fim (17 status line; 18 o CRM, em duas versões pela licença/motor, CRM no Gmail com o CRM próprio ou CRM pelo
   // Streak no resto, nunca juntas).
-  assert.deepEqual(TUTORIAIS.map((x) => x.number), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 18]);
-  assert.deepEqual(TUTORIAIS.filter((x) => x.oculto !== true).map((x) => x.number), Array.from({ length: 16 }, (_, i) => i + 1), "a lista sai 1, 2, 3… sem buraco");
+  // O 4 (entrar na xAI) saiu em nov 2026, quando o Grok virou módulo. Os outros NÃO foram renumerados: textos do app, da
+  // máquina (nivel-ferramentas.js cita o tutorial 7) e do guia citam os números. Fica o buraco no 4.
+  assert.deepEqual(TUTORIAIS.map((x) => x.number), [1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 18]);
+  assert.deepEqual(TUTORIAIS.filter((x) => x.oculto !== true).map((x) => x.number), [1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16], "a lista sai em ordem; só o 4 ficou vago");
+  // Nenhum tutorial que ficou mudou de id nem de número (o que a pessoa já concluiu, pulou ou viu é guardado pelo id).
+  assert.deepEqual(Object.fromEntries(TUTORIAIS.filter((x) => x.oculto !== true).map((x) => [x.id, x.number])), {
+    "claude-login": 1, "contas-claude": 2, "whatsapp-openclaw": 3, "fallback-contas": 5, suporte: 6, "whatsapp-objetivo": 7, "guarda-whatsapp": 8, navegador: 9,
+    "whatsapp-grupos": 10, "contas-cli": 11, "link-publico": 12, "entrada-rapida": 13, gmail: 14, "digitando-whatsapp": 15, "ollama-local": 16,
+  });
+  assert.equal(TUTORIAIS.some((x) => x.id === "xai-login"), false); assert.equal(tutorialNumber("xai-login"), null);
   for (let i = 1; i < TUTORIAIS.length; i++) assert.ok(TUTORIAIS[i - 1].number <= TUTORIAIS[i].number, `${TUTORIAIS[i].id} fora da ordem dos números`);
   for (const produto of [{ planoExigido: "free", crmProprio: false, crmStreak: true }, { planoExigido: "free", crmProprio: true, crmStreak: false }]) {
     const nums = visibleTutorials({ ...emptyContext(), produto }, () => true).map((x) => x.number);
     assert.deepEqual(nums, [...new Set(nums)], `números únicos no produto ${JSON.stringify(produto)}`);
   }
-  assert.deepEqual(TUTORIAIS.slice(0, 8).map((x) => x.id), ["claude-login", "contas-claude", "whatsapp-openclaw", "xai-login", "fallback-contas", "suporte", "whatsapp-objetivo", "guarda-whatsapp"]);
+  assert.deepEqual(TUTORIAIS.slice(0, 7).map((x) => x.id), ["claude-login", "contas-claude", "whatsapp-openclaw", "fallback-contas", "suporte", "whatsapp-objetivo", "guarda-whatsapp"]);
   for (const x of TUTORIAIS) if (x.after !== undefined) { const prev = byId(x.after); assert.ok(prev && prev.number < x.number, `${x.id} depois de ${x.after}`); }
   assert.deepEqual(TUTORIAIS.filter((x) => x.needsSupport).map((x) => x.id), ["suporte"]);
   assert.equal(tutorialNumber("statusline"), 17); assert.equal(tutorialNumber("nada"), null);
 });
 
-test("visibleTutorials: 2 e 4 só depois do 1 concluído; 5 só depois do 4; sem pré-requisito, some em vez de ir para arquivados", () => {
+test("visibleTutorials: o 2 só depois do 1 concluído; o 5 só onde há outro modelo além do Claude; sem pré-requisito, some em vez de ir para arquivados", () => {
   const ids = (finished) => visibleTutorials(emptyContext(), finished).map((x) => x.id);
   assert.deepEqual(ids(() => false), ["claude-login", "whatsapp-openclaw", "whatsapp-objetivo"]);
-  assert.deepEqual(ids((x) => x.id === "claude-login"), ["claude-login", "contas-claude", "whatsapp-openclaw", "xai-login", "whatsapp-objetivo", "navegador", "contas-cli", "link-publico", "entrada-rapida", "gmail"], "o 16 (status line) está oculto: o admin instala ao criar a conta");
+  assert.deepEqual(ids((x) => x.id === "claude-login"), ["claude-login", "contas-claude", "whatsapp-openclaw", "whatsapp-objetivo", "navegador", "contas-cli", "link-publico", "entrada-rapida", "gmail"], "o 16 (status line) está oculto: o admin instala ao criar a conta");
   assert.ok(!ids((x) => x.id === "claude-login" || x.id === "navegador").includes("crm-whatsapp"), "o 17 (CRM pelo Streak) está oculto, mesmo depois do 9 (Navegador)");
   assert.ok(!ids((x) => x.id === "claude-login" || x.id === "navegador").includes("crm-gmail"), "o CRM no Gmail só com o CRM próprio liberado pela licença");
   const crm = { ...emptyContext(), produto: { planoExigido: "free", crmProprio: true, crmStreak: false } };
   const idsCrm = visibleTutorials(crm, (x) => x.id === "claude-login" || x.id === "navegador").map((x) => x.id);
   assert.ok(!idsCrm.includes("crm-gmail") && !idsCrm.includes("crm-whatsapp"), "o 17 (CRM no Gmail) está oculto e, com o CRM próprio, o do Streak também não entra");
-  assert.ok(ids((x) => x.id === "claude-login" || x.id === "xai-login").includes("fallback-contas"));
+  assert.ok(!ids(() => true).includes("fallback-contas"), "corrente ainda não lida: o 5 não aparece (e não pisca)");
   assert.deepEqual(ids(), ids(() => false), "sem `finished`, nada da trilha destravado");
 });
 
@@ -85,43 +93,51 @@ test("tutorial 1 · Entrar no Claude Code: login → e-mail (ou \"Vi minha conta
   assert.equal(guideTabTitle(t1, guideView(t1, null, emptyFlags(), c({ loggedIn: true, email: "a@b" }))), "1 · Claude 2/3");
 });
 
-test("tutorial 4 · Entrar na xAI (Grok): preparar → entrar → grok-4 respondeu; some onde o Grok não é possível", () => {
-  const t4 = byId("xai-login");
-  assert.equal(t4.after, "claude-login"); assert.equal(t4.needsXai, true); assert.ok(t4.comingSoon !== true);
-  const c = (xai) => ({ ...emptyContext(), xai: { possible: null, pronto: null, loggedIn: null, label: null, ...xai } });
-  assert.equal(guideView(t4, null, emptyFlags(), c({})).current, 0, "não consultado: preparar");
-  assert.equal(guideView(t4, null, emptyFlags(), c({ pronto: false })).current, 0);
-  assert.equal(guideView(t4, null, emptyFlags(), c({ pronto: true, loggedIn: false })).current, 1, "proxy pronto: entrar");
-  assert.equal(guideView(t4, null, emptyFlags(), c({ pronto: false, loggedIn: true })).current, 0, "logada sem o proxy (Hermes global da máquina, conta sem preparo): volta ao preparar");
-  assert.equal(guideView(t4, null, emptyFlags(), c({ pronto: true, loggedIn: true })).current, 2, "logada: ver o grok-4 responder");
-  assert.equal(guideView(t4, null, { ...emptyFlags(), grokReplied: true }, c({ pronto: true, loggedIn: true })).finished, true);
-  assert.equal(guideView(t4, null, { ...emptyFlags(), grokReplied: true }, c({ pronto: true, loggedIn: false })).current, 1, "deslogou: volta a entrar");
-  assert.equal(t4.steps[0].body, "xai-prepare"); assert.equal(t4.steps[1].body, "xai-login"); assert.equal(t4.steps[2].target, "chat");
-  assert.equal(tutorialBadge(t4), "Tutorial 4 · 3 passos · 3 min");
-  assert.equal(guideTabTitle(t4, guideView(t4, null, emptyFlags(), c({ pronto: true }))), "4 · Grok 1/3");
-  const done1 = (x) => x.id === "claude-login";
-  const ids = (xai, fin = done1) => visibleTutorials(c(xai), fin).map((x) => x.id);
-  assert.ok(ids({ possible: null }).includes("xai-login"), "sem consultar ainda, mostra");
-  assert.ok(ids({ possible: true }).includes("xai-login"));
-  assert.ok(!ids({ possible: false }).includes("xai-login"), "este Mac / sem backend: some");
-  assert.ok(!ids({ possible: false }, (x) => x.id === "claude-login" || x.id === "xai-login").includes("fallback-contas"), "o 5 some junto com o 4");
-  assert.ok(ids({ possible: true }, (x) => x.id === "claude-login" || x.id === "xai-login").includes("fallback-contas"));
-});
-
-test("tutorial 5 · Fallback: duas contas → escolher primário → ver a reserva assumir (ou \"Entendi\")", () => {
+test("tutorial 5 · Fallback: outro modelo pronto → escolher primário → ver a reserva assumir (ou \"Entendi\"); sem depender de conta de fora", () => {
   const t5 = byId("fallback-contas");
-  assert.equal(t5.after, "xai-login"); assert.equal(t5.needsXai, true); assert.ok(t5.comingSoon !== true, "não é mais 'em breve'");
-  const chain = [{ name: "agente", available: true }, { name: "grok-4", available: true }];
-  const c = (over) => ({ ...emptyContext(), claude: { loggedIn: true, email: "a@b", firstReply: true }, xai: { possible: true, pronto: true, loggedIn: true, label: "x" }, fallback: { primary: "agente", chain }, ...over });
-  assert.equal(guideView(t5, null, emptyFlags(), c({ xai: { possible: true, pronto: true, loggedIn: false, label: null } })).current, 0, "sem a xAI: passo 1");
-  assert.equal(guideView(t5, null, emptyFlags(), c({ claude: { loggedIn: false, email: null, firstReply: false } })).current, 0, "sem o Claude: passo 1");
-  assert.equal(guideView(t5, null, emptyFlags(), c({})).current, 1, "duas contas: escolher");
+  assert.equal(t5.number, 5); assert.equal(t5.after, undefined, "não vem depois de nenhum outro: o modo grátis chega aqui sem o Claude");
+  assert.equal(t5.needsOutroModelo, true); assert.deepEqual(t5.needs, ["fallback"]); assert.ok(t5.comingSoon !== true);
+  assert.deepEqual(t5.steps.map((x) => x.id), ["contas", "ordem", "reserva"], "os passos guardam os ids de antes");
+  assert.doesNotMatch(JSON.stringify([t5.title, t5.summary, t5.steps.map((x) => [x.title, x.text])]), /Grok|xAI|tutorial 4/);
+  // Um provedor de módulo (nome neutro) ao lado do Claude.
+  const chain = [{ name: "agente", available: true }, { name: "nuvem", available: true, rotulo: "Nuvem" }];
+  const c = (over) => ({ ...emptyContext(), claude: { loggedIn: true, email: "a@b", firstReply: true }, fallback: { primary: "agente", chain }, ...over });
+  assert.equal(guideView(t5, null, emptyFlags(), c({ fallback: { primary: "agente", chain: [{ name: "agente", available: true }, { name: "nuvem", available: false }] } })).current, 0, "o outro modelo ainda não responde: passo 1");
+  assert.equal(guideView(t5, null, emptyFlags(), c({})).current, 1, "outro modelo pronto: escolher");
+  assert.equal(guideView(t5, null, emptyFlags(), c({ claude: { loggedIn: false, email: null, firstReply: false } })).current, 1, "sem o Claude logado também se escolhe (é o caso do modo grátis)");
   assert.equal(guideView(t5, null, { ...emptyFlags(), fallbackChosen: true }, c({ fallback: { primary: "claudecode", chain } })).current, 1, "primário fora da corrente não conta");
-  assert.equal(guideView(t5, null, { ...emptyFlags(), fallbackChosen: true }, c({ fallback: { primary: "grok-4", chain } })).current, 2, "escolheu grok-4: ver a reserva");
+  assert.equal(guideView(t5, null, { ...emptyFlags(), fallbackChosen: true }, c({ fallback: { primary: "nuvem", chain } })).current, 2, "escolheu o outro modelo: ver a reserva");
   assert.equal(guideView(t5, null, { ...emptyFlags(), fallbackChosen: true, fallbackSeen: true }, c({})).finished, true);
   assert.equal(t5.steps[1].body, "fallback-order"); assert.deepEqual(t5.steps[2].manual, { label: "Entendi como funciona", flag: "fallbackSeen" });
   assert.equal(tutorialBadge(t5), "Tutorial 5 · 3 passos · 2 min");
-  // a linha da corrente, igual em Configurações e no guia
+  // Visível só com outro modelo na corrente; nada concluído antes é exigido.
+  const ids = (cadeia) => visibleTutorials({ ...emptyContext(), fallback: { primary: "agente", chain: cadeia } }, () => false).map((x) => x.id);
+  assert.ok(ids(chain).includes("fallback-contas"));
+  assert.ok(!ids(null).includes("fallback-contas"), "corrente não lida: esconde");
+  assert.ok(!ids([{ name: "agente", available: true }]).includes("fallback-contas"), "só o Claude: não há o que escolher");
+  assert.ok(!ids([{ name: "agente", available: true }, { name: "rene", available: true }]).includes("fallback-contas"), "perfis do Claude não são outro modelo");
+});
+
+test("o seletor de primário e reserva (tutorial 5) é alcançável só com o modo grátis: ollama-local na corrente, sem Claude e sem xAI", () => {
+  const t5 = byId("fallback-contas");
+  const chain = [{ name: "agente", available: false }, { name: "ollama-local", available: true }];
+  const ctx = { ...emptyContext(), claude: { ...emptyContext().claude, loggedIn: false }, ollama: { possible: true, status: null }, fallback: { primary: "ollama-local", chain } };
+  assert.ok(visibleTutorials(ctx, () => false).some((x) => x.id === "fallback-contas"), "aparece sem nenhum outro tutorial concluído");
+  const v = guideView(t5, null, emptyFlags(), ctx);
+  assert.equal(v.current, 1, "o passo 1 já está feito: o passo atual é o do seletor");
+  assert.equal(t5.steps[v.current].body, "fallback-order");
+  assert.equal(guideView(t5, null, { ...emptyFlags(), fallbackChosen: true }, ctx).current, 2, "ollama-local escolhido como primário conta");
+  // Flags e lembranças de quando o tutorial 4 existia não quebram nada: campo a mais é ignorado.
+  assert.equal(guideView(t5, null, { ...emptyFlags(), grokReplied: true, fallbackChosen: true, fallbackSeen: true }, ctx).finished, true);
+  assert.equal(tutorialState(t5, null, emptyFlags(), ctx, true), "done", "quem concluiu com o Grok continua com ele concluído");
+});
+
+test("o Grok saiu do app: nenhum tutorial depende dele, e os que ele escondia (11 e 12) aparecem sem xAI", () => {
+  assert.equal(GUIDE_SOURCES.includes("xai"), false); assert.equal("xai" in emptyContext(), false); assert.equal("grokReplied" in emptyFlags(), false);
+  for (const tut of TUTORIAIS) { assert.equal(tut.needsXai, undefined, tut.id); assert.notEqual(tut.after, "xai-login", tut.id); assert.ok(!tut.needs.includes("xai"), tut.id); }
+  const vis = visibleTutorials(emptyContext(), (x) => x.id === "claude-login").map((x) => x.id);
+  assert.ok(vis.includes("contas-cli") && vis.includes("link-publico"), "com o 1 concluído, o 11 e o 12 aparecem");
+  assert.ok(visibleTutorials(emptyContext(), () => true).every((x) => x.id !== "xai-login"));
 });
 
 test("tutorial 8 · Guarda do WhatsApp: depois do 3; ativa → entendi", () => {
@@ -336,7 +352,7 @@ test("passos que são fatos (abriu um site, viu o Gmail, o agente respondeu no g
   for (const [tut, passo] of [["crm-gmail", "gmail"], ["statusline", "limites"], ["whatsapp-grupos", "teste"]]) assert.equal(byId(tut).steps.find((s) => s.id === passo).lembrar, true, `${tut}/${passo}`);
 });
 
-test("tutorial 11 · contas: entrar no Cloudflare, Cloudflare conectado; GitHub conectado ou \"Não uso GitHub\"; some neste Mac", () => {
+test("tutorial 11 · contas: entrar no Cloudflare, Cloudflare conectado; GitHub conectado ou \"Não uso GitHub\"; aparece depois do 1", () => {
   const t = byId("contas-cli");
   const c = (contas) => ({ ...emptyContext(), contas });
   const cf = (conectado) => ({ id: "cloudflare", presente: true, conectado, conta: conectado ? "a@b" : null, amplo: false });
@@ -348,12 +364,13 @@ test("tutorial 11 · contas: entrar no Cloudflare, Cloudflare conectado; GitHub 
   assert.equal(guideView(t, null, { ...emptyFlags(), githubPulado: true }, c([cf(true), gh(false)])).finished, true);
   assert.equal(guideView(t, null, emptyFlags(), c([cf(true), gh(true)])).finished, true);
   assert.deepEqual(t.steps.map((s) => s.body), ["cloudflare-entrar", "conta-cloudflare", "conta-github"]);
-  const mac = { ...emptyContext(), xai: { possible: false, pronto: null, loggedIn: null, label: null } };
-  assert.ok(!visibleTutorials(mac, () => true).some((x) => x.id === "contas-cli"), "só em máquina por SSH");
+  assert.equal(t.needsXai, undefined); assert.equal(t.after, "claude-login");
+  assert.ok(visibleTutorials(emptyContext(), () => true).some((x) => x.id === "contas-cli"), "aparece depois do 1, sem depender da xAI");
+  assert.ok(!visibleTutorials(emptyContext(), () => false).some((x) => x.id === "contas-cli"), "antes do 1, não");
 });
 
 test("parseTutPulados: só ids válidos, sem repetir; lixo vira vazio", () => {
-  assert.deepEqual([...parseTutPulados('["fallback-contas","xai-login","fallback-contas","X Y",3]')], ["fallback-contas", "xai-login"]);
+  assert.deepEqual([...parseTutPulados('["fallback-contas","xai-login","fallback-contas","X Y",3]')], ["fallback-contas", "xai-login"], "id de tutorial que saiu fica na lista sem efeito");
   assert.equal(parseTutPulados(null).size, 0); assert.equal(parseTutPulados("").size, 0);
   assert.equal(parseTutPulados("lixo").size, 0); assert.equal(parseTutPulados('{"a":1}').size, 0);
 });
@@ -393,11 +410,9 @@ test("tutorial 3 (WhatsApp): o passo do agente, concluído, tem \"Trocar\" (esco
   assert.equal(escolher.resumo(emptyContext(), { escolha: "hermes" }), "Agente: Hermes");
 });
 
-test("tutorial 12 (link público): só em máquina por SSH; ligado pelo admin → passo 1; algo no ar → passo 2; nome trocado ou \"deixar como está\" → concluído", () => {
+test("tutorial 12 (link público): só na conta que pode ter link; ligado pelo admin → passo 1; algo no ar → passo 2; nome trocado ou \"deixar como está\" → concluído", () => {
   const t = byId("link-publico");
-  assert.equal(t.number, 12); assert.deepEqual(t.needs, ["linkpublico"]); assert.equal(t.after, "claude-login"); assert.equal(t.needsXai, true);
-  const mac = { ...emptyContext(), xai: { ...emptyContext().xai, possible: false } };
-  assert.ok(!visibleTutorials(mac, () => true).some((x) => x.id === "link-publico"), "só em máquina por SSH");
+  assert.equal(t.number, 12); assert.deepEqual(t.needs, ["linkpublico"]); assert.equal(t.after, "claude-login"); assert.equal(t.needsXai, undefined); assert.equal(t.needsLinkPublico, true);
   assert.ok(!visibleTutorials({ ...emptyContext(), linkPublicoPossivel: false }, () => true).some((x) => x.id === "link-publico"), "na janela do root não aparece: o link é das contas de usuário");
   assert.ok(visibleTutorials(emptyContext(), () => true).some((x) => x.id === "link-publico"));
   const ctx = (lp) => ({ ...emptyContext(), linkPublico: lp, known: { ...emptyContext().known, linkpublico: true } });

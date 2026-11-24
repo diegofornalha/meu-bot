@@ -157,11 +157,12 @@ test("removerBlocoUsuario: tira só o bloco do admin (marca + Host + indentadas)
   assert.equal(removerBlocoUsuario(antes, "meu-root-ana").removido, false);
 });
 
-test("usuários: Hermes para todos na mesma versão do install-grok-oauth.sh, com atalho legível e git liberado", async () => {
+test("usuários: Hermes para todos na versão fixada dos motores (motor-versoes.sh), com atalho legível e git liberado", async () => {
   const { hermesGlobalSh, HERMES_VERSAO, lerUsuarios: ler, LISTAR_SH: listar } = createRequire(import.meta.url)("../../dist/main/admin/usuarios-core.js");
   const { readFileSync } = await import("node:fs");
-  const grok = readFileSync(new URL("../../backend-colima/install-grok-oauth.sh", import.meta.url), "utf8");
-  assert.equal(/^HERMES_VERSION=(\S+)$/m.exec(grok)?.[1], HERMES_VERSAO);
+  const versoes = readFileSync(new URL("../../backend-colima/motor-versoes.sh", import.meta.url), "utf8");
+  assert.equal(/^HERMES_VERSAO=(\S+)$/m.exec(versoes)?.[1], HERMES_VERSAO);
+  assert.match(HERMES_VERSAO, /^\d+\.\d+\.\d+$/);
   const sh = hermesGlobalSh();
   assert.match(sh, /npm install -g --prefix "\$D" "hermes-agent@\$V"/);
   assert.match(sh, /chmod -R a\+rX "\$D"/);

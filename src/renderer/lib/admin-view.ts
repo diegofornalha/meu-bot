@@ -62,9 +62,6 @@ export function healthLines(h: AdminHealth, fmtPhone: (digits: string | null) =>
     { text: p.reachable ? `entra por SSH (${p.user ?? "?"} · ${p.os ?? "?"})` : `não entra por SSH: ${p.error ?? "sem detalhes"}`, ok: p.reachable },
     h.appsDoMac !== undefined ? linhaAppsDoMac(h.appsDoMac) : { text: p.backendListening ? "backend do meu-bot no ar" : p.backendInstalled ? "backend instalado mas parado" : "sem o backend do meu-bot", ok: p.backendListening },
     { text: p.claudeLoggedIn ? "Claude Code logado" : "Claude Code deslogado", ok: p.claudeLoggedIn },
-    h.xai === null ? { text: "xAI (Grok): não preparada nesta máquina", ok: null }
-      : h.xai.loggedIn ? { text: `xAI (Grok) logada${h.xai.email !== null ? ` (${h.xai.email})` : ""}`, ok: true }
-        : { text: "xAI (Grok) deslogada: o grok-4 não responde", ok: false },
     p.statusLine ? { text: "status line instalada", ok: true }
       : p.statusLineAlheia === true ? { text: "status line de outra origem: aparece no terminal, mas os limites do Claude não chegam ao meu-bot", ok: null }
         : { text: "sem status line", ok: false },

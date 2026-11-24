@@ -7,7 +7,7 @@
  */
 import type { BotChat, ClaudeSessionRef, WhatsappChat, WhatsappGroup } from "../../shared/ipc";
 
-/** Conversa dela com o meu-bot vista no espelho do admin: o .jsonl do Claude Code, ou o diário do backend (Grok/Hermes). */
+/** Conversa dela com o meu-bot vista no espelho do admin: o .jsonl do Claude Code, ou o diário do backend (provedores fora do Claude Code). */
 export const botReferenceText = (chat: Pick<BotChat, "project" | "sessionId"> & { source?: BotChat["source"] }, machine: string): string =>
   chat.source === "app"
     ? `meu-bot · ${machine} · ~/.local/share/meu-bot/conversas/${chat.sessionId}.jsonl`
@@ -16,7 +16,7 @@ export const botReferenceText = (chat: Pick<BotChat, "project" | "sessionId"> & 
 /** Caminho absoluto da máquina (vem do backend) encurtado para ~ quando está na home. */
 const tildify = (file: string): string => file.replace(/^\/root(?=\/)/, "~").replace(/^\/(?:home|Users)\/[^/]+(?=\/)/, "~");
 
-/** Modelos que rodam pelo Claude Code na máquina (e por isso têm um .jsonl lá); os outros (Grok, Hermes) só existem no app. */
+/** Modelos que rodam pelo Claude Code na máquina (e por isso têm um .jsonl lá); os outros (os de módulo, o modo grátis) só existem no app. */
 const CLAUDE_MODELS = new Set(["claudecode", "agente"]);
 /**
  * Conversa deste app: a sessão do Claude Code quando o backend já a conhece; senão, o id do app, dizendo por quê:
