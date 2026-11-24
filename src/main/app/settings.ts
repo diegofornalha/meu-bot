@@ -11,7 +11,7 @@ import {
  normalizeFavoritos, mesclarCamposPerdidos, type NavFavoritoItem } from "./settings-normalize";
 import { compareVersions } from "../atualizacao/updater-core";
 
-export { BACKEND_MODELS, isBackendModel, isValidHost } from "./settings-normalize";
+export { isBackendModel, isValidHost } from "./settings-normalize";
 
 let quickEntryStatusProvider: () => QuickEntryStatus = () => "disabled";
 export const setQuickEntryStatusProvider = (fn: () => QuickEntryStatus): void => { quickEntryStatusProvider = fn; };

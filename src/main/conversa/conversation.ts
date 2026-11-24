@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { ClaudeSessionRef, BackendModel, WhatsappOrigin, WhatsappThreadMessage } from "../../shared/ipc";
 import { getBackendModel, getLastHost, isBackendModel, isValidHost } from "../app/settings";
+import { trocaPendente } from "../../shared/modelos";
 import { LOCAL_HOST } from "../maquina/localBackend";
 import { nextOrderAmong, reorderWithin } from "./order";
 import type { SummaryState } from "./context";
@@ -226,10 +227,8 @@ export function setConversationModel(id: string, model: BackendModel): void {
   if (conv === undefined || !isBackendModel(model)) return;
   if (conv.model === model) return;
   // Com histórico, o próximo turno avisa o novo modelo de quem respondeu antes (senão ele assume que foi ele).
-  if (conv.backendMessages.length > 0) {
-    const from = conv.pendingSwitch?.from ?? conv.model;
-    if (from === model) delete conv.pendingSwitch; else conv.pendingSwitch = { from, to: model };
-  }
+  const troca = trocaPendente(conv.model, model, conv.pendingSwitch, conv.backendMessages.length > 0);
+  if (troca === undefined) delete conv.pendingSwitch; else conv.pendingSwitch = troca;
   conv.model = model;
   persistConversations();
 }

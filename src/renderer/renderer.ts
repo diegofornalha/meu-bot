@@ -22,7 +22,7 @@ import { ID_INFO_TEXT, ID_INFO_TITLE, infoBalloon } from "./lib/info-balloon.js"
 import { GUIDE_ACTION_LABEL, TUTORIAIS, emptyFlags, guideTabTitle, parseTutMemory, parseTutPulados, sidebarBadge, tutorialState, tutorialBadge, visibleTutorials, type GuideContext, type GuideFlagName, type GuideFlags, type GuideTarget, type Tutorial, type TutorialState } from "./lib/tutoriais.js";
 import { REPLY_NOTE, REPLY_OPTIONS, listedNumbers, parseWaNumbers, replyChoiceOf } from "./lib/whatsapp-resposta.js";
 import { GRUPOS_AVISO, GRUPOS_QUEM_NOTA, grupoAlvo, quemEscolhido } from "./lib/whatsapp-grupos.js";
-import { FALLBACK_PRIMARIES, fallbackOrderText } from "./lib/fallback.js";
+import { matizDoModelo, modelosDaMaquina, rotuloDoModelo } from "../shared/modelos.js";
 import { LEVEL_OPTIONS, OBJECTIVE_OPTIONS } from "./lib/objetivo.js";
 import { renderMarkdown } from "./lib/markdown.js";
 import { MODELOS_PIPELINE, etapasDoTexto, validarPipeline } from "./lib/crm-modelos.js";
@@ -97,7 +97,7 @@ import type { CotaInfo } from "../shared/ipc";
 // Getters preguiçosos: valem a partir do momento em que o nome já existiria aqui.
 const ctxImpl = {
   get abrirLinkDoChat() { return abrirLinkDoChat; },
-  get account() { return account; }, set account(v) { account = v; },
+  get account() { return account; }, set account(v) { account = v; syncModelos(); },
   get acervoPage() { return acervoPage; },
   get activate() { return activate; },
   get activatePage() { return activatePage; },
@@ -507,9 +507,7 @@ function syncComposer(): void {
   sendBtn.classList.toggle("is-done", phase === "done");
   sendBtn.classList.toggle("shine", tab !== null && phase === "idle" && inputEl.value.trim().length >= 2);
   modelSelect.disabled = tab === null;
-  applyModelAvailability(modelSelect, tab === null ? null : tab.host);
-  if (tab !== null) modelSelect.value = tab.model;
-  paintModeButton();
+  syncModelos();
   keyPill.textContent = tab === null ? "backend" : `backend · ${tab.model}`;
   hostPill.textContent = `máquina: ${hostLabel(windowHost)}`;
   paintStatus(windowHost);
@@ -700,10 +698,35 @@ function refreshTabBadges(): void {
 
 /** Modelos anunciados por cada host (preenchido pela sondagem das Configurações). */
 const hostModels = new Map<string, string[]>();
+/**
+ * As opções do <select> que não estão no index.html: um provedor que o backend desta máquina informa (do providers.json
+ * ou de um módulo) vira modelo escolhível, com o rótulo dele. As fixas (perfis do Claude, modo grátis) ficam como estão.
+ */
+function syncProviderOptions(select: HTMLSelectElement, host: string | null): void {
+  const fixas = new Set([...select.options].filter((o) => o.dataset["provedor"] === undefined).map((o) => o.value));
+  const modelos = modelosDaMaquina({ provedores: account?.providers ?? null, anunciados: host === null ? [] : hostModels.get(host) ?? [], atual: active()?.model ?? null }).filter((m) => !fixas.has(m.nome));
+  for (const o of [...select.options]) if (o.dataset["provedor"] !== undefined && !modelos.some((m) => m.nome === o.value)) o.remove();
+  const depois = [...select.options].find((o) => o.value === "ollama-local") ?? null;
+  for (const m of modelos) {
+    let o = [...select.options].find((x) => x.value === m.nome);
+    if (o === undefined) { o = document.createElement("option"); o.value = m.nome; o.dataset["provedor"] = "1"; select.insertBefore(o, depois); }
+    o.disabled = !m.disponivel;
+    o.textContent = `${m.rotulo !== m.nome ? `${m.rotulo} · ${m.nome}` : m.nome}${m.disponivel ? "" : " · não existe nesta máquina"}`;
+  }
+}
+/** A lista de modelos e o botão de modo acompanham a conversa ativa e a conta (os provedores chegam com o /status), sem mexer no foco. */
+function syncModelos(): void {
+  const tab = active();
+  applyModelAvailability(modelSelect, tab === null ? null : tab.host);
+  if (tab !== null) modelSelect.value = tab.model;
+  paintModeButton();
+}
 /** Desabilita no <select> os modelos que o host não oferece; host nunca sondado deixa tudo liberado. */
 function applyModelAvailability(select: HTMLSelectElement, host: string | null): void {
+  syncProviderOptions(select, host);
   const avail = host === null ? undefined : hostModels.get(host);
   for (const opt of select.options) {
+    if (opt.dataset["provedor"] !== undefined) continue; // quem diz se responde é o /status, não a sondagem da abertura
     // O ollama-local segue o estado do Ollama, não a sondagem (que é anterior à instalação dele).
     if (opt.value === "ollama-local") {
       const o = ollamaNoMenu(active()?.model === "ollama-local");
@@ -1062,7 +1085,7 @@ function paintModeButton(): void {
   icon.removeAttribute("class");
   modeIcon.replaceChildren(icon);
   // A cor do modo vive no anel do botão; o mascote fica na cor do texto, para contrastar no escuro.
-  modeBtn.style.setProperty("--hue", String(MODE_HUE[modelSelect.value] ?? 220));
+  modeBtn.style.setProperty("--hue", String(matizDoModelo(modelSelect.value)));
   modeBtn.title = `Modo do agente nesta conversa: ${text}`;
   modeBtn.disabled = modelSelect.disabled;
 }
@@ -1084,7 +1107,6 @@ document.addEventListener("click", (ev) => { if (!modeMenu.hidden && !(ev.target
 
 const modeToast = $<HTMLElement>("mode-toast");
 let modeToastTimer: ReturnType<typeof setTimeout> | null = null;
-const MODE_HUE: Record<string, number> = { agente: 145, claudecode: 220, "grok-4": 40, "ollama-local": 190, "rene-dm": 330, rene: 270 };
 /** Toast de modo (shot "telegram-copy-link-toast"): sobe acima da caixa com mola, o mascote-ícone nasce girando na cor do modo e pisca, e sai descendo 2 s depois. */
 function showModeToast(model: string): void {
   const opt = [...modelSelect.options].find((o) => o.value === model);
@@ -1092,7 +1114,7 @@ function showModeToast(model: string): void {
   const [name, ...rest] = label.split(" · ");
   const tpl = $<HTMLTemplateElement>("intro-mascot-tpl");
   const icon = (tpl.content.firstElementChild as SVGSVGElement).cloneNode(true) as SVGSVGElement;
-  icon.removeAttribute("class"); icon.style.setProperty("--hue", String(MODE_HUE[model] ?? 220));
+  icon.removeAttribute("class"); icon.style.setProperty("--hue", String(matizDoModelo(model)));
   modeToast.querySelector(".mt-icon")?.replaceChildren(icon);
   const nameEl = modeToast.querySelector(".mt-name"); if (nameEl !== null) nameEl.textContent = `modo ${name ?? model}`;
   const descEl = modeToast.querySelector(".mt-desc"); if (descEl !== null) descEl.textContent = rest.join(" · ");
@@ -1242,8 +1264,11 @@ function buildPaletteItems(): PaletteItem[] {
     add({ id: "a:export-json", kind: "action", label: "Exportar conversa atual em JSON" }, () => exportConversation(cur.id, "json"));
     add({ id: "a:archive", kind: "action", label: "Arquivar conversa atual" }, () => archive(cur.id, true));
     add({ id: "a:close", kind: "action", label: "Fechar aba atual", detail: "Cmd+W" }, () => closeTab(cur.id));
-    for (const m of ["claudecode", "agente", "rene-dm", "rene", "grok-4", "ollama-local"] as const) {
-      add({ id: `a:model:${m}`, kind: "action", label: `Usar modelo ${m} nesta conversa` }, () => { if (cur.model !== m && !prefersReducedMotion) showModeToast(m); setTabModel(cur, m); void window.meuBot.setConversationModel(cur.id, m); });
+    // Os mesmos modelos do menu de modos: os fixos e os provedores que a máquina informa (um que ela não tem mais fica de fora).
+    for (const opt of modelSelect.options) {
+      if (opt.dataset["provedor"] !== undefined && opt.disabled) continue;
+      const m = opt.value;
+      add({ id: `a:model:${m}`, kind: "action", label: `Usar modelo ${rotuloDoModelo(m, account?.providers ?? null)} nesta conversa`, ...(rotuloDoModelo(m, account?.providers ?? null) !== m ? { keywords: [m] } : {}) }, () => { if (cur.model !== m && !prefersReducedMotion) showModeToast(m); setTabModel(cur, m); void window.meuBot.setConversationModel(cur.id, m); });
     }
   }
   for (const c of index.values()) {
@@ -1352,7 +1377,7 @@ function iconButton(action: string, label: string, iconPath: string): HTMLButton
 }
 
 /** Mensagem com índice no histórico e ações no hover (Copiar, Ramificar daqui). */
-/** Rótulo "quem respondeu" no pé da bolha do assistente (grok-4; ou "respondeu grok-4 (fallback de agente)", em aviso). */
+/** Rótulo "quem respondeu" no pé da bolha do assistente (o nome do provedor; ou "respondeu X (fallback de agente)", em aviso). */
 function paintProviderLabel(node: HTMLElement, model: string, provider: string | undefined, fallback: string | undefined): void {
   node.querySelector(":scope > .msg-provider")?.remove();
   const text = providerLabel(model, provider, fallback);
@@ -2061,7 +2086,7 @@ void (async () => {
     linha.hidden = false;
     linha.addEventListener("click", () => inspectorPage?.open());
   }
-  void window.meuBot.getAccountStatus().then((s) => { account = s; paintContext(active()); checkSessionThreshold(); checkEspacoThreshold(); paintEspaco(s?.cota); paintGuide(); });
+  void window.meuBot.getAccountStatus().then((s) => { account = s; syncModelos(); paintContext(active()); checkSessionThreshold(); checkEspacoThreshold(); paintEspaco(s?.cota); paintGuide(); });
   void refreshStatusLine();
   void refreshWhatsapp();
   // O Navegador estava aberto quando o app fechou: volta sozinho, em segundo plano, com as abas de antes.

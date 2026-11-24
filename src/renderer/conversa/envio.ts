@@ -97,6 +97,8 @@ export function ligarEnvio(): void {
     ctx.maybeNotify(tab, tab.pendingText);
     if (tab.navSitesTurn.size > 0) { ctx.offerSkillFromTurn(tab); tab.navSitesTurn = new Set(); }
   });
+  // A máquina não tem mais o modelo desta conversa: o main já a passou para o de recuo; a aba acompanha.
+  window.meuBot.on("chat:model", ({ conversationId, model }) => { const tab = ctx.tabs.get(conversationId); if (tab !== undefined) ctx.setTabModel(tab, model); });
   window.meuBot.on("chat:error", (e: ErrorEvent) => {
     const tab = ctx.tabs.get(e.conversationId);
     if (tab === undefined) return;

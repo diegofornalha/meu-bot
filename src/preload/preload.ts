@@ -16,6 +16,7 @@ const MAIN_EVENT_CHANNELS: readonly MainEventChannel[] = [
   "ui:toggle-settings",
   "ui:settings",
   "chat:notice",
+  "chat:model",
   "chat:tool",
   "chat:account",
   "whatsapp:event",

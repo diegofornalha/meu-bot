@@ -5,7 +5,7 @@
  * sozinho pelo estado real da máquina (QR já lido = concluído). Puro: as regras ficam aqui, testáveis.
  */
 import type { ContaEstado, CrmLocal, ObjectiveInfo, OllamaStatus, QuickEntryStatus, StatusLineSegments, SupportInfo, WhatsappGroups, WhatsappStatus, CrmInfo, LinkPublicoInfo } from "../../shared/ipc";
-import { type FallbackProvider, FALLBACK_PRIMARIES } from "./fallback.js";
+import { type FallbackProvider, primarioNaCorrente } from "./fallback.js";
 import { grupoAlvo, nomeDoGrupo, quemEscolhido, quemResumo } from "./whatsapp-grupos.js";
 
 /**
@@ -366,7 +366,7 @@ export const TUTORIAIS: readonly Tutorial[] = [
       {
         id: "ordem", title: "Escolher primário e reserva", target: "none", body: "fallback-order",
         text: "O primário responde sempre e gasta o orçamento da conta dele. A reserva só entra se o primário falhar antes de começar a responder, e não gasta nada até lá. Escolha quem é o primário; a reserva é quem sobrar.",
-        done: (_st, f, c) => f.fallbackChosen && c.fallback.primary !== null && FALLBACK_PRIMARIES.includes(c.fallback.primary),
+        done: (_st, f, c) => f.fallbackChosen && c.fallback.primary !== null && primarioNaCorrente(c.fallback.primary, c.fallback.chain),
       },
       {
         id: "reserva", title: "Ver a reserva assumir", target: "none",

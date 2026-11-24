@@ -9,7 +9,7 @@ import { TUTORIAIS, type Tutorial } from "../lib/tutoriais.js";
 import type { Tab } from "../renderer.js";
 import { ctx, ehRemoto } from "../app/ctx.js";
 import { registrarFonte } from "../tutoriais/fontes.js";
-import { FALLBACK_PRIMARIES, fallbackOrderText, opcoesDePrimario } from "../lib/fallback.js";
+import { fallbackOrderText, opcoesDePrimario, primarioNaCorrente } from "../lib/fallback.js";
 import { registrarPassos } from "../tutoriais/passos.js";
 
 // ---- Entrar no Claude Code: roda `claude auth login` na máquina, abre o link e recebe o código. Um estado só
@@ -505,7 +505,7 @@ export function renderFallbackOrder(container: HTMLElement): void {
   });
   const keep = el("button", "btn btn-small", "Manter assim"); keep.type = "button";
   keep.title = "A escolha atual já serve: o primário fica como está";
-  keep.hidden = !FALLBACK_PRIMARIES.includes(cur) || ctx.loadGuideFlags(FALLBACK_TUTORIAL).fallbackChosen;
+  keep.hidden = !primarioNaCorrente(cur, chain) || ctx.loadGuideFlags(FALLBACK_TUTORIAL).fallbackChosen;
   keep.addEventListener("click", () => { ctx.saveGuideFlag(FALLBACK_TUTORIAL, "fallbackChosen"); ctx.paintGuide(); });
   box.append(accounts, label, hint, keep);
   container.append(box);

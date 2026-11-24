@@ -17,7 +17,7 @@ test("lastHost explícito vence sshHost; inválido vira null", () => {
 });
 
 test("defaults e modelo por máquina; a posição antiga das janelas (windowBounds) é descartada", () => {
-  const s = normalizeSettings({ defaultModelByHost: { colima: "agente", "x y": "agente", local: "nope" }, windowBounds: { colima: { x: 1, y: 2, width: 800, height: 600 } } });
+  const s = normalizeSettings({ defaultModelByHost: { colima: "agente", "x y": "agente", local: "Nome Ruim" }, windowBounds: { colima: { x: 1, y: 2, width: 800, height: 600 } } });
   assert.deepEqual(s.defaultModelByHost, { colima: "agente" });
   assert.equal("windowBounds" in s, false, "as janelas nascem no canto (app/janela-core.ts), sem memória de posição");
   assert.deepEqual(normalizeSettings({}), defaultSettings());
@@ -136,6 +136,13 @@ test("instagramavel: desligado por padrão; só true liga", () => {
 });
 
 test("modelo padrão por máquina aceita o ollama-local (modo grátis, tutorial 16)", () => {
-  const s = normalizeSettings({ defaultModelByHost: { local: "ollama-local", colima: "grok-4" } });
-  assert.deepEqual(s.defaultModelByHost, { local: "ollama-local", colima: "grok-4" });
+  const s = normalizeSettings({ defaultModelByHost: { local: "ollama-local", colima: "outro-motor" } });
+  assert.deepEqual(s.defaultModelByHost, { local: "ollama-local", colima: "outro-motor" });
+});
+
+test("modelo gravado: vale qualquer nome de provedor bem formado (um módulo pode trazer o seu); o malformado cai no padrão", () => {
+  const s = normalizeSettings({ backendModel: "motor-de-modulo", defaultModelByHost: { colima: "motor-de-modulo", outra: "Com Espaço", mais: "../x", vazia: "", num: 4 } });
+  assert.equal(s.backendModel, "motor-de-modulo");
+  assert.deepEqual(s.defaultModelByHost, { colima: "motor-de-modulo" });
+  for (const ruim of ["", "Maiúscula", "-comeca-com-hifen", "a".repeat(42), "com espaço", 7, null]) assert.equal(normalizeSettings({ backendModel: ruim }).backendModel, "agente");
 });

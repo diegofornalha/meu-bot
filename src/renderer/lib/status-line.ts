@@ -1,6 +1,7 @@
 /** Status line do chat (modelo da box: modelo | Ctx | conta | Sessão | Semanal | Espaço). Puro: testável. */
 import type { AccountStatus, StatusLineSegments } from "../../shared/ipc";
 import { tam } from "./espaco.js";
+import { ehPerfilClaude } from "../../shared/modelos.js";
 
 export interface Segment { kind: "model" | "ctx" | "turn" | "account" | "session" | "weekly" | "age" | "espaco"; text: string; title?: string; /** Cor de aviso (amarelo) ou de perigo (vermelho): o Espaço a partir de 80% e 95%. */ tone?: "warn" | "bad" }
 
@@ -39,7 +40,8 @@ export function thresholdToWarn(pct: number | null, warned: number, thresholds: 
   return hit;
 }
 
-export const isClaudeModel = (model: string): boolean => model !== "grok-4" && model !== "ollama-local";
+/** Conta e limites do Claude só valem para os perfis do Claude; qualquer outro provedor (de módulo, o modo grátis) fica sem. */
+export const isClaudeModel = ehPerfilClaude;
 
 export interface StatusInput {
   model: string;
