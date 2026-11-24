@@ -46,6 +46,8 @@ export interface MainEvents {
   "ui:abrir": { oQue: "busca" | "atalhos" };
   /** Aviso do backend no meio de um turno (ex.: caiu para outro provedor). */
   "chat:notice": { conversationId: string; text: string };
+  /** O modelo da conversa mudou sem a pessoa pedir: a máquina não tem mais o que ela usava e o turno caiu no de recuo. */
+  "chat:model": { conversationId: string; model: BackendModel };
   /** O agente usou uma ferramenta (modo agente): o que rodou/leu e o resultado resumido. */
   "chat:tool": { conversationId: string; tool: ToolEvent };
   /** Conta e limites do Claude na máquina, depois de cada turno. */

@@ -4,14 +4,17 @@
  * Sem Electron: testável com node --test.
  */
 import { repoValido } from "../modulos/modulos-fonte-core";
+import { MODELO_PADRAO, nomeDeModeloValido } from "../../shared/modelos";
 import type { AbaFixa, BackendModel, NavService, NavWorkspace, NavWorkspaces, Theme } from "../../shared/ipc";
 import { parseAccelerator } from "./accelerator";
 import { isZoomLevel } from "./zoom-core";
 import { isPortaMcp, isToken } from "../controle-remoto/controle-remoto-core";
 
-export const BACKEND_MODELS: readonly BackendModel[] = ["claudecode", "agente", "rene-dm", "rene", "grok-4", "ollama-local"];
-export const isBackendModel = (v: unknown): v is BackendModel =>
-  typeof v === "string" && (BACKEND_MODELS as readonly string[]).includes(v);
+/**
+ * Modelo gravado: vale qualquer nome de provedor bem formado. Aqui não há máquina para perguntar o que ela tem; o
+ * modelo que ela não tem mais se resolve no uso (o turno cai no modelo de recuo, backend.ts).
+ */
+export const isBackendModel: (v: unknown) => v is BackendModel = nomeDeModeloValido;
 
 const THEMES: readonly Theme[] = ["system", "light", "dark"];
 export const isTheme = (v: unknown): v is Theme => typeof v === "string" && (THEMES as readonly string[]).includes(v);
@@ -161,7 +164,7 @@ const ONBOARDINGS: readonly Onboarding[] = ["pending", "done", "skipped"];
 export const isOnboarding = (v: unknown): v is Onboarding => typeof v === "string" && (ONBOARDINGS as readonly string[]).includes(v);
 
 export const DEFAULT_SHORTCUT = "CommandOrControl+Shift+Space";
-export const DEFAULT_MODEL: BackendModel = "agente";
+export const DEFAULT_MODEL: BackendModel = MODELO_PADRAO;
 export const DEFAULT_PORT = 8080;
 export const DEFAULT_BUDGET = 24000;
 export const DEFAULT_MEMORY_EVERY = 10;
