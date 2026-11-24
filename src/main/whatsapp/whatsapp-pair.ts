@@ -98,7 +98,6 @@ export function startPairing(host: string, reset: boolean, send: (ev: WhatsappEv
           else if (ev.step === "session-moved") send({ kind: "step", text: "sessão deslogada guardada como session.loggedout-…" });
           else if (ev.step === "logged-out") send({ kind: "step", text: "sessão anterior desfeita (channels logout)" });
           else if (ev.step === "model-set") send({ kind: "step", text: "o agente desta conta não tinha modelo; passou a usar o Claude (pelo Claude Code logado aqui)" });
-          else if (ev.step === "fallback-set") send({ kind: "step", text: "reserva do agente: esgotadas as contas do Claude, o Grok desta máquina responde" });
           else if (ev.step === "gateway-installed") send({ kind: "step", text: `esta conta não tinha o gateway do OpenClaw; instalado na porta ${String(ev.port ?? "?")}` });
           else if (ev.step === "plugin-installing") send({ kind: "step", text: "esta máquina não tinha o plugin do WhatsApp do OpenClaw; instalando (até 1–2 min)" });
           else if (ev.step === "plugin-installed") send({ kind: "step", text: "plugin do WhatsApp instalado" });

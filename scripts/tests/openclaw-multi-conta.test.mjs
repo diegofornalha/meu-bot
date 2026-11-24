@@ -140,7 +140,7 @@ test("fragmento do status no gateway, por conta: creds da conta, config efetiva 
   assert.equal(ch.selfChatMode, undefined, "selfChatMode não é herdado");
   assert.equal(ch.accounts, undefined);
   assert.equal(r.kv.get("dmpolicy"), "allowlist");
-  assert.equal(r.kv.get("ocmodel"), "0", "o agente box tem modelo"); assert.equal(r.kv.get("ocfallback"), "0");
+  assert.equal(r.kv.get("ocmodel"), "0", "o agente box tem modelo"); assert.equal(r.kv.has("ocfallback"), false, "o status não cuida mais de reserva de modelo");
   const oc = JSON.parse(r.kv.get("oc"));
   assert.equal(oc.connected, true); assert.equal(oc.linked, true); assert.equal(oc.state, "healthy"); assert.equal(oc.conta, true);
   const st = core.openclawStatus(r.kv);

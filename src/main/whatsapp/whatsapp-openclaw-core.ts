@@ -109,22 +109,6 @@ oc_model_ensure() {
   openclaw config set agents.defaults.model '{"primary":"anthropic/claude-opus-5-5"}' --strict-json >/dev/null 2>&1 || return 1
   echo set
 }
-# Reserva de modelo do agente do WhatsApp: esgotadas as contas do Claude (porteiro), o OpenClaw cai no Grok, se a
-# máquina tem o provedor grok configurado e a pessoa não definiu a própria lista de fallbacks (lista cheia nunca é tocada).
-oc_fallback_ensure() {
-  F=$(openclaw config get agents.defaults.model.fallbacks 2>&1 || true)
-  case "$F" in *unset*|""|"[]") ;; *) return 0 ;; esac
-  G=$(openclaw config get models.providers.grok --json 2>/dev/null || true)
-  case "$G" in *unset*|"") return 0 ;; esac
-  M=$(printf '%s' "$G" | python3 -c 'import json,sys
-try:
-  p=json.load(sys.stdin); ms=p.get("models") or []
-  print(next((m.get("id") for m in ms if isinstance(m,dict) and m.get("id")), ""))
-except Exception: print("")' 2>/dev/null)
-  [ -n "$M" ] || return 0
-  openclaw config set agents.defaults.model.fallbacks "[\\"grok/$M\\"]" --strict-json >/dev/null 2>&1 || return 1
-  echo set
-}
 # O gateway precisa do porteiro do claude na frente do PATH (o drop-in meu-bot.conf que o install-porteiro.sh grava): é
 # ele que escolhe a conta do Claude (rodízio, Claude Code Global). O instalador só grava o drop-in se o serviço já existe;
 # numa conta que pareia depois (o gw_ensure acabou de criar o serviço) grava aqui, no mesmo formato, e reinicia o gateway
@@ -177,9 +161,9 @@ oc_versao() {
 
 /**
  * Lê do openclaw.json, numa passada de Python, o que antes eram cinco chamadas da CLI por consulta (dmPolicy, o bloco do
- * canal, modelo e reserva do agente, plugin do WhatsApp, áudio e voz). Imprime \`chave=valor\` como a CLI imprimia e mais:
- * plugin (ligado na config e com a pasta instalada), ocmodel=1 quando falta modelo, ocfallback=1 quando falta reserva e há
- * provedor grok. A CLI só é chamada quando o arquivo não basta (plugin não achado, modelo/reserva a gravar).
+ * canal, modelo do agente, plugin do WhatsApp, áudio e voz). Imprime \`chave=valor\` como a CLI imprimia e mais:
+ * plugin (ligado na config e com a pasta instalada) e ocmodel=1 quando falta modelo. A CLI só é chamada quando o
+ * arquivo não basta (plugin não achado, modelo a gravar).
  */
 export const ocConfigPy = (a: WhatsappAlvo): string => `python3 - '${a.accountId}' '${a.agentId}' <<'PY' 2>/dev/null
 import glob, json, os, sys
@@ -202,9 +186,6 @@ d = ag.get("defaults") or {}
 e = (ag.get("entries") or {}).get(agid) or {}
 modelo = e.get("model") if agid != "main" and e.get("model") else d.get("model")
 print("ocmodel=%d" % (not modelo))
-fb = modelo.get("fallbacks") if isinstance(modelo, dict) else None
-grok = ((c.get("models") or {}).get("providers") or {}).get("grok") or {}
-print("ocfallback=%d" % (not fb and any(isinstance(m, dict) and m.get("id") for m in (grok.get("models") or []))))
 m = (c.get("tools") or {}).get("media") or {}
 print("audioin=%d" % any("audio" in (x.get("capabilities") or []) and (x.get("type") != "cli" or os.access(str(x.get("command") or ""), os.X_OK)) for x in (m.get("models") or []) if isinstance(x, dict)))
 t = c.get("tts") or {}
@@ -256,9 +237,8 @@ if command -v openclaw >/dev/null 2>&1; then
   if printf '%s' "$CS" | grep -q 'token mismatch'; then
     if N=$(gw_fix); then echo "gwfix=$N"; CS=$(timeout 25 openclaw channels status --channel whatsapp --json 2>&1); else echo "gwfix=fail"; fi
   fi
-  # Agente sem modelo e Claude logado: configura o Claude (uma vez; só quando o arquivo disse que falta). Reserva idem.
+  # Agente sem modelo e Claude logado: configura o Claude (uma vez; só quando o arquivo disse que falta).
   case "$OJ" in *ocmodel=1*) echo "ocmodel=$(oc_model_ensure 2>/dev/null)" ;; esac
-  case "$OJ" in *ocfallback=1*) echo "ocfallback=$(oc_fallback_ensure 2>/dev/null)" ;; esac
   echo "oc=$(printf '%s' "$CS" | ${ocStatusPy(a)})"
   exit 0
 fi
@@ -412,8 +392,7 @@ if [ -z "$(openclaw config get ${cfgDe(a)}.dmPolicy 2>/dev/null | tr -d '"')" ] 
   ( ${selfPolicyBaseSh(a)} ) >/dev/null 2>&1 && echo '{"event":"meu-bot","step":"silent"}'
 fi
 ${proprio ? `# Agente sem modelo: com o Claude Code logado, usa o Claude (senão o WhatsApp conecta e nada responde).
-[ "$(oc_model_ensure 2>/dev/null)" = set ] && echo '{"event":"meu-bot","step":"model-set"}'
-[ "$(oc_fallback_ensure 2>/dev/null)" = set ] && echo '{"event":"meu-bot","step":"fallback-set"}'` : "# Gateway de outro usuário: modelo e reserva são do agente, já configurados por quem registrou a conta."}
+[ "$(oc_model_ensure 2>/dev/null)" = set ] && echo '{"event":"meu-bot","step":"model-set"}'` : "# Gateway de outro usuário: o modelo é do agente, já configurado por quem registrou a conta."}
 # Sem o serviço do gateway nesta conta: instala antes do QR (senão vincula e nunca conecta).
 if GWN=$(gw_ensure); then [ -n "$GWN" ] && echo "{\\"event\\":\\"meu-bot\\",\\"step\\":\\"gateway-installed\\",\\"port\\":$GWN}"; else echo '{"event":"error","error":"esta conta não tem o gateway do OpenClaw como serviço e não consegui instalar. Na máquina: chmod go-w ~/.config ~/.config/systemd ~/.config/systemd/user; openclaw config set gateway.mode local; openclaw gateway install --port <porta livre>"}'; exit 2; fi
 ${proprio ? `# O porteiro do claude na frente do PATH do gateway (refaz o drop-in se o serviço nasceu agora; espera o gateway voltar).
