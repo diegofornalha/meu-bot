@@ -279,3 +279,46 @@ test("dono gravado pelo app (chip dedicado): do celular dele manda como dono, nu
   const r2 = rodar(home, [{ agora: "2026-10-29T13:05:00+00:00", ...evento(DIEGO, `/pausar ${OUTRO} 2h`) }]);
   assert.match(r2.enviadas[0][1], /Só consigo pausar esta conversa/, "sem a marca, o Diego volta a ser contato comum");
 });
+
+test("sem Claude: com a marca do backend valendo, a mensagem do contato é guardada e descartada (silêncio); o dono passa; marca vencida deixa passar; na volta, a nota conta o que chegou", { skip: semPython }, () => {
+  const home = homeFalso();
+  const marca = join(home, ".local", "share", "meu-bot", "sem-claude.json");
+  writeFileSync(marca, JSON.stringify({ desde: "2026-10-29T12:50:00.000Z", ate: "2026-10-29T13:10:00.000Z", motivo: "o Claude Code Global está no limite" }));
+  const r = rodar(home, [
+    { agora: T0, ...evento(DIEGO, "oi, vocês abrem amanhã?") },
+    evento(DIEGO, "", { tipo: "voice" }),
+    evento(DONO, "tá funcionando?"),
+    // A marca venceu sem ser renovada (backend parado): a mensagem segue, e leva junto o que ficou guardado.
+    { agora: "2026-10-29T13:11:00+00:00", ...evento(DIEGO, "alô?") },
+  ]);
+  assert.equal(r.passos[0].action, "skip"); assert.match(r.passos[0].reason, /Claude fora do ar/);
+  assert.equal(r.passos[1].action, "skip");
+  assert.equal(r.passos[2], null, "o dono nunca é segurado");
+  assert.equal(r.passos[3].action, "rewrite");
+  assert.match(r.passos[3].text, /Diego \(\+5521923670743\) escreveu enquanto você estava fora do ar/);
+  assert.match(r.passos[3].text, /oi, vocês abrem amanhã\?/); assert.match(r.passos[3].text, /\[áudio\]/);
+  assert.match(r.passos[3].text, /peça desculpas pela demora/); assert.match(r.passos[3].text, /Mensagem atual: alô\?/);
+  assert.deepEqual(r.enviadas, [], "nada é enviado ao contato");
+  assert.equal(jsonl(home).length, 0, "a nota levou as linhas guardadas");
+
+  // O que fica no arquivo enquanto a marca vale: a linha com o motivo, que o backend conta ao avisar o dono.
+  const h2 = homeFalso();
+  writeFileSync(join(h2, ".local", "share", "meu-bot", "sem-claude.json"), JSON.stringify({ desde: "2026-10-29T12:50:00.000Z", ate: "2026-10-29T13:10:00.000Z", motivo: "x" }));
+  rodar(h2, [{ agora: T0, ...evento(DIEGO, "oi") }]);
+  assert.deepEqual(jsonl(h2), [{ numero: DIEGO, nome: "Diego", texto: "oi", em: "2026-10-29T13:00:00Z", tipo: "text", motivo: "sem-claude" }]);
+
+  // Marca ilegível ou sem prazo: fail-open.
+  const h3 = homeFalso();
+  writeFileSync(join(h3, ".local", "share", "meu-bot", "sem-claude.json"), "{lixo");
+  assert.equal(rodar(h3, [{ agora: T0, ...evento(DIEGO, "oi") }]).passos[0], null);
+  writeFileSync(join(h3, ".local", "share", "meu-bot", "sem-claude.json"), JSON.stringify({ desde: "2026-10-29T12:50:00.000Z" }));
+  assert.equal(rodar(h3, [{ agora: T0, ...evento(DIEGO, "oi") }]).passos[0], null);
+});
+
+test("sem Claude: o contato já pausado continua pela pausa dele (a linha não ganha o motivo da queda)", { skip: semPython }, () => {
+  const home = homeFalso({ paused: { [DIEGO]: "2026-10-29T12:00:00Z" } });
+  writeFileSync(join(home, ".local", "share", "meu-bot", "sem-claude.json"), JSON.stringify({ desde: "2026-10-29T12:50:00.000Z", ate: "2026-10-29T13:10:00.000Z", motivo: "x" }));
+  const r = rodar(home, [{ agora: T0, ...evento(DIEGO, "oi") }]);
+  assert.match(r.passos[0].reason, /pausado até retomar/);
+  assert.equal(jsonl(home)[0].motivo, undefined);
+});
