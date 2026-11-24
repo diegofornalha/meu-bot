@@ -634,7 +634,7 @@ print("typingset=ok")
  * Depois de parear o Hermes (o `hermes whatsapp` faz isto no assistente interativo): liga o WhatsApp no .env e, sem
  * escolha anterior, começa em "só você" (o mesmo padrão do OpenClaw no app). E o modelo: com `model.provider` vazio
  * ou "auto", o Hermes responde pelo backend do meu-bot desta máquina (OpenAI-compatível, modelo `agente`): é o
- * Claude Code oficial, com o rodízio de contas e o Grok de reserva. Modelo já escolhido nunca é trocado. A chave
+ * Claude Code oficial, com o rodízio de contas. Modelo já escolhido nunca é trocado. A chave
  * do backend vai por variável de ambiente, nunca por argv nem pelo app. Imprime `hwa=<o que mudou>`.
  */
 export const HERMES_WA_ENSURE_SH = `${HERMES_PY_SH}; ${BACKEND_DIR_SH}

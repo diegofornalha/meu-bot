@@ -59,13 +59,10 @@ function modoEnv() {
   if (semLivre) {
     const volta = contas.proximaDisponivelEm();
     aviso(`todas as contas do Claude estão no limite${volta ? ` (a próxima volta ${new Date(volta * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })})` : ''}; seguindo na conta padrão`);
-    if (temHermes()) aviso('para usar o Grok agora: hermes chat');
   } else if (conta.id !== 'padrao') aviso(`usando a conta do Claude "${conta.rotulo}"`);
   process.stdout.write(`${exportar(env)}\n`);
   return 0;
 }
-
-const temHermes = () => (process.env.PATH || '').split(path.delimiter).some((d) => { try { return fs.statSync(path.join(d, 'hermes')).isFile(); } catch (_) { return false; } });
 
 function modoRun() {
   const contas = abrirContas();

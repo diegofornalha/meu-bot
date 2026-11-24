@@ -47,7 +47,7 @@ grep -q '"oauthAccount"' "$HOME/.claude.json" 2>/dev/null || echo "aviso: Claude
 # genérico e o WhatsApp (rene-dm) para. Aconteceu em 14/15 out 2026. Nunca mais.
 if [ -f "$DEST/app.js" ] || [ -d "$DEST/services" ]; then
   echo "ERRO: $DEST já é o backend do Hermes (app.js/services). Este instalador é só para máquinas sem ele." >&2
-  echo "      Para o modelo agente/grok-4 nessa máquina use backend-vm/deploy-agente.sh." >&2
+  echo "      Para o modelo agente nessa máquina use backend-vm/deploy-agente.sh." >&2
   exit 3
 fi
 # Porta: numa máquina com backend, a do .env dele manda (um PORT= diferente aqui só serviria para a checagem
@@ -103,7 +103,7 @@ copiar_backend() { # $1 origem  $2 destino
 }
 # --- copiar: fim
 copiar_backend "$HERE" "$DEST"
-[ -f "$DEST/providers.json" ] || { cp "$HERE/providers.json" "$DEST/providers.json"; echo "providers.json criado (agente → grok-4; grok-4 precisa de XAI_API_KEY no .env ou base_url local)"; }
+[ -f "$DEST/providers.json" ] || { cp "$HERE/providers.json" "$DEST/providers.json"; echo "providers.json criado (só o agente; outro motor de IA entra pelo modo grátis ou por um módulo)"; }
 if [ ! -f "$DEST/.env" ]; then
   # umask só para o .env (num subshell): vazando para o resto, a unidade de sistema nascia 600 e ilegível.
   ( umask 077; printf 'OPENAI_COMPAT_KEY=%s\nCRM_AGENT_KEY=%s\nMODULOS_KEY=%s\nPORT=%s\nHOST=127.0.0.1\nCLAUDE_BIN=%s\n' "$(openssl rand -hex 32)" "$(openssl rand -hex 32)" "$(openssl rand -hex 32)" "$PORT" "$CLAUDE" > "$DEST/.env" ); echo ".env criado"
@@ -126,27 +126,48 @@ render_unit() { # $1 = USERLINE, $2 = TARGET
 # o gerenciador funciona). Testar só o código de saída de is-system-running mandava o backend para o sistema
 # numa conta com um serviço falho, e todo script que fala "systemctl --user restart meu-bot-backend" quebrava.
 user_manager() { case "$(systemctl --user is-system-running 2>/dev/null)" in running|degraded|starting|maintenance) return 0;; *) return 1;; esac; }
-# --- migrar xai-proxy: início (o teste install-xai-proxy-unidade.test.mjs roda este trecho sozinho)
-# O proxy da xAI (install-grok-oauth.sh) até 1/11 se chamava hermes-xai-proxy.service; o nome novo segue o padrão
-# meu-bot-* das outras unidades do app (a máquina é agnóstica: Hermes, OpenClaw ou os dois; o Hermes é só o programa
-# por baixo). Mesma unidade, mesma porta (o providers.json aponta para ela); a antiga sai do systemd e do disco.
-# Nada a fazer sem a antiga. Um tropeço aqui não derruba a instalação do backend: só avisa.
-migrar_unidade_xai_proxy() { # $1 = pasta das unidades de usuário
-  local u=$1 antiga="$1/hermes-xai-proxy.service" nova="$1/meu-bot-xai-proxy.service" porta
-  [ -f "$antiga" ] || return 0
-  porta=$(grep -h '^ExecStart=' "$antiga" 2>/dev/null | grep -o -- '--port [0-9]*' | awk '{print $2}' || true)
-  if [ ! -f "$nova" ]; then
-    sed 's/^Description=.*/Description=meu-bot: proxy da xAI (Grok por OAuth, pelo Hermes)/' "$antiga" > "$nova" || { echo "aviso: não consegui gravar $nova; a unidade antiga fica"; rm -f "$nova"; return 0; }
+# --- tirar o grok: início (o teste install-tirar-grok.test.mjs roda este trecho sozinho)
+# O produto base só tem o Claude na corrente; outro motor de IA é um módulo à parte, que grava o próprio
+# ~/.local/share/meu-bot/modulos/<id>/provedores.json. Máquina preparada antes disso ficou com a entrada `grok-4` no
+# providers.json e com o proxy local dela como serviço (meu-bot-xai-proxy.service; hermes-xai-proxy.service até 1/11).
+# Sem o módulo ligado, os dois saem aqui, a cada instalação/atualização, antes de o backend reiniciar. Com o módulo
+# ligado, nada é tocado. As outras entradas do providers.json (o modo grátis `ollama-local`, por exemplo) ficam, na
+# mesma ordem. O Hermes e a credencial da conta continuam na máquina: o Hermes pode ser o motor do WhatsApp dela.
+# Nada a fazer = nada impresso. Um tropeço aqui não derruba a instalação do backend.
+tirar_grok_sem_modulo() { # $1 = providers.json da máquina  $2 = pasta das unidades de usuário
+  local p=$1 u=$2 n parou=""
+  [ -e "$HOME/.local/share/meu-bot/modulos/grok/ligado" ] && return 0
+  if [ -f "$p" ] && grep -q 'grok-4' "$p" 2>/dev/null; then
+    # Só regrava se o arquivo é uma lista JSON com uma entrada de nome grok-4; a cópia do original é feita uma vez.
+    if "$NODE" -e '
+      const fs = require("node:fs"); const [p, copia] = process.argv.slice(1);
+      const texto = fs.readFileSync(p, "utf8"); const lista = JSON.parse(texto);
+      if (!Array.isArray(lista)) process.exit(3);
+      const eGrok = (e) => e !== null && typeof e === "object" && String(e.name || "").trim().toLowerCase() === "grok-4";
+      if (!lista.some(eGrok)) process.exit(3);
+      if (!fs.existsSync(copia)) fs.writeFileSync(copia, texto);
+      const fica = lista.filter((e) => !eGrok(e));
+      fs.writeFileSync(`${p}.novo`, fica.length === 0 ? "[]\n" : `[\n${fica.map((e) => `  ${JSON.stringify(e)}`).join(",\n")}\n]\n`);
+      fs.renameSync(`${p}.novo`, p);
+    ' "$p" "$p.antes-de-tirar-o-grok" 2>/dev/null; then
+      echo "Grok: saiu do providers.json desta máquina (agora ele é um módulo à parte); o arquivo anterior ficou em $p.antes-de-tirar-o-grok"
+    fi
   fi
-  systemctl --user disable --now hermes-xai-proxy.service >/dev/null 2>&1 || true
-  rm -f "$antiga" "$u/default.target.wants/hermes-xai-proxy.service"
-  systemctl --user daemon-reload >/dev/null 2>&1 || true
-  systemctl --user enable --now meu-bot-xai-proxy.service >/dev/null 2>&1 || echo "aviso: meu-bot-xai-proxy.service não subiu; veja: systemctl --user status meu-bot-xai-proxy"
-  echo "unidade antiga hermes-xai-proxy.service removida; o proxy passa a ser meu-bot-xai-proxy.service${porta:+ (porta $porta)}"
+  for n in meu-bot-xai-proxy.service hermes-xai-proxy.service; do
+    [ -e "$u/$n" ] || [ -L "$u/default.target.wants/$n" ] || continue
+    systemctl --user disable --now "$n" >/dev/null 2>&1 || true
+    rm -f "$u/$n" "$u/default.target.wants/$n" || true
+    parou="$parou $n"
+  done
+  if [ -n "$parou" ]; then
+    systemctl --user daemon-reload >/dev/null 2>&1 || true
+    echo "Grok: proxy local parado e removido dos serviços desta conta ($(echo $parou | sed 's/ /, /g'))"
+  fi
+  return 0
 }
-# --- migrar xai-proxy: fim
+# --- tirar o grok: fim
 SYS_UNIT=/etc/systemd/system/meu-bot-backend.service
-user_manager && migrar_unidade_xai_proxy "$HOME/.config/systemd/user"
+tirar_grok_sem_modulo "$DEST/providers.json" "$HOME/.config/systemd/user"
 if [ "$(id -u)" -ne 0 ] && user_manager; then
   mkdir -p "$HOME/.config/systemd/user"
   # Esta conta já tem o backend como serviço de sistema (instalação antiga com o gerenciador degradado): migra.

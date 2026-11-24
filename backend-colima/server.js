@@ -64,7 +64,7 @@ const TURN_TIMEOUT_MS = Number(ENV.TURN_TIMEOUT_MS || 10 * 60 * 1000);
 
 const AGENT_WORKSPACE = ENV.AGENT_WORKSPACE || path.join(os.homedir(), 'agent-workspace');
 /**
- * Diário das conversas que não passam pelo Claude Code (Grok, Hermes): sem ele, elas só existiriam no app. Uma
+ * Diário das conversas que não passam pelo Claude Code (outro provedor, Hermes): sem ele, elas só existiriam no app. Uma
  * conversa por arquivo, uma linha JSON por mensagem ({at, role, model, provider, text}). O meu-bot-admin lista e lê;
  * "Copiar ID" aponta para cá; "Excluir" no app apaga (rota DELETE abaixo).
  */
@@ -473,7 +473,8 @@ const limiteModelo = new Map();
 const limiteModeloAtivo = (contaId) => { const l = limiteModelo.get(contaId); return !!l && Date.now() < l.until; };
 /**
  * Contas do Claude Code desta máquina (contas-claude.js): a padrão (~/.claude) e as isoladas, com rodízio ao bater
- * o limite. A ordem de reação num turno é: próxima conta (mesmo modelo, mesma sessão) → Opus na mesma conta → Grok.
+ * o limite. A ordem de reação num turno é: próxima conta (mesmo modelo, mesma sessão) → Opus na mesma conta → o
+ * próximo provedor da corrente, se a máquina tiver um (providers.json ou módulo).
  */
 const contas = contasClaude.abrir({ log });
 /** Só para teste: MEU_BOT_FORCAR_LIMITE=<id da conta>[:<n>] faz a n-ésima chamada daquela conta (padrão: a 1ª) parecer "limite atingido". */
@@ -508,7 +509,7 @@ function runClaude({ prompt, system, cwd, maxTurns, bypass, resume, signal, onDe
     fs.mkdirSync(cwd, { recursive: true });
     // MEU_BOT_PORTEIRO=0: se CLAUDE_BIN for o porteiro (claude-porteiro.sh), ele passa direto; o rodízio aqui já escolheu a conta.
     // Backend como root (VPS dedicada, ex.: meu-root): o Claude Code recusa --dangerously-skip-permissions como root, e
-    // todo turno do agente caía no Grok. IS_SANDBOX=1 é o jeito dele de aceitar numa máquina dedicada (28 out).
+    // todo turno do agente caía no provedor de reserva. IS_SANDBOX=1 é o jeito dele de aceitar numa máquina dedicada (28 out).
     const sandbox = bypass && typeof process.getuid === 'function' && process.getuid() === 0 ? { IS_SANDBOX: '1' } : {};
     const child = spawn(CLAUDE_BIN, args, { cwd, env: { ...process.env, HOME: os.homedir(), MEU_BOT_PORTEIRO: '0', ...sandbox, ...contas.ambiente(conta) }, stdio: ['pipe', 'pipe', 'pipe'] });
     let text = ''; let deltas = 0; let usage = null; let sessionId = resume || null; let stderr = '';
@@ -720,7 +721,7 @@ async function chatCompletions(req, res) {
   const created = Math.floor(Date.now() / 1000);
   const t0 = Date.now();
   // Corrente: o pedido primeiro, depois os outros por prioridade. Fora do providers.json → só ele.
-  // "whatsapp" segue a mesma corrente do "agente" (o Grok de reserva), começando por ele.
+  // "whatsapp" segue a mesma corrente do "agente" (os provedores de reserva, se houver), começando por ele.
   const attempts = model === 'whatsapp' ? ['whatsapp', ...providers.chain(PROVIDERS, 'agente').slice(1)] : providers.chain(PROVIDERS, model);
   if (attempts.length === 0) attempts.push(model);
   const env = { ...process.env, ...ENV };
@@ -759,7 +760,7 @@ async function chatCompletions(req, res) {
     /**
      * Um provedor claude: escolhe a conta, planeja resume pela chave dele e refaz sem resume se a sessão sumiu.
      * No limite de uso, a ordem é: próxima conta com a mesma sessão (o histórico é compartilhado, o --resume continua
-     * a conversa) → Opus na mesma conta por LIMIT_HOLD_MS → quem chamou desce para o próximo provedor (Grok).
+     * a conversa) → Opus na mesma conta por LIMIT_HOLD_MS → quem chamou desce para o próximo provedor (se houver).
      */
     const runClaudeProvider = async (name) => {
       const profile = MODELS[name];
@@ -1030,7 +1031,7 @@ const server = http.createServer(async (req, res) => {
       if (!entry || !entry.sessionId || !entry.cwd) continue;
       out.push({ profile: name, sessionId: entry.sessionId, cwd: entry.cwd, file: path.join(sessions.projectDir(entry.cwd), `${entry.sessionId}.jsonl`) });
     }
-    // Diário (Grok/Hermes): a conversa tem arquivo aqui mesmo sem sessão do Claude Code.
+    // Diário (outro provedor, Hermes): a conversa tem arquivo aqui mesmo sem sessão do Claude Code.
     if (fs.existsSync(appConvFile(convId))) out.push({ profile: 'app', sessionId: convId, cwd: APP_CONVERSAS, file: appConvFile(convId) });
     return json(res, 200, { sessions: out });
   }
