@@ -210,44 +210,49 @@ function respostaEsgotado(res, ate) {
   return reset;
 }
 
-async function atender(req, res, corpo, usuario) {
+/**
+ * Um pedido pelo rodízio das contas do root. `dep` troca o registro das contas, o envio e o token: é por onde o teste
+ * encena a queda de rede e o login recusado sem falar com a Anthropic.
+ */
+async function atender(req, res, corpo, usuario, dep = {}) {
+  const cs = dep.contas || contas; const mandar = dep.enviar || enviar; const token = dep.tokenDe || tokenDe;
   const tentadas = [];
   let ultimo429 = null;
   let semRede = null; // a última falha de rede (não é da conta): sem nenhuma resposta, vira 502 e o Claude Code tenta de novo
   for (;;) {
-    const c = contas.escolher({ excluir: tentadas, permitirAviso: true });
+    const c = cs.escolher({ excluir: tentadas, permitirAviso: true });
     if (!c) {
-      anotarUso(usuario, null, 429);
       // O 429 da própria Anthropic traz os cabeçalhos de limite: passa intacto. Sem ele (todas já marcadas antes
       // deste pedido), a resposta sintética leva os mesmos cabeçalhos, senão o Claude Code fica tentando de novo.
-      if (ultimo429) { res.writeHead(ultimo429.statusCode, ultimo429.headers); return ultimo429.pipe(res); }
+      if (ultimo429) { anotarUso(usuario, null, 429); res.writeHead(ultimo429.statusCode, ultimo429.headers); return ultimo429.pipe(res); }
       // Nenhuma conta respondeu e o motivo foi a rede: não é limite. Dizer "no limite" faria o backend desistir do
       // Claude; o 502 o Claude Code repete sozinho.
       if (semRede) { anotarUso(usuario, null, 502); return erro(res, 502, 'api_error', 'o Claude Code Global não conseguiu falar com a Anthropic'); }
-      let ate = null; try { ate = contas.proximaDisponivelEm(); } catch (_) { ate = null; }
+      anotarUso(usuario, null, 429);
+      let ate = null; try { ate = cs.proximaDisponivelEm(); } catch (_) { ate = null; }
       log(`${usuario}: todas as contas do root no limite${ate ? ` (a primeira volta ${hora(ate)})` : ''}`);
       return respostaEsgotado(res, ate);
     }
     tentadas.push(c.id);
     let r;
     try {
-      r = await enviar(req, corpo, await tokenDe(c));
-      if (r.statusCode === 401) { r.resume(); r = await enviar(req, corpo, await tokenDe(c, true)); }
+      r = await mandar(req, corpo, await token(c));
+      if (r.statusCode === 401) { r.resume(); r = await mandar(req, corpo, await token(c, true)); }
     } catch (e) {
       // Só o erro do login bloqueia a conta. Um `read ECONNRESET` no meio do pedido era gravado como "login do root"
       // e a conta ficava bloqueada até alguém desbloquear no admin: em 23 nov 2026, 21 h sem Claude na máquina.
-      if (e && e.login) contas.marcar(c.id, 'bloqueada', `login do root: ${e.message}`);
+      if (e && e.login) cs.marcar(c.id, 'bloqueada', `login do root: ${e.message}`);
       else semRede = e;
       log(`conta ${c.id}: ${e.message}${e && e.login ? '' : ' (falha de rede; conta mantida no rodízio)'}`);
       continue;
     }
-    if (r.statusCode === 401) { r.resume(); contas.marcar(c.id, 'bloqueada', 'login do root recusado: entre de novo no admin'); continue; }
+    if (r.statusCode === 401) { r.resume(); cs.marcar(c.id, 'bloqueada', 'login do root recusado: entre de novo no admin'); continue; }
     if (r.statusCode === 429) {
       // Só o 429 de limite da assinatura tira a conta do rodízio. O passageiro ("Server is temporarily limiting
       // requests (not your usage limit)") não diz nada sobre a conta: marcado, deixava a máquina inteira uma hora
       // sem Claude com as contas em 13% de uso. Ele tenta a próxima conta e, sem nenhuma, volta intacto ao Claude
       // Code, que sabe esperar e tentar de novo.
-      if (limiteDaAssinatura(r)) contas.marcar(c.id, 'esgotada', 'limite da assinatura', resetDe(r));
+      if (limiteDaAssinatura(r)) cs.marcar(c.id, 'esgotada', 'limite da assinatura', resetDe(r));
       else log(`conta ${c.id}: 429 passageiro da Anthropic (não é o limite da assinatura); conta mantida no rodízio`);
       if (ultimo429) ultimo429.resume();
       ultimo429 = r;
@@ -286,4 +291,4 @@ if (require.main === module) {
   servir(porta);
 }
 
-module.exports = { servir, usuarioDaChave, cabecalhos, anotarUsoDaConta, respostaEsgotado, limiteDaAssinatura, erroDeLogin, recusaDeLogin, PERMITIDO, CHAVE_RE, USUARIO_RE, carregarChaves };
+module.exports = { servir, atender, usuarioDaChave, cabecalhos, anotarUsoDaConta, respostaEsgotado, limiteDaAssinatura, erroDeLogin, recusaDeLogin, PERMITIDO, CHAVE_RE, USUARIO_RE, carregarChaves };
