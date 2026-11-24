@@ -7,6 +7,8 @@
  *                                                     mcp: { <nome>: <config do Claude Code> },
  *                                                     regras: "regras.md",
  *                                                     acao: { padroes: [regex…], maxTurns, adendo } }
+ *   ~/.local/share/meu-bot/modulos/<id>/provedores.json  [{ name, type: "openai", base_url, model, rotulo, reserva… }]
+ *                                                     (opcional: um motor de IA a mais, no formato do providers.json)
  *   ~/.config/meu-bot/modulos/<id>.env              (credenciais, 0600; o app grava, ninguém relê pelo app)
  * A cada turno de um perfil, o server.js junta os módulos ligados daquele perfil cujo produto a licença libera:
  * MCPs num arquivo temporário 0600 (as credenciais entram por ${VAR} só ali, nunca na linha de comando), as regras no
@@ -23,6 +25,7 @@ const CONF = path.join(os.homedir(), '.config', 'meu-bot', 'modulos');
 const ID_RE = /^[a-z][a-z0-9-]{1,40}$/;
 const NOME_MCP_RE = /^[A-Za-z0-9_-]{1,40}$/;
 const MAX_REGRAS = 8000;
+const MAX_PROVEDORES = 8;
 
 /** KEY=valor cru por linha (o app grava assim, sem aspas: modulos-core.ts credenciaisSh); linhas inválidas ficam de fora. */
 function lerEnv(arquivo) {
@@ -99,4 +102,28 @@ function arquivoMcp(mcp, { base = BASE } = {}) {
   return f;
 }
 
-module.exports = { BASE, CONF, lerEnv, expandir, paraPerfil, ajusteDaAcao, arquivoMcp };
+/**
+ * Provedores que os módulos ligados e liberados pela licença trazem (provedores.json de cada um), para o
+ * providers.load juntar aos da máquina. Lido uma vez, na subida do backend: o instalador do módulo reinicia o backend.
+ * Só `openai` (endpoint compatível): um módulo não redefine os modelos do Claude. Cada entrada leva `modulo: <id>`.
+ */
+function provedores(produtoOk, { base = BASE } = {}) {
+  const out = [];
+  let ids = [];
+  try { ids = fs.readdirSync(base).filter((d) => ID_RE.test(d)).sort(); } catch (_) { return out; }
+  for (const id of ids) {
+    const dir = path.join(base, id);
+    if (!fs.existsSync(path.join(dir, 'ligado'))) continue;
+    let t; let lista;
+    try { t = JSON.parse(fs.readFileSync(path.join(dir, 'turno.json'), 'utf8')); } catch (_) { continue; }
+    if (t === null || typeof t !== 'object' || typeof t.produto !== 'string' || !produtoOk(t.produto)) continue;
+    try { lista = JSON.parse(fs.readFileSync(path.join(dir, 'provedores.json'), 'utf8')); } catch (_) { continue; }
+    if (!Array.isArray(lista)) continue;
+    for (const p of lista.slice(0, MAX_PROVEDORES)) {
+      if (p !== null && typeof p === 'object' && String(p.type || '').toLowerCase() === 'openai') out.push({ ...p, modulo: id });
+    }
+  }
+  return out;
+}
+
+module.exports = { BASE, CONF, lerEnv, expandir, paraPerfil, ajusteDaAcao, arquivoMcp, provedores };
