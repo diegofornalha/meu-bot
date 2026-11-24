@@ -11,23 +11,20 @@ const { ADDONS } = createRequire(import.meta.url)("../../dist/main/app/variant-c
 const ADDONS_ROTULOS = ADDONS.map((a) => ({ nome: a.nome, rotulo: a.rotulo }));
 
 test("healthLines: sondagem e WhatsApp viram linhas com ✓/✗/•", () => {
-  const sem = healthLines({ probe, whatsapp: null, progress: null, share, xai: null }, fmt);
-  assert.deepEqual(sem.map((l) => l.ok), [true, false, true, null, false]);
-  assert.equal(sem[3].text, "xAI (Grok): não preparada nesta máquina");
+  const sem = healthLines({ probe, whatsapp: null, progress: null, share }, fmt);
+  assert.deepEqual(sem.map((l) => l.ok), [true, false, true, false]);
+  assert.equal(sem.some((l) => /xAI|Grok/.test(l.text)), false, "o Grok virou módulo: a saúde da máquina não fala mais dele");
   assert.equal(sem.some((l) => /meu-bot .*Mac dela|sem dados ainda/.test(l.text)), false, "versão do app dela fica nos devices da licença");
   assert.equal(sem[0].text, "entra por SSH (box · Ubuntu)");
   assert.equal(sem[1].text, "backend instalado mas parado");
   const wa = { present: true, connected: true, number: "5511999990000", detail: "", dmPolicy: "allowlist", audioIn: false, audioOut: "inbound" };
-  const com = healthLines({ probe, whatsapp: wa, progress: null, share: { ...share, progress: false }, xai: { loggedIn: true, email: "d@x.ai" } }, fmt);
-  assert.equal(com.length, 9);
-  assert.equal(com[3].text, "xAI (Grok) logada (d@x.ai)"); assert.equal(com[3].ok, true);
-  com.splice(3, 1);
+  const com = healthLines({ probe, whatsapp: wa, progress: null, share: { ...share, progress: false } }, fmt);
+  assert.equal(com.length, 8);
   assert.equal(com[4].text, "WhatsApp conectado (+5511999990000)");
   assert.equal(com[5].text, "responde: só a dona do número"); assert.equal(com[5].ok, null);
   assert.equal(com[6].text, "não entende áudios (sem transcrição)"); assert.equal(com[6].ok, false);
   assert.equal(com[7].text, "responde em áudio: quando recebe áudio");
-  const fora = healthLines({ probe: { ...probe, reachable: false, error: "timeout" }, whatsapp: null, progress: null, share: { ...share, progress: false }, xai: { loggedIn: false, email: null } }, fmt);
-  assert.equal(fora[3].text, "xAI (Grok) deslogada: o grok-4 não responde");
+  const fora = healthLines({ probe: { ...probe, reachable: false, error: "timeout" }, whatsapp: null, progress: null, share: { ...share, progress: false } }, fmt);
   assert.equal(fora[0].text, "não entra por SSH: timeout");
 });
 
@@ -52,7 +49,7 @@ test("visibleActions: transcrição só com a capacidade audio, Ativar ou Desati
   assert.deepEqual(visibleActions(null).map((o) => o.id), ["restart-gateway", "restart-backend", "support-off"]);
   const cap = (audio) => ({ parear: true, listarConversas: true, lerConversa: true, limparHistorico: true, pausar: true, grupos: true, guarda: true, politicaDm: true, audio, politicaReinicia: false, digitando: true, digitandoReinicia: false });
   const wa = (x) => ({ present: true, gateway: "openclaw", connected: true, number: null, detail: "", dmPolicy: null, capacidades: cap(true), ...x });
-  const h = (whatsapp, sh = share) => ({ probe, whatsapp, progress: null, share: sh, xai: null });
+  const h = (whatsapp, sh = share) => ({ probe, whatsapp, progress: null, share: sh });
   assert.deepEqual(visibleActions(h(wa({ audioIn: false }))).map((o) => o.id), ["restart-gateway", "restart-backend", "transcription", "support-off"]);
   const ids = visibleActions(h(wa({ audioIn: true }))).map((o) => o.id);
   assert.ok(!ids.includes("transcription") && ids.includes("transcription-off") && ids.includes("restart-gateway"));
@@ -90,7 +87,7 @@ test("agoText: segundos viram 'agora'", () => {
 
 test("healthLines: disco e memória da máquina (REA do Rambox), com aviso de pouco espaço", () => {
   assert.equal(gb(40_960), "40 GB"); assert.equal(gb(1536), "1,5 GB"); assert.equal(gb(820), "820 MB");
-  const base = { probe: { ...probe, diskTotalMb: 40_960, diskFreeMb: 12_288, memTotalMb: 4096, memFreeMb: 1536 }, whatsapp: null, progress: null, share: { ...share, progress: false }, xai: null };
+  const base = { probe: { ...probe, diskTotalMb: 40_960, diskFreeMb: 12_288, memTotalMb: 4096, memFreeMb: 1536 }, whatsapp: null, progress: null, share: { ...share, progress: false } };
   const lines = healthLines(base, fmt);
   const disk = lines.find((l) => l.text.startsWith("disco:")), mem = lines.find((l) => l.text.startsWith("memória:"));
   assert.deepEqual([disk.text, disk.ok], ["disco: 12 GB livres de 40 GB", true]);
@@ -103,7 +100,7 @@ test("healthLines: disco e memória da máquina (REA do Rambox), com aviso de po
 });
 
 test("healthLines: swap, a régua de 10% do vigia e o alerta que o backend já mandou", () => {
-  const base = { probe: { ...probe, memTotalMb: 8000, memFreeMb: 2400, swapTotalMb: 0, swapFreeMb: 0, backendAlerta: null }, whatsapp: null, progress: null, share: { ...share, progress: false }, xai: null };
+  const base = { probe: { ...probe, memTotalMb: 8000, memFreeMb: 2400, swapTotalMb: 0, swapFreeMb: 0, backendAlerta: null }, whatsapp: null, progress: null, share: { ...share, progress: false } };
   const mem = (h) => healthLines(h, fmt).find((l) => l.text.startsWith("memória:"));
   assert.deepEqual([mem(base).text, mem(base).ok], ["memória: 2,3 GB livres de 7,8 GB · sem swap", null]);
   const comSwap = { ...base, probe: { ...base.probe, swapTotalMb: 8192, swapFreeMb: 8000 } };
@@ -142,7 +139,7 @@ test("licenseSummary: mostra validade e marca expirada no passado", () => {
 });
 
 test("visibleActions: Instalar o backend só sem backend (com ele, Reiniciar); sem saúde, não aparece", () => {
-  const h = (backendInstalled) => ({ probe: { reachable: true, backendInstalled }, whatsapp: null, share: {}, progress: null, xai: null, license: null });
+  const h = (backendInstalled) => ({ probe: { reachable: true, backendInstalled }, whatsapp: null, share: {}, progress: null, license: null });
   const ids = (x) => visibleActions(x).map((o) => o.id);
   assert.ok(ids(h(false)).includes("install-backend")); assert.ok(!ids(h(false)).includes("restart-backend"));
   assert.ok(!ids(h(true)).includes("install-backend")); assert.ok(ids(h(true)).includes("restart-backend"));
@@ -235,7 +232,7 @@ test("limite de disco: Salvar sem editar mantém o % que o campo mostra (não vi
 });
 
 test("healthLines: status line do meu-bot, de outra origem (a global de um Mac) e ausente são três estados", () => {
-  const linha = (p) => healthLines({ probe: { ...probe, ...p }, whatsapp: null, progress: null, share, xai: null }, fmt).find((l) => /status line/.test(l.text));
+  const linha = (p) => healthLines({ probe: { ...probe, ...p }, whatsapp: null, progress: null, share }, fmt).find((l) => /status line/.test(l.text));
   assert.deepEqual(linha({ statusLine: true }), { text: "status line instalada", ok: true });
   assert.deepEqual(linha({ statusLine: false, statusLineAlheia: true }), { text: "status line de outra origem: aparece no terminal, mas os limites do Claude não chegam ao meu-bot", ok: null });
   assert.deepEqual(linha({ statusLine: false }), { text: "sem status line", ok: false });

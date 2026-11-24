@@ -14,7 +14,7 @@ test("estados da sondagem remota", () => {
   assert.deepEqual(pick(describeProbe({ ...base, claudeLoggedIn: false })), { kind: "bad", install: null, canOpen: false });
   assert.match(describeProbe({ ...base, claudeLoggedIn: false }).text, /Entrar no Claude Code/);
   assert.equal(describeProbe({ ...base, claudeLoggedIn: false }).login, true);
-  // backend no ar mas Claude deslogado: dá para abrir (grok-4 responde), mas avisa e oferece o login
+  // backend no ar mas Claude deslogado: dá para abrir (outro modelo da máquina pode responder), mas avisa e oferece o login
   const offLogged = describeProbe({ ...base, backendInstalled: true, backendListening: true, claudeLoggedIn: false });
   assert.deepEqual(pick(offLogged), { kind: "warn", install: null, canOpen: true });
   assert.equal(offLogged.login, true);

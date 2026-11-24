@@ -32,7 +32,7 @@ import { BACKEND_DIR_SH } from "./backend-dir-core";
 const REMOTE_STAGE = "~/.meu-bot-install";
 /**
  * Cada instalador vai para a própria subpasta (`~/.meu-bot-install/<componente>/`), junto com os arquivos que ele lê
- * da pasta dele: backend, audio, grok, navegador, crm, guarda, statusline. Antes, tudo ia solto no mesmo
+ * da pasta dele: backend, audio, navegador, crm, guarda, statusline. Antes, tudo ia solto no mesmo
  * nível (36 arquivos misturados).
  */
 const stageDe = (componente: string): string => `${REMOTE_STAGE}/${componente}`;
@@ -483,22 +483,8 @@ export async function statusLineInstalled(host: string): Promise<boolean> {
   return r.stdout.includes("statusline=1");
 }
 
-/** Grok por OAuth (Hermes + proxy local + providers.json): manda install-grok-oauth.sh e roda no host. */
-export async function prepareGrokOauth(host: string, onLine?: (line: string) => void): Promise<InstallBackendResult> {
-  const lines: string[] = [];
-  const say = (l: string): void => { lines.push(l); onLine?.(l); };
-  if (host === LOCAL_HOST) return { ok: false, log: ["o Grok por OAuth vale para máquinas por SSH"] };
-  const mk = await run("ssh", [...sshBase(host), "--", host, `${limparStage("grok")}; mkdir -p ${stageDe("grok")}`], 20_000);
-  if (mk.code !== 0) return { ok: false, log: [...lines, `falha ao preparar a pasta remota: ${lastLine(mk.stderr)}`] };
-  const scp = await run("scp", ["-q", ...sshBase(host), "--", path.join(backendBundleDir(), "install-grok-oauth.sh"), `${host}:${stageDe("grok")}/`], 60_000);
-  if (scp.code !== 0) return { ok: false, log: [...lines, `scp falhou: ${lastLine(scp.stderr)}`] };
-  const inst = await run("ssh", [...sshBase(host), "--", host, `bash ${stageDe("grok")}/install-grok-oauth.sh 2>&1`], 10 * 60_000, say);
-  if (inst.code !== 0) return { ok: false, log: [...lines, lines.at(-1) ?? `instalador saiu com código ${inst.code ?? "timeout"}`] };
-  return { ok: true, log: lines };
-}
-
 // ---- Modo grátis numa máquina por SSH (tutorial 16): o Ollama do meu-bot na própria máquina (install-ollama.sh),
-// no molde do Grok por OAuth acima. A parte pura está em agente/ollamaRemoto-core.ts; neste Mac é o agente/ollamaLocal.ts.
+// A parte pura está em agente/ollamaRemoto-core.ts; neste Mac é o agente/ollamaLocal.ts.
 /** Estado do modo grátis na máquina; null = não deu para entrar nela (ou ela não respondeu o esperado). */
 export async function ollamaStatusRemoto(host: string): Promise<OllamaStatus | null> {
   if (host === LOCAL_HOST || !isValidHost(host)) return null;

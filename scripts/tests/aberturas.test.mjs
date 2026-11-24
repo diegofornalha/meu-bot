@@ -39,7 +39,7 @@ test("resumoDaSaude: o que vai ao console (saúde, licença, uso com a conta, ab
   const { resumoDaSaude } = createRequire(import.meta.url)("../../dist/main/admin/suporte-resumo-core.js");
   const r = resumoDaSaude({
     probe: { reachable: true, user: "root", os: "Ubuntu 24.04", backendListening: true, backendInstalled: true, claudeLoggedIn: false, diskFreeMb: 40960, diskTotalMb: 81920, error: null },
-    whatsapp: { connected: true, detail: "" }, progress: null, share: {}, xai: null,
+    whatsapp: { connected: true, detail: "" }, progress: null, share: {},
     license: { license: { plan: "pro", status: "active", expiresAt: null }, activeCount: 1, pendingCount: 0, deviceLimit: 2, devices: [] },
     aberturas: [{ em: "2026-11-10T14:00:00Z", produto: "meu-bot-staging", versao: "0.80.0", mac: "cursor", user: "box", conta: "mac1@gmail.com" }],
   });

@@ -23,10 +23,8 @@ import { motivoReleaseTexto } from "../atualizacao/updater-core";
 import type { ReleasePublicada } from "../../shared/ipc";
 import { checkNow as netCheckNow, hostIsLocalAddr } from "../app/net";
 import { claudeAuthInfo } from "../agente/claudeLogin";
-import { xaiAuthInfo } from "../agente/xaiLogin";
 import { contasStatus } from "../agente/contas-cli";
 import { linkPublicoStatus } from "../agente/link-publico";
-import { xaiKeyStatus } from "../agente/xaiKey";
 import { closeTunnel } from "../maquina/tunnel";
 import { anyConversationBusy } from "../conversa/conversation";
 import { getBackendPort, getQuickEntry, settingsView, updateSettings } from "../app/settings";
@@ -248,14 +246,8 @@ export function registerSharedIpc(deps: SharedIpcDeps): void {
     if (h === null) throw new Error("origem inválida");
     return claudeAuthInfo(h.host);
   });
-  handleShared("xai-login:auth", (event) => { const h = hostFromEvent(event); if (h === null) throw new Error("origem inválida"); return xaiAuthInfo(h.host); });
   handleShared("contas:status", (event) => { const h = hostFromEvent(event); if (h === null) throw new Error("origem inválida"); return contasStatus(h.host); });
   handleShared("link-publico:status", (event) => { const h = hostFromEvent(event); if (h === null) throw new Error("origem inválida"); return linkPublicoStatus(h.host); });
-  handleShared("xai-key:status", (event) => {
-    const h = hostFromEvent(event);
-    if (h === null) throw new Error("origem inválida");
-    return xaiKeyStatus(h.host);
-  });
 
   // Menu "…" da conversa do WhatsApp: os itens vêm de wa-menu.ts (puro); aqui só o Menu do Electron.
   handleShared("ui:wa-menu", (event, payload: unknown) => {

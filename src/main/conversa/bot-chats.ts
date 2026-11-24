@@ -8,7 +8,7 @@ import type { BotChat, BotMessage } from "../../shared/ipc";
 
 export const SESSION_ID_RE = /^[0-9a-f-]{8,64}$/;
 export const PROJECT_DIR_RE = /^[A-Za-z0-9._-]{1,120}$/;
-/** Id de conversa do app (diário do backend para Grok/Hermes): o mesmo CONV_ID_RE do server.js. */
+/** Id de conversa do app (diário do backend para os provedores fora do Claude Code): o mesmo CONV_ID_RE do server.js. */
 export const APP_CONV_ID_RE = /^[A-Za-z0-9_-]{8,80}$/;
 /** Pasta do diário na máquina (o backend grava; o admin lê). */
 export const APP_CONVERSAS_DIR = "$HOME/.local/share/meu-bot/conversas";
@@ -43,7 +43,7 @@ export function parseBotChatList(stdout: string): BotChat[] {
   const out: BotChat[] = [];
   for (const line of stdout.split("\n")) {
     const [tag, id, mtime, dir, replies, first = ""] = line.split("\t");
-    // `A\t<id da conversa>\t<mtime>\t<provedor>\t<nº de respostas>\t<1ª linha user>`: o diário do backend (Grok/Hermes).
+    // `A\t<id da conversa>\t<mtime>\t<provedor>\t<nº de respostas>\t<1ª linha user>`: o diário do backend (provedores fora do Claude Code).
     if (tag === "A" && id !== undefined && mtime !== undefined && dir !== undefined && APP_CONV_ID_RE.test(id)) {
       const t = Number(mtime); if (!Number.isFinite(t) || t <= 0) continue;
       let firstText = "";

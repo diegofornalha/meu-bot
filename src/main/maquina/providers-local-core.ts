@@ -1,6 +1,6 @@
 /**
- * Dono único do providers.json do backend local (este Mac). Quem prepara um provedor (o Grok pelo proxy do Hermes, o
- * Ollama do modo grátis) mescla a sua entrada aqui, sem apagar as dos outros. Puro: lê e devolve texto, testável com
+ * Dono único do providers.json do backend local (este Mac). Quem prepara um provedor (o Ollama do modo
+ * grátis) mescla a sua entrada aqui, sem apagar as dos outros. Puro: lê e devolve texto, testável com
  * node --test. O formato é o de backend-colima/providers.js ({ name, type, priority, ... }).
  */
 
@@ -40,4 +40,18 @@ export function providerPorNome(raw: string | null, name: string): ProviderEntry
   if (raw === null) return null;
   const p = lerProvidersLocal(raw).find((x) => ehEntrada(x) && x.name === name);
   return p === undefined ? null : (p as ProviderEntry);
+}
+
+/**
+ * Herança de quando o Grok vinha no app: ele gravava aqui um `grok-4` apontado para um proxy que o próprio app subia
+ * neste Mac, 100 portas abaixo do backend local. O app não sobe mais esse proxy, e a entrada que ficou seria um modelo
+ * que aparece na lista e nunca responde. Devolve o arquivo sem ela, ou null quando não há o que tirar. Só sai a
+ * entrada que o app escreveu (nome e endereço exatos): um grok-4 que a pessoa configurou de outro jeito fica.
+ */
+export function semProviderDoProxyAntigo(raw: string | null, portaBackend: number): string | null {
+  if (raw === null) return null;
+  const antigo = `http://127.0.0.1:${portaBackend - 100}/v1`;
+  const list = lerProvidersLocal(raw);
+  const resto = list.filter((p) => !(ehEntrada(p) && p.name === "grok-4" && p["base_url"] === antigo));
+  return resto.length === list.length ? null : escrever(resto);
 }

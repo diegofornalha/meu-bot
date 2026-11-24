@@ -1,5 +1,5 @@
 /**
- * Modo grátis no Mac (tutorial 16): o Ollama do meu-bot na máquina "local". No molde do xaiLocal.ts: o programa fica
+ * Modo grátis no Mac (tutorial 16): o Ollama do meu-bot na máquina "local". O programa fica
  * numa pasta do meu-bot (~/.local/share/meu-bot/ollama, na versão fixa, conferida pelo sha256; nada em /Applications e
  * sem mexer num Ollama que a pessoa já tenha), o `ollama serve` é um processo filho do app numa porta própria
  * (ollamaPortaLocal) e o providers.json do backend local ganha a entrada "ollama-local" (mesclada, sem apagar as outras).

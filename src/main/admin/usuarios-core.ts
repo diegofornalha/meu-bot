@@ -460,7 +460,7 @@ systemctl daemon-reload >/dev/null 2>&1 || true
 echo SWAP=ok`;
 }
 
-/** A mesma versão que o install-grok-oauth.sh pede (fonte única: maquina/motor-versoes.ts): com ela no PATH de todos, o instalador não baixa cópia por usuário. */
+/** A versão fixada do Hermes (fonte única: maquina/motor-versoes.ts): com ela no PATH de todos, nenhum instalador baixa cópia por usuário. */
 export { HERMES_VERSAO };
 /** Node do Hermes compartilhado: o mesmo do backend (install.sh). */
 const HERMES_NODE = MOTOR_NODE;
@@ -469,7 +469,7 @@ const HERMES_NODE = MOTOR_NODE;
  * Hermes para todos os usuários da máquina: o programa em /opt/hermes (Node próprio + pacote npm, dono root, só
  * leitura para os outros) e o /usr/local/bin/hermes apontando para lá. Os dados continuam por usuário (~/.hermes).
  * Antes, o Hermes do root morava em /root/.local (pasta 700): o atalho global dava "Permission denied" para os
- * outros e o instalador do Grok baixava uma cópia de ~900 MB em cada conta. Idempotente; o atalho que não for nosso
+ * outros e cada conta baixava a própria cópia de ~900 MB. Idempotente; o atalho que não for nosso
  * fica guardado ao lado. Saída `HERMES=ok <versão>` ou `ERRO=`.
  *
  * CONTORNO #6 (Hermes): o lançador npm (lib/python-launcher.js) não repassa SIGTERM ao filho Python; com o

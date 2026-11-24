@@ -1,10 +1,10 @@
 import { byId as $, el } from "../lib/dom.js";
 import { planMascots } from "../lib/intro-mascots.js";
-import { type OnboardState, type Feedback, ONBOARD_STEPS, initialOnboardState, FINAL_MESSAGE, SKIPPED_MESSAGE, welcomeMessage, type OnboardEvent, advanceOnboard, pickFeedback, TOUR_INVITE, AI_CHOICE_INVITE, AI_NONE_INFO, type AiChoice, comModoGratis, opcoesVisiveis, parseAiChoice, preselecao, pularEscolhaIa, tutorialDaEscolha } from "../lib/onboarding.js";
+import { type OnboardState, type Feedback, ONBOARD_STEPS, initialOnboardState, FINAL_MESSAGE, SKIPPED_MESSAGE, welcomeMessage, type OnboardEvent, advanceOnboard, pickFeedback, TOUR_INVITE, AI_CHOICE_INVITE, AI_NONE_INFO, type AiChoice, comModoGratis, AI_CHOICES, parseAiChoice, preselecao, pularEscolhaIa, tutorialDaEscolha } from "../lib/onboarding.js";
 import { hostLabel } from "../lib/probe-text.js";
 import { mountSnake } from "../snake.js";
 import type { Tab } from "../renderer.js";
-import { ctx, ehRemoto } from "../app/ctx.js";
+import { ctx } from "../app/ctx.js";
 
 // ---- Abertura (opcional, interruptor "Intro" do seletor): o topo se materializa em etapas e o túnel acende como clímax.
 const introEl = $<HTMLElement>("intro");
@@ -160,10 +160,10 @@ const aiChoiceKey = (): string => `escolhaIa:${ctx.windowHost}`;
  * já está logada; com o Claude Code Global do admin a conta já existe e segue direto para o convite do tour.
  */
 export async function showAiChoice(): Promise<void> {
-  await Promise.allSettled([ctx.refreshClaudeLine(), ctx.refreshXaiLine(), ctx.refreshOllamaLine()]);
+  await Promise.allSettled([ctx.refreshClaudeLine(), ctx.refreshOllamaLine()]);
   const g = ctx.guideCtx();
   if (pularEscolhaIa(g)) { showTourWelcome(); return; }
-  const opcoes = comModoGratis(opcoesVisiveis(g.xai.possible), g.ollama.possible === true);
+  const opcoes = comModoGratis(AI_CHOICES, g.ollama.possible === true);
   let guardada: AiChoice | null = null;
   try { guardada = parseAiChoice(localStorage.getItem(aiChoiceKey())); } catch { /* opcional */ }
   const marcada = guardada ?? preselecao(g);
@@ -183,8 +183,6 @@ export async function showAiChoice(): Promise<void> {
       cards.append(card);
     }
     twChoice.replaceChildren(cards);
-    // Este Mac: o backend local ainda só sobe com o Claude Code logado; o Grok sozinho não liga o agente aqui.
-    if (aiChoice === "grok" && !ehRemoto()) twChoice.append(el("p", "hint", "Neste Mac o agente ainda precisa do Claude Code para ligar; o Grok entra como reserva."));
     twStart.disabled = aiChoice === null;
   };
   paint();
@@ -222,7 +220,7 @@ async function confirmAiChoice(): Promise<void> {
     showAiNone(); return;
   }
   await closeAiChoice();
-  if (tut === "xai-login") ctx.enterXai(); else ctx.enterClaude();
+  ctx.enterClaude();
 }
 
 function twPrimary(): void {

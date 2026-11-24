@@ -60,7 +60,7 @@ test("o que escreve na máquina da pessoa é só do cliente (exceto limpar o Wha
   const writes = [
     "chat:send", "chat:new", "chat:delete", "chat:apagadas", "chat:duplicate", "chat:branch",
     "whatsapp:pair", "whatsapp:audio", "whatsapp:logout", "whatsapp:dm-policy", "whatsapp:branch", "whatsapp:pausa-plugin", "whatsapp:dono",
-    "claude-login:start", "claude-login:code", "claude-login:logout", "xai-login:prepare", "xai-login:start", "xai-login:logout",
+    "claude-login:start", "claude-login:code", "claude-login:logout",
     "statusline:install", "statusline:set-segments", "statusline:uninstall", "tailscale:disable-check", "tailscale:restore", "support:set", "support:name", "support:deliver", "support:progress", "support:share", "support:reset",
     "backend:install", "backend:presente",
     "picker:install", "picker:install-statusline", "picker:install-transcricao", "picker:remove-host", "picker:rename-host",
@@ -93,4 +93,8 @@ test("os grupos sharedApi/clientApi/adminApi dos preloads batem com as listas de
       for (const c of chans) assert.ok(lists[g[1]].has(c), `${file}: ${c} está em ${g[1]}Api mas não em ${g[1].toUpperCase()}_CHANNELS`);
     }
   }
+});
+
+test("o login da xAI saiu do app: nenhum canal dele sobrou em nenhuma lista", () => {
+  for (const c of [...shared, ...client, ...admin]) assert.ok(!/^xai-/.test(c), `${c} é do Grok, que virou módulo`);
 });

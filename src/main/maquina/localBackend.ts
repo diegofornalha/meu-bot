@@ -12,6 +12,7 @@ import os from "node:os";
 import path from "node:path";
 import { backendBundleDir } from "./hostProbe";
 import { BACKEND_RUNTIME_FILES } from "./backend-bundle-core";
+import { semProviderDoProxyAntigo } from "./providers-local-core";
 import { ehNossoOrfao, pidsDoLsof } from "./backend-local-orfao-core";
 import { produto } from "../app/variant";
 import { temOllamaNoProviders } from "../agente/ollamaLocal-core";
@@ -141,6 +142,9 @@ export function ensureLocalBackend(onStatus?: (detail: string) => void): Promise
       // subida. providers.json é configuração: só na primeira vez.
       for (const f of BACKEND_RUNTIME_FILES) if (f !== "providers.json") fs.copyFileSync(path.join(bundle, f), path.join(d, f));
       if (!fs.existsSync(path.join(d, "providers.json"))) fs.copyFileSync(path.join(bundle, "providers.json"), path.join(d, "providers.json"));
+      // Quem preparou o Grok por uma versão anterior do app: a entrada do proxy que o app subia sai (o proxy não existe mais).
+      const semAntigo = semProviderDoProxyAntigo(lerProvidersLocal(d), localPort());
+      if (semAntigo !== null) { fs.writeFileSync(path.join(d, "providers.json"), semAntigo); log("providers.json local: saiu o grok-4 do proxy que o app subia (o Grok agora é um módulo)"); }
       const apiKey = readOrCreateEnv(d, claude);
       if (state !== undefined) { try { state.child.kill("SIGTERM"); } catch { /* já morto */ } state = undefined; }
       if (await portOpen(localPort()) && !(await liberarOrfao(localPort(), path.join(d, "server.js")))) throw new Error(`A porta ${localPort()} já está em uso neste Mac por outro programa.`);

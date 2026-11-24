@@ -36,11 +36,11 @@ export function eventoTexto(ev: ContaClaudeEvento): string {
   const para = ev.para ?? "nenhuma conta livre";
   return `${quando} · ${origem} · ${ev.de ?? "?"} → ${para}${ev.motivo ? ` (${ev.motivo})` : ""}`;
 }
-/** `grok`: a xAI está logada nesta máquina (true), não está (false) ou não se sabe (null): só com true se promete o grok-4. */
-export function avisoSemConta(view: ContasClaudeView, grok: boolean | null = null): string | null {
+/** `reserva`: o modelo desta máquina que assume quando o Claude falha (null = nenhum, ou não se sabe): só com ele se promete resposta. */
+export function avisoSemConta(view: ContasClaudeView, reserva: string | null = null): string | null {
   if (view.atual !== null) return null;
   if (view.contas.every((c) => !c.logada || !c.ativa)) return "Nenhuma conta logada e ligada: entre em uma conta para o agente responder pelo Claude.";
-  const ateLa = grok === true ? "até lá o grok-4 responde" : "até lá o agente não responde";
+  const ateLa = reserva !== null ? `até lá quem responde é a reserva (${reserva})` : "até lá o agente não responde";
   return view.proximaEm !== null ? `Todas as contas estão no limite de uso. A próxima volta às ${horaLocal(view.proximaEm)}; ${ateLa}.` : "Todas as contas estão no limite ou bloqueadas.";
 }
 
