@@ -568,7 +568,8 @@ Os avisos (Mac novo, vigia, cota) vão só pelo WhatsApp da pessoa: o e-mail pel
 - Sem mudança de comportamento, fora três detalhes: (1) máquina sem motor nenhum recebe "não tem agente com WhatsApp"
   nas ações em vez de cair no caminho do OpenClaw; (2) o PicoClaw tem ramo próprio na lista e nos grupos (vazios) em vez
   de cair no do OpenClaw; (3) `oc_fallback_ensure` gravava a reserva do Grok como `[grok/…]` sem as aspas internas
-  (escape perdido no template) e o OpenClaw recusava em silêncio; agora vai como JSON válido (teste cobre).
+  (escape perdido no template) e o OpenClaw recusava em silêncio; agora vai como JSON válido (teste cobre). O `oc_fallback_ensure` saiu na
+  #514 (24 nov): o app não grava mais reserva no OpenClaw, e a que já está no `openclaw.json` de uma máquina fica.
 
 ## Onde vive o WhatsApp: o alvo (conta, agente e gateway) por máquina (1 nov)
 
@@ -619,8 +620,8 @@ Os avisos (Mac novo, vigia, cota) vão só pelo WhatsApp da pessoa: o e-mail pel
 - Fonte única: `backend-colima/motor-versoes.sh` (só `CHAVE=valor`, para os scripts da máquina) com o espelho
   `src/main/maquina/motor-versoes.ts` (o app). `OPENCLAW_VERSAO`, `OPENCLAW_WA_PLUGIN_VERSAO`, `HERMES_VERSAO` e
   `MOTOR_NODE`. `usuarios-core.ts` reexporta `HERMES_VERSAO` de lá; `scripts/tests/motor-versoes.test.mjs` recusa
-  divergência com o `install-grok-oauth.sh` e com o pedido ao agente, e recusa `@latest` ou plugin sem versão em `src/`
-  e `backend-colima/`.
+  divergência com o pedido ao agente (e com o `install-grok-oauth.sh`, até ele sair na PR do app
+  `grok-fora-do-app`), e recusa `@latest` ou plugin sem versão em `src/` e `backend-colima/`.
 - Pareamento (`whatsapp.ts`): o plugin vai na versão do OpenClaw da máquina (`openclaw --version`), e sem conseguir
   lê-la, na fixada; não há mais a tentativa sem versão. `--accept-capabilities` primeiro (sem terminal, a pergunta do
   instalador travava), e sem a opção se o runtime não a conhece.
@@ -647,3 +648,19 @@ Os avisos (Mac novo, vigia, cota) vão só pelo WhatsApp da pessoa: o e-mail pel
   leve) roda o `install-porteiro.sh` da máquina quando falta o drop-in e espera o gateway voltar. Evento
   `porteiro-set` no pareamento. Testes em `whatsapp-status-sh.test.mjs` (fixture `claudeGlobal`) e
   `openclaw-multi-conta.test.mjs` (gateway de outro usuário não mexe).
+
+## Sem Claude, o WhatsApp do Hermes fica em silêncio (24 nov)
+
+- **Por quê:** no produto base a corrente de provedores só tem o `agente`. Quando o Claude falha (limite, conta fora do
+  ar) nenhum provedor responde, e o gateway do Hermes mandava ao contato "Your request was not processed. Send it
+  again…" a cada mensagem. Não dá para calar um turno já aberto (contorno #8, [contornos.md](contornos.md)).
+- **Backend** (`backend-colima/sem-claude.js`, #512): na falha definitiva de um turno do perfil `whatsapp`,
+  `semClaudeCaiu` grava `~/.local/share/meu-bot/sem-claude.json` (`{ desde, ate, motivo }`), avisa o dono no WhatsApp
+  na primeira vez e liga a sonda. A marca vale 10 min; a sonda (`sondaSemClaude`, `server.js`) tenta o Claude sozinha
+  a cada 2 min, renova a marca enquanto falha e, quando ele responde, `semClaudeVoltou` tira a marca e avisa o dono
+  com quantas mensagens ficaram guardadas. Com o backend parado a marca vence e as mensagens voltam a passar.
+- **Plugin `meu-bot-pausa` 1.4.0** (`_sem_claude`, gancho `pre_gateway_dispatch`): enquanto a marca vale, guarda a
+  mensagem do contato e a descarta, como faz com o contato pausado; o agente a recebe numa nota quando a pessoa
+  escreve de novo. A primeira mensagem de cada queda ainda recebe o aviso do Hermes.
+- **Com um motor de módulo de reserva** (o Grok com a opção `reserva` ligada), o turno desce para ele antes de chegar
+  aqui: o silêncio só vale quando ninguém na corrente respondeu.

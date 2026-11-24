@@ -41,9 +41,10 @@ O selo no topo mostra o estado: "buscando chave…", "abrindo túnel…", "túne
 ## Funcionalidades (v2)
 
 - **Markdown** nas respostas, com blocos de código realçados e botão Copiar; links abrem no navegador.
-- **Modelo por conversa** no seletor ao lado da caixa de texto (`claudecode`, `agente`, `rene-dm`, `rene`, `grok-4`).
-  O backend tem uma corrente de fallback (`providers.json`: agente → grok-4) e avisa na conversa quando troca.
-  Configurações › Fallback escolhe o primário (Claude ou xAI). A status line no rodapé mostra modelo, contexto,
+- **Modelo por conversa** no seletor ao lado da caixa de texto: os perfis do Claude (`claudecode`, `agente`, `rene-dm`,
+  `rene`) e os provedores que a máquina informa (o modo grátis, o motor de um módulo). O backend tem uma corrente de
+  fallback (`providers.json`; no produto base, só o `agente`) e avisa na conversa quando troca: `docs/guia/agente.md`.
+  A status line no rodapé mostra modelo, contexto,
   conta e limites de 5 h e 7 dias do Claude, com aviso ao passar de 80, 90 e 95%. Se a máquina não tem o
   `statusline.sh` que grava esses limites, o seletor avisa "sem status line do Claude" e oferece **Instalar status
   line** (o `claude-statusline`, com o cache que o app lê); a máquina abre normalmente enquanto isso.

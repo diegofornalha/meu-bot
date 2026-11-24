@@ -2,8 +2,8 @@
 
 **Um agente de IA que atende seus clientes no WhatsApp enquanto você trabalha.**
 
-Ele roda no seu Mac, pensa com o Grok, da xAI, lê seu Gmail e usa o navegador por você. Você define o que ele pode
-fazer, e ele pede confirmação antes de qualquer coisa importante.
+Ele roda no seu Mac, pensa com o Claude, lê seu Gmail e usa o navegador por você. Você define o que ele pode fazer, e
+ele pede confirmação antes de qualquer coisa importante.
 
 <p align="center">
   <img src="docs/img/instalador.png" alt="Instalador do meu-bot: arraste o app para a pasta Aplicativos" width="640">
@@ -26,11 +26,11 @@ próprio chip. Precisa de um Mac com chip Apple (M1 ou mais novo). O app se atua
 assinatura conferida antes de instalar.
 
 - [Baixar para Mac](https://agentesgrok.com/baixar)
-- [Grok no WhatsApp: como funciona](https://agentesgrok.com/grok-no-whatsapp)
 - [O WhatsApp bloqueia o número que usa IA?](https://agentesgrok.com/guias/whatsapp-bloqueia-numero-com-ia)
 - [Perguntas frequentes](https://agentesgrok.com/perguntas)
 
-O meu-bot é um produto independente da Coflow, parceira da xAI. Grok e xAI são marcas da xAI; WhatsApp é marca da Meta.
+O meu-bot é um produto independente da Coflow, parceira da xAI. O agente pensa com o Claude; o Grok, da xAI, é um módulo
+opcional, com licença à parte. Claude é marca da Anthropic; Grok e xAI são marcas da xAI; WhatsApp é marca da Meta.
 
 ---
 

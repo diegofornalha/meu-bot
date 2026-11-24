@@ -141,8 +141,9 @@ pedido que chega ao backend não diz quem escreveu.
 - **Falha fechada:** marcador escrito à mão, dois marcadores, passe vencido, grupo, número fora da lista, plugin sem
   saber quem escreveu, app fechado: turno normal, sem Navegador. O app recusa ligar com backend anterior ao 1.13.0 (o
   marcador iria parar no texto da conversa).
-- **Fora desta versão:** grupos no Hermes (a sessão de grupo mistura falas de terceiros). Quando o turno cai para o Grok
-  de reserva não há ferramentas, e o Navegador some naquele turno.
+- **Fora desta versão:** grupos no Hermes (a sessão de grupo mistura falas de terceiros). Quando o turno cai para uma
+  reserva que não é Claude (o modo grátis, ou o motor de um módulo com `reserva`) não há ferramentas, e o Navegador
+  some naquele turno.
 
 ## Abas do Navegador com dono por conversa (21 out)
 

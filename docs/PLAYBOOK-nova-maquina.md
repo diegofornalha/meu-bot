@@ -171,15 +171,16 @@ em arquivo: `cmd | tail` devolve o status do `tail` e mascara falha.
 
 ### 3b½. Provedores e fallback (`providers.json`, vale para os dois)
 
-Lista ordenada ao lado do backend. Padrão: `agente` (Claude, prioridade 0) → `grok-4` (xAI, 1). O
-backend tenta o modelo pedido; se ele falhar antes de responder, desce para o próximo e avisa o app
-(aviso amarelo na conversa). Para o `grok-4` existir numa máquina, uma das duas:
-- `XAI_API_KEY=…` no `.env` do backend (vai direto na api.x.ai); ou
-- `base_url` apontando para um `hermes proxy start --provider xai` local (porta 8645), que usa o login
-  OAuth da xAI (`hermes auth add xai-oauth --type oauth --no-browser`). É assim na grokbot-1.
+Lista ordenada ao lado do backend. Padrão: só o `agente` (Claude, prioridade 0; PR #514). O backend tenta o modelo
+pedido; se ele falhar antes de responder, desce para o próximo que aceita ser reserva e avisa o app (aviso amarelo na
+conversa). Com a corrente só no `agente` não há para onde descer. Outro motor de IA chega por dois caminhos:
+- modo grátis: o `install-ollama.sh` mescla a entrada `ollama-local` no `providers.json`; ou
+- módulo: o instalador grava `~/.local/share/meu-bot/modulos/<id>/provedores.json` e o backend o lê na subida. O Grok
+  (xAI) é o módulo `grok` do complemento `meu-bot-grok`, com login pelo `entrar.sh` dele
+  (`docs/guia/meu-bot-diego.md` › "Motor de IA trazido por módulo").
 ```bash
-cat ~/.hermes/agente-rene/backend-sdk-claude/providers.json   # conferir
-curl -s -H "Authorization: Bearer $K" localhost:8080/v1/models | grep -o '"id":"[^"]*"'   # grok-4 aparece?
+cat ~/.local/share/meu-bot/backend/providers.json   # conferir (na pasta herdada: ~/.hermes/agente-rene/backend-sdk-claude)
+curl -s -H "Authorization: Bearer $K" localhost:8080/v1/meu-bot/status | grep -o '"providers":\[[^]]*\]'   # a corrente, com reserva e módulo
 ```
 **Nunca rode o `install.sh` genérico onde já existe o backend do Hermes** (grokbot-1): ele recusa agora
 (`app.js`/`services/` presentes), e o caminho certo lá é `backend-vm/deploy-agente.sh`.
@@ -194,7 +195,7 @@ curl -s -H "$H" -H "$J" localhost:8080/v1/chat/completions -d '{"model":"claudec
 curl -sN -H "$H" -H "$J" -H 'X-Stream-Mode: live' localhost:8080/v1/chat/completions -d '{"model":"claudecode","stream":true,"messages":[{"role":"user","content":"conte de 1 a 12"}]}' | head -8
 # retomada: duas chamadas com X-Conversation-Id: t1 e X-Conversation-Seen: 0 / 2 → a segunda vem com X-Session-Resumed: true
 # bypass: pedir ao modelo "agente" para criar um arquivo e ler de volta
-# grok-4: model grok-4 → resposta curta em ~3 s; cabeçalho X-Provider: grok-4
+# motor de módulo ou modo grátis, se houver: model <nome do provedor> → cabeçalho X-Provider: <nome>
 # status line: GET /v1/meu-bot/status → {claude:{email,assento,sessionPct,…}, providers:[…]}; campos null se o
 #   ~/.cache/claude-statusline/ratelimits.json não existe. Quem grava é o statusline.sh de backend-colima/ (o do
 #   claude-statusline mais o cache de limites); o seletor oferece "Instalar status line" onde falta, ou na mão:

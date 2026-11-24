@@ -155,7 +155,7 @@ cliente (um `claude mcp add` ou um trecho de `mcp.json`); o app só gera o texto
   `refresh…` que a preenche: `{ known, dados }`, com a condição de "conhecida" que antes estava em `guideCtx`.
   `CAMPOS_POR_FONTE` diz que campos cada fonte preenche (teste puro: cada campo tem exatamente uma dona; `produto`
   ficou com o CRM). `ehRemoto()` em `app/ctx.ts` substitui o `remote` que oito fontes recalculavam.
-- **Onde cada fatia mora:** claude, xai e fallback em `agente/contas-agente.ts` (com `firstReplyOnHost`, que saiu do
+- **Onde cada fatia mora:** claude e fallback em `agente/contas-agente.ts` (com `firstReplyOnHost`, que saiu do
   guia-secoes); whatsapp em `agente-whatsapp.ts` (só `known`: o status vai ao guia por fora); objective, guarda,
   navegador, crm (+ produto), grupos, contas, linkpublico, quickentry e finance nos `*-guia.ts` e módulos de domínio
   respectivos; statusline e support ficam em `guia-secoes.ts` (269 linhas agora).
@@ -192,7 +192,7 @@ cliente (um `claude mcp add` ou um trecho de `mcp.json`); o app só gera o texto
   circular. Para entender o passo do CRM eram quatro arquivos (definição, cadeia, `crm-guia.ts`, `ctx`).
 - **Agora:** `tutoriais/passos.ts` é um registro `body → renderizador` (`registrarPassos`, `renderPasso`,
   `conferirPassos`), sem import de módulo de domínio (não há ciclo). Cada módulo registra os seus bodies dentro do
-  próprio `ligar…()`: `contas-agente` (login do Claude, xAI, contas), `agente-whatsapp` (agente, quem responde, áudio),
+  próprio `ligar…()`: `contas-agente` (login do Claude, contas), `agente-whatsapp` (agente, quem responde, áudio),
   `grupos` (novo `ligarGrupos`), `crm-guia`, `financeiro-guia` (novo `ligarFinanceiroGuia`) e `guia-secoes` (o resto).
   Os ramos que eram código solto na cadeia viraram funções nomeadas no módulo dono (`renderClaudeLoginPasso`,
   `renderReplyChoicePasso`, `renderCloudflareEntrar`).
@@ -227,7 +227,7 @@ cliente (um `claude mcp add` ou um trecho de `mcp.json`); o app só gera o texto
   nasceu (os desmembrados ganharam 15 e 16 e ficaram logo depois do 1 e do 2). Na tela saía 1, 15, 2, 16, 5, 7, 9,
   12…, e os dois tutoriais de CRM dividiam o 10 sem haver 11. Confuso, principalmente nos arquivados do root.
 - **Agora:** número = posição na trilha. Os que podem aparecer na lista são 1..15 sem buraco (o que some numa máquina
-  é só o que ela não oferece: Grok, suporte, guarda, financeiro, link público). Os `oculto` por decisão de produto foram
+  é só o que ela não oferece: suporte, guarda, financeiro, link público). Os `oculto` por decisão de produto foram
   para o fim do array e da numeração: 16 (status line) e 17 (CRM, nas duas versões excludentes, Gmail e Streak).
   O teste "trilha numerada" trava a ordem, a contiguidade dos visíveis e o array ordenado.
 - **Mapa antigo → novo** (o diário abaixo desta seção já usa os números novos; commits, issues e PRs anteriores a
@@ -496,7 +496,7 @@ abertura seguinte o seletor atualiza backend e plugins das máquinas) → subir 
 - **Sintoma:** ao abrir a janela, a lista de Tutoriais e o selo da lateral nasciam com tudo "pendente" e mudavam
   conforme as consultas à máquina chegavam (o selo "3" aparecia tarde; cartões concluídos iam para arquivados
   depois). Causa: cada `done()` de passo devolve `false` para fonte `null`, e a lista tratava isso como pendente.
-- **Modelo:** cada tutorial declara `needs` (fontes do contexto: whatsapp, claude, statusline, xai, fallback,
+- **Modelo:** cada tutorial declara `needs` (fontes do contexto: whatsapp, claude, statusline, fallback,
   support, objective, guarda, navegador, crm) e o contexto traz `known` por fonte (consulta respondeu, ou não se
   aplica aqui: este Mac, sem o pacote, máquina sem OpenClaw; consulta que falhou continua desconhecida).
   `tutorialState` é tri-valente: `done` / `todo` pelo estado real quando as fontes chegaram; antes, a lembrança
@@ -743,7 +743,7 @@ esquerda dela; a Produtos cola à esquerda do seletor. A memória de posição p
 ## Pasta de instalação por componente (28 out)
 O app manda os instaladores para a máquina por scp antes de rodar. Antes ia tudo solto em `~/.meu-bot-install/` (36
 arquivos misturados); agora cada um vai para a própria subpasta, com os arquivos que ele lê da pasta dele:
-`backend/` (o install.sh encadeia status line e porteiro), `audio/`, `grok/`, `navegador/`, `crm/` (+ `crm/` do
+`backend/` (o install.sh encadeia status line e porteiro), `audio/`, `navegador/`, `crm/` (+ `crm/` do
 plugin), `financeiro/` (+ `finance/`), `guarda/` (+ `guarda/` e `skills/whatsapp-grupos/`) e `statusline/`. A cada
 envio a subpasta do componente recomeça do zero e o jeito antigo é varrido (`stageDe`/`limparStage` em
 src/main/maquina/hostProbe.ts). As desinstalações criam a subpasta se faltar; a do CRM ainda tenta o caminho antigo.
@@ -910,3 +910,14 @@ nele): a barra lateral ganha o botão **Inspector** e a janela abre nessa págin
 - Sem a impressão da versão anterior não há o que comparar (em 22/11 a da 1.2.0 tinha se perdido): `--impressao
   <app.asar|pasta> <versão>` guarda a de um pacote à mão.
 
+## O Grok saiu do app e virou módulo (24 nov 2026)
+
+- No produto base o app só conhece o Claude. O Grok (xAI) é o módulo `grok` do complemento `meu-bot-grok`, ligado na
+  página Módulos; o que ele instala e o login estão em
+  [meu-bot-diego.md › Motor de IA trazido por módulo](meu-bot-diego.md#motor-de-ia-trazido-por-módulo-24-nov-2026).
+- Já no `main`: o complemento em `ADDONS` (`src/main/app/variant-core.ts`, #516) e a lista de modelos vinda da máquina
+  (`src/shared/modelos.ts`, #515), sem nome de provedor escrito no app.
+- Sai na PR do app (branch `grok-fora-do-app`): `src/main/agente/xai*`, os canais `xai-login:*`, o tutorial "Entrar na
+  xAI (Grok)", a fatia `xai` do contexto dos tutoriais e o `backend-colima/install-grok-oauth.sh` com a subpasta
+  `grok/` do stage. As seções mais antigas deste guia que citam o tutorial da xAI (os mapas de renumeração da trilha,
+  por exemplo) ficam como registro da época.

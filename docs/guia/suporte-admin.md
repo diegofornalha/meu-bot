@@ -121,13 +121,15 @@ Para dar suporte a 2–3 pessoas sem servidor. Um projeto, dois apps: o **meu-bo
   mesmo script do antigo desligar (tira a chave, entrega "off" na caixa, apaga timer e pasta;
   `removeDeliverySh` agora é puro em support-code.ts), marca a pessoa "off" e a tira do conf. Caso de uso:
   deixou de pagar. Ela volta se salvar o nome de novo; aí o admin arquiva ou desliga outra vez.
-- Login da xAI como passo a passo (16 out): `src/renderer/lib/login-steps.ts` (puro, testado com a sequência
-  real) transforma os eventos url/log/done em quatro passos com estado (conectar, pedir, aprovar no navegador,
+- Login como passo a passo (16 out): `src/renderer/lib/login-steps.ts` (puro, testado com a sequência
+  real) transforma os eventos url/log/done em passos com estado (conectar, pedir, aprovar no navegador,
   guardar a credencial), código do dispositivo em destaque com Copiar, e o que sobrar em "detalhes técnicos"
-  recolhido; o main já não repassa "Connection to … closed". O mesmo componente está pronto para o login do
-  Claude (passos conectar, link, código, conferir), a ligar quando o bloco de login do tutorial estabilizar.
-- xAI na saúde do admin (16 out): `AdminHealth.xai` (via `xaiAuthInfo`): "xAI (Grok) logada (e-mail)",
-  "deslogada: o grok-4 não responde" ou "sem Hermes nesta máquina".
+  recolhido; o main já não repassa "Connection to … closed". Nasceu para o login da xAI, que saiu do app (24 nov:
+  virou o `entrar.sh` do módulo do Grok, [meu-bot-diego.md](meu-bot-diego.md#motor-de-ia-trazido-por-módulo-24-nov-2026));
+  o componente também atende o login do Claude (passos conectar, link, código, conferir).
+- xAI na saúde do admin (16 out): a linha `AdminHealth.xai` lia o login da xAI pelo `xaiAuthInfo` do app. Sai com o
+  `xaiLogin.ts`, na PR do app (branch `grok-fora-do-app`). O estado do Grok numa máquina passa a ser o do módulo:
+  página Módulos, "Testar conexão".
 - Versão e atividade dela no admin (16 out): o progresso que o meu-bot dela grava leva `app: { version,
   openedAt }` (versão do app e quando a sessão abriu; `WindowInfo.version`). A saúde mostra "meu-bot X no Mac
   dela · aberto há N" e acusa em vermelho quando está atrás da versão do admin (`compareVersions`): ela ainda
@@ -227,22 +229,22 @@ Para dar suporte a 2–3 pessoas sem servidor. Um projeto, dois apps: o **meu-bo
   localização/Bluetooth (sem uso; pedir assusta). Os fuses do Rambox (RunAsNode off, NodeOptions off, Inspect off,
   cookie encryption, ASAR integrity, OnlyLoadAppFromAsar) são idênticos aos nossos (`scripts/fuses.mjs`).
 - Quem respondeu, sempre visível e rastreável (17 out): (A) `BackendMessage`/`ChatMessage` ganham `provider`
-  (X-Provider do backend) e `fallback` (o aviso "agente falhou (…); respondendo com grok-4", antes só um aviso que
+  (X-Provider do backend) e `fallback` (o aviso "agente falhou (…); respondendo com <reserva>", antes só um aviso que
   sumia); `runBackendTurn` grava os dois na resposta, `chat:done` os leva à tela, e a bolha do assistente mostra o
-  rótulo `.msg-provider` (`lib/provider-label.ts`, puro: "grok-4", ou "respondeu grok-4 (fallback de agente) ⚠" em
+  rótulo `.msg-provider` (`lib/provider-label.ts`, puro: o nome do provedor, ou "respondeu <provedor> (fallback de agente) ⚠" em
   cor de aviso, com o motivo no title); vale ao reabrir (restauração do disco) e no export .md ("Assistente
-  (grok-4)"). (B) Conversas fora do Claude Code (Grok, Hermes) não tinham arquivo na máquina: o backend passa a
+  (<provedor>)"). (B) Conversas fora do Claude Code (provedor `openai`, Hermes) não tinham arquivo na máquina: o backend passa a
   gravar um diário `~/.local/share/meu-bot/conversas/<id da conversa>.jsonl` (uma linha JSON por mensagem
   `{at, role, model, provider, text}`, 0600) só quando o provedor usado não é um perfil Claude (o `.jsonl` do
   Claude Code segue sendo a transcrição deles, sem duplicar). `GET /v1/meu-bot/session` devolve `{profile: "app",
   file}` quando o diário existe (então "Copiar ID" traz caminho real) e `DELETE` o apaga junto. O admin lista as
   duas fontes no mesmo script (`adminBotChats`: linhas `F` do Claude e `A` do diário; `BotChat.source`
   `"claude"|"app"` e `provider`), lê (`parseAppTranscript`, puro, testado) e apaga por fonte; no espelho a conversa
-  Grok leva a etiqueta do provedor na lista e na bolha ("grok-4 · 00:42"); `botReferenceText` aponta para o diário.
+  de um provedor `openai` leva a etiqueta dele na lista e na bolha ("<provedor> · 00:42"); `botReferenceText` aponta para o diário.
   (C) O modelo sabe quem é: `providers.openaiCompletion` antepõe ao system "Você responde dentro do meu-bot como o
-  modelo grok-4, da xAI…", e os perfis Claude recebem o mesmo pelo `--append-system-prompt` ("pelo Claude Code,
-  perfil agente"), inclusive no refazer sem resume. Backend reinstalado no colima e na agente-box (17 out); provado:
-  turno grok-4 → diário com 2 linhas, GET traz o arquivo, DELETE apaga, resposta "Sou o modelo grok-4, da xAI."
+  modelo <model>, da <fornecedor>…" (o fornecedor é o host do `base_url`, ou "xAI" quando o modelo é um `grok…`), e
+  os perfis Claude recebem o mesmo pelo `--append-system-prompt` ("pelo Claude Code, perfil agente"), inclusive no refazer sem resume. Backend reinstalado no colima e na agente-box (17 out); provado com
+  um turno de provedor `openai`: diário com 2 linhas, GET traz o arquivo, DELETE apaga, e o modelo diz quem é.
 - "Copiar ID" nos três pontinhos (17 out, os dois apps): uma linha para colar numa IA dizendo onde a
   conversa mora. Três formas (`src/renderer/lib/reference.ts`, puro, testado): espelho do meu-bot no admin →
   `meu-bot · <máquina> · ~/.claude/projects/<pasta>/<uuid>.jsonl` (botão "…" na linha via `ui:bot-menu`, canal
@@ -534,19 +536,11 @@ Para dar suporte a 2–3 pessoas sem servidor. Um projeto, dois apps: o **meu-bo
   "ainda sem internet (verificado agora)" depois do botão); pill "sem internet" e barra mini vermelha enquanto
   offline; aviso "✓ internet de volta" na conversa ativa. O grid do `body` ganhou linhas fixas por elemento
   (`grid-row`): antes, com a barra recolhida e a update-bar visível, o `1fr` caía na update-bar.
-- Tutorial 5 · Entrar na xAI (Grok) (16 out): deixou de ser "Em breve". `needsXai` esconde o 4 (e o 5, que
-  depende dele: `visibleTutorials` é recursiva no `after`) onde o Grok não é possível — este Mac ou máquina sem o
-  backend (`GuideContext.xai.possible`; null = ainda não consultado = mostra). Passos: *Preparar o Grok nesta
-  máquina* (corpo `xai-prepare`: botão "Preparar" → `xaiPrepare()`/`install-grok-oauth.sh`, log no passo; conclui
-  quando `xaiAuth !== null`, ou seja, Hermes presente), *Entrar na conta da xAI* (corpo `xai-login`: os mesmos
-  `LoginControls` do tutorial 1 — `buildLoginControls()` — sem o campo de código, porque o OAuth da xAI é por
-  código de dispositivo aprovado no navegador; conclui com `loggedIn`), *Ver o grok-4 responder* (alvo `chat`:
-  `goToChatFromGuide(…, "grok-4")` troca o modelo da conversa e dispara o 3-2-1; conclui com
-  `GuideFlags.grokReplied`, gravado em `chat:done` quando `done.provider === "grok-4"` — o X-Provider, a mesma
-  prova da pill "respondeu grok-4"). `xaiState` + `paintXaiLogin()` pintam guia e modal `#xai-dialog`; `enterXai()`
-  é a porta única (lateral "entrar"; concluído → modal para trocar de conta); `logoutXai(relogin)` serve ao
-  "sair", ao painel ("Sair e entrar com outra conta") e ao "Refazer do zero". `XaiKeyStatus` ficou só com
-  `backend` (o `hasKey` da chave de API saiu).
+- Tutorial "Entrar na xAI (Grok)" (16 out): preparava o Grok na máquina (`install-grok-oauth.sh`), fazia o login da
+  xAI pelo app e conferia a resposta do `grok-4`. O Grok virou módulo (24 nov) e o tutorial, os canais `xai-login:*` e
+  o instalador saem na PR do app (branch `grok-fora-do-app`). Os primeiros passos do módulo fazem esse papel (ligar,
+  entrar pelo `entrar.sh`, testar a conexão):
+  [meu-bot-diego.md › Motor de IA trazido por módulo](meu-bot-diego.md#motor-de-ia-trazido-por-módulo-24-nov-2026).
 - Selo da lateral com duas notificações (16 out): o **número** são as pendências (interruptor "avisar na
   lateral" desliga); o **pulso** é novidade — tutorial visível, pendente e nunca visto (`localStorage
   tutVisto:<host>`, só cresce; abrir Tutoriais marca tudo que está à vista). A novidade não obedece ao

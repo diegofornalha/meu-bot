@@ -18,7 +18,7 @@ O app é organizado por **domínio**: cada pasta é dona de um assunto, com as r
 | `crm/` | CRM pelo WhatsApp e CRM próprio (pelo túnel), guardar conversa no CRM |
 | `google/` | Conta Google por máquina (OAuth), Gmail/Agenda/Planilhas, Contatos do CRM, backup no Drive |
 | `licenca/` | Licença da máquina e os portões dos módulos pagos |
-| `agente/` | Contas e ferramentas do agente na máquina: login do Claude Code, CLIs, xAI, objetivo do WhatsApp, status line |
+| `agente/` | Contas e ferramentas do agente na máquina: login do Claude Code, CLIs, modo grátis (Ollama), objetivo do WhatsApp, status line |
 | `auditoria/` | Registro de quem fez o quê em cada máquina |
 | `suporte/`, `client/`, `admin/` | Suporte: código de suporte; lado da pessoa; lado do meu-bot-admin |
 | `ipc/` | Registro dos canais (shared/client/admin) e a política de variante de cada canal |
@@ -42,7 +42,7 @@ Regras:
 |---|---|
 | `app/` | `ctx.ts` (ponte para o renderer), `paginas.ts` (páginas em aba própria e modo dividido), `rede.ts` (barra offline) |
 | `depuracao/` | `faixa.ts`: a faixa do modo de depuração no topo (build, batimento do main, túnel, o fluxo do que chega de fora); regra pura em `lib/depuracao-core.ts`; no main, `app/depuracao.ts` (tique, marcas, `registrarAcao` chamado pelos `handle()` dos sockets) e `app/depuracao-core.ts` (resumos por rota); `POST /nota` e `/depuracao` no `term.sock` |
-| `agente/` | Entrar no Claude Code, contas do Claude (rodízio), xAI (Grok) e o passo do fallback, oferta de skill depois de navegar; guias de domínio: `objetivo-guia.ts` (objetivo do WhatsApp, estado e passos), `contas-cli-guia.ts` (Cloudflare, GitHub), `link-publico-guia.ts` |
+| `agente/` | Entrar no Claude Code, contas do Claude (rodízio) e o passo do fallback, oferta de skill depois de navegar; guias de domínio: `objetivo-guia.ts` (objetivo do WhatsApp, estado e passos), `contas-cli-guia.ts` (Cloudflare, GitHub), `link-publico-guia.ts` |
 | `whatsapp/` | `agente-whatsapp.ts` (linha, pareamento, política, voz), `conversas.ts` (lista e marcas), `grupos.ts` (área Grupos e os passos do tutorial), `guarda-guia.ts`, `chat.ts` |
 | `tutoriais/` | Só o motor: `tutoriais.ts` (guia ao vivo), `catalogo.ts` (página Tutoriais, os cartões), `passos.ts` (registro body → quem desenha o passo), `fontes.ts` (registro fonte → fatia do `GuideContext`; `montarGuideCtx()` junta), `guia-secoes.ts` (passos e fontes sem domínio: suporte, status line) |
 | `crm/` | Passo do CRM no guia (instalação, chave, pipeline, teste) |
@@ -65,7 +65,8 @@ Regras do renderer:
 - `backend-colima/` — o backend que roda em cada máquina (Node puro): `server.js` (rotas), `crm-*`
   (modelo puro + API) e o plugin `crm/`. O Financeiro não mora mais aqui: é o módulo Finanças, no repositório
   `meu-bot-finance` (issue #312). O Grok (xAI) também é um módulo: add-on `meu-bot-grok`, repositório privado
-  `diegofornalha/meu-bot-grok` (`docs/guia/meu-bot-diego.md`).
+  `diegofornalha/meu-bot-grok`. Como um módulo traz um motor de IA (`provedores.json`, `modulos.js › provedores`):
+  `docs/guia/meu-bot-diego.md` › "Motor de IA trazido por módulo".
 - `scripts/tests/` — um teste por módulo puro, importando de `dist/`.
 - `docs/guia/` — o diário técnico por assunto (índice em `docs/GUIA.md`). Mudança nova: uma seção datada no fim do guia
   do assunto dela; `docs/guia/historia.md` é o começo (REA do Grok Bot, 13–14 out) e não recebe coisa nova.
