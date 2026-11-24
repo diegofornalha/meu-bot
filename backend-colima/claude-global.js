@@ -91,16 +91,24 @@ const contas = contasClaude.abrir({ log: (m) => log(`contas: ${m}`) });
 const credDe = (c) => path.join(c.home || ROOT_CLAUDE, '.credentials.json');
 const renovando = new Map(); // arquivo → Promise
 
+/**
+ * Erro que é do login da conta (sem login, sem refreshToken, renovação recusada pela Anthropic): só este bloqueia a
+ * conta até o admin entrar de novo. Queda de rede, timeout e 5xx não dizem nada sobre o login.
+ */
+function erroDeLogin(msg) { const e = new Error(msg); e.login = true; return e; }
+/** A renovação foi recusada por causa do login (4xx, fora 408 e 429)? 5xx, 408 e 429 são do servidor ou passageiros. */
+const recusaDeLogin = (status) => status >= 400 && status < 500 && status !== 408 && status !== 429;
+
 async function renovar(arq) {
   const doc = readJson(arq);
   const o = doc && doc.claudeAiOauth;
-  if (!o || !o.refreshToken) throw new Error('sem refreshToken no login do root');
+  if (!o || !o.refreshToken) throw erroDeLogin('sem refreshToken no login do root');
   const r = await fetch(TOKEN_URL, {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ grant_type: 'refresh_token', refresh_token: o.refreshToken, client_id: CLIENT_ID, scope: (o.scopes || []).join(' ') }),
   });
   const corpo = await r.json().catch(() => ({}));
-  if (!r.ok || !corpo.access_token) throw new Error(`renovação recusada (${r.status})`);
+  if (!r.ok || !corpo.access_token) { const e = new Error(`renovação recusada (${r.status})`); e.login = recusaDeLogin(r.status); throw e; }
   // Relê antes de gravar: o `claude` do root pode ter renovado nesse meio tempo; o mais novo vence.
   const atual = readJson(arq) || doc;
   const a = atual.claudeAiOauth || o;
@@ -117,7 +125,7 @@ async function renovar(arq) {
 async function tokenDe(c, forcar = false) {
   const arq = credDe(c);
   const o = (readJson(arq) || {}).claudeAiOauth;
-  if (!o || !o.accessToken) throw new Error('conta do root sem login');
+  if (!o || !o.accessToken) throw erroDeLogin('conta do root sem login');
   if (!forcar && typeof o.expiresAt === 'number' && o.expiresAt - Date.now() > MARGEM_MS) return o.accessToken;
   if (!renovando.has(arq)) renovando.set(arq, renovar(arq).finally(() => renovando.delete(arq)));
   try { return await renovando.get(arq); } catch (e) {
@@ -205,6 +213,7 @@ function respostaEsgotado(res, ate) {
 async function atender(req, res, corpo, usuario) {
   const tentadas = [];
   let ultimo429 = null;
+  let semRede = null; // a última falha de rede (não é da conta): sem nenhuma resposta, vira 502 e o Claude Code tenta de novo
   for (;;) {
     const c = contas.escolher({ excluir: tentadas, permitirAviso: true });
     if (!c) {
@@ -212,6 +221,9 @@ async function atender(req, res, corpo, usuario) {
       // O 429 da própria Anthropic traz os cabeçalhos de limite: passa intacto. Sem ele (todas já marcadas antes
       // deste pedido), a resposta sintética leva os mesmos cabeçalhos, senão o Claude Code fica tentando de novo.
       if (ultimo429) { res.writeHead(ultimo429.statusCode, ultimo429.headers); return ultimo429.pipe(res); }
+      // Nenhuma conta respondeu e o motivo foi a rede: não é limite. Dizer "no limite" faria o backend desistir do
+      // Claude; o 502 o Claude Code repete sozinho.
+      if (semRede) { anotarUso(usuario, null, 502); return erro(res, 502, 'api_error', 'o Claude Code Global não conseguiu falar com a Anthropic'); }
       let ate = null; try { ate = contas.proximaDisponivelEm(); } catch (_) { ate = null; }
       log(`${usuario}: todas as contas do root no limite${ate ? ` (a primeira volta ${hora(ate)})` : ''}`);
       return respostaEsgotado(res, ate);
@@ -222,8 +234,11 @@ async function atender(req, res, corpo, usuario) {
       r = await enviar(req, corpo, await tokenDe(c));
       if (r.statusCode === 401) { r.resume(); r = await enviar(req, corpo, await tokenDe(c, true)); }
     } catch (e) {
-      contas.marcar(c.id, 'bloqueada', `login do root: ${e.message}`);
-      log(`conta ${c.id}: ${e.message}`);
+      // Só o erro do login bloqueia a conta. Um `read ECONNRESET` no meio do pedido era gravado como "login do root"
+      // e a conta ficava bloqueada até alguém desbloquear no admin: em 23 nov 2026, 21 h sem Claude na máquina.
+      if (e && e.login) contas.marcar(c.id, 'bloqueada', `login do root: ${e.message}`);
+      else semRede = e;
+      log(`conta ${c.id}: ${e.message}${e && e.login ? '' : ' (falha de rede; conta mantida no rodízio)'}`);
       continue;
     }
     if (r.statusCode === 401) { r.resume(); contas.marcar(c.id, 'bloqueada', 'login do root recusado: entre de novo no admin'); continue; }
@@ -271,4 +286,4 @@ if (require.main === module) {
   servir(porta);
 }
 
-module.exports = { servir, usuarioDaChave, cabecalhos, anotarUsoDaConta, respostaEsgotado, limiteDaAssinatura, PERMITIDO, CHAVE_RE, USUARIO_RE, carregarChaves };
+module.exports = { servir, usuarioDaChave, cabecalhos, anotarUsoDaConta, respostaEsgotado, limiteDaAssinatura, erroDeLogin, recusaDeLogin, PERMITIDO, CHAVE_RE, USUARIO_RE, carregarChaves };

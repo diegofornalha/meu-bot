@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -123,4 +123,18 @@ test("intermediário: só o 429 de limite da assinatura tira a conta do rodízio
   assert.equal(relay.limiteDaAssinatura(r({ "anthropic-ratelimit-unified-status": "allowed", "anthropic-ratelimit-unified-5h-utilization": "0.13" })), false);
   assert.equal(relay.limiteDaAssinatura(r({})), false);
   assert.equal(relay.limiteDaAssinatura(null), false);
+});
+
+test("intermediário: só o erro do login bloqueia a conta; queda de rede e 5xx na renovação não", () => {
+  assert.equal(relay.erroDeLogin("conta do root sem login").login, true);
+  for (const st of [400, 401, 403]) assert.equal(relay.recusaDeLogin(st), true, String(st));
+  for (const st of [408, 429, 500, 502, 503, 529]) assert.equal(relay.recusaDeLogin(st), false, String(st));
+  const src = readFileSync(new URL("../../backend-colima/claude-global.js", import.meta.url), "utf8");
+  // O laço das contas só marca "bloqueada" com o erro do login; o resto fica como falha de rede e vira 502 no fim.
+  assert.match(src, /if \(e && e\.login\) contas\.marcar\(c\.id, 'bloqueada'/);
+  assert.match(src, /else semRede = e;/);
+  assert.match(src, /if \(semRede\) \{ anotarUso\(usuario, null, 502\); return erro\(res, 502, 'api_error'/);
+  assert.ok(src.indexOf("if (ultimo429) { res.writeHead") < src.indexOf("if (semRede) { anotarUso"), "o 429 de verdade da Anthropic tem precedência sobre a falha de rede");
+  // Um erro comum (o `read ECONNRESET` do https) não traz a marca.
+  assert.equal(Boolean(Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" }).login), false);
 });
