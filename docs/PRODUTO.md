@@ -11,7 +11,10 @@ que cada máquina roda e se adapta pelo que ela sabe fazer (a tabela `capacidade
 `src/main/whatsapp/whatsapp-capacidades.ts`), nunca pelo nome do framework:
 - **Gateways de WhatsApp intercambiáveis:** OpenClaw, Hermes e PicoClaw hoje; a API oficial da Meta (`cloud-api`)
   planejada como quarta opção. A pessoa escolhe em "Escolha o agente" e pode trocar depois.
-- **Modelos intercambiáveis:** Claude Code com rodízio de contas e reserva (Grok), configurados no backend do meu-bot.
+- **Modelos intercambiáveis:** no produto base, só o Claude Code, com rodízio de contas, configurado no backend do
+  meu-bot. Outro motor de IA entra pelo modo grátis (`ollama-local`) ou por um módulo com licença (o Grok, da xAI, é o
+  complemento `meu-bot-grok`), e o de módulo só serve de reserva do Claude se a opção do módulo estiver ligada
+  (`docs/guia/meu-bot-diego.md` › "Motor de IA trazido por módulo").
 - **Máquinas intercambiáveis:** VPS, VM local (Colima), TV box Android (FlowBox/Termux com PicoClaw) ou este Mac.
 
 As camadas abaixo são **escolhas de produto** (que gateway e que máquina oferecer a que público), não limites do código:

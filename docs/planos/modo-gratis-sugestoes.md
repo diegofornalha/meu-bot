@@ -5,7 +5,7 @@ Cartão "Modo grátis no Mac (Ollama): sugere e você aprova" (quadro, Project #
 deixa o chat do app responder por ele.
 
 ## Por quê
-Um modelo pequeno rodando no Mac (qwen2.5 de 3 ou 7 bilhões de parâmetros) erra mais que o Claude ou o Grok. No chat
+Um modelo pequeno rodando no Mac (qwen2.5 de 3 ou 7 bilhões de parâmetros) erra mais que o Claude. No chat
 do app isso é aceitável: a pessoa lê a resposta. No WhatsApp não: a resposta iria direto para um cliente. Por isso, no
 modo grátis, o agente do WhatsApp **só sugere**; a pessoa lê, corrige se quiser e aprova o envio.
 
@@ -25,7 +25,7 @@ modo grátis, o agente do WhatsApp **só sugere**; a pessoa lê, corrige se quis
    fila, sem os botões. **Falta nesta fatia:** a bolha tracejada da sugestão dentro da conversa aberta.
 3. **O Ollama como modelo do agente do WhatsApp neste Mac.** Hoje `oc_model_ensure` só grava modelo com o Claude
    logado. Sem Claude e com o `ollama-local` preparado, o OpenClaw aponta para o Ollama (provedor compatível com
-   OpenAI em `127.0.0.1`), e o modo sugestão liga junto. Com Claude ou Grok, nada muda e o modo fica desligado (a
+   OpenAI em `127.0.0.1`), e o modo sugestão liga junto. Com o Claude, nada muda e o modo fica desligado (a
    pessoa pode ligar à mão).
 4. **Medição no probe.** `hostProbe.probeLocal` passa a devolver RAM e disco (hoje `null`); o `ollamaLocal.ts` já mede
    para o tutorial.

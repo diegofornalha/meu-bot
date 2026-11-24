@@ -260,22 +260,21 @@ O sshd da `agente-br` aceita senha (`PasswordAuthentication yes` em `/etc/ssh/ss
   estado depois do `done`, com "terminou sem conectar"). Agora é `\\"` (o shell recebe `\"`), como o evento
   `gateway-port`. Conferido avaliando o template do `dist/` e rodando no bash: JSON válido.
 
-## Backend e proxy do Grok em conta secundária da mesma máquina (18 out 2026)
+## Backend em conta secundária da mesma máquina (18 out 2026)
 
-- **Sintoma:** "Preparar o Grok" em `agente-openclaw`: `Failed to restart meu-bot-backend.service: Unit
-  meu-bot-backend.service not found.` Causa dupla, a mesma família das portas: (1) o `install.sh` decidia
-  "serviço de usuário" pelo código de saída de `systemctl --user is-system-running`, que é ≠ 0 também em
-  `degraded` (o openclaw-gateway dessa conta estava falho), e mandou o backend para `/etc/systemd/system`;
-  todo script que faz `systemctl --user restart meu-bot-backend` quebrava. (2) O proxy do Hermes era fixo na
-  8645, que já é da conta `box`: o da conta `openclaw` saía com status 2 e o grok-4 apontava para o proxy (e a
-  conta xAI) do vizinho.
+- **Sintoma:** numa segunda conta da mesma máquina (`agente-openclaw`), `Failed to restart meu-bot-backend.service:
+  Unit meu-bot-backend.service not found.` Causa: o `install.sh` decidia "serviço de usuário" pelo código de saída de
+  `systemctl --user is-system-running`, que é ≠ 0 também em `degraded` (o openclaw-gateway dessa conta estava falho),
+  e mandou o backend para `/etc/systemd/system`; todo script que faz `systemctl --user restart meu-bot-backend`
+  quebrava.
 - **install.sh:** `user_manager()` aceita running/degraded/starting/maintenance. Conta com serviço de sistema
   antigo (`User=` desta conta) é migrada: `sudo -n systemctl disable --now` + remove a unidade + daemon-reload e
   nasce a de usuário; sem sudo, mantém o de sistema e avisa.
-- **install-grok-oauth.sh:** `backend_restart()` reinicia o que existe (usuário → sistema via `sudo -n` →
-  aviso para "Reinstalar backend"); o node vem da unidade de usuário ou da de sistema. Porta do proxy: a que a
-  unidade desta conta já usa, se ninguém de fora a ocupou (`ss -ltnp` só mostra processo dos sockets desta
-  conta); senão a primeira livre a partir de 8645. `providers.json` aponta para essa porta.
+- **Proxy do Grok:** o mesmo caso mostrou a porta fixa 8645 do proxy da xAI batendo com a da conta vizinha. O proxy
+  virou parte do módulo do Grok (24 nov), e o `instalar.sh` dele guarda as duas lições: reinicia o backend que existe
+  (usuário → sistema via `sudo -n` → aviso para "Reinstalar backend") e usa a porta que a unidade desta conta já tem
+  ou a primeira livre a partir de 8645. Ver
+  [meu-bot-diego.md › Motor de IA trazido por módulo](meu-bot-diego.md#motor-de-ia-trazido-por-módulo-24-nov-2026).
 
 ## Backend do meu-bot agnóstico de agente (25 out)
 
@@ -290,9 +289,9 @@ meu-bot (`backend-colima`) é serviço nosso e tem pasta própria. Até aqui ele
   trecho de shell que deixa em `$BD` a pasta do nosso backend (a própria se existe; a herdada só quando o `server.js` de
   lá tem a rota `meu-bot/hello`, que só o nosso tem) e `$FOREIGN=1` quando a herdada tem outro backend.
 - **Quem usa:** a sondagem (`hostProbe.ts`: `env`, `server`, `VERSION`, porta do `.env`, modelos; `backendInstalled`
-  agora só para o nosso; campo novo `backendForeign`), o túnel (`tunnel.ts` lê a chave de `$BD/.env`), a chave xAI
-  (`xaiKey.ts`), o log do backend no admin (`support-admin.ts`), o `install.sh` (mesma regra em bash; `MEU_BOT_BACKEND_DIR`
-  força), o `install-grok-oauth.sh` e o backup (os dois `.env` na lista de caminhos).
+  agora só para o nosso; campo novo `backendForeign`), o túnel (`tunnel.ts` lê a chave de `$BD/.env`), o log do backend no
+  admin (`support-admin.ts`), o `install.sh` (mesma regra em bash; `MEU_BOT_BACKEND_DIR` força) e o backup (os dois
+  `.env` na lista de caminhos). O `instalar.sh` do módulo do Grok acha o backend pela mesma regra.
 - **Instalações existentes não mudam:** colima e as `agente-*` têm o nosso `server.js` na herdada e continuam lá.
   Instalação nova (ou máquina com outro backend na herdada) vai para a pasta própria; com a 8080 ocupada, o seletor já
   escolhe a primeira porta livre e grava só para a máquina (`portaParaInstalar`), e o texto diz de quem é a 8080.
@@ -341,7 +340,8 @@ meu-bot (`backend-colima`) é serviço nosso e tem pasta própria. Até aqui ele
 - **O que é:** o login de assinatura do root (`/root/.claude/.credentials.json`) responde pelos usuários da máquina.
   A gestão é só do admin (aba "Claude Code Global", abaixo de Usuários). Cada usuário vê no meu-bot dele
   "Claude Code · global (e-mail)", sem botão de sair. A fila tem duas fontes: o global primeiro e as contas próprias
-  do usuário (tutorial 2) como reserva. Sem nenhuma das duas, o Grok assume, como antes.
+  do usuário (tutorial 2) como reserva. Sem nenhuma das duas, o turno segue a corrente de provedores da
+  máquina; no produto base ela só tem o `agente`, e o erro vai à conversa.
 - **Intermediário do root** (`backend-colima/claude-global.js`, serviço `meu-bot-claude-global`, `127.0.0.1:18780`):
   - O `claude` do usuário fala com ele no modo assinatura: `CLAUDE_CODE_OAUTH_TOKEN=<chave do usuário>` e
     `ANTHROPIC_BASE_URL`. Ele confere a chave e troca a autorização pelo token de uma conta do root. O streaming e os
@@ -497,7 +497,8 @@ pessoa conversa pela box dela; o root fica para as abas de admin.
 - Agora a sondagem traz `unitpid`/`unitport` (PID principal da unidade desta conta e a porta dele): `backendSumiu` →
   o seletor explica e "Reinstalar backend" vai para a mesma porta (`portaParaInstalar`, `porta-backend-core.ts`); o
   `install.sh` (1.10.0, junto com o #79) para o serviço próprio antes de reclamar de porta ocupada (`liberar_porta_propria`). Sessões e
-  `providers.json` não voltam: o Grok precisa de "preparar" e login de novo.
+  `providers.json` não voltam: o que havia nele além do padrão (o `ollama-local` do modo grátis, por exemplo) precisa
+  ser preparado de novo.
 
 ## Endereço na lista e "chave SSH mudou" no seletor (2 nov 2026)
 
