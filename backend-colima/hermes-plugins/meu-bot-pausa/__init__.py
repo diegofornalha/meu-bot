@@ -27,6 +27,14 @@ como opção, lidas de whatsapp-lista.json › audio a cada mensagem (sem reinic
   é pulado quando o áudio daquela conversa saiu com sucesso há instantes; áudio que falha deixa o texto sair.
 Sai quando: o Hermes tiver as duas opções no config (issue upstream a abrir; ver a tabela).
 
+Sem Claude (1.4.0). CONTORNO #8 (Hermes; docs/guia/contornos.md): quando nenhum provedor responde, o Hermes manda ao contato "Your
+request was not processed. Send it again…" a cada mensagem, e não há como calar um turno que já abriu (ele rejeita o
+marcador de silêncio numa conversa com uma pessoa e não tem gancho na saída). O backend grava
+~/.local/share/meu-bot/sem-claude.json ({desde, ate, motivo}) ao ver a falha e o renova enquanto a sonda dele não
+consegue o Claude; enquanto a marca vale, o hook guarda a mensagem do contato (linha com `motivo: "sem-claude"`) e a
+descarta, como a de um pausado. O dono passa sempre. Marca vencida ou ilegível: a mensagem segue (fail-open).
+Sai quando: o Hermes tiver uma opção para não entregar o aviso de turno falho (ver a tabela).
+
 Regras: o dono (me.id/me.lid do creds.json e, se gravado pelo app, `dono.numero` de whatsapp-lista.json — a pessoa
 falando do celular dela quando o agente roda num chip dedicado) nunca é descartado nem pausado; um contato só pausa a si mesmo e só com
 prazo (pausado ele não consegue pedir para voltar); o dono pausa qualquer um, com ou sem prazo. Grupos passam reto.
@@ -41,7 +49,7 @@ import re
 import time
 from datetime import datetime, timedelta, timezone
 
-VERSAO = "1.3.0"  # igual ao plugin.yaml (o teste confere)
+VERSAO = "1.4.0"  # igual ao plugin.yaml (o teste confere)
 NOME = "meu-bot-pausa"
 log = logging.getLogger(NOME)
 
@@ -109,6 +117,8 @@ def _caminho(nome):
 
 LISTA = "whatsapp-lista.json"
 PAUSADOS = "whatsapp-pausados.jsonl"
+SEM_CLAUDE = "sem-claude.json"  # a marca do backend (backend-colima/sem-claude.js)
+SEM_CLAUDE_MOTIVO = "sem-claude"
 LIDS = "whatsapp-lid.json"
 CARREGADO = "whatsapp-pausa.carregado"
 AUDIO_SEMPRE = "whatsapp-audio-sempre.json"  # conversas em que ESTE plugin ligou o modo "all" (só elas são desfeitas)
@@ -457,19 +467,32 @@ def _executar(cmd, numero, horas, dono, remetente, agora):
 
 
 # ------------------------------------------------------------------ nota ao agente
+def _sem_claude(agora):
+    """A marca do backend de que o Claude está fora ({desde, ate, motivo}), só enquanto vale; senão None."""
+    v = _ler_json(_caminho(SEM_CLAUDE), {})
+    if not v:
+        return None
+    ate = _parse_iso(v.get("ate"))
+    if ate is None or ate <= agora or _parse_iso(v.get("desde")) is None:
+        return None
+    return v
+
+
 def _montar_nota(numero, linhas, agora):
     dt0 = _parse_iso(linhas[0].get("em")) or agora
     dt1 = _parse_iso(linhas[-1].get("em")) or agora
     nome = next((d.get("nome") for d in linhas if d.get("nome")), None)
     quem = f"{nome} (+{numero})" if nome else f"+{numero}"
-    out = [f"[Nota do meu-bot] {quem} esteve pausado e você não viu o que ele mandou entre {_hora_local(dt0, agora)} e {_hora_local(dt1, agora)}:"]
+    fora = all(d.get("motivo") == SEM_CLAUDE_MOTIVO for d in linhas)
+    porque = "escreveu enquanto você estava fora do ar" if fora else "esteve pausado"
+    out = [f"[Nota do meu-bot] {quem} {porque} e você não viu o que ele mandou entre {_hora_local(dt0, agora)} e {_hora_local(dt1, agora)}:"]
     for d in linhas[:NOTA_MAX_LINHAS]:
         dt = _parse_iso(d.get("em"))
         t = str(d.get("texto") or "")[:NOTA_MAX_CHARS]
         out.append(f"- {_hora_local(dt, agora) if dt else '?'} — {t}")
     if len(linhas) > NOTA_MAX_LINHAS:
         out.append(f"(e mais {len(linhas) - NOTA_MAX_LINHAS} mensagens)")
-    out.append("Considere tudo isso e responda à mensagem atual numa resposta só, sem responder uma a uma e sem mencionar a pausa.")
+    out.append("Considere tudo isso e responda à mensagem atual numa resposta só, sem responder uma a uma e sem mencionar a pausa." if not fora else "Considere tudo isso e responda à mensagem atual numa resposta só, sem responder uma a uma; se fizer sentido, peça desculpas pela demora em uma frase.")
     return "\n".join(out)
 
 
@@ -520,6 +543,13 @@ async def pre_gateway_dispatch(event=None, gateway=None, session_store=None, **k
             return await _responder(gateway, event, resposta)
         if dono:
             return None
+        fora = _sem_claude(agora)
+        if fora and not pausado:
+            n = next(iter(nums - eu), None) or next(iter(nums), None)
+            if n:
+                _anexar_pausado({"numero": n, "nome": getattr(event, "user_name", None) or getattr(src, "user_name", None), "texto": _texto_guardado(event), "em": _iso(agora), "tipo": _tipo(event), "motivo": SEM_CLAUDE_MOTIVO})
+            log.info("%s: descartada mensagem de %s (Claude fora do ar desde %s)", NOME, n, fora.get("desde"))
+            return {"action": "skip", "reason": f"{NOME}: Claude fora do ar"}
         if pausado:
             _anexar_pausado({"numero": pausado, "nome": getattr(event, "user_name", None) or getattr(src, "user_name", None), "texto": _texto_guardado(event), "em": _iso(agora), "tipo": _tipo(event)})
             fim = paused[pausado].get("ate") or "retomar"

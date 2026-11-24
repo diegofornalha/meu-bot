@@ -1,0 +1,3 @@
+### WhatsApp (Hermes): sem Claude, o contato não recebe mais mensagem de erro
+#### Corrigido
+- Quando o Claude da máquina ficava fora do ar (limite da assinatura, conta bloqueada, queda), cada contato que escrevia recebia em inglês "Your request was not processed. Send it again…". Agora, depois da primeira falha, o agente fica em silêncio: as mensagens que chegam ficam guardadas, o dono é avisado no WhatsApp quando o Claude cai e quando volta, e o agente recebe o que ficou guardado assim que a pessoa escreve de novo. A primeira mensagem de cada queda ainda pode receber o aviso em inglês, que é do Hermes.
