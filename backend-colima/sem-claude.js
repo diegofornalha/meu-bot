@@ -1,6 +1,10 @@
 /**
  * sem-claude.js — a marca de que o Claude desta conta está fora do ar, para o WhatsApp ficar em silêncio.
  *
+ * CONTORNO #8 (Hermes): o gateway anuncia ao contato todo turno que falha e não tem como ser calado depois que o
+ * turno abriu. Sai quando: o Hermes tiver uma opção para não entregar o aviso de turno falho, ou um gancho na
+ * mensagem de saída. Tabela: docs/guia/contornos.md.
+ *
  * Quando o agente do WhatsApp (perfil "whatsapp", Hermes) não consegue resposta de nenhum provedor, o Hermes manda ao
  * contato "Your request was not processed. Send it again…", a cada mensagem. Ele não tem como ser calado depois que o
  * turno abriu: rejeita o marcador de silêncio numa conversa com uma pessoa e não tem gancho na mensagem de saída. O
@@ -72,4 +76,21 @@ const avisoCaiu = (m, fuso) => `⚠️ meu-bot: o Claude desta máquina parou de
 /** O aviso ao dono quando o Claude volta, com quantas mensagens ficaram guardadas. */
 const avisoVoltou = (m, guardadas, agora, fuso) => `✅ meu-bot: o Claude voltou às ${hora(new Date(agora).toISOString(), fuso)} (estava fora desde ${hora(m.desde, fuso)}). ${guardadas === 0 ? 'Nenhuma mensagem chegou nesse tempo.' : guardadas === 1 ? '1 mensagem chegou nesse tempo e ficou sem resposta; o agente a recebe quando a pessoa escrever de novo.' : `${guardadas} mensagens chegaram nesse tempo e ficaram sem resposta; o agente as recebe quando cada pessoa escrever de novo.`}`;
 
-module.exports = { ARQUIVO, VALE_MS, SONDA_MS, MOTIVO_LINHA, estado, marcar, limpar, guardadasDesde, avisoCaiu, avisoVoltou };
+/**
+ * A sonda: a cada `intervaloMs` chama `tentar()` (uma resposta curta do Claude). Deu certo: `aoVoltar()` e ela para.
+ * Falhou: `aoFalhar(erro)` (renova a marca) e continua. Uma tentativa por vez; `tentar` que lança conta como falha.
+ * Devolve { ligar, parar, ligada }. `agendar`/`cancelar` existem para o teste andar sem relógio.
+ */
+function criarSonda({ tentar, aoVoltar, aoFalhar, intervaloMs = SONDA_MS, agendar = setInterval, cancelar = clearInterval }) {
+  let timer = null; let ocupada = false;
+  const parar = () => { if (timer !== null) { cancelar(timer); timer = null; } };
+  const passo = async () => {
+    if (ocupada) return;
+    ocupada = true;
+    try { await tentar(); parar(); aoVoltar(); } catch (e) { try { aoFalhar(e); } catch (_) { /* a marca vence sozinha */ } } finally { ocupada = false; }
+  };
+  const ligar = () => { if (timer !== null) return; timer = agendar(() => { void passo(); }, intervaloMs); if (timer && typeof timer.unref === 'function') timer.unref(); };
+  return { ligar, parar, ligada: () => timer !== null, passo };
+}
+
+module.exports = { ARQUIVO, VALE_MS, SONDA_MS, MOTIVO_LINHA, estado, marcar, limpar, guardadasDesde, avisoCaiu, avisoVoltou, criarSonda };

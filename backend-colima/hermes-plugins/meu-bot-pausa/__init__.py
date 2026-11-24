@@ -27,12 +27,13 @@ como opção, lidas de whatsapp-lista.json › audio a cada mensagem (sem reinic
   é pulado quando o áudio daquela conversa saiu com sucesso há instantes; áudio que falha deixa o texto sair.
 Sai quando: o Hermes tiver as duas opções no config (issue upstream a abrir; ver a tabela).
 
-Sem Claude (1.4.0; CONTORNO, docs/guia/contornos.md): quando nenhum provedor responde, o Hermes manda ao contato "Your
+Sem Claude (1.4.0). CONTORNO #8 (Hermes; docs/guia/contornos.md): quando nenhum provedor responde, o Hermes manda ao contato "Your
 request was not processed. Send it again…" a cada mensagem, e não há como calar um turno que já abriu (ele rejeita o
 marcador de silêncio numa conversa com uma pessoa e não tem gancho na saída). O backend grava
 ~/.local/share/meu-bot/sem-claude.json ({desde, ate, motivo}) ao ver a falha e o renova enquanto a sonda dele não
 consegue o Claude; enquanto a marca vale, o hook guarda a mensagem do contato (linha com `motivo: "sem-claude"`) e a
 descarta, como a de um pausado. O dono passa sempre. Marca vencida ou ilegível: a mensagem segue (fail-open).
+Sai quando: o Hermes tiver uma opção para não entregar o aviso de turno falho (ver a tabela).
 
 Regras: o dono (me.id/me.lid do creds.json e, se gravado pelo app, `dono.numero` de whatsapp-lista.json — a pessoa
 falando do celular dela quando o agente roda num chip dedicado) nunca é descartado nem pausado; um contato só pausa a si mesmo e só com

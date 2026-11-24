@@ -248,7 +248,15 @@ function iaTexto(prompt, convId) {
 }
 // ---- WhatsApp em silêncio quando o Claude está fora (sem-claude.js) ----
 const FUSO_MAQUINA = (() => { try { return fs.readFileSync(path.join(os.homedir(), '.local', 'share', 'meu-bot', 'fuso'), 'utf8').trim() || undefined; } catch (_) { return undefined; } })();
-let sondaSemClaude = null; let sondando = false;
+/**
+ * Tenta o Claude sozinha (perfil só texto), para nenhuma mensagem de cliente servir de teste. Cada tentativa é uma
+ * conversa nova, com id próprio (sem id o cabeçalho X-Conversation-Id sai indefinido e o pedido nem parte).
+ */
+const sondaSemClaude = semClaude.criarSonda({
+  tentar: () => iaTexto('Responda apenas: ok', `sonda-sem-claude-${Date.now()}`),
+  aoVoltar: () => semClaudeVoltou(),
+  aoFalhar: (e) => { semClaude.marcar(e && e.message); },
+});
 /** Nenhum provedor respondeu ao WhatsApp: grava (ou renova) a marca, avisa o dono na primeira vez e liga a sonda. */
 function semClaudeCaiu(motivo) {
   try {
@@ -257,32 +265,19 @@ function semClaudeCaiu(motivo) {
       log(`sem Claude: marca gravada (${motivo}); o WhatsApp fica em silêncio até a sonda ver o Claude de volta`);
       void sendWhatsappSelf(semClaude.avisoCaiu({ desde: m.desde, motivo: String(motivo || '').slice(0, 120) }, FUSO_MAQUINA));
     }
-    ligarSondaSemClaude();
+    sondaSemClaude.ligar();
   } catch (e) { log(`sem Claude: não gravei a marca (${e.message})`); }
 }
 /** O Claude respondeu: tira a marca, para a sonda e avisa o dono com quantas mensagens ficaram guardadas. */
 function semClaudeVoltou() {
   try {
-    if (sondaSemClaude) { clearInterval(sondaSemClaude); sondaSemClaude = null; }
+    sondaSemClaude.parar();
     const m = semClaude.limpar();
     if (!m) return;
     const n = semClaude.guardadasDesde(m.desde);
     log(`sem Claude: voltou (fora desde ${m.desde}; ${n} mensagem(ns) guardada(s))`);
     void sendWhatsappSelf(semClaude.avisoVoltou(m, n, Date.now(), FUSO_MAQUINA));
   } catch (e) { log(`sem Claude: não tirei a marca (${e.message})`); }
-}
-/** Tenta o Claude sozinha (perfil só texto), para nenhuma mensagem de cliente servir de teste. Falhou: renova a marca. */
-function ligarSondaSemClaude() {
-  if (sondaSemClaude) return;
-  sondaSemClaude = setInterval(() => {
-    if (sondando) return;
-    sondando = true;
-    iaTexto('Responda apenas: ok')
-      .then(() => semClaudeVoltou())
-      .catch((e) => { try { semClaude.marcar(e.message); } catch (_) { /* a marca vence sozinha */ } })
-      .finally(() => { sondando = false; });
-  }, semClaude.SONDA_MS);
-  sondaSemClaude.unref();
 }
 function crmApi() {
   if (crmApiInst === null) {
@@ -1072,7 +1067,7 @@ server.requestTimeout = 0;
 // Na subida: migra a licença de antes de 22 out (personalizado/meu-bot-crm) antes que o job do CRM a leia crua.
 try { ensureLicense(); } catch (e) { log(`licença: ${e.message}`); }
 // O backend reiniciou no meio de uma queda: a marca ainda vale, a sonda continua.
-if (semClaude.estado()) ligarSondaSemClaude();
+if (semClaude.estado()) sondaSemClaude.ligar();
 server.listen(PORT, HOST, () => log(`ouvindo em http://${HOST}:${PORT} modelos=${listedModels().map((m) => m.id).join(',')} fallback=${PROVIDERS.map((p) => `${p.name}${p.available ? '' : '(indisponível)'}`).join('→')} claude=${CLAUDE_BIN} workspace=${WORKSPACE} auth=${KEY ? 'bearer' : 'DESLIGADA'}`));
 
 /**

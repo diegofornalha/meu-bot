@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
+import http from "node:http";
 import { existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -63,12 +64,41 @@ test("sem Claude: o servidor marca na falha definitiva do WhatsApp, tira a marca
   assert.match(src, /if \(model === 'whatsapp'\) semClaudeCaiu\(e\.message\);/);
   assert.ok(src.indexOf("if (model === 'whatsapp') semClaudeCaiu") > src.indexOf("if (e.code === 'aborted') { log(`abortado pelo cliente"), "pedido cancelado pelo cliente não é queda");
   assert.match(src, /if \(model === 'whatsapp'\) semClaudeVoltou\(\);/);
-  assert.match(src, /iaTexto\('Responda apenas: ok'\)/, "a sonda é do backend: nenhuma mensagem de cliente serve de teste");
-  assert.match(src, /if \(semClaude\.estado\(\)\) ligarSondaSemClaude\(\);/, "reinício no meio da queda continua sondando");
+  assert.match(src, /iaTexto\('Responda apenas: ok', `sonda-sem-claude-\$\{Date\.now\(\)\}`\)/, "a sonda é do backend, e leva um id de conversa (sem ele o pedido nem parte)");
+  assert.match(src, /if \(semClaude\.estado\(\)\) sondaSemClaude\.ligar\(\);/, "reinício no meio da queda continua sondando");
+  // O iaTexto põe o id no cabeçalho: indefinido, o Node recusa o pedido antes de sair.
+  assert.throws(() => http.request({ host: "127.0.0.1", port: 9, headers: { "X-Conversation-Id": undefined } }), /Invalid value "undefined" for header/);
   const { BACKEND_RUNTIME_FILES } = require("../../dist/main/maquina/backend-bundle-core.js");
   assert.ok(BACKEND_RUNTIME_FILES.includes("sem-claude.js"));
   // O plugin lê o mesmo arquivo e grava o mesmo motivo.
   const plugin = readFileSync(new URL("../../backend-colima/hermes-plugins/meu-bot-pausa/__init__.py", import.meta.url), "utf8");
   assert.ok(plugin.includes('SEM_CLAUDE = "sem-claude.json"') && sc.ARQUIVO.endsWith("/.local/share/meu-bot/sem-claude.json"));
   assert.ok(plugin.includes(`SEM_CLAUDE_MOTIVO = "${sc.MOTIVO_LINHA}"`));
+});
+
+test("sem Claude: a sonda renova a marca enquanto falha, para e avisa quando o Claude responde, e nunca roda duas tentativas juntas", async () => {
+  const eventos = []; let resposta = () => Promise.reject(new Error("no limite")); let passoDoRelogio = null; let cancelou = 0;
+  const sonda = sc.criarSonda({
+    tentar: () => resposta(),
+    aoVoltar: () => eventos.push("voltou"),
+    aoFalhar: (e) => eventos.push(`falhou: ${e.message}`),
+    agendar: (f) => { passoDoRelogio = f; return { unref() {} }; },
+    cancelar: () => { cancelou += 1; passoDoRelogio = null; },
+  });
+  assert.equal(sonda.ligada(), false);
+  sonda.ligar(); sonda.ligar();
+  assert.equal(sonda.ligada(), true);
+  await sonda.passo(); await sonda.passo();
+  assert.deepEqual(eventos, ["falhou: no limite", "falhou: no limite"]);
+  assert.equal(sonda.ligada(), true, "falhando, continua");
+  // Tentativa lenta: a batida seguinte do relógio não abre outra.
+  let soltar; resposta = () => new Promise((ok) => { soltar = ok; });
+  const lenta = sonda.passo(); await sonda.passo();
+  soltar("ok"); await lenta;
+  assert.deepEqual(eventos.slice(2), ["voltou"]);
+  assert.equal(sonda.ligada(), false); assert.equal(cancelou, 1);
+  // `tentar` que lança na hora (o caso do cabeçalho inválido) é falha, não exceção solta.
+  const s2 = sc.criarSonda({ tentar: () => { throw new Error("pedido inválido"); }, aoVoltar: () => eventos.push("x"), aoFalhar: (e) => eventos.push(e.message), agendar: () => 1, cancelar: () => {} });
+  s2.ligar(); await s2.passo();
+  assert.equal(eventos.at(-1), "pedido inválido");
 });
