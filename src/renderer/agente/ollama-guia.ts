@@ -8,7 +8,7 @@ import { registrarFonte } from "../tutoriais/fontes.js";
 import { registrarPassos } from "../tutoriais/passos.js";
 
 // ---- Modo grátis (tutorial 16): o Ollama do meu-bot neste Mac (ollamaLocal.ts no main) ou na máquina por SSH desta
-// janela (install-ollama.sh). Linha na lateral abaixo da xAI, os passos "Conferir a máquina" e "Instalar" e a fonte
+// janela (install-ollama.sh). Linha na lateral abaixo do Claude, os passos "Conferir a máquina" e "Instalar" e a fonte
 // `ollama` do guia. Só no staging; onde roda, quem diz é o status (`possivel`).
 
 export const OLLAMA_TUTORIAL = TUTORIAIS.find((t) => t.id === "ollama-local") as Tutorial;

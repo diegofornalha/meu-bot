@@ -6,7 +6,7 @@ import { join, relative } from "node:path";
 
 // Fonte única das versões dos motores: backend-colima/motor-versoes.sh (scripts) e o espelho em TS (app). Na VM agente
 // (1 nov) o plugin do WhatsApp sem versão resolvia 2026.10.9 num OpenClaw 2026.9.9 e recusava instalar; o prompt ao
-// agente mandava `openclaw@latest`. Aqui os quatro lugares têm de dizer a mesma coisa, e "latest" não entra.
+// agente mandava `openclaw@latest`. Aqui todos os lugares têm de dizer a mesma coisa, e "latest" não entra.
 const RAIZ = join(import.meta.dirname, "..", "..");
 const ler = (p) => readFileSync(join(RAIZ, p), "utf8");
 const v = createRequire(import.meta.url)("../../dist/main/maquina/motor-versoes.js");
@@ -22,10 +22,12 @@ test("motor-versoes.sh e motor-versoes.ts dizem as mesmas versões (e só CHAVE=
   assert.match(v.MOTOR_NODE, /^v\d+\.\d+\.\d+$/); assert.match(v.OPENCLAW_NODE, /^v\d+\.\d+\.\d+$/);
 });
 
-test("install-grok-oauth.sh, o Hermes de todos e o pedido ao agente usam as versões fixadas", () => {
-  assert.equal(/^HERMES_VERSION=(\S+)$/m.exec(ler("backend-colima/install-grok-oauth.sh"))?.[1], v.HERMES_VERSAO);
-  const { HERMES_VERSAO } = createRequire(import.meta.url)("../../dist/main/admin/usuarios-core.js");
+test("o Hermes de todos, o instalador do motor do WhatsApp e o pedido ao agente usam as versões fixadas", () => {
+  // O Hermes continua valendo para o motor do WhatsApp: quem o instala na máquina é o "Hermes de todos" do admin
+  // (/opt/hermes) e o pedido ao agente; os dois têm de pedir a versão do motor-versoes (o .sh é conferido no teste acima).
+  const { HERMES_VERSAO, hermesGlobalSh } = createRequire(import.meta.url)("../../dist/main/admin/usuarios-core.js");
   assert.equal(HERMES_VERSAO, v.HERMES_VERSAO);
+  assert.ok(hermesGlobalSh().includes(`V='${v.HERMES_VERSAO}'`), "o Hermes de todos instala a versão fixada");
   const prompt = ler("src/renderer/whatsapp/agente-whatsapp.ts");
   assert.equal(/npm install -g openclaw@(\S+)`/.exec(prompt)?.[1], v.OPENCLAW_VERSAO, "o pedido instala o OpenClaw na versão fixada");
   assert.equal(/clawhub:@openclaw\/whatsapp@([\d.]+)/.exec(prompt)?.[1], v.OPENCLAW_WA_PLUGIN_VERSAO, "o pedido instala o plugin na versão fixada");

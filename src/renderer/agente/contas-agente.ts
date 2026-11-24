@@ -1,15 +1,14 @@
-import type { BackendModel, ClaudeAuthInfo, ContasClaudeView, ClaudeLoginEvent, XaiKeyStatus } from "../../shared/ipc";
-import { xaiVaiAoGuia } from "../lib/xai-entrar.js";
+import type { BackendModel, ClaudeAuthInfo, ContasClaudeView, ClaudeLoginEvent } from "../../shared/ipc";
+import { MODELO_PADRAO, ehPerfilClaude } from "../../shared/modelos.js";
 import { avisoSemConta, estadoTexto, eventoTexto, nomeConta, sairEConferir, usoTexto } from "../lib/contas-claude.js";
 import { byId as $, el } from "../lib/dom.js";
 import { ipcErrorText } from "../lib/ipc-error.js";
-import { type LoginView, type LoginProvider, loginView } from "../lib/login-steps.js";
 import { hostLabel } from "../lib/probe-text.js";
 import { TUTORIAIS, type Tutorial } from "../lib/tutoriais.js";
 import type { Tab } from "../renderer.js";
-import { ctx, ehRemoto } from "../app/ctx.js";
+import { ctx } from "../app/ctx.js";
 import { registrarFonte } from "../tutoriais/fontes.js";
-import { fallbackOrderText, opcoesDePrimario, primarioNaCorrente } from "../lib/fallback.js";
+import { fallbackOrderText, fallbackReserve, opcoesDePrimario, primarioNaCorrente } from "../lib/fallback.js";
 import { registrarPassos } from "../tutoriais/passos.js";
 
 // ---- Entrar no Claude Code: roda `claude auth login` na máquina, abre o link e recebe o código. Um estado só
@@ -227,7 +226,8 @@ export function renderContasClaude(box: HTMLElement): void {
   box.append(el("p", "hint strong-hint", "Contas do Claude nesta máquina"));
   if (v === null) { box.append(el("p", "hint", "Lista indisponível: a máquina está fora do ar ou o backend é antigo (atualize no seletor).")); return; }
   box.append(el("p", "hint", "Com mais de uma conta, a troca é automática quando uma bate o limite: vale para as conversas do app, para o agente do WhatsApp e para o Terminal desta máquina. A conversa continua na próxima conta, do ponto em que parou. A ordem da lista é a preferência; o login da máquina é a base e fica por último."));
-  const aviso = avisoSemConta(v, xaiAuth === null ? null : xaiAuth.loggedIn);
+  // Com as contas do Claude no limite, quem responde é a reserva que a corrente desta máquina tiver (se tiver).
+  const aviso = avisoSemConta(v, fallbackReserve(MODELO_PADRAO, ctx.account?.providers ?? [])[0] ?? null);
   if (aviso !== null) box.append(el("p", "hint guide-pair-note", aviso));
   // Trocas feitas fora do app (porteiro do claude): a pessoa vê que o WhatsApp/Terminal mudaram de conta e por quê.
   const trocas = (v.eventos ?? []).slice(-5).reverse();
@@ -303,163 +303,7 @@ export async function logoutClaude(relogin: boolean): Promise<void> {
   finally { clLineBtn.disabled = false; }
 }
 
-// ---- Linha "xAI (Grok)": OAuth da xAI na máquina, que o grok-4 usa pelo proxy local. Mesmo molde do Claude: um
-// estado (xaiState) pintado nos controles do passo 2 do tutorial 4 (xaiGuide, criados uma vez) e no modal
-// #xai-dialog (trocar de conta depois de concluído). O passo 1 (preparar: proxy + providers.json) tem seu bloco.
-// Preparado é `xaiAuth.proxy`: o comando `hermes` existir não basta (numa máquina com Hermes global para todos, cada
-// conta ainda precisa do próprio proxy; sem ele o login grava a credencial e o backend responde "modelo desconhecido").
-const xaiLine = $<HTMLDivElement>("xai-line");
-const xaiLineText = $<HTMLSpanElement>("xai-line-text");
-const xaiLineBtn = $<HTMLButtonElement>("xai-line-btn");
-/** Desenha um LoginView (lib/login-steps.ts): passos com estado, código do dispositivo em destaque, detalhes técnicos recolhidos. */
-function paintLoginSteps(box: HTMLElement, view: LoginView, show: boolean): void {
-  box.hidden = !show;
-  box.replaceChildren();
-  if (!show) return;
-  const ol = el("ol", "login-steps");
-  for (const st of view.steps) {
-    const li = el("li", `login-step ${st.state}`);
-    li.append(el("span", "ls-dot"), el("span", "ls-title", st.title));
-    if (st.detail !== null) li.append(el("span", "ls-detail", st.detail));
-    ol.append(li);
-  }
-  box.append(ol);
-  if (view.code !== null) {
-    const chip = el("div", "login-code");
-    const copy = el("button", "btn btn-ghost btn-small", "Copiar"); copy.type = "button";
-    copy.addEventListener("click", () => { void navigator.clipboard.writeText(view.code ?? "").then(() => { copy.textContent = "Copiado"; window.setTimeout(() => { copy.textContent = "Copiar"; }, 1500); }); });
-    chip.append(el("span", "lc-label", "Código do dispositivo"), el("span", "lc-value", view.code), copy);
-    box.append(chip);
-  }
-  if (view.details.length > 0) {
-    const d = el("details", "login-details"); d.append(el("summary", "", "detalhes técnicos"), el("pre", "", view.details.slice(-12).join("\n")));
-    box.append(d);
-  }
-}
-const loginViewOf = (provider: LoginProvider, events: readonly ClaudeLoginEvent[], running: boolean): LoginView => loginView(provider, events, { machine: hostLabel(ctx.windowHost), running });
-
-const xaiDialog = $<HTMLDialogElement>("xai-dialog");
-const xaiClose = $<HTMLButtonElement>("xai-close");
-export let xaiAuth: ClaudeAuthInfo | null = null;
-/** A última consulta da conta da xAI terminou sem erro (vazia = sem o preparo); false antes da primeira e quando ela falha. */
-let xaiAuthConferida = false;
-export let xaiKey: XaiKeyStatus | null = null;
-const xaiState = { running: false, preparing: false, url: null as string | null, status: "", log: [] as string[], events: [] as ClaudeLoginEvent[], result: null as "ok" | "fail" | null };
-const xaiModal: LoginControls = { box: xaiDialog, status: $<HTMLElement>("xai-status"), open: $<HTMLButtonElement>("xai-open"), codeRow: el("div"), code: el("input") as HTMLInputElement, send: el("button") as HTMLButtonElement, log: $<HTMLElement>("xai-steps"), start: $<HTMLButtonElement>("xai-start"), cancel: null };
-export const xaiGuide: LoginControls = buildLoginControls();
-const XAI_INTRO = (): string => `Máquina: ${hostLabel(ctx.windowHost)}. Abre o link da xAI no navegador, já com o código do dispositivo. Entre na conta e aprove; aqui não precisa colar nada.`;
-/** O grok-4 desta conta já está apontado para o proxy local? */
-const xaiPronta = (): boolean => xaiAuth !== null && xaiAuth.proxy === true;
-/** Passo 1 do tutorial 4: preparar (proxy + providers.json). Status, botão e o mesmo log do estado. */
-export const xaiPrep = (() => {
-  const box = el("div", "guide-login");
-  const status = el("p", "hint");
-  const start = el("button", "btn btn-primary btn-small", "Preparar"); start.type = "button";
-  const actions = el("div", "actions"); actions.append(start);
-  const log = el("pre", "log"); log.hidden = true;
-  box.append(status, actions, log);
-  start.addEventListener("click", () => { void prepareXai(); });
-  return { box, status, start, log };
-})();
-
-function paintXaiControls(c: LoginControls, variant: "modal" | "guide"): void {
-  c.status.textContent = xaiState.status === "" ? XAI_INTRO() : xaiState.status;
-  c.open.hidden = xaiState.url === null || xaiState.result === "ok";
-  c.codeRow.hidden = true;
-  paintLoginSteps(c.log, loginViewOf("xai", xaiState.events, xaiState.running), xaiState.events.length > 0 || xaiState.running);
-  c.start.hidden = xaiState.running || xaiState.preparing || xaiState.result === "ok";
-  c.start.textContent = xaiState.result === "fail" ? "Tentar de novo" : variant === "guide" ? "Entrar" : "Começar";
-  c.start.classList.toggle("pulse", variant === "guide" && !c.start.hidden);
-  if (c.cancel !== null) c.cancel.hidden = !xaiState.running;
-  if (variant === "modal") xaiClose.textContent = xaiState.running || xaiState.preparing ? "Cancelar" : "Fechar";
-}
-export function paintXaiLogin(): void {
-  paintXaiControls(xaiModal, "modal"); paintXaiControls(xaiGuide, "guide");
-  xaiPrep.status.textContent = xaiState.preparing ? xaiState.status : xaiPronta() ? "Proxy do Grok pronto nesta máquina." : xaiState.result === "fail" ? xaiState.status : "Instala o proxy local do Grok nesta conta e aponta o backend para ele; o backend reinicia no fim.";
-  xaiPrep.start.hidden = xaiState.preparing || xaiPronta();
-  xaiPrep.start.textContent = xaiState.result === "fail" ? "Tentar de novo" : "Preparar";
-  xaiPrep.start.classList.toggle("pulse", !xaiPrep.start.hidden);
-  xaiPrep.log.hidden = !xaiState.preparing && xaiState.log.length === 0; xaiPrep.log.textContent = xaiState.log.join("\n");
-}
-
-function paintXaiLine(): void {
-  if (xaiAuth === null) {
-    // Sem o preparo ainda: a linha aparece quando há backend; "entrar" leva ao tutorial 4 (preparar + login).
-    if (xaiKey === null || !xaiKey.backend) { xaiLine.hidden = true; return; }
-    xaiLine.hidden = false;
-    xaiLine.className = "wa-line cl-line off";
-    xaiLineText.textContent = "xAI (Grok) · deslogada · o grok-4 não responde";
-    xaiLineBtn.textContent = "entrar";
-    return;
-  }
-  xaiLine.hidden = false;
-  if (xaiAuth.loggedIn && !xaiPronta()) {
-    // Credencial gravada, mas o backend desta conta ainda não conhece o grok-4: falta o passo 1.
-    xaiLine.className = "wa-line cl-line off";
-    xaiLineText.textContent = `xAI (Grok) · ${xaiAuth.email ?? "logada"} · falta preparar o Grok · o grok-4 não responde`;
-    xaiLineBtn.textContent = "preparar";
-    return;
-  }
-  xaiLine.className = `wa-line cl-line ${xaiAuth.loggedIn ? "on" : "off"}`;
-  xaiLineText.textContent = xaiAuth.loggedIn ? `xAI (Grok) · ${xaiAuth.email ?? "logada"}` : "xAI (Grok) · deslogada · o grok-4 não responde";
-  xaiLineBtn.textContent = xaiAuth.loggedIn ? "sair" : "entrar";
-}
-/** Consulta a conta da xAI (e, sem o preparo, se há backend); o tutorial 4 e a lateral seguem o resultado. */
-export async function refreshXaiLine(): Promise<void> {
-  // `xaiAuthConferida`: só uma consulta que terminou sem erro diz que a máquina está sem o preparo (enterXai).
-  try { xaiAuth = await window.meuBot.xaiAuth(); xaiAuthConferida = true; } catch { xaiAuth = null; xaiAuthConferida = false; }
-  if (xaiAuth === null && ctx.caps.login && ctx.windowHost !== "local") { try { xaiKey = await window.meuBot.xaiKeyStatus(); } catch { xaiKey = null; } }
-  paintXaiLine();
-  if (ctx.tutorialsReady) { paintXaiLogin(); ctx.paintGuide(); }
-}
-/** Modal do login da xAI (trocar de conta quando o tutorial 4 já foi concluído). */
-function openXai(): void {
-  if (!xaiState.running && !xaiState.preparing) { xaiState.status = ""; xaiState.log = []; xaiState.events = []; xaiState.url = null; xaiState.result = null; }
-  paintXaiLogin();
-  if (!xaiDialog.open) xaiDialog.showModal();
-}
-/** Conta sem o proxy: instala o proxy da xAI e aponta o backend (install-grok-oauth.sh). O passo 1 do tutorial 4. */
-async function prepareXai(): Promise<void> {
-  if (xaiState.running || xaiState.preparing) return;
-  xaiState.preparing = true; xaiState.result = null; xaiState.log = [];
-  xaiState.status = `Preparando o Grok em ${hostLabel(ctx.windowHost)} (proxy local + backend; na primeira vez pode baixar o programa do proxy)…`;
-  paintXaiLogin();
-  try {
-    const r = await window.meuBot.xaiPrepare();
-    if (!r.ok) { xaiState.status = `✗ ${r.log.at(-1) ?? "não deu para preparar"}`; xaiState.result = "fail"; return; }
-    xaiState.preparing = false;
-    await refreshXaiLine();
-    if (!xaiPronta()) { xaiState.status = "✗ o preparo terminou mas o app ainda não vê o proxy; feche e abra a janela desta máquina."; xaiState.result = "fail"; return; }
-    xaiState.status = xaiAuth?.loggedIn === true ? "✓ xAI já logada nesta máquina; o grok-4 responde pelo proxy." : "✓ Proxy do Grok pronto. Agora é entrar na conta da xAI.";
-  } catch (err) { xaiState.status = `✗ ${ipcErrorText(err)}`; xaiState.result = "fail"; }
-  finally { xaiState.preparing = false; paintXaiLogin(); ctx.paintGuide(); }
-}
-async function runXaiLogin(): Promise<void> {
-  if (xaiState.running || xaiState.preparing) return;
-  xaiState.running = true; xaiState.result = null; xaiState.url = null; xaiState.log = []; xaiState.events = []; xaiState.status = "";
-  paintXaiLogin();
-  try { await window.meuBot.xaiLogin(); } catch (err) { xaiState.status = `✗ ${ipcErrorText(err)}`; xaiState.result = "fail"; }
-  finally { xaiState.running = false; paintXaiLogin(); }
-}
-export const XAI_TUTORIAL = TUTORIAIS.find((t) => t.id === "xai-login") as Tutorial;
 export const FALLBACK_TUTORIAL = TUTORIAIS.find((t) => t.id === "fallback-contas") as Tutorial;
-/**
- * Porta única para "Entrar na xAI": enquanto o tutorial 4 não foi concluído (e o Grok é possível aqui), abre o
- * guia (Preparar ou Entrar pulsando; nada roda sozinho); concluído, é trocar de conta: o modal já com o login.
- * Máquina sem o preparo (consulta concluída e vazia: o programa do login nem está instalado) também vai para o guia,
- * mesmo com o tutorial lembrado como concluído: o login direto ali só terminava em "código 127". A regra é
- * `xaiVaiAoGuia` (lib/xai-entrar.ts).
- */
-export function enterXai(): void {
-  if (xaiVaiAoGuia({ podeInstalar: ctx.caps.install, tutorialFeito: ctx.tutorialDone(XAI_TUTORIAL), conferida: xaiAuthConferida, preparado: xaiAuth !== null })) { ctx.tutNext = false; ctx.openGuide(XAI_TUTORIAL); return; }
-  openXai(); void runXaiLogin();
-}
-/** Sai da conta da xAI nesta máquina; com `relogin`, já leva ao login (tutorial 4 ou modal). */
-export async function logoutXai(relogin: boolean): Promise<void> {
-  xaiLineBtn.disabled = true;
-  try { xaiAuth = await window.meuBot.xaiLogout(); paintXaiLine(); ctx.paintGuide(); if (relogin) enterXai(); }
-  finally { xaiLineBtn.disabled = false; }
-}
 
 /** Liga eventos e o estado inicial desta parte; o renderer.ts chama uma vez, no ponto em que isto rodava antes. */
 /** Passo "Entrar na conta do Claude" do guia: os controles são os mesmos de sempre (reanexados), o código digitado sobrevive à repintura e o foco volta. */
@@ -472,20 +316,20 @@ function renderClaudeLoginPasso(txt: HTMLElement): void {
 }
 /**
  * Passo "Escolher primário e reserva" (tutorial 5): a mesma escolha de Configurações › Fallback, salva na hora
- * (o modelo padrão desta máquina muda), com a linha da corrente e o estado das contas. Onde o modo grátis está
- * instalado, o Ollama entra como terceira opção: quem não tem assinatura pode deixá-lo de primário.
+ * (o modelo padrão desta máquina muda), com a linha da corrente e o estado de cada modelo dela: o Claude e os outros
+ * que a máquina informa (o Ollama do modo grátis, o que um módulo traz). Quem não tem assinatura pode deixar o modo
+ * grátis de primário.
  */
 export function renderFallbackOrder(container: HTMLElement): void {
   const box = el("div", "audio-controls");
   const accounts = el("div", "sl-switches");
   const line = (ok: boolean | null, text: string): HTMLElement => el("div", `hint${ok === true ? " ok" : ok === false ? " bad" : ""}`, `${ok === true ? "✓" : ok === false ? "✗" : "•"} ${text}`);
-  accounts.append(
-    line(ctx.clAuth?.loggedIn ?? null, `Claude Code${ctx.clAuth?.email ? `: ${ctx.clAuth.email}` : ""} → modelo agente`),
-    line(ctx.xaiAuth?.loggedIn ?? null, `xAI${ctx.xaiAuth?.email ? `: ${ctx.xaiAuth.email}` : ""} → modelo grok-4`),
-  );
+  accounts.append(line(ctx.clAuth?.loggedIn ?? null, `Claude Code${ctx.clAuth?.email ? `: ${ctx.clAuth.email}` : ""} → modelo agente`));
   const chain = ctx.account?.providers ?? null;
-  const ollama = (chain ?? []).find((p) => p.name === "ollama-local");
-  if (ollama !== undefined) accounts.append(line(ollama.available, "Ollama (modo grátis, sem conta) → modelo ollama-local"));
+  for (const p of chain ?? []) {
+    if (ehPerfilClaude(p.name)) continue;
+    accounts.append(line(p.available, p.name === "ollama-local" ? "Ollama (modo grátis, sem conta) → modelo ollama-local" : p.rotulo !== undefined && p.rotulo !== p.name ? `${p.rotulo} → modelo ${p.name}` : `modelo ${p.name}`));
+  }
   const label = el("label", "", "Primário nesta máquina ");
   const sel = el("select");
   const cur: string = ctx.settings?.backendModelForHost ?? "";
@@ -514,20 +358,14 @@ export function renderFallbackOrder(container: HTMLElement): void {
 export const firstReplyOnHost = (): boolean => [...ctx.index.values()].some((c) => c.messages.some((m) => m.role === "assistant"));
 export function ligarContasAgente(): void {
   registrarFonte("claude", () => ({ known: clAuth !== null, dados: { claude: { loggedIn: clAuth?.loggedIn ?? null, email: clAuth?.email ?? null, global: clAuth?.global === true, firstReply: firstReplyOnHost(), contasExtras: (contasClaudeView()?.contas ?? []).filter((c) => !c.padrao && c.global !== true && c.logada).length, trocas: (contasClaudeView()?.eventos ?? []).length } } }));
-  registrarFonte("xai", () => ({
-    known: !ehRemoto() || xaiAuth !== null || xaiKey !== null,
-    dados: { xai: { possible: !ctx.caps.install ? false : xaiAuth !== null ? true : xaiKey === null ? null : xaiKey.backend, pronto: xaiAuth !== null ? xaiPronta() : xaiKey === null ? null : false, loggedIn: xaiAuth?.loggedIn ?? null, label: xaiAuth?.email ?? null } },
-  }));
   registrarFonte("fallback", () => ({ known: ctx.account !== null, dados: { fallback: { primary: ctx.settings?.backendModelForHost ?? null, chain: ctx.account?.providers ?? null } } }));
   registrarPassos({
     "contas-claude": (txt) => renderContasClaude(txt),
     "claude-login": renderClaudeLoginPasso,
-    "xai-prepare": (txt) => { txt.append(xaiPrep.box); paintXaiLogin(); },
-    "xai-login": (txt) => { txt.append(xaiGuide.box); paintXaiLogin(); },
     "fallback-order": (txt) => renderFallbackOrder(txt),
   });
   wireLogin(clModal);
-   wireLogin(clGuide);
+  wireLogin(clGuide);
   window.meuBot.on("claude-login:event", (ev: ClaudeLoginEvent) => {
     const appendLog = (t: string): void => { clState.log = [...clState.log, t].slice(-8); };
     switch (ev.kind) {
@@ -571,50 +409,10 @@ export function ligarContasAgente(): void {
   clLineBtn.addEventListener("click", (ev) => {
     ev.stopPropagation(); // o botão sair/entrar não abre o guia
     if (clAuth !== null && clAuth.loggedIn) {
-      if (!window.confirm(`Sair da conta ${clAuth.email ?? "do Claude Code"} nesta máquina? O agente para de responder pelo Claude até entrar de novo${xaiAuth?.loggedIn === true ? " (o grok-4 continua)" : ""}.`)) return;
+      if (!window.confirm(`Sair da conta ${clAuth.email ?? "do Claude Code"} nesta máquina? O agente para de responder pelo Claude até entrar de novo.`)) return;
       void logoutClaude(true);
       return;
     }
     enterClaude();
-  });
-  // No guia, o log cru vira a caixa de passos (lib/login-steps.ts), como no modal.
-  { const steps = el("div", "login-steps-box"); steps.hidden = true; xaiGuide.log.replaceWith(steps); xaiGuide.log = steps; }
-  window.meuBot.on("xai-login:event", (ev: ClaudeLoginEvent) => {
-    const appendLog = (t: string): void => { xaiState.log = [...xaiState.log, t].slice(-8); };
-    // Preparando (proxy + backend), as linhas são do instalador e vão para o log do passo 1; no login viram passos.
-    if (!xaiState.preparing) { xaiState.events = [...xaiState.events, ev].slice(-60); if (ev.kind !== "done") xaiState.status = loginViewOf("xai", xaiState.events, true).headline; }
-    switch (ev.kind) {
-      case "url": xaiState.url = ev.url; break;
-      case "waiting-code": break;
-      case "log": if (xaiState.preparing) appendLog(ev.text); break;
-      case "done":
-        // O prepare também manda `log`; `done` é só do login.
-        xaiState.result = ev.ok ? "ok" : "fail";
-        xaiState.status = ev.ok ? `✓ ${ev.text}` : `✗ ${ev.text}`;
-        if (ev.ok) {
-          // Verde na hora, com o rótulo que veio no texto; a consulta de confirmação roda em segundo plano.
-          xaiAuth = { loggedIn: true, email: /\(([^)]+)\)/.exec(ev.text)?.[1] ?? xaiAuth?.email ?? null, proxy: xaiAuth?.proxy === true };
-          paintXaiLine(); ctx.paintGuide();
-          const tab = ctx.active(); if (tab !== null) ctx.addNotice(tab, `✓ ${ev.text}`, xaiPronta() ? "info" : "warn");
-          void refreshXaiLine();
-          setTimeout(() => { if (xaiDialog.open) xaiDialog.close(); }, 1200);
-        }
-        break;
-    }
-    paintXaiLogin();
-  });
-  for (const c of [xaiModal, xaiGuide]) {
-    c.start.addEventListener("click", () => { void runXaiLogin(); });
-    c.open.addEventListener("click", () => { if (xaiState.url !== null) void window.meuBot.openExternal(xaiState.url); });
-    if (c.cancel !== null) c.cancel.addEventListener("click", () => { if (xaiState.running) void window.meuBot.xaiLoginCancel(); });
-  }
-  xaiClose.addEventListener("click", () => { if (xaiState.running) void window.meuBot.xaiLoginCancel(); xaiDialog.close(); });
-  xaiLineBtn.addEventListener("click", () => {
-    if (xaiAuth !== null && xaiAuth.loggedIn && xaiPronta()) {
-      if (!window.confirm("Sair da conta da xAI nesta máquina? O grok-4 para de responder até entrar de novo.")) return;
-      void logoutXai(true);
-      return;
-    }
-    enterXai();
   });
 }

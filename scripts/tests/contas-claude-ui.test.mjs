@@ -32,9 +32,9 @@ test("avisoSemConta: só quando nenhuma serve; diz a hora da volta", () => {
   assert.match(avisoSemConta({ contas: [conta({ logada: false })], limiares: { sessao: 90, semanal: 95, estrategia: "ordem" }, atual: null, proximaEm: null }), /Nenhuma conta logada/);
   const noLimite = { contas: [conta()], limiares: { sessao: 90, semanal: 95, estrategia: "ordem" }, atual: null, proximaEm: NOW / 1000 + 600 };
   assert.match(avisoSemConta(noLimite), /no limite de uso\. A próxima volta às \d\d:\d\d; até lá o agente não responde\./);
-  // só promete o grok-4 com a xAI logada nesta máquina
-  assert.match(avisoSemConta(noLimite, true), /até lá o grok-4 responde\./);
-  assert.match(avisoSemConta(noLimite, false), /até lá o agente não responde\./);
+  // só promete resposta quando a corrente desta máquina tem uma reserva; diz qual
+  assert.match(avisoSemConta(noLimite, "nuvem"), /até lá quem responde é a reserva \(nuvem\)\./);
+  assert.match(avisoSemConta(noLimite, null), /até lá o agente não responde\./);
 });
 
 test("eventoTexto: quando · origem · de → para (motivo); sem conta livre e origens traduzidas", async () => {

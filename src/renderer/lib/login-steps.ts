@@ -1,18 +1,18 @@
 /**
- * Login da xAI (Grok) e do Claude Code como passo a passo, não como saída de terminal. Os eventos crus que o
+ * Login do Claude Code como passo a passo, não como saída de terminal. Os eventos crus que o
  * main manda (url, waiting-code, log, done) viram passos com estado (pendente, em andamento, feito, falhou), um
- * título em português, o código do dispositivo em destaque e o resto em "detalhes técnicos". Puro: testável.
+ * título em português, o código do dispositivo (quando o login traz um) em destaque e o resto em "detalhes técnicos". Puro: testável.
  */
 import type { ClaudeLoginEvent } from "../../shared/ipc";
 
-export type LoginProvider = "xai" | "claude";
+export type LoginProvider = "claude";
 export type StepState = "pending" | "active" | "done" | "bad";
 export interface LoginStepView { id: string; title: string; detail: string | null; state: StepState }
 export interface LoginView {
   steps: LoginStepView[];
   /** Frase de cima: o que está acontecendo ou como terminou. */
   headline: string;
-  /** Código do dispositivo da xAI (a página já vem com ele), para mostrar grande. */
+  /** Código do dispositivo, quando o login traz um, para mostrar grande. */
   code: string | null;
   /** Linhas cruas que sobraram, para quem quiser abrir "detalhes técnicos". */
   details: string[];
@@ -27,12 +27,6 @@ export interface LoginContext {
 }
 
 export const LOGIN_STEPS: Record<LoginProvider, readonly { id: string; title: string }[]> = {
-  xai: [
-    { id: "conectar", title: "Conectar à máquina" },
-    { id: "pedir", title: "Pedir o login à xAI" },
-    { id: "aprovar", title: "Aprovar no navegador" },
-    { id: "guardar", title: "Guardar a credencial nesta máquina" },
-  ],
   claude: [
     { id: "conectar", title: "Conectar à máquina" },
     { id: "link", title: "Abrir o link de autorização" },
@@ -42,15 +36,13 @@ export const LOGIN_STEPS: Record<LoginProvider, readonly { id: string; title: st
 };
 
 /** Linhas do SSH e do CLI que não dizem nada à pessoa. */
-const NOISE_RE = /^Connection to .+ closed\.?$|^Waiting for approval|^Added xai-oauth|^código do dispositivo:|^conectando a |^iniciando claude auth login/i;
+const NOISE_RE = /^Connection to .+ closed\.?$|^Waiting for approval|^código do dispositivo:|^conectando a |^iniciando claude auth login/i;
 const CODE_RE = /código do dispositivo:\s*([A-Z0-9][A-Z0-9-]{3,})/i;
 
 const INTRO: Record<LoginProvider, (m: string) => string> = {
-  xai: (m) => `Abre o link da xAI no navegador, já com o código do dispositivo. Entre na conta e aprove; aqui não precisa colar nada. Máquina: ${m}.`,
   claude: (m) => `Abre o link de autorização no navegador; você entra na conta e cola aqui o código que aparece. Máquina: ${m}.`,
 };
 const HEADLINES: Record<LoginProvider, string[]> = {
-  xai: ["Conectando à máquina…", "Pedindo o login à xAI…", "Abri o link no navegador. Entre na conta da xAI e aprove o dispositivo.", "Aprovado! Guardando a credencial…"],
   claude: ["Conectando à máquina…", "Abrindo o link de autorização…", "Abri o link no navegador. Entre na conta e cole aqui o código que a página mostra.", "Código enviado; conferindo o login…"],
 };
 
@@ -65,7 +57,6 @@ export function loginView(provider: LoginProvider, events: readonly ClaudeLoginE
       if (!started) { started = true; stage = Math.max(stage, 1); }
       const m = CODE_RE.exec(ev.text); if (m !== null) code = m[1] ?? null;
       if (/^Waiting for approval/i.test(ev.text)) detail = "Esperando você aprovar na página…";
-      if (/^Added xai-oauth/i.test(ev.text) && provider === "xai") { stage = Math.max(stage, 3); detail = null; }
       if (!NOISE_RE.test(ev.text)) details.push(ev.text);
     } else if (ev.kind === "url") { started = true; stage = Math.max(stage, 2); }
     else if (ev.kind === "waiting-code") { started = true; stage = Math.max(stage, 2); detail = "Cole o código abaixo e envie."; }

@@ -132,7 +132,7 @@ app.whenReady().then(() => {
   if (caps().usuariosMac) registerUsuariosMacIpc();
   initRelief();
   initUpdater();
-  // A troca sai por app.exit (sem will-quit): o backend local e o proxy da xAI deste Mac fecham antes, senão ficam
+  // A troca sai por app.exit (sem will-quit): o backend local e o Ollama do modo grátis deste Mac fecham antes, senão ficam
   // órfãos segurando a porta e o app reaberto não sobe os dele.
   onAntesDeRelancar(() => { closeTunnel(); });
   // Escolher a versão (super admin): o papel vem do servidor na hora; voltar guarda as configurações que a velha apagaria.

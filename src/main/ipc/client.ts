@@ -27,8 +27,6 @@ import { pauseRuleSh } from "../whatsapp/whatsapp-pause";
 import { whatsappSugestaoAcao } from "../whatsapp/whatsapp-sugestoes";
 import { parseSugestaoComando } from "../whatsapp/whatsapp-sugestoes-core";
 import { cancelClaudeLogin, claudeLogout, startClaudeLogin, submitClaudeLoginCode } from "../agente/claudeLogin";
-import { cancelXaiLogin, startXaiLogin, xaiLogout } from "../agente/xaiLogin";
-import { prepareGrokOauthLocal } from "../agente/xaiLocal";
 import { ollamaStatusLocal, prepareOllamaLocal, removerOllamaLocal, setOllamaLigadoLocal } from "../agente/ollamaLocal";
 import { cancelarConta, entrarConta, instalarGh, sairConta } from "../agente/contas-cli";
 import { isContaId } from "../agente/contas-cli-core";
@@ -53,7 +51,7 @@ import { objectiveInfo, resetObjective, saveObjectiveSkill, setObjective } from 
 import { skillInstalar, skillPrevia, skillRemover, skillsImportadas } from "../agente/skills-importar";
 import { crmInfo, crmTest, resetCrm, setCrm } from "../crm/crm";
 import { toggleQuickEntry } from "../app/quickEntry";
-import { gmailInstalled, guardaInstalled, installAudio, installCrm, installGmail, installGuarda, installHermesPausa, installNavegador, installStatusLine, installTela, navegadorInstalled, ollamaStatusRemoto, prepareGrokOauth, prepareOllamaRemoto, removerOllamaRemoto, setOllamaLigadoRemoto, statusLineInstalled, uninstallCrm, uninstallGuarda, uninstallStatusLine } from "../maquina/hostProbe";
+import { gmailInstalled, guardaInstalled, installAudio, installCrm, installGmail, installGuarda, installHermesPausa, installNavegador, installStatusLine, installTela, navegadorInstalled, ollamaStatusRemoto, prepareOllamaRemoto, removerOllamaRemoto, setOllamaLigadoRemoto, statusLineInstalled, uninstallCrm, uninstallGuarda, uninstallStatusLine } from "../maquina/hostProbe";
 import { gmailAgente, gmailAgenteInfo, gmailAgenteReligar } from "../google/gmail-api";
 import { readSegments, writeSegments } from "../agente/statusLine";
 import { deliverNow, reportSupportProgress, resetSupport, setSupport, setSupportNameOnly, setSupportShare, supportCodeText, supportInfo } from "../client/support";
@@ -205,14 +203,6 @@ export function registerClientIpc(): void {
     return resetSupport(h.host);
   });
 
-  // Grok por OAuth: instala Hermes + proxy (install-grok-oauth.sh por SSH; no Mac, xaiLocal.ts); cada linha vai ao log do login.
-  handleClient("xai-login:prepare", (event) => {
-    const h = hostFromEvent(event);
-    if (h === null) throw new Error("origem inválida");
-    const onLine = (line: string): void => { if (!h.win.isDestroyed()) h.win.webContents.send("xai-login:event", { kind: "log", text: line }); };
-    if (h.host === LOCAL_HOST) return prepareGrokOauthLocal(onLine);
-    return prepareGrokOauth(h.host, onLine);
-  });
   // Status line do Claude (tutorial): checar e instalar na máquina desta janela.
   handleClient("statusline:status", (event) => {
     const h = hostFromEvent(event);
@@ -485,7 +475,7 @@ export function registerClientIpc(): void {
     cancelPairing();
   });
 
-  // Logins Claude e xAI.
+  // Login do Claude.
   handleClient("claude-login:start", (event) => {
     const h = hostFromEvent(event);
     if (h === null) throw new Error("origem inválida");
@@ -581,13 +571,6 @@ export function registerClientIpc(): void {
     exigeRemotoOferecido();
     return removerOllamaRemoto(h.host, eventoOllama(h.win));
   });
-  handleClient("xai-login:start", (event) => {
-    const h = hostFromEvent(event);
-    if (h === null) throw new Error("origem inválida");
-    return startXaiLogin(h.host, (ev) => { if (!h.win.isDestroyed()) h.win.webContents.send("xai-login:event", ev); });
-  });
-  handleClient("xai-login:cancel", (event) => { if (hostFromEvent(event) === null) throw new Error("origem inválida"); cancelXaiLogin(); });
-  handleClient("xai-login:logout", (event) => { const h = hostFromEvent(event); if (h === null) throw new Error("origem inválida"); return xaiLogout(h.host); });
   handleClient("contas:entrar", (event, payload: unknown) => {
     const h = hostFromEvent(event);
     if (h === null) throw new Error("origem inválida");

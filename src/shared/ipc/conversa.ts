@@ -59,9 +59,9 @@ export type ToolEvent =
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
-  /** Quem produziu a resposta de fato (X-Provider do backend): "agente", "grok-4"… Só nas de assistant. */
+  /** Quem produziu a resposta de fato (X-Provider do backend): "agente", "ollama-local"… Só nas de assistant. */
   provider?: string;
-  /** Houve fallback de provedor neste turno: o aviso do backend, guardado ("agente falhou (…); respondendo com grok-4"). */
+  /** Houve fallback de provedor neste turno: o aviso do backend, guardado ("agente falhou (…); respondendo com ollama-local"). */
   fallback?: string;
 }
 

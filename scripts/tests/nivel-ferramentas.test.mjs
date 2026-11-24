@@ -47,7 +47,7 @@ test("voz do Hermes: com voice.auto_tts ligado, o agente é avisado de que as re
   assert.match(src, /nivel\.avisoDaVoz\(\)/, "o aviso entra no prompt do perfil whatsapp");
 });
 
-test("backend: o perfil whatsapp existe, passa --disallowedTools e segue a corrente do agente (Grok de reserva)", () => {
+test("backend: o perfil whatsapp existe, passa --disallowedTools e segue a corrente do agente (os provedores de reserva, se houver)", () => {
   const src = fs.readFileSync(new URL("../../backend-colima/server.js", import.meta.url), "utf8");
   assert.match(src, /whatsapp: \{[^}]*nivel: true/);
   assert.match(src, /'--disallowedTools', bloqueadas\.join\(','\)/);

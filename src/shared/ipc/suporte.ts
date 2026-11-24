@@ -74,14 +74,14 @@ export interface BotChat {
   updatedAt: string;
   /** Quantas respostas o meu-bot deu. */
   replies: number;
-  /** De onde vem: transcrição do Claude Code, ou o diário que o backend grava para Grok/Hermes (~/.local/share/meu-bot/conversas). */
+  /** De onde vem: transcrição do Claude Code, ou o diário que o backend grava para os provedores fora do Claude Code (~/.local/share/meu-bot/conversas). */
   source: "claude" | "app";
-  /** Último provedor que respondeu (só no diário): "grok-4"… */
+  /** Último provedor que respondeu (só no diário): "ollama-local"… */
   provider?: string;
 }
 export interface BotMessage { role: "person" | "agent" | "tool"; text: string; at: string; /** Quem respondeu (só no diário). */ provider?: string }
 /** Saúde da máquina da pessoa; `whatsapp` e `progress` vêm null quando ela não compartilha (ver `share`). */
-export interface AdminHealth { probe: HostProbe; whatsapp: WhatsappStatus | null; progress: SupportProgress | null; share: SupportShare; /** Conta da xAI na máquina; null = Grok não preparado (sem o hermes-agent do proxy). */ xai: ClaudeAuthInfo | null; /** Licença e devices da conta; null = máquina fora do ar ou backend antigo sem a rota. */ license: LicenseView | null; /** Aberturas recentes do app nesta máquina (aberturas.jsonl, mais nova primeiro); null = sem registro (backend antigo ou ninguém abriu ainda). */ aberturas?: Abertura[] | null; /** Só no "este Mac": o backend de cada app meu-bot deste Mac (cada um sobe o seu ao abrir), no lugar do backend de VM. */ appsDoMac?: { nome: string; porta: number; noAr: boolean }[]; /** A conta meu-bot da pessoa, lida da API como o console a mostra (GET /admin/conta); ausente em main antigo. */ conta?: ContaDaPessoa }
+export interface AdminHealth { probe: HostProbe; whatsapp: WhatsappStatus | null; progress: SupportProgress | null; share: SupportShare; /** Licença e devices da conta; null = máquina fora do ar ou backend antigo sem a rota. */ license: LicenseView | null; /** Aberturas recentes do app nesta máquina (aberturas.jsonl, mais nova primeiro); null = sem registro (backend antigo ou ninguém abriu ainda). */ aberturas?: Abertura[] | null; /** Só no "este Mac": o backend de cada app meu-bot deste Mac (cada um sobe o seu ao abrir), no lugar do backend de VM. */ appsDoMac?: { nome: string; porta: number; noAr: boolean }[]; /** A conta meu-bot da pessoa, lida da API como o console a mostra (GET /admin/conta); ausente em main antigo. */ conta?: ContaDaPessoa }
 /** Add-on pago da conta e até quando vale (das assinaturas em andamento). */
 export interface ContaAddonPago { produto: string; valeAte: string | null }
 /**

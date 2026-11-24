@@ -3,10 +3,13 @@
  *
  * providers.json (ao lado do server): [{ name, type: "claude"|"openai", priority, ... }]
  *  - type "claude": o modelo já existe no backend (claudecode, agente…); só entra na corrente.
- *  - type "openai": endpoint compatível com OpenAI (xAI, ou o `hermes proxy` da grokbot-1):
+ *  - type "openai": endpoint compatível com OpenAI (o modo grátis local, ou o motor que um módulo traz):
  *    base_url, model (id no provedor), key_env (variável com a chave) ou key (literal).
  *    Sem chave, só fica disponível quando o base_url é local (127.0.0.1/localhost), que é o caso
- *    do proxy do Hermes: ele aceita qualquer bearer e usa o OAuth da xAI por baixo.
+ *    de um proxy na própria máquina: ele aceita qualquer bearer e cuida da credencial por baixo.
+ *
+ * O padrão é só o Claude (`agente`). Outros motores entram pelo providers.json da máquina (o modo grátis grava o
+ * dele) ou por um módulo ligado (modulos.js › provedores, os `extras` do `load`).
  *
  * Corrente: o modelo pedido primeiro; se falhar ANTES de produzir texto, desce para o próximo
  * disponível por prioridade. O cliente é avisado por um chunk com `x_meu_bot.fallback`.
@@ -22,7 +25,6 @@ const NAME_RE = /^[a-z0-9][a-z0-9-]{0,40}$/;
 
 const DEFAULT_PROVIDERS = [
   { name: 'agente', type: 'claude', priority: 0, description: 'Claude Code com ferramentas, sem pedir permissão' },
-  { name: 'grok-4', type: 'openai', priority: 1, base_url: 'https://api.x.ai/v1', model: 'grok-4', key_env: 'XAI_API_KEY', description: 'Grok da xAI (endpoint compatível com OpenAI)' },
 ];
 
 function normalize(raw) {
@@ -93,7 +95,7 @@ function resolveKey(p, env = process.env) {
   return '';
 }
 
-/** claude: sempre. openai: precisa de chave, exceto endpoint local (proxy do Hermes aceita qualquer bearer). */
+/** claude: sempre. openai: precisa de chave, exceto endpoint local (um proxy na máquina aceita qualquer bearer). */
 function available(p, env = process.env) {
   if (p.type === 'claude') return true;
   return Boolean(p.base_url) && (resolveKey(p, env) !== '' || isLocalUrl(p.base_url));

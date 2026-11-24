@@ -154,7 +154,7 @@ export interface Capabilities {
   chat: boolean;
   /** Parear/desconectar o WhatsApp, política de DM, áudio. */
   pair: boolean;
-  /** Logins Claude e xAI, chave de API. */
+  /** Login do Claude na máquina e as contas dela. */
   login: boolean;
   /** Mexer no espelho do WhatsApp: pausar, limpar, ramificar; menu "…" completo. */
   manageWa: boolean;

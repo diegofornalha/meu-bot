@@ -2,7 +2,7 @@
 # Modo grátis nesta máquina (tutorial 16): o Ollama do meu-bot numa pasta própria (~/.local/share/meu-bot/ollama, na
 # versão fixa que o app manda, conferida pelo sha256; nada em /usr e sem mexer num Ollama que a pessoa já tenha), como
 # serviço do usuário `meu-bot-ollama.service` numa porta própria (a do backend - 200, como no Mac), e a entrada
-# "ollama-local" no providers.json do backend (mesclada: as outras entradas ficam). O molde é o install-grok-oauth.sh.
+# "ollama-local" no providers.json do backend (mesclada: as outras entradas ficam).
 # Rodar no host, sem sudo. Idempotente. A versão, o sha256, a URL e o modelo vêm do app (fonte única: ollamaLocal-core.ts):
 #   OLLAMA_VERSION OLLAMA_SHA256 OLLAMA_URL OLLAMA_MODELO [OLLAMA_PACOTE_MB]
 #   bash install-ollama.sh           instala (ou completa uma instalação interrompida)
