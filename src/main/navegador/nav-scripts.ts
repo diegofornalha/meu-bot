@@ -43,7 +43,8 @@ export const MARCAR_SCRIPT = `(() => {
     m.style.cssText = "position:absolute;left:" + Math.max(0, r.left) + "px;top:" + Math.max(0, r.top) + "px;font:700 11px/1.2 -apple-system,system-ui,sans-serif;padding:1px 4px;border-radius:4px;color:#fff;outline:1px solid #fff;background:hsl(" + Math.round(((i + 1) * 137.508) % 360) + " 85% 38%)";
     sombra.append(m); k++;
   });
-  document.documentElement.append(host);
+  // Um <dialog> modal fica na camada de cima do navegador, acima de qualquer z-index: com um aberto, as marcas vão dentro dele.
+  (document.querySelector("dialog[open]") || document.documentElement).append(host);
   return k;
 })()`;
 export const DESMARCAR_SCRIPT = `(() => { const m = document.getElementById("__meu-bot-marcas"); if (m) m.remove(); })()`;
@@ -64,6 +65,13 @@ export const clicarScript = (target: string): string => `(() => { const e = ${ta
 export const alvoDeDigitacao = (b: { n?: unknown; seletor?: unknown }): string => (typeof b.n === "number" ? pick(b.n) : typeof b.seletor === "string" ? `(() => { const e = document.querySelector(${JSON.stringify(b.seletor)}); if (!e) throw new Error("nada com o seletor"); return e; })()` : "document.activeElement");
 /** Foca o campo e seleciona o que há nele, para o texto novo entrar por cima. */
 export const focarScript = (target: string): string => `(() => { const e = ${target}; e.scrollIntoView({ block: "center" }); const r = e.getBoundingClientRect(); const ponto = { x: r.left + r.width / 2, y: r.top + r.height / 2, vw: innerWidth, vh: innerHeight }; e.focus(); if ("value" in e && typeof e.value === "string") { e.select && e.select(); } else if (e.isContentEditable) { const r = document.createRange(); r.selectNodeContents(e); const s = getSelection(); s.removeAllRanges(); s.addRange(r); } return ponto; })()`;
+/**
+ * Digitar num campo da interface do app: o valor entra direto e o campo avisa com `input` e `change`, como se a pessoa
+ * tivesse digitado. Na janela do app o `insertText` só funciona com a janela em foco (com o Terminal na frente, não
+ * entrava nada); a interface é DOM puro, então isto basta. Devolve false se o alvo não é um campo de valor (área
+ * editável): aí quem chamou usa o `insertText`.
+ */
+export const digitarValorScript = (target: string, texto: string): string => `(() => { const e = ${target}; e.scrollIntoView({ block: "center" }); e.focus(); if (!("value" in e) || typeof e.value !== "string") return false; e.value = ${JSON.stringify(texto)}; e.dispatchEvent(new Event("input", { bubbles: true })); e.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`;
 
 const TECLAS: Record<string, string> = { enter: "Return", tab: "Tab", esc: "Escape", escape: "Escape", backspace: "Backspace", space: "Space", up: "Up", down: "Down", left: "Left", right: "Right", pagedown: "PageDown", pageup: "PageUp" };
 /** O nome da tecla pedido → o keyCode do Electron; recusa o que não conhece. */

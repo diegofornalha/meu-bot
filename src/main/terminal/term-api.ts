@@ -43,7 +43,7 @@ import { PAGINAS_APP } from "../controle-remoto/controle-remoto-core";
 import { closeTerminal, liveTerminals, replayTerminal, terminalById, waitNewTerminal, writeTerminal } from "./terminal";
 import { entradaDigitar, textoDoTerminal } from "./term-api-core";
 import { parseDono, type Dono } from "../navegador/nav-donos-core";
-import { alvoDeClique, alvoDeDigitacao, apertar, clicarScript, codigoDaTecla, DESMARCAR_SCRIPT, focarScript, MARCAR_SCRIPT, readScript } from "../navegador/nav-scripts";
+import { alvoDeClique, alvoDeDigitacao, apertar, clicarScript, codigoDaTecla, DESMARCAR_SCRIPT, digitarValorScript, focarScript, MARCAR_SCRIPT, readScript } from "../navegador/nav-scripts";
 import { log } from "../maquina/backend";
 import { errosDaJanela, lerLog } from "../app/erros-janela";
 import { estado as estadoDepuracao, evento as eventoDepuracao, modoDepuracao, registrarAcao, setDepuracao } from "../app/depuracao";
@@ -208,8 +208,9 @@ async function act(route: string, b: Req, dono: Dono): Promise<unknown> {
     case "/ui/digitar": {
       if (typeof b.texto !== "string") throw new Error("falta texto");
       const w = janela(b.maquina); const wc = w.webContents;
-      await wc.executeJavaScript(focarScript(alvoDeDigitacao(b)), true);
-      await wc.insertText(b.texto);
+      // Campo de valor: entra direto, com os eventos (funciona com a janela atrás). Área editável: digitação de verdade.
+      const alvo = alvoDeDigitacao(b);
+      if (await wc.executeJavaScript(digitarValorScript(alvo, b.texto), true) !== true) { await wc.executeJavaScript(focarScript(alvo), true); wc.focus(); await wc.insertText(b.texto); }
       if (b.enter === true) { apertar(wc, "Return"); await assentar(300); }
       return { ok: true, maquina: hostOfWindow(w) };
     }
