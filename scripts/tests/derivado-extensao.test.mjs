@@ -131,8 +131,10 @@ test("<webview> da extensão: o core só deixa http(s), predicado que lança con
 });
 
 test("ext:invoke: recusa sem extensão, com extensão que não carregou, payload torto, nome inválido e nome desconhecido", async () => {
-  await lanca(() => despacharExtInvoke({ kind: "sem" }, { nome: "eco", payload: 1 }), new RegExp(`^${ERRO_SEM_EXTENSAO}$`));
-  await lanca(() => despacharExtInvoke({ kind: "falhou" }, { nome: "eco", payload: 1 }), new RegExp(`^${ERRO_EXTENSAO_NAO_CARREGOU.replace(/[()]/g, "\\$&")}$`));
+  // A mensagem inteira, como texto: escapa tudo o que a expressão regular trataria como especial (a barra invertida também).
+  const exata = (texto) => new RegExp(`^${texto.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`);
+  await lanca(() => despacharExtInvoke({ kind: "sem" }, { nome: "eco", payload: 1 }), exata(ERRO_SEM_EXTENSAO));
+  await lanca(() => despacharExtInvoke({ kind: "falhou" }, { nome: "eco", payload: 1 }), exata(ERRO_EXTENSAO_NAO_CARREGOU));
   const registro = criarRegistro();
   const visto = [];
   registro.canal("eco", async (p) => { visto.push(p); return p; });
