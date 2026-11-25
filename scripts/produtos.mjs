@@ -5,6 +5,7 @@
 import { createRequire } from "node:module";
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { conferirCodigo } from "./derivado-codigo.mjs";
 
 const DIST = new URL("../dist/main/app/variant-core.js", import.meta.url);
 if (!existsSync(DIST)) { console.error("✗ falta dist/main/app/variant-core.js: rode `npm run build:main` antes"); process.exit(1); }
@@ -14,7 +15,9 @@ export { PRODUTOS, esquemaDe, FICHA_EMBUTIDA };
 /**
  * `--produto <pasta>`: um app derivado, cuja ficha (`produto.json`) e ícone (`assets/icon.icns`) moram no repositório
  * dele, fora deste. Devolve o Produto com o ícone em caminho absoluto, a `ficha` crua (o package.mjs a embute no
- * asar) e a `pasta`; null sem a opção. Ficha ilegível ou recusada sai com 64 dizendo o motivo.
+ * asar), a `pasta` e `temCodigo` (o derivado traz a pasta `codigo/` da página própria, que o package.mjs compila);
+ * null sem a opção. Ficha ilegível ou recusada, e ficha com `extensao` sem `codigo/` (ou o contrário), saem com 64
+ * dizendo o motivo.
  */
 export function derivadoFromArgv(argv = process.argv) {
   const i = argv.indexOf("--produto");
@@ -30,7 +33,9 @@ export function derivadoFromArgv(argv = process.argv) {
   if (!r.ok) { console.error(`✗ ficha recusada (${arquivo}): ${r.erro}`); process.exit(64); }
   const icone = join(pasta, r.produto.icone);
   if (!existsSync(icone)) { console.error(`✗ falta o ícone do derivado: ${icone}`); process.exit(64); }
-  return { ...r.produto, icone, ficha, pasta };
+  const codigo = conferirCodigo(pasta, r.produto.caps.extensao !== null);
+  if (codigo.erro !== undefined) { console.error(`✗ derivado recusado (${pasta}): ${codigo.erro}`); process.exit(64); }
+  return { ...r.produto, icone, ficha, pasta, temCodigo: codigo.tem };
 }
 /** Os argumentos que levam o mesmo produto a outro script (package, fuses): `--produto <pasta>` ou `--variant <id>`. */
 export const alvoDe = (p) => (p.variant === "derivado" ? ["--produto", p.pasta] : ["--variant", p.variant]);
