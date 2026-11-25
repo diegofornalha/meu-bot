@@ -1,0 +1,11 @@
+{
+  "nome": "meu-bot-exemplo-staging",
+  "bundleId": "local.meu-bot-exemplo.staging",
+  "canal": "staging",
+  "portaLocal": 8840,
+  "portaWsl": 2340,
+  "portaMcp": 7840,
+  "abreEm": "extensao",
+  "extensao": { "api": 1, "rotulo": "Exemplo" },
+  "descricao": "Derivado de exemplo dos testes do core: uma página própria com um canal de eco."
+}

@@ -4,6 +4,7 @@ import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { archDe, empacotado, esquemaDe, exigeWindows, FICHA_EMBUTIDA, icoOf, plataformaFromArgv, produtoFromArgv, versaoFromArgv } from "./produtos.mjs";
 import { avisoSemGoogle, decideGoogleConta } from "./google-client.mjs";
+import { compilarCodigo, limparCodigo } from "./derivado-codigo.mjs";
 
 // `--variant <id>` (ou `--admin`) empacota outro produto da tabela (src/main/app/variant-core.ts): mesmo código, outro
 // nome, bundle id e ícone. O app sabe qual é pelo Resources/variant.json e usa userData próprio
@@ -36,11 +37,28 @@ if (googleConta === "permitido") console.warn(`⚠ ${name} sai sem Conta Google 
 // daqui antes de empacotar, para a ficha de um derivado empacotado antes não ir junto.
 const fichaEmbutida = join("dist", "main", "app", FICHA_EMBUTIDA);
 rmSync(fichaEmbutida, { force: true });
+// O mesmo vale para o CÓDIGO de um derivado (a página própria: dist/main/derivado e dist/renderer/derivado, de
+// scripts/derivado-codigo.mjs): sai antes de empacotar qualquer app, para nunca ir no asar de outro.
+limparCodigo();
 if (produto.ficha !== undefined) {
+  // Depois de empacotar (ou se o empacotamento quebrar no meio), a ficha e o código saem de dist/: lá eles só servem
+  // ao asar deste pacote. No `exit` para valer também quando o packager lança; registrado antes de escrever qualquer um.
+  process.on("exit", () => {
+    try { rmSync(fichaEmbutida, { force: true }); } catch { /* fica para o próximo package.mjs, que apaga antes de começar */ }
+    try { limparCodigo(); } catch { /* idem */ }
+  });
   writeFileSync(fichaEmbutida, `${JSON.stringify(produto.ficha)}\n`);
-  // Depois de empacotar (ou se o empacotamento quebrar no meio), a ficha sai de dist/: lá ela só serve ao asar deste
-  // pacote. No `exit` para valer também quando o packager lança.
-  process.on("exit", () => { try { rmSync(fichaEmbutida, { force: true }); } catch { /* fica para o próximo package.mjs, que apaga antes de começar */ } });
+  if (produto.temCodigo) {
+    // Código de derivado numa release (`--versao`) é código assinado com o Developer ID e distribuído por atualização
+    // automática: só pode sair do commit que o dono do Mac aprovou (scripts/release-core.mjs, `recusaCommitDoDerivado`,
+    // conferido pelo release-derivados.mjs). Num checkout em que essa regra ainda não entrou, a release recusa.
+    if (versao !== null && typeof (await import("./release-core.mjs")).recusaCommitDoDerivado !== "function") {
+      console.error(`✗ ${name} traz código próprio (pasta codigo/), e este checkout do core ainda não tem a regra do commit aprovado: código de derivado não sai em release sem ela`);
+      process.exit(64);
+    }
+    try { compilarCodigo({ pasta: produto.pasta }); } catch (e) { console.error(`✗ o código do derivado não foi compilado: ${e instanceof Error ? e.message : String(e)}`); process.exit(64); }
+    console.log(`código do derivado compilado (${produto.pasta}/codigo → dist/main/derivado, dist/renderer/derivado)`);
+  }
 }
 // Só a pasta desta variante: empacotar uma não apaga a outra (nem os .dmg em out/).
 rmSync(empacotado(produto, plataforma).pasta, { recursive: true, force: true });

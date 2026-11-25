@@ -17,7 +17,7 @@ export let pageActive: PageTab | null = null;
 export let pagePrev: string | null = null;
 
 /** Páginas que aceitam o 📌 (abrir na frente quando a janela abre); terminal, guias e WhatsApp não. */
-const FIXAVEIS = new Set(["tutoriais", "acervo", "conta-google", "gmail", "computador", "inspector", "modulos", "navegador", "usuarios"]);
+const FIXAVEIS = new Set(["tutoriais", "acervo", "conta-google", "gmail", "computador", "inspector", "modulos", "extensao", "navegador", "usuarios"]);
 /** A aba que abre na frente: a escolhida, ou a do produto enquanto a pessoa não escolheu (Tutoriais para quem chega). */
 export function abaFixaAtual(): string {
   const v = ctx.settings?.abaFixa ?? "padrao";
@@ -371,8 +371,8 @@ export async function restoreSplit(): Promise<void> {
       else if (id === "atividade") splitOn(ctx.activityPage());
       else if (id === "tutoriais") { openPage(ctx.tutoriaisPage); splitOn(ctx.tutoriaisPage); }
       else if (id === "acervo") { openPage(ctx.acervoPage); splitOn(ctx.acervoPage); }
-      // Páginas montadas na abertura (Computador, Conta Google, Gmail; Inspector só no produto dele): já estão registradas; elas mesmas conferem o plano.
-      else if (id === "computador" || id === "conta-google" || id === "gmail" || id === "inspector" || id === "modulos") { const p = pages.get(id); if (p !== undefined) { openPage(p); splitOn(p); } }
+      // Páginas montadas na abertura (Computador, Conta Google, Gmail; Inspector só no produto dele; a página própria de um derivado): já estão registradas; elas mesmas conferem o plano.
+      else if (id === "computador" || id === "conta-google" || id === "gmail" || id === "inspector" || id === "modulos" || id === "extensao") { const p = pages.get(id); if (p !== undefined) { openPage(p); splitOn(p); } }
       else if (id.startsWith("tut-")) { const t = TUTORIAIS.find((x) => `tut-${x.id}` === id); if (t !== undefined) { ctx.openGuide(t); const g = pages.get(id); if (g !== undefined) splitOn(g); } }
     } catch { /* essa página não abriu: segue com as outras */ }
   }

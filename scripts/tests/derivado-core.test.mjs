@@ -25,7 +25,7 @@ test("ficha de derivado: vira um app da pessoa com nome, bundle, dados e portas 
   // Só o obrigatório: o resto tem padrão.
   const minimo = parseFichaExterna({ nome: "meu-bot-x", bundleId: "local.meu-bot-x", canal: "staging", portaLocal: 8841, portaWsl: 2341, portaMcp: 7841 });
   assert.equal(minimo.ok, true, minimo.erro);
-  assert.deepEqual([minimo.produto.herdaDe, minimo.produto.abreEm, minimo.produto.caps.modulos, minimo.produto.caps.inspector, minimo.produto.addon, minimo.produto.descricao], [null, null, null, false, null, ""]);
+  assert.deepEqual([minimo.produto.herdaDe, minimo.produto.abreEm, minimo.produto.caps.modulos, minimo.produto.caps.inspector, minimo.produto.caps.extensao, minimo.produto.addon, minimo.produto.descricao], [null, null, null, false, null, null, ""]);
 });
 
 test("ficha de derivado: recusa o que colide com o core ou não é do contrato, dizendo o campo", () => {
