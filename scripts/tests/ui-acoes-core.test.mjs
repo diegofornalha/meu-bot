@@ -28,5 +28,9 @@ test("conversa_enviar: põe o texto, avisa o campo e clica Enviar; não interrom
   const parar = { ...botao, cliques: 0, classList: { contains: (c) => c === "btn-bad" }, click() { this.cliques++; } };
   assert.throws(() => rodar(enviarMensagem("oi"), { getElementById: (id) => (id === "input" ? campo : parar) }), /ainda está respondendo/);
   assert.equal(parar.cliques, 0);
+  // Com o agente respondendo a caixa também fica desligada.
+  assert.throws(() => rodar(enviarMensagem("oi"), { getElementById: (id) => (id === "input" ? { ...campo, disabled: true } : botao) }), /ainda está respondendo/);
+  // Uma página (o Navegador) na frente: não há conversa ativa e o botão fica desligado.
+  assert.throws(() => rodar(enviarMensagem("oi"), { getElementById: (id) => (id === "input" ? { ...campo, disabled: true } : { ...botao, disabled: true }) }), /nenhuma conversa na frente/);
   assert.throws(() => rodar(enviarMensagem("oi"), { getElementById: () => null }), /não tem conversa/);
 });
