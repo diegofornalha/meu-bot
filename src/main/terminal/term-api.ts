@@ -47,7 +47,7 @@ import { PAGINAS_APP } from "../controle-remoto/controle-remoto-core";
 import { closeTerminal, liveTerminals, replayTerminal, terminalById, waitNewTerminal, writeTerminal } from "./terminal";
 import { entradaDigitar, textoDoTerminal } from "./term-api-core";
 import { parseDono, type Dono } from "../navegador/nav-donos-core";
-import { alvoDeClique, alvoDeDigitacao, apertar, clicarScript, codigoDaTecla, DESMARCAR_SCRIPT, digitarValorScript, focarScript, MARCAR_SCRIPT, readScript } from "../navegador/nav-scripts";
+import { alvoDeClique, alvoDeDigitacao, apertar, clicarScript, codigoDaTecla, comErro, DESMARCAR_SCRIPT, digitarValorScript, focarScript, MARCAR_SCRIPT, readScript, valorOuErro } from "../navegador/nav-scripts";
 import { log } from "../maquina/backend";
 import { errosDaJanela, lerLog } from "../app/erros-janela";
 import { enviarMensagem, LISTAR_COMANDOS, rodarComando } from "./ui-acoes-core";
@@ -60,6 +60,8 @@ interface Req { id?: unknown; maquina?: unknown; linhas?: unknown; texto?: unkno
 /** O que a leitura da interface pula: o conteúdo das webviews (Navegador, Inspector, módulos) e dos terminais não é interface do app. */
 const UI_IGNORAR = "webview, .xterm";
 const assentar = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+/** Roda o trecho na janela do app e devolve o valor; o erro lançado lá chega aqui com a mensagem dele. */
+const naJanela = async (w: BrowserWindow, script: string): Promise<unknown> => valorOuErro(await w.webContents.executeJavaScript(comErro(script), true));
 const PAGINAS = ["navegador", "tutoriais", "acervo", "vazia"] as const;
 
 /** Janela da máquina pedida (ou a última focada que tenha máquina). */
@@ -205,12 +207,12 @@ async function act(route: string, b: Req, dono: Dono): Promise<unknown> {
     case "/conversa/ler": return lerConversa(hostOfWindow(janela(b.maquina)) ?? "", b.id, b.ultimas);
     case "/comandos": {
       const w = janela(b.maquina);
-      return { maquina: hostOfWindow(w), comandos: await w.webContents.executeJavaScript(LISTAR_COMANDOS, true) as unknown };
+      return { maquina: hostOfWindow(w), comandos: await naJanela(w, LISTAR_COMANDOS) };
     }
     case "/comando": {
       if (typeof b.id !== "string" || b.id === "") throw new Error("falta id (veja comando_listar)");
       const w = janela(b.maquina);
-      await w.webContents.executeJavaScript(rodarComando(b.id), true);
+      await naJanela(w, rodarComando(b.id));
       await assentar(300);
       return { ok: true, id: b.id, maquina: hostOfWindow(w) };
     }
@@ -218,7 +220,7 @@ async function act(route: string, b: Req, dono: Dono): Promise<unknown> {
       const texto = typeof b.texto === "string" ? b.texto.trim() : "";
       if (texto === "") throw new Error("falta texto");
       const w = janela(b.maquina);
-      await w.webContents.executeJavaScript(enviarMensagem(texto), true);
+      await naJanela(w, enviarMensagem(texto));
       return { ok: true, maquina: hostOfWindow(w) };
     }
     case "/ui/ler": {
@@ -228,7 +230,7 @@ async function act(route: string, b: Req, dono: Dono): Promise<unknown> {
     }
     case "/ui/clicar": {
       const w = janela(b.maquina);
-      await w.webContents.executeJavaScript(clicarScript(alvoDeClique(b)), true);
+      await naJanela(w, clicarScript(alvoDeClique(b)));
       await assentar(300); // a tela repinta antes da próxima leitura
       return { ok: true, maquina: hostOfWindow(w) };
     }
@@ -237,7 +239,7 @@ async function act(route: string, b: Req, dono: Dono): Promise<unknown> {
       const w = janela(b.maquina); const wc = w.webContents;
       // Campo de valor: entra direto, com os eventos (funciona com a janela atrás). Área editável: digitação de verdade.
       const alvo = alvoDeDigitacao(b);
-      if (await wc.executeJavaScript(digitarValorScript(alvo, b.texto), true) !== true) { await wc.executeJavaScript(focarScript(alvo), true); wc.focus(); await wc.insertText(b.texto); }
+      if (await naJanela(w, digitarValorScript(alvo, b.texto)) !== true) { await naJanela(w, focarScript(alvo)); wc.focus(); await wc.insertText(b.texto); }
       if (b.enter === true) { apertar(wc, "Return"); await assentar(300); }
       return { ok: true, maquina: hostOfWindow(w) };
     }
