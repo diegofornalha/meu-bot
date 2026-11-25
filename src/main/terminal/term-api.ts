@@ -20,6 +20,8 @@
  * mesmos trechos (nav-scripts.ts). Fica só neste socket, que não vai pelo túnel: o agente da máquina nunca a alcança.
  * · POST /ui/ler {maquina?}: o texto da janela e os botões, links e campos à vista, numerados (webviews e terminais ficam
  *   de fora: têm as ferramentas deles) · POST /ui/clicar {n | texto | seletor} · POST /ui/digitar {texto, n?, seletor?, enter?}
+ * · POST /erros {maquina?, desde?, limite?}: erros e avisos do console da interface dessa janela, quedas e travamentos
+ * · POST /log {linhas?, filtro?, desde?}: as últimas linhas do meu-bot.log deste app
  * · POST /ui/tecla {tecla}. Agir na interface é execução (um clique desconecta o WhatsApp ou sai da conta): o controle
  *   externo só oferece as três com "Executar comandos e código" ligado (FERRAMENTAS_EXECUCAO).
  * Quem pede vem no cabeçalho `X-Meu-Bot-Dono` (o mesmo do Navegador, nav-donos-core.ts) e aparece como selo no
@@ -43,11 +45,12 @@ import { entradaDigitar, textoDoTerminal } from "./term-api-core";
 import { parseDono, type Dono } from "../navegador/nav-donos-core";
 import { alvoDeClique, alvoDeDigitacao, apertar, clicarScript, codigoDaTecla, DESMARCAR_SCRIPT, focarScript, MARCAR_SCRIPT, readScript } from "../navegador/nav-scripts";
 import { log } from "../maquina/backend";
+import { errosDaJanela, lerLog } from "../app/erros-janela";
 import { estado as estadoDepuracao, evento as eventoDepuracao, modoDepuracao, registrarAcao, setDepuracao } from "../app/depuracao";
 
 export const termSocketPath = (): string => path.join(controlDir(), "term.sock");
 
-interface Req { id?: unknown; maquina?: unknown; linhas?: unknown; texto?: unknown; enter?: unknown; tecla?: unknown; pagina?: unknown; on?: unknown; tema?: unknown; n?: unknown; seletor?: unknown; marcas?: unknown }
+interface Req { id?: unknown; maquina?: unknown; linhas?: unknown; texto?: unknown; enter?: unknown; tecla?: unknown; pagina?: unknown; on?: unknown; tema?: unknown; n?: unknown; seletor?: unknown; marcas?: unknown; desde?: unknown; limite?: unknown; filtro?: unknown }
 /** O que a leitura da interface pula: o conteúdo das webviews (Navegador, Inspector, módulos) e dos terminais não é interface do app. */
 const UI_IGNORAR = "webview, .xterm";
 const assentar = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
@@ -185,6 +188,12 @@ async function act(route: string, b: Req, dono: Dono): Promise<unknown> {
       try { const img = await wc.capturePage(); return { png_base64: (img.getSize().width > 1280 ? img.resize({ width: 1280 }) : img).toPNG().toString("base64") }; }
       finally { if (marcar) await wc.executeJavaScript(DESMARCAR_SCRIPT, true).catch(() => undefined); }
     }
+    case "/erros": {
+      const host = hostOfWindow(janela(b.maquina)) ?? "";
+      const erros = errosDaJanela(host, b.desde, b.limite);
+      return { maquina: host, erros: erros.map((e) => ({ em: new Date(e.em).toISOString(), nivel: e.nivel, texto: e.texto, origem: e.origem })) };
+    }
+    case "/log": return lerLog({ linhas: b.linhas, filtro: b.filtro, desde: b.desde });
     case "/ui/ler": {
       const w = janela(b.maquina);
       const { marcas: _m, url: _u, ...lido } = await w.webContents.executeJavaScript(readScript(UI_IGNORAR), true) as Record<string, unknown>;
@@ -239,7 +248,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   try {
     const r = await act(route, body, dono);
     send(200, r);
-    if (route !== "/terminais" && route !== "/ler" && route !== "/ui/ler") log(`[terminal] controle (${dono.origem}: ${dono.id}): ${route}${typeof body.id === "string" ? ` ${body.id}` : ""}`);
+    if (route !== "/terminais" && route !== "/ler" && route !== "/ui/ler" && route !== "/erros" && route !== "/log") log(`[terminal] controle (${dono.origem}: ${dono.id}): ${route}${typeof body.id === "string" ? ` ${body.id}` : ""}`);
     // /nota já entrou no fluxo como "nota" dentro do act(); as outras rotas entram como ações do terminal (o /print sem o PNG).
     if (route !== "/nota") registrarAcao({ origem: "terminal", dono, rota: route, corpo: body as Record<string, unknown>, t0, resultado: route === "/print" ? { png: true } : r });
   } catch (e) {

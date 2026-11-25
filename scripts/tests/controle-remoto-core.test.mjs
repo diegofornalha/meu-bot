@@ -12,7 +12,7 @@ const INFO = { nome: "meu-bot", versao: "1.2.3", execucao: true };
 
 test("catálogo: as ferramentas do app-mcp (menos apps/app_abrir) mais as do app; cada uma com schema e anotações", () => {
   const nomes = FERRAMENTAS.map((f) => f.name);
-  for (const n of ["terminais", "terminal_abrir", "terminal_ler", "terminal_digitar", "terminal_fechar", "tela_dividir", "tela_juntar", "nav_abas", "nav_abrir", "nav_ler", "nav_clicar", "nav_digitar", "nav_tecla", "nav_print", "nav_recarregar", "nav_voltar", "nav_js", "nav_fechar", "nota", "depuracao", "app", "janela_abrir", "pagina_abrir", "tema", "print_janela", "ui_ler", "ui_clicar", "ui_digitar", "ui_tecla"]) assert.ok(nomes.includes(n), `falta ${n}`);
+  for (const n of ["terminais", "terminal_abrir", "terminal_ler", "terminal_digitar", "terminal_fechar", "tela_dividir", "tela_juntar", "nav_abas", "nav_abrir", "nav_ler", "nav_clicar", "nav_digitar", "nav_tecla", "nav_print", "nav_recarregar", "nav_voltar", "nav_js", "nav_fechar", "nota", "depuracao", "app", "janela_abrir", "pagina_abrir", "tema", "print_janela", "ui_ler", "ui_clicar", "ui_digitar", "ui_tecla", "erros_ler", "log_ler"]) assert.ok(nomes.includes(n), `falta ${n}`);
   assert.ok(!nomes.includes("apps") && !nomes.includes("app_abrir"), "de dentro do app não se abre outro app");
   assert.equal(new Set(nomes).size, nomes.length, "nome repetido");
   for (const f of FERRAMENTAS) { assert.equal(f.inputSchema.type, "object"); assert.equal(typeof f.annotations.readOnlyHint, "boolean"); assert.ok(f.description.length > 10); assert.equal("outputSchema" in f, false, "sem outputSchema o resultado vai só como texto"); }
@@ -59,6 +59,10 @@ test("roteador: tudo vai para um socket do app (terminal, com as rotas do app, o
   assert.deepEqual(roteador("ui_clicar", { texto: "Conta Google" }), { alvo: "terminal", rota: "ui/clicar", corpo: { texto: "Conta Google" } });
   assert.deepEqual(roteador("ui_digitar", { n: 3, texto: "oi", enter: true }), { alvo: "terminal", rota: "ui/digitar", corpo: { n: 3, texto: "oi", enter: true } });
   assert.deepEqual(roteador("ui_tecla", { tecla: "esc" }), { alvo: "terminal", rota: "ui/tecla", corpo: { tecla: "esc" } });
+  assert.deepEqual(roteador("erros_ler", { maquina: "local", limite: 5 }), { alvo: "terminal", rota: "erros", corpo: { limite: 5, maquina: "local" } });
+  assert.deepEqual(roteador("log_ler", { filtro: "atualização" }), { alvo: "terminal", rota: "log", corpo: { filtro: "atualização" } });
+  // Ler erros e log é leitura: continua com a execução desligada.
+  for (const n of ["erros_ler", "log_ler"]) { assert.equal(ferramenta(n).annotations.readOnlyHint, true, n); assert.ok(ferramentasVisiveis(false).some((f) => f.name === n), n); }
   assert.deepEqual(roteador("nav_abas", {}), { alvo: "navegador", rota: "abas" });
   assert.deepEqual(roteador("nav_abas", { maquina: "colima" }), { alvo: "navegador", rota: "abas", maquina: "colima" });
   assert.deepEqual(roteador("nav_abrir", { url: "https://x", nova: true, maquina: "colima" }), { alvo: "navegador", rota: "abrir", corpo: { url: "https://x", nova: true }, maquina: "colima" });

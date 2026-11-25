@@ -49,6 +49,8 @@ export function resumoAcao(origem: string, rota: string, corpo: Corpo, resultado
       case "/ui/clicar": return `clicou na interface ${corpo["n"] !== undefined ? `no ${num(corpo["n"])}` : corpo["texto"] !== undefined ? `em "${str(corpo["texto"], 40)}"` : `em ${str(corpo["seletor"], 40)}`}`;
       case "/ui/digitar": return `digitou ${texto(corpo["texto"])} caracteres na interface${corpo["n"] !== undefined ? ` no ${num(corpo["n"])}` : ""}${corpo["enter"] === true ? " + Enter" : ""}`;
       case "/ui/tecla": return `tecla ${str(corpo["tecla"], 20)} na interface`;
+      case "/erros": return `leu os erros da interface${Array.isArray(r["erros"]) ? ` · ${(r["erros"] as unknown[]).length}` : ""}`;
+      case "/log": return `leu o log${Array.isArray(r["linhas"]) ? ` · ${(r["linhas"] as unknown[]).length} linha(s)` : ""}${corpo["filtro"] !== undefined ? ` com "${str(corpo["filtro"], 40)}"` : ""}`;
       default: break;
     }
   }

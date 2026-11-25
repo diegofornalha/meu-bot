@@ -91,10 +91,12 @@ const TOOLS = [
   { name: 'ui_ler', description: 'A interface do app na janela: o texto à vista e os botões, links e campos numerados. O conteúdo das abas do Navegador (nav_ler) e dos terminais (terminal_ler) fica de fora.', inputSchema: S({ ...APP, ...MAQ }) },
   { name: 'ui_clicar', description: 'Clica num elemento da interface do app: n (de ui_ler), ou por texto ou seletor CSS. A pessoa vê acontecer.', inputSchema: S({ ...APP, ...MAQ, n: { type: 'number' }, texto: { type: 'string' }, seletor: { type: 'string' } }) },
   { name: 'ui_digitar', description: 'Digita num campo da interface do app (n de ui_ler, seletor, ou o campo em foco); enter=true confirma.', inputSchema: S({ ...APP, ...MAQ, n: { type: 'number' }, seletor: { type: 'string' }, texto: { type: 'string' }, enter: { type: 'boolean' } }, ['texto']) },
+  { name: 'erros_ler', description: 'Erros e avisos do console da interface do app nessa janela, quedas do processo da página e travamentos. desde (data ISO ou ms) traz só os posteriores.', inputSchema: S({ ...APP, ...MAQ, desde: { type: ['string', 'number'] }, limite: { type: 'number' } }) },
+  { name: 'log_ler', description: 'Últimas linhas do log do app (meu-bot.log). filtro (texto), desde (data ISO ou ms), linhas (padrão 100, até 500).', inputSchema: S({ ...APP, linhas: { type: 'number' }, filtro: { type: 'string' }, desde: { type: ['string', 'number'] } }) },
   { name: 'ui_tecla', description: 'Aperta uma tecla na interface do app (enter, tab, esc, down, up…).', inputSchema: S({ ...APP, ...MAQ, tecla: { type: 'string' } }, ['tecla']) },
 ];
 const NAV_ROTAS = { nav_abas: 'abas', nav_abrir: 'abrir', nav_ler: 'ler', nav_clicar: 'clicar', nav_digitar: 'digitar', nav_tecla: 'tecla', nav_print: 'print', nav_recarregar: 'recarregar', nav_voltar: 'voltar', nav_js: 'js', nav_fechar: 'fechar' };
-const APP_ROTAS = { app: 'app', janela_abrir: 'janela', pagina_abrir: 'pagina', tema: 'tema', print_janela: 'print', ui_ler: 'ui/ler', ui_clicar: 'ui/clicar', ui_digitar: 'ui/digitar', ui_tecla: 'ui/tecla' };
+const APP_ROTAS = { app: 'app', janela_abrir: 'janela', pagina_abrir: 'pagina', tema: 'tema', print_janela: 'print', ui_ler: 'ui/ler', ui_clicar: 'ui/clicar', ui_digitar: 'ui/digitar', ui_tecla: 'ui/tecla', erros_ler: 'erros', log_ler: 'log' };
 
 async function call(name, args) {
   const { app, maquina, ...resto } = args;

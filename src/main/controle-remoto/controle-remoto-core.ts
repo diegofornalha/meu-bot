@@ -54,6 +54,9 @@ export const FERRAMENTAS: readonly Ferramenta[] = [
   { name: "ui_ler", description: "A interface do app na janela: o texto à vista e os botões, links e campos numerados. O conteúdo das abas do Navegador (nav_ler) e dos terminais (terminal_ler) fica de fora.", inputSchema: S(MAQ), annotations: READ },
   { name: "ui_clicar", description: "Clica num elemento da interface do app: n (de ui_ler), ou por texto ou seletor CSS. A pessoa vê acontecer.", inputSchema: S({ ...MAQ, n: { type: "number" }, texto: { type: "string" }, seletor: { type: "string" } }), annotations: DESTRUCTIVE },
   { name: "ui_digitar", description: "Digita num campo da interface do app (n de ui_ler, seletor, ou o campo em foco); enter=true confirma.", inputSchema: S({ ...MAQ, n: { type: "number" }, seletor: { type: "string" }, texto: { type: "string" }, enter: { type: "boolean" } }, ["texto"]), annotations: DESTRUCTIVE },
+  // Depurar sem reabrir o app em modo de teste: o que a interface reclamou e o que o app registrou.
+  { name: "erros_ler", description: "Erros e avisos do console da interface do app nessa janela, quedas do processo da página e travamentos, do mais velho ao mais novo. desde (data ISO ou ms) traz só os posteriores; guarde a hora antes de agir e leia depois.", inputSchema: S({ ...MAQ, desde: { type: ["string", "number"] }, limite: { type: "number" } }), annotations: READ },
+  { name: "log_ler", description: "Últimas linhas do log do app (meu-bot.log): túnel, backend, atualização, Navegador, ações do controle. filtro (texto, sem diferenciar maiúsculas), desde (data ISO ou ms), linhas (padrão 100, até 500).", inputSchema: S({ linhas: { type: "number" }, filtro: { type: "string" }, desde: { type: ["string", "number"] } }), annotations: READ },
   { name: "ui_tecla", description: "Aperta uma tecla na interface do app (enter, tab, esc, down, up…).", inputSchema: S({ ...MAQ, tecla: { type: "string" } }, ["tecla"]), annotations: DESTRUCTIVE },
   { name: "terminais", description: "Terminais abertos no app (id, máquina, número).", inputSchema: S({}), annotations: READ },
   { name: "terminal_abrir", description: "Abre uma aba de terminal nova na janela da máquina e devolve o id e o prompt.", inputSchema: S(MAQ), annotations: ACTION },
@@ -112,7 +115,7 @@ export type Destino =
   | { alvo: "navegador"; rota: string; corpo?: Record<string, unknown>; maquina?: string };
 const NAV_ROTAS: Record<string, string> = { nav_abas: "abas", nav_abrir: "abrir", nav_ler: "ler", nav_clicar: "clicar", nav_digitar: "digitar", nav_tecla: "tecla", nav_print: "print", nav_recarregar: "recarregar", nav_voltar: "voltar", nav_js: "js", nav_fechar: "fechar" };
 /** As rotas do app no term.sock (as mesmas que o scripts/app-mcp.mjs usa). */
-const APP_ROTAS: Record<string, string> = { app: "app", janela_abrir: "janela", pagina_abrir: "pagina", tema: "tema", print_janela: "print", ui_ler: "ui/ler", ui_clicar: "ui/clicar", ui_digitar: "ui/digitar", ui_tecla: "ui/tecla" };
+const APP_ROTAS: Record<string, string> = { app: "app", janela_abrir: "janela", pagina_abrir: "pagina", tema: "tema", print_janela: "print", ui_ler: "ui/ler", ui_clicar: "ui/clicar", ui_digitar: "ui/digitar", ui_tecla: "ui/tecla", erros_ler: "erros", log_ler: "log" };
 export function roteador(nome: string, args: Record<string, unknown>): Destino {
   const { maquina, ...resto } = args;
   const maq = typeof maquina === "string" && maquina !== "" ? maquina : undefined;
