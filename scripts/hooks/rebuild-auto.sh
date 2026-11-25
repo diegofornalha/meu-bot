@@ -15,6 +15,8 @@
 #   rebuild-auto.sh --check    só mostra: branch, origin/main × instalado, o que mudou e o plano
 #   rebuild-auto.sh --run      o ciclo inteiro: worktree de build em origin/main → testes → fecha → empacota → reabre
 #   rebuild-auto.sh --testar   só `npm test` neste checkout (o que um branch ganha), avisando se quebrou
+# Depois de um ciclo que reempacotou algo, a resposta seguinte não termina calada: o hook devolve ao Claude a lista
+# das PRs que entraram desde o build anterior e pede para mostrar ao usuário como ficou (pedido dele, 25 nov 2026).
 set -u
 # Homebrew e /usr/local no fim: quem chama (ou os testes, com npm/open falsos) decide o que vem primeiro.
 export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin"
@@ -23,6 +25,9 @@ cd "$RAIZ" || exit 0
 # Estado global (um por Mac): trava do ciclo e o commit instalado. MEU_BOT_REBUILD_* só existem para os testes.
 ESTADO="${MEU_BOT_REBUILD_DIR:-$HOME/Library/Application Support/meu-bot-rebuild}"
 LOCK="$ESTADO/lock"; INSTALADO="$ESTADO/instalado"
+# "<commit de antes> <commit instalado> <apps reempacotados>": o ciclo grava ao terminar bem, e a primeira resposta
+# seguinte (de qualquer sessão) lê, apaga e pede ao Claude para mostrar na tela o que entrou.
+MOSTRAR="$ESTADO/a-mostrar"
 LOG="${MEU_BOT_REBUILD_LOG:-$HOME/Library/Logs/meu-bot-rebuild.log}"
 # Carimbo por checkout: "o que mudou aqui desde a última conferência" (só decide se os testes do branch rodam).
 STAMP="$RAIZ/.claude/.rebuild-stamp"
@@ -109,6 +114,7 @@ case "$modo" in
     trap 'rmdir "$LOCK" 2>/dev/null' EXIT
     fetch_main || true
     alvo=$(sha_origin) || { log "sem origin/main: nada a instalar"; exit 0; }
+    antes=$(sha_instalado)
     log "=== ciclo: instalar origin/main $alvo (instalado: $(cat "$INSTALADO" 2>/dev/null || echo nenhum))"
     avisar "começando" "origin/main $alvo: testes e empacotamento em segundo plano"
     if ! preparar_build; then log "não consegui preparar o worktree de build em $BUILD"; echo "$alvo falhou" > "$INSTALADO"; avisar "falhou" "worktree de build em $BUILD"; exit 0; fi
@@ -135,10 +141,22 @@ case "$modo" in
       fi
     done <<< "$(planejar)"
     if [ -z "${falhas[*]:-}" ]; then echo "$alvo ok" > "$INSTALADO"; else echo "$alvo falhou" > "$INSTALADO"; fi
+    # Só há o que mostrar quando algo foi reempacotado sem falha e havia um build anterior para comparar.
+    if [ -z "${falhas[*]:-}" ] && [ -n "${feitos[*]:-}" ] && [ -n "$antes" ] && [ "$antes" != "$alvo" ]; then echo "$antes $alvo ${feitos[*]}" > "$MOSTRAR"; fi
     log "=== fim: origin/main $alvo · ok=${feitos[*]:-nenhum} falhas=${falhas[*]:-nenhuma}"
     if [ -z "${falhas[*]:-}" ]; then avisar "pronto" "origin/main $alvo: ${feitos[*]:-nada} reempacotado(s); o app aberto já reabriu"; else avisar "com falhas" "falhou: ${falhas[*]} (log em ~/Library/Logs)"; fi;;
   *)
     cat >/dev/null 2>&1 || true   # stdin JSON do hook: não usamos
+    # Um ciclo terminou e reempacotou: esta resposta mostra o que entrou. Lido e apagado de uma vez (o `mv` é quem
+    # decide entre duas sessões), para o pedido sair uma vez só e não prender a sessão num laço.
+    if [ -f "$MOSTRAR" ] && [ ! -d "$LOCK" ] && mv "$MOSTRAR" "$MOSTRAR.$$" 2>/dev/null; then
+      read -r de para apps < "$MOSTRAR.$$"; rm -f "$MOSTRAR.$$"
+      prs=$(git log --first-parent --format='%s|%b' "$de..$para" 2>/dev/null | sed -n 's/^Merge pull request \(#[0-9]*\) from [^|]*|\(.*\)$/\1 \2/p' | head -8 | tr '\n' ';' | sed -e 's/;$//' -e 's/;/; /g')
+      razao="O origin/main $para foi reinstalado em ~/Applications (${apps:-nenhum app}). Entrou desde o build anterior ($de): ${prs:-commits sem PR}. O usuário pediu para ver como ficou toda PR que entra: se alguma dessas muda o que se vê, mostre agora (skill testar-no-app: abra o app reinstalado, capture a tela e diga o que mudou e onde olhar); mudança no site, a captura da página (skill publicar-site). Se nenhuma muda o que se vê, diga isso em uma linha. Vale também para PR de outra sessão: só mostre, sem refazer o trabalho dela."
+      log "a mostrar: $de..$para ($apps): ${prs:-sem PR}"
+      printf '{"decision":"block","reason":"%s"}\n' "$(printf '%s' "$razao" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr '\n' ' ')"
+      exit 0
+    fi
     fetch_main || true
     alvo=$(sha_origin || true)
     if [ -n "$alvo" ] && [ "$alvo" != "$(sha_instalado)" ]; then
