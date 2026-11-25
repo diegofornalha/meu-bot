@@ -35,7 +35,9 @@
   (puro, testado) junta os perfis do Claude (`PERFIS_CLAUDE`: `claudecode`, `agente`, `rene-dm`, `rene`) com os
   provedores openai que o `GET /v1/meu-bot/status` informa (`lerProvedores`, `modelosDaMaquina`); o nome na tela é o
   `rotulo` do provedor, ou o `name`. Enquanto o status não chega valem os modelos do `/v1/models` da sondagem.
-  `tempoLimiteMs`: 120 s para o `claudecode`, 600 s para o resto. Se a máquina responde `model_not_found` (módulo
+  `tempoLimiteMs`: 120 s para o `claudecode`, 600 s para o resto. Esse é o limite do app à espera de dados no túnel (o backend manda
+  um `ping` a cada 15 s); quanto um turno da CLI pode durar é do backend (`limite-turno.js`: 15 min de silêncio da
+  CLI, `TURN_IDLE_MS`, ou 2 h no total, `TURN_TIMEOUT_MS`; até 25 nov eram 10 min corridos, que cortavam trabalho longo). Se a máquina responde `model_not_found` (módulo
   desligado, provedor removido), o turno é refeito uma vez no modelo padrão dela (`recuoDoTurno`, `modeloDeRecuo`).
 - `backend.ts` lê `x_meu_bot.fallback` e manda `chat:notice` (aviso amarelo na conversa) +
   `backend:status degraded`.

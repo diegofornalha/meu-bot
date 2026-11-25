@@ -36,6 +36,7 @@ const FERRAMENTAS_MCP = path.join(__dirname, 'ferramentas-mcp.js');
 const BROWSER_MAX_TURNS = 100;
 const providers = require('./providers');
 const nivel = require('./nivel-ferramentas');
+const limiteTurno = require('./limite-turno');
 const semClaude = require('./sem-claude');
 const modulos = require('./modulos');
 const { readClaudeStatus, refreshRateLimits } = require('./account-status');
@@ -60,7 +61,8 @@ const CLAUDE_BIN = ENV.CLAUDE_BIN || path.join(os.homedir(), '.local', 'bin', 'c
 let CLAUDE_VERSION = '';
 try { require('node:child_process').execFile(CLAUDE_BIN, ['--version'], { timeout: 10000 }, (e, out) => { if (!e) CLAUDE_VERSION = String(out).trim(); }); } catch (_) { /* fica vazio: sem a flag */ }
 const WORKSPACE = ENV.WORKSPACE || path.join(os.homedir(), 'chat-workspace');
-const TURN_TIMEOUT_MS = Number(ENV.TURN_TIMEOUT_MS || 10 * 60 * 1000);
+/** Limites de um turno da CLI: silêncio (TURN_IDLE_MS, 15 min) e total (TURN_TIMEOUT_MS, 2 h). Veja limite-turno.js. */
+const LIMITES_TURNO = limiteTurno.limitesDoTurno(ENV);
 
 const AGENT_WORKSPACE = ENV.AGENT_WORKSPACE || path.join(os.homedir(), 'agent-workspace');
 /**
@@ -516,7 +518,7 @@ function runClaude({ prompt, system, cwd, maxTurns, bypass, resume, signal, onDe
     let limiteVisto = null; // último rate_limit_event (para o `ate` da conta)
     let resultText = null; let finished = false; let blockOpen = false; let sawTextBlock = false;
     const toolNames = new Map(); // tool_use_id → nome (o tool_result só traz o id)
-    const timer = setTimeout(() => { fail('timeout', `CLI excedeu ${TURN_TIMEOUT_MS} ms`); }, TURN_TIMEOUT_MS);
+    const vigia = limiteTurno.vigiarTurno(LIMITES_TURNO, (qual) => fail('timeout', limiteTurno.mensagemDoLimite(qual, LIMITES_TURNO)));
     const onAbort = () => fail('aborted', 'cliente fechou a conexão');
     if (signal) { if (signal.aborted) onAbort(); else signal.addEventListener('abort', onAbort, { once: true }); }
 
@@ -526,7 +528,7 @@ function runClaude({ prompt, system, cwd, maxTurns, bypass, resume, signal, onDe
       fail('auth', conta && conta.home ? `Claude Code deslogado na conta "${conta.rotulo}": entre de novo` : 'Claude Code deslogado nesta máquina: rode `claude /login`');
     }
     function fail(code, msg) {
-      if (finished) return; finished = true; clearTimeout(timer);
+      if (finished) return; finished = true; vigia.parar();
       try { child.kill('SIGTERM'); } catch (_) {}
       setTimeout(() => { try { child.kill('SIGKILL'); } catch (_) {} }, 3000).unref();
       const e = new Error(msg); e.code = code; e.stderr = stderr.slice(-2000);
@@ -546,6 +548,7 @@ function runClaude({ prompt, system, cwd, maxTurns, bypass, resume, signal, onDe
 
     let buf = '';
     child.stdout.on('data', (d) => {
+      vigia.sinal(); // a CLI está viva: zera o relógio do silêncio
       buf += d.toString('utf8');
       let i;
       while ((i = buf.indexOf('\n')) >= 0) {
@@ -600,7 +603,7 @@ function runClaude({ prompt, system, cwd, maxTurns, bypass, resume, signal, onDe
 
     child.on('error', (e) => fail('cli_failed', `não consegui iniciar a CLI: ${e.message}`));
     child.on('close', (code) => {
-      if (finished) return; finished = true; clearTimeout(timer);
+      if (finished) return; finished = true; vigia.parar();
       if (signal) signal.removeEventListener('abort', onAbort);
       if (!deltas && resultText) { text = resultText; }
       if (LIMIT_RE.test(text.slice(0, 300))) { const e = new Error(text.trim().split('\n')[0].slice(0, 200)); e.code = 'model_limit'; return reject(e); }
