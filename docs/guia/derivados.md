@@ -35,6 +35,7 @@ assets/icon.icns    o ícone (com o .svg de origem ao lado)
 | `abreEm` | não | a página que fica na frente ao abrir: `"modulos"` (ou `null` para as conversas) |
 | `modulos` | não | o produto de módulos fixo do app (`meu-bot-<nome>`): a página Módulos baixa o repositório dele |
 | `addon` | não | o add-on do catálogo que é a razão do app |
+| `releases` | não | `"dono/repositório"` do GitHub, público, onde saem as releases do app; é lá que o atualizador dele procura. Sem o campo, procura no repositório do core |
 | `descricao` | não | uma frase, até 300 caracteres |
 
 Campo que não está na tabela é recusado, para um nome trocado não passar calado. Um derivado é sempre um app da pessoa:
@@ -57,6 +58,13 @@ integridade do asar a cobre. Ao abrir, o app a lê, registra o produto e passa a
 (`src/main/app/variant.ts`); o `variant.json` de um derivado só diz `{"variant":"derivado"}`.
 
 Em desenvolvimento: `MEU_BOT_PRODUTO=<pasta do derivado> npm start`.
+
+## Atualização
+
+O atualizador de um derivado consulta as releases do repositório da ficha (`releases`), com as mesmas regras do core:
+tag `vX.Y.Z-staging.N`, asset `<nome>-<versão>-<arch>.zip` com o `.sig` ao lado. A confiança não muda com o
+repositório: o zip tem de passar pela assinatura Ed25519 do core (`UPDATE_PUBLIC_KEYS`), ter o mesmo bundle id do app
+aberto e ser assinado com o Developer ID do time. Publicar num repositório não basta para um app aceitar o que está lá.
 
 ## Conferir
 

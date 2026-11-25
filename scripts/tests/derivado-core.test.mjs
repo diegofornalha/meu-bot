@@ -3,6 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
+const { releasesUrl, UPDATE_REPO } = createRequire(import.meta.url)("../../dist/main/atualizacao/updater-core.js");
 const { parseFichaExterna, fichaEmbutida, registrarDerivado, produtoDe, capsFor, titleFor, userDataNameFor, resolveVariant, produtosDoCore, PRODUTOS, esquemaDe, ESQUEMA_RE } = createRequire(import.meta.url)("../../dist/main/app/variant-core.js");
 
 const FICHA = { nome: "meu-bot-vendas-staging", bundleId: "local.meu-bot-vendas.staging", canal: "staging", portaLocal: 8840, portaWsl: 2340, portaMcp: 7840, herdaDe: "meu-bot-staging", abreEm: "modulos", modulos: "meu-bot-vendas", descricao: "O meu-bot das vendas." };
@@ -86,4 +87,21 @@ test("os derivados antigos da tabela já cabem numa ficha de fora (a saída dele
     assert.deepEqual({ ...p.caps }, { ...a.caps }, `${a.nome}.caps`);
     assert.deepEqual(p.extensoes, a.extensoes);
   }
+});
+
+test("releases do derivado: a ficha diz o repositório, e é nele que o atualizador procura; sem dizer, vale o do core", () => {
+  // Todo app da tabela publica no repositório do core.
+  for (const p of PRODUTOS) assert.equal(p.repoReleases, null, p.nome);
+  assert.equal(parseFichaExterna(FICHA).produto.repoReleases, null);
+  const r = parseFichaExterna({ ...FICHA, releases: "diegofornalha/meu-bot-vendas-app" });
+  assert.equal(r.ok, true, r.erro);
+  assert.equal(r.produto.repoReleases, "diegofornalha/meu-bot-vendas-app");
+  // Só "dono/repositório": nada que mude o caminho da URL da API.
+  for (const ruim of ["meu-bot-vendas", "https://github.com/a/b", "a/b/c", "a/..", "../b", "a/b?x=1", "a /b", "a/b#c", "-a/b", "", 7, {}]) assert.match(erro({ ...FICHA, releases: ruim }), /^releases:/, String(ruim));
+
+  assert.equal(releasesUrl("staging"), `https://api.github.com/repos/${UPDATE_REPO}/releases?per_page=30`);
+  assert.equal(releasesUrl("staging", null), releasesUrl("staging"));
+  assert.equal(releasesUrl("estavel", null), `https://api.github.com/repos/${UPDATE_REPO}/releases/latest`);
+  assert.equal(releasesUrl("staging", r.produto.repoReleases), "https://api.github.com/repos/diegofornalha/meu-bot-vendas-app/releases?per_page=30");
+  assert.equal(releasesUrl("estavel", r.produto.repoReleases), "https://api.github.com/repos/diegofornalha/meu-bot-vendas-app/releases/latest");
 });
