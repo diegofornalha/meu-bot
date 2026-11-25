@@ -1628,10 +1628,14 @@ ligarTutoriais();
 /** Confirmação sem caixa sobreposta: o 1º clique arma o botão ("Confirmar?"), o 2º em até 4 s executa. */
 function armConfirm(btn: HTMLButtonElement, label: string, run: () => void): void {
   const armed = btn.dataset.armed === "1";
-  if (armed) { btn.dataset.armed = ""; btn.textContent = btn.dataset.label ?? btn.textContent; btn.classList.remove("btn-bad"); run(); return; }
+  // Botão de perigo que já nasce com `btn-bad` (páginas com seções que abrem) fica vermelho ao desarmar: só se tira a
+  // cor que o próprio armConfirm pôs.
+  const soltar = (): void => { if (btn.dataset.eraBad !== "1") btn.classList.remove("btn-bad"); };
+  if (armed) { btn.dataset.armed = ""; btn.textContent = btn.dataset.label ?? btn.textContent; soltar(); run(); return; }
   btn.dataset.label = btn.textContent ?? "";
+  btn.dataset.eraBad = btn.classList.contains("btn-bad") ? "1" : "";
   btn.dataset.armed = "1"; btn.textContent = label; btn.classList.add("btn-bad");
-  const reset = (): void => { if (btn.dataset.armed === "1") { btn.dataset.armed = ""; btn.textContent = btn.dataset.label ?? ""; btn.classList.remove("btn-bad"); } };
+  const reset = (): void => { if (btn.dataset.armed === "1") { btn.dataset.armed = ""; btn.textContent = btn.dataset.label ?? ""; soltar(); } };
   window.setTimeout(reset, 4000);
 }
 let waStatus: WhatsappStatus | null = null;

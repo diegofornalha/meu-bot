@@ -131,8 +131,9 @@ export function mountComputador(deps: ComputadorDeps): { open: () => void; repin
     const est = estadoComputador({ local: deps.local(), acesso: a, status, fase, instalacaoPrecisaAdmin: precisaAdmin, caiuDemais, semImagem });
     telaBox.hidden = !est.mostrarTela;
     if (!est.mostrarTela && wv !== null && est.kind !== "caiu") fecharTela();
-    const head = el("div", "computador-head");
-    head.append(el("span", "tut-badge", "computador"));
+    // Título no lugar da etiqueta verde; com a tela à mostra ele encolhe, para a tela ficar com a altura.
+    const head = el("div", est.mostrarTela ? "computador-head com-tela" : "computador-head");
+    head.append(el("h2", "", "Computador"));
     if (est.kind === "sem-plano" && a !== "ok") {
       const t = proBlockText(a, deps.license(), "computador", deps.produto);
       const c = el("div", "admin-card"); c.append(el("strong", "", t.title), el("p", "", t.text));

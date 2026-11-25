@@ -1348,3 +1348,7 @@ table.fin-abc tr.fin-abc-C td.fin-abc-tag { color: #757575; }
 .pagina-secao > details:not([open]) ~ .pagina-secao-corpo { display: none; }
 .pagina-secao-corpo > .btn { align-self: flex-start; }
 @media (prefers-reduced-motion: reduce) { .pagina-secao > details > summary::after { transition: none; } }
+/* Um título só para todas as páginas (25 nov): Acervo e Tutoriais têm o cabeçalho no HTML e o Computador tem a faixa
+   dele; ficam do tamanho do `.pagina-cab`. Com a tela do Computador à mostra o título encolhe. */
+.acervo-panel > h2, .tut-top h2, .computador-head h2 { margin: 0; font-size: 22px; font-weight: 700; }
+.computador-head.com-tela h2 { font-size: 14px; }
