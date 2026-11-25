@@ -1,6 +1,6 @@
 ---
 name: testar-no-app
-description: Ciclo fecha → rebuilda → abre → testa de um app do meu-bot (meu-bot-admin, meu-bot, staging) neste Mac, conferindo na tela que a mudança funcionou. Use quando o usuário disser "rebuilda e testa", "abre e vê se deu certo", "testa no app", "simula se deu certo", "kill, rebuilda e abre", ou depois de uma mudança visual que precisa ser vista no app instalado.
+description: Ciclo fecha → rebuilda → abre → testa de um app do meu-bot (meu-bot-admin, meu-bot, staging) neste Mac, conferindo na tela que a mudança funcionou. Use quando o usuário disser "rebuilda e testa", "abre e vê se deu certo", "testa no app", "simula se deu certo", "kill, rebuilda e abre", "dá kill e abre com o ajuste", "quero ver essa PR no staging", ou depois de uma mudança visual que precisa ser vista no app instalado.
 ---
 
 # Testar no app: fecha, rebuilda, abre e confere
@@ -18,7 +18,7 @@ reabrir o app sem perguntar de novo.
 |---|---|---|
 | admin | `meu-bot-admin` | `npm run dist:admin` |
 | meu-bot | `meu-bot` | `npm run dist` |
-| staging | `meu-bot-staging` | `npm run dist:staging` |
+| staging | `meu-bot-staging` | não instale por cima: veja "Ver um ramo no meu-bot-staging", abaixo |
 
 Log de cada app: `~/Library/Application Support/<app>/meu-bot.log`. Capturas: sempre no scratchpad da sessão.
 
@@ -86,6 +86,33 @@ O app caiu ou há erro novo no log: pare e mostre o trecho do log.
    ele clicar.
 
 Ações de verdade (apagar, criar usuário, instalar) só com o pedido do usuário: o teste é ver, não mexer em máquina.
+
+## Ver um ramo no meu-bot-staging (sem trocar o instalado)
+
+O `meu-bot-staging` instalado (`~/Applications` ou `/Applications`) é o da release, notarizado, e é ele que a release
+automática confere para promover a estável (`scripts/release-saude.mjs`). `npm run dist:staging` instala um build local
+em `~/Applications`, por cima: a prova de saúde passa a dizer "build local" e a estável não sai. Para ver um ramo ou
+uma PR no staging, o build roda **de fora**, sem instalar:
+
+1. **Worktree próprio no commit**, não o da sessão que está mexendo no ramo (ela pode estar no meio de uma edição):
+   `git worktree add --detach ../meu-bot-ver-<n> origin/<branch>`, com os links e as cópias da skill `contribuir`
+   (`node_modules`, `extensao-crm/node_modules`, `build/extensao-autenticador`, os dois `config/google-*.json`).
+2. **Empacotar sem instalar**, de dentro do worktree:
+   ```bash
+   npm run build && npm run build:extensao
+   node scripts/package.mjs --variant client-staging --plataforma darwin
+   node scripts/fuses.mjs --variant client-staging --plataforma darwin --no-install
+   ```
+   O app sai em `out/meu-bot-staging-darwin-arm64/meu-bot-staging.app`. Confira que é o seu:
+   `grep -a -c <símbolo novo> <app>/Contents/Resources/app.asar` e o commit em `Contents/Resources/build.json`.
+3. **Fechar o instalado** (passo 2, acima) e **lançar o binário direto**:
+   `(nohup "<worktree>/out/meu-bot-staging-darwin-arm64/meu-bot-staging.app/Contents/MacOS/meu-bot-staging" >/dev/null 2>&1 &)`.
+   `open <caminho do .app>` não serve: em 25 nov 2026 ele abriu a cópia de `/Applications`, que tem o mesmo bundle id.
+4. **Conferir que é o build do ramo**: a ferramenta `app` do app-mcp devolve a versão sem `-staging.<n>` (ex.: `1.2.3`)
+   e a faixa de depuração mostra o commit; `print_janela` captura a tela. `ps` mostra o caminho do binário.
+5. **Voltar ao da release** quando a pessoa terminar de ver: fechar, `open /Applications/meu-bot-staging.app` (ou o de
+   `~/Applications`) e `git worktree remove --force ../meu-bot-ver-<n>`. Com o app aberto a partir do worktree, não o
+   apague. Diga à pessoa que o build aberto é local e não notarizado, e que o instalado não mudou.
 
 ## 6. Avisar
 
