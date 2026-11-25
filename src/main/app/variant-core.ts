@@ -199,18 +199,37 @@ export const repoGithubValido = (v: unknown): v is string => typeof v === "strin
 export const DERIVADO_API: DerivadoApiVersao = 1;
 /** Texto do botão da lateral e da aba da página de uma extensão: curto, de uma linha só. */
 const ROTULO_EXTENSAO_MAX = 30;
-/** O campo `extensao` da ficha: `{ api, rotulo }`, mais nada. Devolve o que vira `caps.extensao`, ou o motivo da recusa. */
-function parseExtensao(v: unknown): { ok: true; extensao: { rotulo: string } | null } | { ok: false; erro: string } {
+/** O glifo do botão e da aba: um emoji ou símbolo. 8 pontos de código cobrem os emojis compostos (pessoa + ofício + tom de pele). */
+const ICONE_EXTENSAO_MAX = 8;
+/** A dica (o `title`) do botão da lateral: uma frase. */
+const DICA_EXTENSAO_MAX = 160;
+const CAMPOS_DA_EXTENSAO = ["api", "rotulo", "icone", "dica"] as const;
+/** Caractere de controle (quebra de linha, tab…): nenhum texto de botão leva. */
+const CONTROLE_RE = /[\u0000-\u001f\u007f]/;
+/**
+ * O ícone é texto puro em toda parte (o `textContent` do botão e uma cadeia de CSS na aba, nunca HTML), mas a ficha
+ * recusa de saída o que só serviria para tentar sair de um desses lugares: `<`, `>`, aspas, crase, barra invertida
+ * (o escape de uma cadeia de CSS), espaço e caractere de controle.
+ */
+const ICONE_PROIBIDO_RE = /[<>"'`\\\s\u0000-\u001f\u007f]/;
+/** O que a ficha diz da página própria e vira `caps.extensao`. */
+export interface ExtensaoDaFicha { rotulo: string; icone: string | null; dica: string | null }
+/** O campo `extensao` da ficha: `{ api, rotulo, icone?, dica? }`, mais nada. Devolve o que vira `caps.extensao`, ou o motivo da recusa. */
+function parseExtensao(v: unknown): { ok: true; extensao: ExtensaoDaFicha | null } | { ok: false; erro: string } {
   if (v === undefined || v === null) return { ok: true, extensao: null };
   if (typeof v !== "object" || Array.isArray(v)) return { ok: false, erro: 'extensao: null ou um objeto { "api": 1, "rotulo": "…" }' };
   const e = v as Record<string, unknown>;
-  const estranho = Object.keys(e).find((k) => k !== "api" && k !== "rotulo");
-  if (estranho !== undefined) return { ok: false, erro: `extensao: campo desconhecido "${estranho}" (aceitos: api, rotulo)` };
+  const estranho = Object.keys(e).find((k) => !(CAMPOS_DA_EXTENSAO as readonly string[]).includes(k));
+  if (estranho !== undefined) return { ok: false, erro: `extensao: campo desconhecido "${estranho}" (aceitos: ${CAMPOS_DA_EXTENSAO.join(", ")})` };
   if (e.api !== DERIVADO_API) return { ok: false, erro: `extensao.api: este core fala a API ${DERIVADO_API} de extensão; a ficha pede ${typeof e.api === "number" || typeof e.api === "string" ? String(e.api) : "um valor que não é número"}` };
   const rotulo = e.rotulo;
   // Sem espaço nas pontas nem caractere de controle (quebra de linha, tab): é o texto de um botão.
-  if (typeof rotulo !== "string" || rotulo === "" || rotulo.length > ROTULO_EXTENSAO_MAX || rotulo !== rotulo.trim() || /[\u0000-\u001f\u007f]/.test(rotulo)) return { ok: false, erro: `extensao.rotulo: o texto do botão, de 1 a ${ROTULO_EXTENSAO_MAX} caracteres, numa linha só` };
-  return { ok: true, extensao: { rotulo } };
+  if (typeof rotulo !== "string" || rotulo === "" || rotulo.length > ROTULO_EXTENSAO_MAX || rotulo !== rotulo.trim() || CONTROLE_RE.test(rotulo)) return { ok: false, erro: `extensao.rotulo: o texto do botão, de 1 a ${ROTULO_EXTENSAO_MAX} caracteres, numa linha só` };
+  const icone = e.icone ?? null;
+  if (icone !== null && (typeof icone !== "string" || icone === "" || [...icone].length > ICONE_EXTENSAO_MAX || ICONE_PROIBIDO_RE.test(icone))) return { ok: false, erro: `extensao.icone: null ou um emoji ou símbolo (até ${ICONE_EXTENSAO_MAX} caracteres, sem espaço, <, >, aspas nem barra invertida)` };
+  const dica = e.dica ?? null;
+  if (dica !== null && (typeof dica !== "string" || dica === "" || dica.length > DICA_EXTENSAO_MAX || dica !== dica.trim() || CONTROLE_RE.test(dica))) return { ok: false, erro: `extensao.dica: null ou a dica do botão, de 1 a ${DICA_EXTENSAO_MAX} caracteres, numa linha só` };
+  return { ok: true, extensao: { rotulo, icone, dica } };
 }
 const ehPorta = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 1024 && v <= 65535;
 export type FichaExterna = { ok: true; produto: Produto } | { ok: false; erro: string };

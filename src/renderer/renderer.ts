@@ -2191,7 +2191,13 @@ void (async () => {
     if (extensaoPage !== null) {
       const linha = $<HTMLButtonElement>("extensao-line");
       $<HTMLElement>("extensao-rotulo").textContent = caps.extensao.rotulo;
-      linha.title = caps.extensao.rotulo;
+      linha.title = caps.extensao.dica ?? caps.extensao.rotulo;
+      // O glifo da ficha entra como texto no botão e como cadeia de CSS na aba (style.css, `.tab-extensao`), nunca como
+      // HTML. A ficha já recusa aspas e barra invertida, então o JSON.stringify devolve uma cadeia de CSS válida.
+      if (caps.extensao.icone !== null) {
+        $<HTMLElement>("extensao-icone").textContent = caps.extensao.icone;
+        document.documentElement.style.setProperty("--extensao-icone", JSON.stringify(`${caps.extensao.icone} `));
+      }
       linha.hidden = false;
       linha.addEventListener("click", () => extensaoPage?.open());
     }

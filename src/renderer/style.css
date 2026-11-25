@@ -531,6 +531,8 @@ dialog.perguntar input { font: inherit; padding: 8px 10px; border-radius: 8px; b
 .tab-page.tab-computador .tab-title::before { content: "▣ "; }
 .tab-page.tab-inspector .tab-title::before { content: "🔎 "; }
 .tab-page.tab-modulos .tab-title::before { content: "⧉ "; }
+/* Página própria de um derivado: o glifo vem da ficha (`extensao.icone`, posto em --extensao-icone pelo renderer.ts); sem ele, o ✦ do botão. */
+.tab-page.tab-extensao .tab-title::before { content: var(--extensao-icone, "✦ "); }
 .tab-page[class*="tab-term-"] .tab-title::before { content: ">_ "; font-family: var(--mono); }
 .tab-page.tab-navegador .tab-title::before { content: "🌐 "; }
 .tab-page.tab-suporte .tab-title::before { content: "⛨ "; }

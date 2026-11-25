@@ -3,8 +3,9 @@
  * src/shared/ipc.ts. O lado da janela está em src/renderer/extensao/api.ts (ele usa tipos do DOM, que o main não tem).
  *
  * Um derivado (docs/guia/derivados.md) pode trazer UMA página: `codigo/main.ts` roda no processo principal e
- * `codigo/pagina.ts` na janela. Os dois só fazem `import type` deste contrato; o que precisam chega por argumento.
- * O código é compilado pelo core no empacotamento (scripts/derivado-codigo.mjs) e vai dentro do asar.
+ * `codigo/pagina.ts` na janela. Do core, os dois só fazem `import type` deste contrato; o que precisam chega por
+ * argumento, e fora isso importam só arquivos da própria pasta `codigo/`. O código é compilado pelo core no
+ * empacotamento (scripts/derivado-codigo.mjs) e vai dentro do asar.
  */
 
 /**

@@ -24,6 +24,7 @@ produto.json        a ficha do app
 assets/icon.icns    o ícone (com o .svg de origem ao lado)
 codigo/main.ts      só se o app tem página própria: a parte do processo principal
 codigo/pagina.ts    só se o app tem página própria: a parte da janela
+codigo/…            os arquivos que esses dois importam (opcional)
 ```
 
 ## A ficha (`produto.json`)
@@ -36,7 +37,7 @@ codigo/pagina.ts    só se o app tem página própria: a parte da janela
 | `portaLocal`, `portaWsl`, `portaMcp` | sim | 1024 a 65535, diferentes das dos apps do core e das dos outros derivados instalados no mesmo Mac |
 | `herdaDe` | não | `null`, `"meu-bot"` ou `"meu-bot-staging"`: de onde a primeira abertura copia configurações, conversas e memória, uma vez só |
 | `abreEm` | não | a página que fica na frente ao abrir: `"modulos"`, ou `"extensao"` (a página própria; só com o campo `extensao`), ou `null` para as conversas |
-| `extensao` | não | o app traz uma página própria: `{ "api": 1, "rotulo": "<texto do botão, até 30 caracteres>" }`. Exige a pasta `codigo/` (e a pasta exige o campo). Ver [Página própria](#página-própria-extensão) |
+| `extensao` | não | o app traz uma página própria: `{ "api": 1, "rotulo": "<texto do botão, até 30 caracteres>" }`, mais `"icone"` (um emoji ou símbolo, para o botão e a aba) e `"dica"` (o texto que aparece ao parar o mouse no botão, até 160 caracteres), os dois opcionais. Exige a pasta `codigo/` (e a pasta exige o campo). Ver [Página própria](#página-própria-extensão) |
 | `modulos` | não | o produto de módulos fixo do app (`meu-bot-<nome>`): a página Módulos baixa o repositório dele |
 | `addon` | não | o add-on do catálogo que é a razão do app |
 | `releases` | não | `"dono/repositório"` do GitHub, público, onde saem as releases do app; é lá que o atualizador dele procura. Sem o campo, procura no repositório do core |
@@ -73,17 +74,27 @@ API 1 de extensão; a ficha pede 2"), em vez de abrir um app com a página quebr
 ### Na ficha
 
 ```json
-"extensao": { "api": 1, "rotulo": "Exemplo" },
+"extensao": { "api": 1, "rotulo": "Exemplo", "icone": "🧪", "dica": "Exemplo: o que a página faz, numa frase" },
 "abreEm": "extensao"
 ```
 
-`rotulo` é o texto do botão da lateral (1 a 30 caracteres, uma linha). A página tem id fixo, `extensao`: é com ele que
-o alfinete (📌), o `abreEm` e a ferramenta `pagina_abrir` do controle externo a abrem. Nas capacidades do app vira
-`caps.extensao = { rotulo }`; em todo app da tabela é `null`.
+| campo | obrigatório | o que é |
+|---|---|---|
+| `api` | sim | a versão do contrato para a qual o código foi escrito (hoje `1`) |
+| `rotulo` | sim | o texto do botão da lateral: 1 a 30 caracteres, uma linha |
+| `icone` | não | o glifo do botão e da aba: um emoji ou símbolo, até 8 caracteres, sem espaço, `<`, `>`, aspas nem barra invertida. Sem ele, o ✦ |
+| `dica` | não | o texto que aparece ao parar o mouse no botão (o `title`): 1 a 160 caracteres, uma linha. Sem ela, o próprio rótulo |
 
-### Os dois arquivos
+O título da aba é o que o código passa ao `definePage`. O ícone e a dica entram na tela como texto (o `textContent` do
+botão, a propriedade `title` e uma variável de CSS para a aba), nunca como HTML.
 
-Em `codigo/`, e só estes dois são compilados:
+A página tem id fixo, `extensao`: é com ele que o alfinete (📌), o `abreEm` e a ferramenta `pagina_abrir` do controle
+externo a abrem. Nas capacidades do app vira `caps.extensao = { rotulo, icone, dica }` (os dois últimos `null` quando a
+ficha não os traz); em todo app da tabela `caps.extensao` é `null`.
+
+### Os arquivos
+
+Em `codigo/`, dois arquivos de entrada:
 
 ```ts
 // codigo/main.ts: processo principal
@@ -108,6 +119,27 @@ export const montar: MontarExtensao = (api) => {
 
 Um exemplo inteiro, que os testes do core compilam e carregam, está em `scripts/tests/fixtures/derivado-exemplo/`.
 
+**Mais arquivos.** Os dois de entrada podem importar outros `.ts` da própria pasta `codigo/` (subpastas inclusive), por
+caminho relativo, e esses podem importar outros:
+
+```ts
+// codigo/pagina.ts
+import { zoomDaPagina } from "./zoom.js";
+```
+
+- **Escreva o import com `.js` no fim**, dos dois lados, mesmo o arquivo sendo `zoom.ts` (é como o core escreve os
+  dele). Na janela é obrigatório: o compilado é um módulo ES carregado pelo navegador, que não adivinha a extensão, e
+  o core recusa o import sem ela. No processo principal (CommonJS) funciona com e sem.
+- **Cada lado leva só o que a entrada dele alcança.** Um arquivo importado pelos dois lados é compilado duas vezes,
+  uma em cada formato, com os tipos de cada lado: só serve aos dois o que é puro (sem Node e sem DOM). Um arquivo que
+  ninguém importa não é compilado e não vai para o app.
+- **Ninguém sai de `codigo/`**: um import com `../` que aponte para fora da pasta é recusado.
+- No processo principal, `codigo/index.ts` não pode existir e nenhum arquivo importa o `main.ts`: o `main.ts`
+  compilado é o `index.js` que o app carrega.
+
+É assim que a lógica pura de uma página ganha arquivo e teste próprios: o teste do derivado chama o `compilarCodigo`
+de `scripts/derivado-codigo.mjs` para uma pasta temporária e importa o JavaScript de lá.
+
 **O que `ativar` recebe** (`ExtensaoMainApi`, em `src/shared/ipc/derivado.ts`):
 
 | o quê | para quê |
@@ -128,6 +160,10 @@ ou pode falhar fica para um canal, chamado quando a página abre.
 id `"extensao"`, uma vez), `openPage`, `invocar(nome, payload)` (chama um canal do `ativar`), `zoomFactorNow()` e
 `aoMudarZoom(ouvinte)`. Devolve `{ open() }`.
 
+A página não traz CSS: ela usa as classes do app (`acervo-panel` no painel, `btn`, `hint`, as da página Computador
+para um `<webview>` que ocupa o painel…). Essas classes não têm versão no contrato; quem muda uma delas no core confere
+os derivados que têm página.
+
 A página fala com o processo principal por um canal IPC só, `ext:invoke`, que leva `{ nome, payload }` e despacha para
 o handler registrado. Sem extensão no app, ou com um nome que ela não registrou, o canal recusa. O payload chega cru
 ao handler: validar é dele.
@@ -139,11 +175,14 @@ está; link `https` para fora abre no navegador do sistema.
 ### O que é proibido
 
 - Importar qualquer coisa do core em tempo de execução. Só `import type` dos dois nomes do contrato
-  (`meu-bot/extensao-main`, `meu-bot/extensao-pagina`); o resto chega por argumento. No processo principal entram só
-  os módulos do Node, com o prefixo (`node:fs`, `node:child_process`…); na janela, nenhum import.
-- Dependências npm próprias: `codigo/package.json` e `codigo/node_modules` recusam o empacotamento.
+  (`meu-bot/extensao-main`, `meu-bot/extensao-pagina`); o resto chega por argumento. Fora os arquivos da própria
+  `codigo/`, no processo principal entram só os módulos do Node, com o prefixo (`node:fs`, `node:child_process`…); na
+  janela, mais nada. `import()` dinâmico não é aceito em nenhum dos dois.
+- Dependências npm próprias: `package.json` e `node_modules` em `codigo/`, ou em qualquer subpasta dela, recusam o
+  empacotamento.
 - Preload, canal IPC com nome próprio e mais de uma página ou de um `<webview>`: não existem no contrato.
-- Outros arquivos em `codigo/` não são compilados, e os dois não podem ser links simbólicos.
+- Link simbólico em `codigo/` (a pasta, um arquivo ou uma subpasta) e import que sai dela: o que se compila é o que
+  está no commit.
 - `extensao` na ficha sem `codigo/`, ou `codigo/` sem `extensao`: recusa.
 
 Se a página precisa de algo que a API não dá, a melhoria entra no core, para todos (a regra do começo deste guia).
@@ -160,9 +199,10 @@ Não há plugin solto: os fuses do app só deixam carregar código de dentro do 
 isso é o **core** que compila o código do derivado, no empacotamento (`scripts/derivado-codigo.mjs`, chamado pelo
 `scripts/package.mjs` quando `--produto <pasta>` tem `codigo/`):
 
-- os dois arquivos são copiados para uma pasta temporária e compilados com o `tsc` e o rigor do core; nada é escrito
-  em `src/` nem no repositório do derivado;
-- saem `dist/main/derivado/index.js` (CommonJS) e `dist/renderer/derivado/pagina.js` (módulo ES), que vão no asar;
+- os `.ts` de `codigo/` são copiados para uma pasta temporária e compilados com o `tsc` e o rigor do core, uma vez
+  por lado; nada é escrito em `src/` nem no repositório do derivado;
+- saem `dist/main/derivado/` (CommonJS; a entrada é `index.js`, o `main.ts` compilado) e `dist/renderer/derivado/`
+  (módulos ES; a entrada é `pagina.js`), cada pasta com os arquivos que a entrada dela importa, e vão no asar;
 - as duas pastas são apagadas antes de empacotar **qualquer** app e de novo ao terminar, como a ficha embutida: o
   código de um derivado nunca vai no pacote de outro.
 
@@ -243,4 +283,5 @@ escrito na lista:
 - A ferramenta `app` do controle externo devolve o nome do derivado e `variante: "derivado"`.
 - `npx asar list <App>.app/Contents/Resources/app.asar | grep produto-embutido.json` acha a ficha.
 - Com página própria: o mesmo `asar list` com `grep /derivado/` mostra `dist/main/derivado/index.js` e
-  `dist/renderer/derivado/pagina.js`, e o log do app traz `[extensão] ativa: canais …`.
+  `dist/renderer/derivado/pagina.js` (e os arquivos que eles importam), e o log do app traz
+  `[extensão] ativa: canais …`.

@@ -1,7 +1,7 @@
 /**
  * Contrato · Página própria de um app derivado (a "extensão"), lado da janela. Só tipos. O lado do processo principal
  * está em src/shared/ipc/derivado.ts. `codigo/pagina.ts` do derivado faz `import type` daqui e recebe tudo por
- * argumento: não importa módulo nenhum do app (docs/guia/derivados.md).
+ * argumento: não importa módulo nenhum do app, só arquivos da própria pasta `codigo/` (docs/guia/derivados.md).
  */
 import type { PageTab } from "../lib/pages-types.js";
 
