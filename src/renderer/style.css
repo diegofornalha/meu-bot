@@ -1309,6 +1309,11 @@ table.fin-abc tr.fin-abc-C td.fin-abc-tag { color: #757575; }
 .insta-fechar { flex: none; align-self: center; pointer-events: auto; width: 18px; height: 18px; margin-right: -4px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font: 600 14px/1 -apple-system, system-ui, sans-serif; cursor: pointer; }
 .insta-fechar:hover { background: var(--bg); color: var(--fg); }
 .insta-item.sai .insta-fechar { pointer-events: none; }
+/* Última linha da lista, embaixo dos avisos: limpar tudo e desativar. Sem aviso na tela, some junto. */
+.insta-acoes { display: flex; gap: 6px; }
+.insta-lista:not(:has(.insta-item)) .insta-acoes { display: none; }
+.insta-acao { pointer-events: auto; padding: 2px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--muted); font: 500 11px/1.4 -apple-system, system-ui, sans-serif; cursor: pointer; box-shadow: 0 4px 14px rgb(0 0 0 / .25); }
+.insta-acao:hover { color: var(--fg); border-color: var(--accent); }
 @keyframes insta-entra { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .insta-marca, .insta-item { animation: none; } .insta-item { transition: none; } }
 

@@ -7,6 +7,7 @@
  *    MARCAS_MS depois da leitura.
  *  - Lista: os logs sem lugar na página (nota, abrir aba, terminal) ficam numa coluna fixa no canto de baixo, à direita, com quem
  *    agiu e o que fez; saem aos poucos depois de SILENCIO_MS, ou na hora, um a um, pelo × de cada aviso.
+ *    Embaixo deles, uma linha com "limpar tudo" e "desativar" (desliga o modo).
  * O cursor do agente (cursor-agente.ts, o modo "real") tem a cena: enquanto ele está nela, marcas e lista saem.
  * Nada aqui se mexe sozinho. Liga no seletor (o ✨ colado no Intro) ou na paleta; gravado em `instagramavel`.
  */
@@ -24,6 +25,18 @@ const NAO_MEXE = new Set(["/ler", "/print", "/js", "/abas", "/diag"]);
 let ligado = false;
 const marcasEl = Object.assign(document.createElement("div"), { className: "insta-marcas" });
 const listaEl = Object.assign(document.createElement("div"), { className: "insta-lista" });
+/** A última linha da lista, embaixo de todos os avisos: limpar tudo ou desativar o modo. Só aparece com aviso na tela (style.css, `:has`). */
+const acoesEl = Object.assign(document.createElement("div"), { className: "insta-acoes" });
+const botaoDeAcao = (texto: string, title: string, aoClicar: () => void): HTMLButtonElement => {
+  const b = Object.assign(document.createElement("button"), { type: "button", className: "insta-acao", textContent: texto, title });
+  b.addEventListener("click", aoClicar);
+  return b;
+};
+acoesEl.append(
+  botaoDeAcao("limpar tudo", "Tirar todos os avisos da tela", () => limparLista()),
+  botaoDeAcao("desativar", "Desligar o modo instagramável: os avisos e as marcas param de aparecer (volta pelo ✨ do seletor ou pela paleta)", () => { if (ligado) void alternarInstagramavel(); }),
+);
+listaEl.append(acoesEl);
 /** A última leitura de cada aba (id do webContents): as marcas, o endereço da página naquela hora e até quando valem. */
 const guardadas = new Map<number, { m: MarcasDepuracao; url: string; ate: number }>();
 /** O que está desenhado agora: de que aba, de que leitura e com que retângulo (mudou qualquer um → redesenha). */
@@ -43,7 +56,7 @@ function esquecer(aba: number | null): void {
   atualizar();
 }
 function limparLista(): void {
-  listaEl.replaceChildren();
+  for (const el of listaEl.querySelectorAll(".insta-item")) el.remove(); // a linha das ações fica
   if (saindo !== null) { clearInterval(saindo); saindo = null; }
 }
 function aplicar(on: boolean): void {
@@ -119,8 +132,9 @@ function listar(e: EventoDepuracao): void {
   fechar.addEventListener("click", () => item.remove());
   item.append(nome, texto, fechar);
   posicionarLista();
-  listaEl.append(item);
-  while (listaEl.children.length > LISTA_MAX) listaEl.firstElementChild?.remove();
+  listaEl.insertBefore(item, acoesEl); // as ações ficam sempre por último, embaixo
+  const itens = listaEl.querySelectorAll(".insta-item");
+  for (let i = 0; i < itens.length - LISTA_MAX; i++) itens[i]!.remove();
 }
 /** Depois de SILENCIO_MS sem log, a lista esvazia aos poucos: o mais antigo a cada SAIDA_MS. */
 function armarSilencio(): void {
