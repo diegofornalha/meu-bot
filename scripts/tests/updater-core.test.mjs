@@ -254,6 +254,44 @@ test("decideDescarte: a troca só apaga a cópia anterior quando terminou e o ap
   assert.match(motivoManterTexto("app-ausente"), /não existe/);
 });
 
+test("feed guardado: reabrir logo depois reaproveita; 304 e limite (só em verificação automática) usam a última resposta boa da mesma URL", () => {
+  const { parseFeedCache, cabecalhoCondicional, usoDoFeed, feedRecente, FEED_RECENTE_MS, FEED_GUARDADO_MS } = createRequire(import.meta.url)("../../dist/main/atualizacao/updater-core.js");
+  const hora = () => "14:00";
+  const url = releasesUrl("staging"), outra = releasesUrl("estavel");
+  const em = "2026-11-25T10:00:00.000Z", t0 = Date.parse(em);
+  const cache = parseFeedCache({ url, etag: 'W/"abc"', em, corpo: [{ tag_name: "v1.0.0-staging.1" }] });
+  assert.deepEqual(cache, { url, etag: 'W/"abc"', em, corpo: [{ tag_name: "v1.0.0-staging.1" }] });
+  // Arquivo estragado ou de outra forma não vira cache (e um ETag com quebra de linha não vai para o cabeçalho).
+  for (const ruim of [null, "x", {}, { url, etag: "", em, corpo: [] }, { url, etag: 1, em, corpo: [] }, { url, etag: "a\r\nX: y", em, corpo: [] }, { url, etag: "a", em }, { url, etag: "a", corpo: [] }, { url, etag: "a", em: "ontem", corpo: [] }]) assert.equal(parseFeedCache(ruim), null);
+  assert.deepEqual(cabecalhoCondicional(cache, url), { "If-None-Match": 'W/"abc"' });
+  assert.deepEqual(cabecalhoCondicional(cache, outra), {}, "o cache de um canal não vale para o outro");
+  assert.deepEqual(cabecalhoCondicional(null, url), {});
+  // Reabrir o app: a resposta de há pouco serve; velha, de outra URL ou "do futuro" (relógio mexido), não.
+  assert.equal(feedRecente(cache, url, t0 + FEED_RECENTE_MS - 1), cache);
+  assert.equal(feedRecente(cache, url, t0 + FEED_RECENTE_MS), null);
+  assert.equal(feedRecente(cache, outra, t0 + 1000), null);
+  assert.equal(feedRecente(cache, url, t0 - 1000), null);
+  assert.equal(feedRecente(null, url, t0), null);
+  // 304: nada mudou, o corpo é o guardado, em qualquer tipo de verificação.
+  assert.deepEqual(usoDoFeed(304, "59", null, cache, url, false, t0 + 1000, hora), { tipo: "cache", motivo: "304", corpo: cache.corpo });
+  // Limite de consultas numa verificação automática: em vez do erro, a lista da última consulta boa.
+  assert.deepEqual(usoDoFeed(403, "0", "1762300800", cache, url, true, t0 + 1000, hora), { tipo: "cache", motivo: "limite", corpo: cache.corpo });
+  assert.deepEqual(usoDoFeed(429, "0", null, cache, url, true, t0 + 1000, hora), { tipo: "cache", motivo: "limite", corpo: cache.corpo });
+  const limite = { tipo: "resposta", r: { tipo: "falha", msg: "o GitHub limitou as consultas deste IP; libera por volta das 14:00" } };
+  // Quem clicou em verificar ouve a verdade: não deu para consultar.
+  assert.deepEqual(usoDoFeed(403, "0", "1762300800", cache, url, false, t0 + 1000, hora), limite);
+  // Lista guardada velha demais, sem cache ou de outra URL: o limite continua sendo a falha com a hora.
+  assert.deepEqual(usoDoFeed(403, "0", "1762300800", cache, url, true, t0 + FEED_GUARDADO_MS, hora), limite);
+  assert.deepEqual(usoDoFeed(403, "0", "1762300800", null, url, true, t0, hora), limite);
+  assert.deepEqual(usoDoFeed(403, "0", "1762300800", cache, outra, true, t0 + 1000, hora), limite);
+  assert.deepEqual(usoDoFeed(304, null, null, null, url, true, t0, hora), { tipo: "resposta", r: { tipo: "falha", msg: "GitHub respondeu 304" } });
+  // Um 403 com cota de sobra (repositório privado ou renomeado) não usa o cache: é erro de verdade.
+  assert.deepEqual(usoDoFeed(403, "42", null, cache, url, true, t0 + 1000, hora), { tipo: "resposta", r: { tipo: "falha", msg: "GitHub respondeu 403" } });
+  // Resposta nova e 404 seguem como antes.
+  assert.deepEqual(usoDoFeed(200, "59", null, cache, url, true, t0 + 1000, hora), { tipo: "resposta", r: { tipo: "ler" } });
+  assert.deepEqual(usoDoFeed(404, null, null, cache, url, true, t0 + 1000, hora), { tipo: "resposta", r: { tipo: "sem-release" } });
+});
+
 test("classificarRespostaFeed: 404 sem release, 403 de limite e qualquer outro status são três coisas diferentes", () => {
   const hora = () => "14:00";
   // 404 é o repositório que ainda não publicou release: a instalada É a mais recente, e isso não é erro nenhum.

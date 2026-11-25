@@ -139,6 +139,56 @@ export function classificarRespostaFeed(status: number, remaining: string | null
   return { tipo: "falha", msg: `GitHub respondeu ${status}` };
 }
 
+/**
+ * A última resposta boa do feed, guardada em disco. O GitHub dá 60 consultas por hora por IP a quem não se identifica,
+ * e cada abertura do app gastava uma: num Mac com vários apps reabertos (ou vários Macs atrás do mesmo IP) aparecia
+ * "o GitHub limitou as consultas deste IP". Com a resposta guardada:
+ * - reabrir o app pouco depois de uma consulta boa (FEED_RECENTE_MS) não consulta de novo;
+ * - se o limite for atingido numa verificação automática, a lista guardada serve, em vez de um erro que a pessoa não
+ *   tem como resolver.
+ * A consulta manda `If-None-Match` com o ETag guardado: um 304 poupa baixar a lista de novo, mas GASTA a cota do
+ * mesmo jeito sem login (medido em 25 nov 2026: três 304 seguidos levaram a cota de 59 a 56). Vale só para a mesma
+ * URL: o canal estável e o staging leem endereços diferentes.
+ */
+export interface FeedCache { url: string; etag: string; em: string; corpo: unknown }
+export function parseFeedCache(v: unknown): FeedCache | null {
+  if (typeof v !== "object" || v === null) return null;
+  const o = v as Record<string, unknown>;
+  if (typeof o.url !== "string" || typeof o.etag !== "string" || o.etag === "" || o.etag.length > 200 || /[\r\n]/.test(o.etag) || !("corpo" in o)) return null;
+  if (typeof o.em !== "string" || !Number.isFinite(Date.parse(o.em))) return null;
+  return { url: o.url, etag: o.etag, em: o.em, corpo: o.corpo };
+}
+/** O cabeçalho da consulta condicional; vazio sem cache desta URL. */
+export const cabecalhoCondicional = (cache: FeedCache | null, url: string): Record<string, string> => (cache !== null && cache.url === url ? { "If-None-Match": cache.etag } : {});
+/** Reabrir o app até isto depois de uma consulta boa reaproveita a resposta (a verificação de hora em hora segue igual). */
+export const FEED_RECENTE_MS = 15 * 60_000;
+/** No limite de consultas, a lista guardada serve até esta idade (o limite do GitHub dura no máximo uma hora). */
+export const FEED_GUARDADO_MS = 6 * 60 * 60_000;
+const idadeDoCache = (cache: FeedCache, agora: number): number => agora - Date.parse(cache.em);
+/** A resposta guardada desta URL, se for recente o bastante para a abertura do app não consultar de novo; senão null. */
+export function feedRecente(cache: FeedCache | null, url: string, agora: number): FeedCache | null {
+  if (cache === null || cache.url !== url) return null;
+  const idade = idadeDoCache(cache, agora);
+  return idade >= 0 && idade < FEED_RECENTE_MS ? cache : null; // relógio que andou para trás não vale como "recente"
+}
+/**
+ * O que fazer com a resposta do feed tendo (ou não) a última resposta boa guardada:
+ * - 304 com cache desta URL: nada mudou, o corpo é o guardado;
+ * - limite de consultas numa verificação automática (`automatica`), com cache desta URL de até FEED_GUARDADO_MS: o
+ *   corpo guardado serve (a próxima verificação confere de novo). Numa verificação que a pessoa pediu, o limite
+ *   continua sendo dito: responder "tudo em dia" sem ter conseguido consultar seria mentir para quem clicou;
+ * - o resto segue o caminho de sempre (`classificarRespostaFeed`).
+ */
+export type UsoDoFeed = { tipo: "cache"; motivo: "304" | "limite"; corpo: unknown } | { tipo: "resposta"; r: RespostaFeed };
+export function usoDoFeed(status: number, remaining: string | null, reset: string | null, cache: FeedCache | null, url: string, automatica: boolean, agora: number, hora: Hora = HORA_PADRAO): UsoDoFeed {
+  const doCache = cache !== null && cache.url === url ? cache : null;
+  if (status === 304 && doCache !== null) return { tipo: "cache", motivo: "304", corpo: doCache.corpo };
+  const r = classificarRespostaFeed(status, remaining, reset, hora);
+  const noLimite = r.tipo === "falha" && (status === 403 || status === 429) && remaining === "0";
+  if (noLimite && automatica && doCache !== null) { const idade = idadeDoCache(doCache, agora); if (idade >= 0 && idade < FEED_GUARDADO_MS) return { tipo: "cache", motivo: "limite", corpo: doCache.corpo }; }
+  return { tipo: "resposta", r };
+}
+
 /** Por que uma release que o feed trouxe não dá para instalar. */
 export type MotivoRelease = "corpo-inesperado" | "tag-inesperada" | "sem-ativo" | "sem-assinatura";
 

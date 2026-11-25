@@ -115,7 +115,7 @@ body:has(#sidebar:not([hidden])) .topbar .topbar-host { display: none; }
 .tabs-plus { font-size: 16px; font-weight: 600; color: var(--accent); }
 .tabs-plus:hover { background: var(--card); color: var(--fg); }
 .tabs-plus[hidden] { display: none; }
-.tabs { flex: 1; min-width: 0; display: flex; gap: 4px; padding: 6px 10px 0; border-bottom: 1px solid var(--line); background: var(--card); overflow-x: auto; }
+.tabs { flex: 1; min-width: 0; display: flex; gap: 4px; padding: 6px 10px 0; border-bottom: 1px solid var(--line); background: var(--card); overflow-x: auto; scrollbar-width: none; }
 .tab {
   display: flex; align-items: center; gap: 6px; max-width: 240px; padding: 0 8px 0 12px;
   border: 1px solid var(--line); border-bottom: none; border-radius: 10px 10px 0 0; background: var(--bg);
@@ -442,6 +442,27 @@ dialog .zoom-pct { min-width: 44px; text-align: center; font-variant-numeric: ta
 .wa-line.on .dot { background: var(--ok); }
 .wa-line.off .dot { background: var(--bad); }
 .wa-line:hover { border-color: var(--accent); }
+/* Casca limpa: na lateral a linha é texto, sem caixa. O realce de fundo aparece só no hover e na linha da página que
+   está na frente (aria-current, posto por pintarLinhaAtiva em app/paginas.ts). A lateral já é var(--card): o realce
+   do hover é var(--bg), como em .sidebar-item. Restrito a #atalhos para não mexer em .wa-line fora dele. */
+#atalhos .wa-line { border: 0; background: transparent; min-height: 28px; }
+#atalhos .wa-line:hover { background: var(--bg); }
+#atalhos .wa-line[aria-current="page"] { background: color-mix(in srgb, var(--accent) 12%, transparent); font-weight: 600; }
+#atalhos .wa-line:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+/* Dois grupos com título (.sidebar-group): "Agente" (estado, recolhido numa linha de resumo) e "Páginas". */
+#atalhos .sidebar-group { padding: 8px 8px 2px; }
+#atalhos > .sidebar-group:first-child, #atalhos > .lateral-grupo:first-child > .sidebar-group { padding-top: 2px; }
+.lateral-grupo, .agente-linhas { display: flex; flex-direction: column; gap: 2px; }
+/* `display: flex` vence o `[hidden]` do navegador (mesmo caso de .atalhos). */
+.lateral-grupo[hidden], .agente-linhas[hidden] { display: none; }
+/* Resumo "2 de 3 prontos": ponto verde (.on) com tudo pronto, âmbar (.warn) no resto; a seta gira ao abrir. */
+.agente-resumo .grow { flex: 1; }
+.agente-resumo.warn .dot { background: var(--warn); }
+.agente-seta { color: var(--muted); font-size: 14px; line-height: 1; transition: transform .12s ease; }
+.agente-resumo[aria-expanded="true"] .agente-seta { transform: rotate(90deg); }
+/* Abertas por baixo do resumo, as linhas recuam para se lerem como detalhe dele; sozinha (sem resumo), a linha não recua. */
+.agente-resumo:not([hidden]) + .agente-linhas { padding-left: 14px; }
+@media (prefers-reduced-motion: reduce) { .agente-seta { transition: none; } }
 .wa-box { padding: 18px 20px; display: flex; flex-direction: column; gap: 10px; align-items: stretch; }
 .wa-qr { width: 300px; height: 300px; align-self: center; background: #fff; padding: 8px; border-radius: 12px; }
 .wa-qr[hidden] { display: none; }
@@ -463,7 +484,7 @@ dialog .zoom-pct { min-width: 44px; text-align: center; font-variant-numeric: ta
 /* Acervo (biblioteca de skills), acima da busca: mesma linha neutra, com ícone e contagem à direita. */
 .acervo-line .grow { flex: 1; }
 /* Contas e atalhos da lateral num grupo recolhivel: faixa fina com um chevron, sem rotulo e sem contador. */
-.atalhos { display: flex; flex-direction: column; gap: 6px; }
+.atalhos { display: flex; flex-direction: column; gap: 2px; }
 /* `display: flex` vence o `[hidden]` do navegador; sem esta linha o grupo nunca some (mesmo caso de .sidebar). */
 .atalhos[hidden] { display: none; }
 .atalhos-toggle { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; height: 16px; padding: 0; border: 0; background: transparent; color: var(--muted); cursor: pointer; border-radius: 6px; }
@@ -503,6 +524,21 @@ dialog.perguntar input { font: inherit; padding: 8px 10px; border-radius: 8px; b
 .acervo-panel h2 { margin: 0; font-size: 16px; }
 .acervo-panel .hint { max-width: 640px; }
 .tab-page .tab-title::before { content: "▤ "; color: var(--accent); }
+/* Cada página leva na aba o mesmo glifo da sua linha na lateral (.acervo-icon, index.html); as demais (guias de
+   tutorial, coluna vazia) ficam com o ▤. A aba é `tab-${page.id}` (app/paginas.ts); terminais são `tab-term-N`. */
+.tab-page.tab-conta-google .tab-title::before { content: "G "; font-weight: 700; }
+.tab-page.tab-gmail .tab-title::before { content: "@ "; }
+.tab-page.tab-computador .tab-title::before { content: "▣ "; }
+.tab-page.tab-inspector .tab-title::before { content: "🔎 "; }
+.tab-page.tab-modulos .tab-title::before { content: "⧉ "; }
+.tab-page[class*="tab-term-"] .tab-title::before { content: ">_ "; font-family: var(--mono); }
+.tab-page.tab-navegador .tab-title::before { content: "🌐 "; }
+.tab-page.tab-suporte .tab-title::before { content: "⛨ "; }
+.tab-page.tab-auditoria .tab-title::before { content: "🛡 "; }
+.tab-page.tab-preparar .tab-title::before { content: "🧰 "; }
+.tab-page.tab-usuarios .tab-title::before { content: "👤 "; }
+.tab-page.tab-claude-global .tab-title::before { content: "✳ "; }
+.tab-page.tab-link-publico .tab-title::before { content: "🔗 "; }
 /* Tutoriais: cartão com borda verde, ícone-alvo, selo em caixa alta (COMECE POR AQUI · 5 PASSOS · 3 MIN), título,
    resumo e Começar à direita. Os passos abrem no próprio cartão, numerados. */
 .tut-card { border: 1px solid color-mix(in srgb, var(--ok) 55%, var(--line)); border-radius: 16px; background: color-mix(in srgb, var(--ok) 4%, var(--card)); padding: 22px 24px; }
