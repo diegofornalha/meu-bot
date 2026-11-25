@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { READ_SCRIPT, alvoDeClique, alvoDeDigitacao, codigoDaTecla, readScript } from "../../dist/main/navegador/nav-scripts.js";
+import { MARCAR_SCRIPT, READ_SCRIPT, alvoDeClique, alvoDeDigitacao, codigoDaTecla, digitarValorScript, readScript } from "../../dist/main/navegador/nav-scripts.js";
 
 test("leitura: a do Navegador lê a página inteira; a da interface do app pula webviews e terminais", () => {
   assert.equal(READ_SCRIPT, readScript());
@@ -32,4 +32,16 @@ test("teclas: nomes conhecidos, um caractere, e recusa do resto", () => {
   assert.equal(codigoDaTecla("k"), "k");
   assert.throws(() => codigoDaTecla("ctrl+c"), /tecla:/);
   assert.throws(() => codigoDaTecla(undefined), /tecla:/);
+});
+
+test("digitar na interface do app: o valor entra como JSON e o campo avisa com input e change", () => {
+  const s = digitarValorScript("document.activeElement", 'senha "com" aspas\n');
+  assert.ok(s.includes(JSON.stringify('senha "com" aspas\n')), "aspas e quebra de linha não fecham o script");
+  assert.match(s, /new Event\("input"/); assert.match(s, /new Event\("change"/);
+  assert.doesNotThrow(() => new Function(`return ${s}`));
+});
+
+test("marcas: com um <dialog> aberto vão dentro dele (a camada de cima cobre qualquer z-index)", () => {
+  assert.match(MARCAR_SCRIPT, /dialog\[open\]/);
+  assert.doesNotThrow(() => new Function(`return ${MARCAR_SCRIPT}`));
 });
