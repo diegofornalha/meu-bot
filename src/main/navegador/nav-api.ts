@@ -21,6 +21,7 @@ import { DONO_SEM_IDENTIDADE, abasParaRecarregar, decidirAbrir, donoTexto, escol
 import { browserActiveWcId, browserAsk, browserDonos, browserConsole, browserExtensions, browserFavoriteAdd, browserFavoriteRemove, browserFavorites, browserServiceWorkers, browserWebContents } from "./browser";
 import { log } from "../maquina/tunnel";
 import { registrarAcao } from "../app/depuracao";
+import { alvoDeClique, alvoDeDigitacao, apertar, clicarScript, codigoDaTecla, DESMARCAR_SCRIPT, focarScript, MARCAR_SCRIPT, READ_SCRIPT } from "./nav-scripts";
 
 const sanit = (h: string): string => h.replace(/[^A-Za-z0-9_-]/g, "_");
 export const navSocketPath = (host: string): string => path.join(controlDir(), `nav-${sanit(host)}.sock`);
@@ -50,51 +51,10 @@ export function stopNavApi(host: string): void {
   try { fs.unlinkSync(navSocketPath(host)); } catch { /* ok */ }
 }
 
-/** Texto e elementos interativos da página, numerados; o número é o que o agente usa em clicar/digitar. */
-const READ_SCRIPT = `(() => {
-  const vis = (e) => { const r = e.getBoundingClientRect(); const s = getComputedStyle(e); return r.width > 0 && r.height > 0 && s.visibility !== "hidden" && s.display !== "none"; };
-  const items = []; const marcas = []; window.__meuBotEls = [];
-  const sel = "a[href], button, input, textarea, select, [role=button], [role=link], [role=tab], [role=menuitem], [role=textbox], [contenteditable=true], summary";
-  for (const e of document.querySelectorAll(sel)) {
-    if (!vis(e) || items.length >= 400) continue;
-    const tag = e.tagName.toLowerCase();
-    const type = e.getAttribute("type") || "";
-    const label = (e.getAttribute("aria-label") || e.getAttribute("placeholder") || e.getAttribute("title") || e.getAttribute("alt") || (e.labels && e.labels[0] && e.labels[0].innerText) || e.innerText || e.value || "").replace(/\\s+/g, " ").trim().slice(0, 80);
-    const kind = tag === "a" ? "link" : tag === "input" ? (type === "checkbox" || type === "radio" ? type : type === "submit" || type === "button" ? "botão" : "campo") : tag === "textarea" || e.getAttribute("contenteditable") === "true" || e.getAttribute("role") === "textbox" ? "campo" : tag === "select" ? "seleção" : "botão";
-    const n = window.__meuBotEls.push(e);
-    const r = e.getBoundingClientRect(); const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-    if (marcas.length < 60 && cx >= 0 && cy >= 0 && cx <= innerWidth && cy <= innerHeight) marcas.push({ n, x: cx, y: cy, rotulo: label.slice(0, 40) });
-    items.push(n + ". [" + kind + "] " + label + (tag === "a" && e.href ? "  → " + e.href.slice(0, 100) : "") + (kind === "campo" && e.value ? "  (valor: " + String(e.value).slice(0, 40) + ")" : ""));
-  }
-  const text = (document.body ? document.body.innerText : "").replace(/\\n{3,}/g, "\\n\\n").trim();
-  return { title: document.title, url: location.href, text: text.slice(0, 12000), truncated: text.length > 12000, elements: items, marcas: { vw: innerWidth, vh: innerHeight, itens: marcas } };
-})()`;
-/**
- * `/print` com `marcas`: desenha por um instante, na própria página, o número de cada elemento da última leitura que
- * está à vista (o mesmo número do clicar/digitar), para ele sair na imagem. Shadow DOM fechado e sem eventos: a página
- * não o estiliza nem o recebe em clique. Devolve quantos desenhou; DESMARCAR tira.
- */
-const MARCAR_SCRIPT = `(() => {
-  const velho = document.getElementById("__meu-bot-marcas"); if (velho) velho.remove();
-  const host = document.createElement("div"); host.id = "__meu-bot-marcas"; host.style.cssText = "position:fixed;inset:0;pointer-events:none;z-index:2147483647";
-  const sombra = host.attachShadow({ mode: "closed" }); let k = 0;
-  (window.__meuBotEls || []).forEach((e, i) => {
-    if (!e.isConnected) return;
-    const r = e.getBoundingClientRect();
-    if (r.width <= 0 || r.height <= 0 || r.bottom < 0 || r.right < 0 || r.top > innerHeight || r.left > innerWidth) return;
-    const m = document.createElement("span"); m.textContent = String(i + 1);
-    m.style.cssText = "position:absolute;left:" + Math.max(0, r.left) + "px;top:" + Math.max(0, r.top) + "px;font:700 11px/1.2 -apple-system,system-ui,sans-serif;padding:1px 4px;border-radius:4px;color:#fff;outline:1px solid #fff;background:hsl(" + Math.round(((i + 1) * 137.508) % 360) + " 85% 38%)";
-    sombra.append(m); k++;
-  });
-  document.documentElement.append(host);
-  return k;
-})()`;
-const DESMARCAR_SCRIPT = `(() => { const m = document.getElementById("__meu-bot-marcas"); if (m) m.remove(); })()`;
 /** O ponto medido na página ganha o id da aba (a janela acha o webview por ele); o resto da conferência é do depuracao-core. */
 const comAba = (p: unknown, aba: number): unknown => (p !== null && typeof p === "object" ? { ...(p as object), aba } : null);
 /** O que é só da faixa de depuração (`ponto` do clicar/digitar, `marcas` do ler) não vai na resposta ao agente. */
 const semDepuracao = (r: unknown): unknown => { if (r === null || typeof r !== "object" || !("ponto" in r || "marcas" in r)) return r; const { ponto: _p, marcas: _m, ...resto } = r as Record<string, unknown>; return resto; };
-const pick = (n: number): string => `(() => { const e = (window.__meuBotEls || [])[${n - 1}]; if (!e) throw new Error("elemento ${n} não existe: use 'ler' de novo"); return e; })()`;
 
 interface Req { aba?: unknown; url?: unknown; nova?: unknown; n?: unknown; texto?: unknown; seletor?: unknown; enter?: unknown; tecla?: unknown; codigo?: unknown; titulo?: unknown; id?: unknown; marcas?: unknown }
 
@@ -206,30 +166,20 @@ async function act(host: string, route: string, b: Req, dono: Dono | null): Prom
       catch (e) { log(`[navegador ${host}] ler falhou (1ª): ${e instanceof Error ? e.message : String(e)}`); await settle(600); return await lido(); }
     }
     case "/clicar": return mexer(async (wc) => {
-      const target = typeof b.n === "number" ? pick(b.n)
-        : typeof b.seletor === "string" ? `(() => { const e = document.querySelector(${JSON.stringify(b.seletor)}); if (!e) throw new Error("nada com o seletor"); return e; })()`
-          : typeof b.texto === "string" ? `(() => { const q = ${JSON.stringify(b.texto)}.toLowerCase(); const all = [...document.querySelectorAll("a, button, [role=button], [role=link], [role=tab], [role=menuitem], input[type=submit], input[type=button], summary, label")]; const e = all.find((x) => (x.innerText || x.value || x.getAttribute("aria-label") || "").toLowerCase().trim() === q) || all.find((x) => (x.innerText || x.value || x.getAttribute("aria-label") || "").toLowerCase().includes(q)); if (!e) throw new Error("nenhum botão/link com esse texto"); return e; })()`
-            : null;
-      if (target === null) throw new Error("diga n (número do 'ler'), texto ou seletor");
-      const ponto = await wc.executeJavaScript(`(() => { const e = ${target}; e.scrollIntoView({ block: "center" }); const r = e.getBoundingClientRect(); const ponto = { x: r.left + r.width / 2, y: r.top + r.height / 2, vw: innerWidth, vh: innerHeight }; e.focus && e.focus(); e.click(); return ponto; })()`, true) as unknown;
+      const ponto = await wc.executeJavaScript(clicarScript(alvoDeClique(b)), true) as unknown;
       await settle(500); await waitLoad(wc, 8_000);
       return { ok: true, ...tabInfo(wc, browserActiveWcId(host)), ponto: comAba(ponto, wc.id) };
     });
     case "/digitar": return mexer(async (wc) => {
       if (typeof b.texto !== "string") throw new Error("falta texto");
-      const target = typeof b.n === "number" ? pick(b.n) : typeof b.seletor === "string" ? `(() => { const e = document.querySelector(${JSON.stringify(b.seletor)}); if (!e) throw new Error("nada com o seletor"); return e; })()` : "document.activeElement";
       // Foca e limpa; o texto entra como digitação de verdade (insertText), que apps como o Gmail entendem.
-      const ponto = await wc.executeJavaScript(`(() => { const e = ${target}; e.scrollIntoView({ block: "center" }); const r = e.getBoundingClientRect(); const ponto = { x: r.left + r.width / 2, y: r.top + r.height / 2, vw: innerWidth, vh: innerHeight }; e.focus(); if ("value" in e && typeof e.value === "string") { e.select && e.select(); } else if (e.isContentEditable) { const r = document.createRange(); r.selectNodeContents(e); const s = getSelection(); s.removeAllRanges(); s.addRange(r); } return ponto; })()`, true) as unknown;
+      const ponto = await wc.executeJavaScript(focarScript(alvoDeDigitacao(b)), true) as unknown;
       await wc.insertText(b.texto);
-      if (b.enter === true) { wc.sendInputEvent({ type: "keyDown", keyCode: "Return" }); wc.sendInputEvent({ type: "char", keyCode: "Return" }); wc.sendInputEvent({ type: "keyUp", keyCode: "Return" }); await settle(500); await waitLoad(wc, 8_000); }
+      if (b.enter === true) { apertar(wc, "Return"); await settle(500); await waitLoad(wc, 8_000); }
       return { ok: true, ponto: comAba(ponto, wc.id) };
     });
     case "/tecla": return mexer(async (wc) => {
-      const k = typeof b.tecla === "string" ? b.tecla : "";
-      const map: Record<string, string> = { enter: "Return", tab: "Tab", esc: "Escape", escape: "Escape", backspace: "Backspace", space: "Space", up: "Up", down: "Down", left: "Left", right: "Right", pagedown: "PageDown", pageup: "PageUp" };
-      const code = map[k.toLowerCase()] ?? (k.length === 1 ? k : null);
-      if (code === null) throw new Error("tecla: enter, tab, esc, backspace, space, up, down, left, right, pageup, pagedown ou um caractere");
-      wc.sendInputEvent({ type: "keyDown", keyCode: code }); if (code.length === 1 || code === "Return") wc.sendInputEvent({ type: "char", keyCode: code }); wc.sendInputEvent({ type: "keyUp", keyCode: code });
+      apertar(wc, codigoDaTecla(b.tecla));
       await settle(300);
       return { ok: true };
     });

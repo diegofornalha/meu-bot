@@ -87,10 +87,14 @@ const TOOLS = [
   { name: 'janela_abrir', description: 'Abre (ou traz à frente) a janela de uma máquina do ~/.ssh/config, ou "local" para este Mac.', inputSchema: S({ ...APP, maquina: { type: 'string' } }, ['maquina']) },
   { name: 'pagina_abrir', description: 'Põe uma página na frente da janela: tutoriais, acervo, inspector, modulos, conta-google, gmail, computador, navegador.', inputSchema: S({ ...APP, ...MAQ, pagina: { type: 'string', enum: ['tutoriais', 'acervo', 'inspector', 'modulos', 'conta-google', 'gmail', 'computador', 'navegador'] } }, ['pagina']) },
   { name: 'tema', description: 'Troca o tema do app (system, light, dark); vale para todas as janelas.', inputSchema: S({ ...APP, tema: { type: 'string', enum: ['system', 'light', 'dark'] } }, ['tema']) },
-  { name: 'print_janela', description: 'Captura a janela inteira do app (a da máquina pedida, ou a em foco) como imagem.', inputSchema: S({ ...APP, ...MAQ }) },
+  { name: 'print_janela', description: 'Captura a janela inteira do app (a da máquina pedida, ou a em foco) como imagem. marcas=true desenha o número de cada elemento da última leitura (ui_ler).', inputSchema: S({ ...APP, ...MAQ, marcas: { type: 'boolean' } }) },
+  { name: 'ui_ler', description: 'A interface do app na janela: o texto à vista e os botões, links e campos numerados. O conteúdo das abas do Navegador (nav_ler) e dos terminais (terminal_ler) fica de fora.', inputSchema: S({ ...APP, ...MAQ }) },
+  { name: 'ui_clicar', description: 'Clica num elemento da interface do app: n (de ui_ler), ou por texto ou seletor CSS. A pessoa vê acontecer.', inputSchema: S({ ...APP, ...MAQ, n: { type: 'number' }, texto: { type: 'string' }, seletor: { type: 'string' } }) },
+  { name: 'ui_digitar', description: 'Digita num campo da interface do app (n de ui_ler, seletor, ou o campo em foco); enter=true confirma.', inputSchema: S({ ...APP, ...MAQ, n: { type: 'number' }, seletor: { type: 'string' }, texto: { type: 'string' }, enter: { type: 'boolean' } }, ['texto']) },
+  { name: 'ui_tecla', description: 'Aperta uma tecla na interface do app (enter, tab, esc, down, up…).', inputSchema: S({ ...APP, ...MAQ, tecla: { type: 'string' } }, ['tecla']) },
 ];
 const NAV_ROTAS = { nav_abas: 'abas', nav_abrir: 'abrir', nav_ler: 'ler', nav_clicar: 'clicar', nav_digitar: 'digitar', nav_tecla: 'tecla', nav_print: 'print', nav_recarregar: 'recarregar', nav_voltar: 'voltar', nav_js: 'js', nav_fechar: 'fechar' };
-const APP_ROTAS = { app: 'app', janela_abrir: 'janela', pagina_abrir: 'pagina', tema: 'tema', print_janela: 'print' };
+const APP_ROTAS = { app: 'app', janela_abrir: 'janela', pagina_abrir: 'pagina', tema: 'tema', print_janela: 'print', ui_ler: 'ui/ler', ui_clicar: 'ui/clicar', ui_digitar: 'ui/digitar', ui_tecla: 'ui/tecla' };
 
 async function call(name, args) {
   const { app, maquina, ...resto } = args;
