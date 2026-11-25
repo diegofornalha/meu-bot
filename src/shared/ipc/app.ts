@@ -141,7 +141,7 @@ export type ClienteMcp = "claude-code" | "cursor";
  * Qual produto é este app: meu-bot (de cada pessoa, com o CRM próprio liberado pela licença), meu-bot-admin (suporte)
  * e os staging. Tabela em src/main/variant-core.ts.
  */
-/** `"derivado"`: um app cuja ficha vem de fora do repositório (produto.json do repositório dele, embutido no variant.json; variant-core.ts `parseFichaExterna`). */
+/** `"derivado"`: um app cuja ficha vem de fora do repositório (o produto.json do repositório dele, embutido no asar como produto-embutido.json; variant-core.ts `parseFichaExterna` e `FICHA_EMBUTIDA`). */
 export type AppVariant = "client" | "admin" | "client-staging" | "inspector-staging" | "admin-mac" | "diego-staging" | "derivado";
 /** Canal do app: estável (só o aprovado) ou staging (o que está em teste), como VS Code e VS Code Insiders. */
 export type Canal = "estavel" | "staging";

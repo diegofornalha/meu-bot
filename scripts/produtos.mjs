@@ -19,7 +19,10 @@ export { PRODUTOS, esquemaDe, FICHA_EMBUTIDA };
 export function derivadoFromArgv(argv = process.argv) {
   const i = argv.indexOf("--produto");
   if (i < 0) return null;
-  const pasta = resolve(argv[i + 1] ?? "");
+  const dita = argv[i + 1];
+  // Sem isto, `resolve("")` viraria a pasta atual e o erro falaria de um produto.json que ninguém pediu.
+  if (dita === undefined || dita === "" || dita.startsWith("--")) { console.error("✗ falta a pasta depois de --produto (a do repositório do derivado, com o produto.json)"); process.exit(64); }
+  const pasta = resolve(dita);
   const arquivo = join(pasta, "produto.json");
   let ficha;
   try { ficha = JSON.parse(readFileSync(arquivo, "utf8")); } catch (e) { console.error(`✗ não li a ficha do derivado em ${arquivo}: ${e instanceof Error ? e.message : String(e)}`); process.exit(64); }
