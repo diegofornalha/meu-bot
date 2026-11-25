@@ -126,7 +126,20 @@ function fazerStaging(sha) {
   if (!prepararWorktree(sha)) return "não preparei o worktree da release";
   if (!rodar("npm", ["test"], WT)) return "testes falharam no origin/main";
   if (!rodar("npm", ["run", "release:staging"], WT)) return "release:staging falhou (veja o log)";
+  publicarDerivados();
   return null;
+}
+
+/**
+ * Os apps derivados deste Mac (lista fora do repositório, scripts/release-derivados.mjs), empacotados contra a
+ * staging que acabou de sair. Passo à parte: a staging do core já está publicada, e a falha de um derivado só avisa.
+ * Rodar de novo com a mesma versão pula o que já foi publicado.
+ */
+function publicarDerivados() {
+  if (!existsSync(join(WT, "scripts", "release-derivados.mjs"))) return;
+  if (rodar("node", ["scripts/release-derivados.mjs"], WT)) return;
+  log("release dos derivados falhou (a staging do core saiu); veja o log");
+  avisar("derivados não publicados", "A staging do meu-bot saiu, mas a release de um app derivado falhou. Rode node scripts/release-derivados.mjs no worktree da release (log: ~/Library/Logs/meu-bot-release.log)");
 }
 
 function promover(sha, base) {
