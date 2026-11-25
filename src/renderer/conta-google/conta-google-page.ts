@@ -176,18 +176,22 @@ export function mountContaGoogle(deps: ContaGoogleDeps): { open: () => void; ref
       if (backup.erro !== null && andamento === null) bc.append(el("p", "hint bad-hint", `${backup.tentativaEm !== null ? `Última tentativa em ${fmtData(backup.tentativaEm)}: ` : ""}${backup.erro}`));
       // Senha do pacote de credenciais. Sem ela esse conjunto é pulado; os outros sobem normalmente.
       const sc = el("div", "admin-actions");
+      // Senha curta: o clique dizia nada. O aviso entra no lugar, sem repintar (repintar apagaria o que foi digitado).
+      const curta = el("p", "hint bad-hint", "A senha precisa de pelo menos 8 caracteres."); curta.hidden = true;
+      const senhaOk = (i: HTMLInputElement): boolean => { curta.hidden = i.value.trim().length >= 8; return curta.hidden; };
       if (backup.temSenha) {
         sc.append(el("p", "hint audio-ok", "As credenciais da máquina sobem cifradas com a sua senha. Guarde-a fora do computador: sem ela esse pacote não abre."));
         // Sem prompt(): o Electron não implementa window.prompt (devolvia undefined e o botão virava no-op). Campo inline.
         const nova = input("nova senha (mínimo 8 caracteres)", "", 200); nova.type = "password";
-        sc.append(field("Trocar a senha", nova), btn("Trocar", "btn-ghost", () => { if (nova.value.trim().length < 8) return; void agir(async () => { backup = await deps.api.backupDadosSenha(nova.value); }, "senha trocada; vale a partir da próxima cópia"); }));
+        sc.append(field("Trocar a senha", nova), btn("Trocar", "btn-ghost", () => { if (!senhaOk(nova)) return; void agir(async () => { backup = await deps.api.backupDadosSenha(nova.value); }, "senha trocada; vale a partir da próxima cópia"); }));
         const lb = btn("Apagar a senha", "btn-ghost", () => { deps.armConfirm(lb, "Confirmar? as credenciais param de ser copiadas", () => { void agir(async () => { backup = await deps.api.backupDadosLimparSenha(); }, "senha apagada; as credenciais não sobem mais"); }); });
         sc.append(lb);
       } else {
         sc.append(el("p", "hint bad-hint", "As credenciais da máquina (tokens e sessão do WhatsApp) não estão sendo copiadas: defina uma senha. Elas nunca sobem sem cifra."));
         const inp = input("senha do backup cifrado", "", 200); inp.type = "password";
-        sc.append(field("Senha", inp), btn("Definir a senha", "btn-primary", () => { if (inp.value.trim().length < 8) return; void agir(async () => { backup = await deps.api.backupDadosSenha(inp.value); }, "senha definida; as credenciais entram na próxima cópia"); }));
+        sc.append(field("Senha", inp), btn("Definir a senha", "btn-primary", () => { if (!senhaOk(inp)) return; void agir(async () => { backup = await deps.api.backupDadosSenha(inp.value); }, "senha definida; as credenciais entram na próxima cópia"); }));
       }
+      sc.append(curta);
       bc.append(sc);
 
       const acoes = el("div", "admin-actions");
@@ -196,7 +200,11 @@ export function mountContaGoogle(deps: ContaGoogleDeps): { open: () => void; ref
         void agir(async () => { try { backup = await deps.api.backupDadosAgora(); } finally { andamento = null; } }, "cópia guardada no Drive");
       }));
       acoes.append(btn("Abrir a pasta no Mac", "btn-ghost", () => { void agir(() => deps.api.backupDadosAbrirPasta(), "pasta aberta no Finder"); }));
-      acoes.append(btn(backup.ligado ? "Desligar a cópia diária" : "Ligar a cópia diária", "btn-ghost", () => { void agir(async () => { backup = await deps.api.backupDadosLigar(!(backup?.ligado ?? true)); }, backup?.ligado === true ? "cópia diária desligada" : "cópia diária ligada"); }));
+      // Desligar para a proteção: pede o segundo clique, como "Apagar a senha". Ligar não.
+      const ligado = backup.ligado;
+      const alternar = (): void => { void agir(async () => { backup = await deps.api.backupDadosLigar(!ligado); }, ligado ? "cópia diária desligada" : "cópia diária ligada"); };
+      const bl = btn(ligado ? "Desligar a cópia diária" : "Ligar a cópia diária", "btn-ghost", () => { if (ligado) deps.armConfirm(bl, "Confirmar? a máquina para de ser copiada", alternar); else alternar(); });
+      acoes.append(bl);
       if (!copiasAberto) acoes.append(btn("Restaurar uma cópia…", "btn-ghost", () => { copiasAberto = true; restauroResultado = null; void carregarCopias(); }));
       bc.append(acoes);
       if (copiasAberto) secaoRestauro(bc);

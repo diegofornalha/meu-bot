@@ -57,11 +57,14 @@ export function mountGmail(deps: GmailDeps): { open: () => void; refresh: () => 
   let proPedido = false;
   /** Ponte do agente: estado da chave (null = ainda não perguntado) e se a máquina tem o MCP (null = este Mac). */
   let agente: GmailAgenteState | null = null; let instalado: boolean | null | "?" = "?"; let instalando = false;
-  deps.api.on("google-conta:changed", (st) => { status = st; if (!panel.hidden) { render(); if (st.conectado && !st.precisaReconectar) void carregarLista(); } });
+  /** A conta caiu no meio da sessão e o aviso vermelho está na tela: some quando ela volta. */
+  let caiu = false;
+  const voltou = (st: GoogleContaStatus | null): void => { if (caiu && st?.conectado === true) { caiu = false; msg = null; } };
+  deps.api.on("google-conta:changed", (st) => { status = st; voltou(st); if (!panel.hidden) { render(); if (st.conectado && !st.precisaReconectar) void carregarLista(); } });
   deps.api.on("gmail:agent", (st) => { agente = st; if (!panel.hidden) render(); });
 
   async function refresh(): Promise<void> {
-    try { status = await deps.api.googleContaStatus(); } catch (e) { msg = { text: ipcErrorText(e), bad: true }; }
+    try { status = await deps.api.googleContaStatus(); voltou(status); } catch (e) { msg = { text: ipcErrorText(e), bad: true }; }
     render();
     if (status?.conectado && !status.precisaReconectar) {
       // A chave do agente: perguntar liga sozinha (padrão ligado, salvo se a pessoa desligou); e se a máquina já tem o MCP (uma vez).
@@ -81,7 +84,7 @@ export function mountGmail(deps: GmailDeps): { open: () => void; refresh: () => 
   function contaCaiu(e: unknown): boolean {
     if (!ehContaDesconectada(e)) return false;
     status = statusAposErro(status, e); lista = null; listaErro = null; detalhe = null; detalheErro = null; abrindo = null;
-    msg = { text: erroGoogleTexto(e), bad: true };
+    msg = { text: erroGoogleTexto(e), bad: true }; caiu = true;
     return true;
   }
   async function instalarNaMaquina(): Promise<void> {

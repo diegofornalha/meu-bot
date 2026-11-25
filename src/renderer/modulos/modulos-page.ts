@@ -204,7 +204,7 @@ export function mountModulosPage(deps: ModulosPageDeps): { open: () => void; rep
     if (v.selo !== null) topo.append(el("span", `pill modulo-selo ${v.selo.classe}`, v.selo.texto));
     c.append(topo, el("strong", "", "CRM"), el("span", "hint", "Vendas e atendimento"), el("p", "hint modulo-cartao-desc", "Pipelines e caixas dentro do Gmail; o agente anota as conversas do WhatsApp."));
     for (const l of v.linhas) c.append(el("span", "", l));
-    if (v.aviso !== null) c.append(el("p", `hint ${v.aviso.ruim ? "bad-hint" : "guide-pair-note"}`, v.aviso.texto));
+    if (v.aviso !== null) c.append(el("p", v.aviso.ruim ? "hint bad-hint" : "hint", v.aviso.texto));
     if (v.log.length > 0) { const pre = el("pre", "modulo-log hint"); pre.textContent = v.log.join("\n"); c.append(pre); }
     if (v.acoes.length > 0) {
       const a = el("div", "admin-actions");
