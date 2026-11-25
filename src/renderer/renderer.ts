@@ -29,6 +29,8 @@ import { groupByDate, matches, normalize, shortDate, type SidebarConversation } 
 import { dropCache, readCache, writeCache, type CacheStore, type Cached } from "./lib/cache.js";
 import { conversationReferenceText, grupoReferenceText, waReferenceText } from "./lib/reference.js";
 import { providerLabel } from "./lib/provider-label.js";
+import { etiquetaPro, placeholderDaCaixa, resumoAgente } from "./lib/casca.js";
+import { nesteComputador } from "./lib/plataforma.js";
 import { updateBlockerText, updateStateText } from "./lib/update-text.js";
 import { offlineBarText } from "./lib/offline-text.js";
 import { browserAccess, displayUrl, planoLiberaPro, proBlockText, tabLabel, type ProAccess, crmProprioOk, modulosNaLicenca } from "./lib/pro.js";
@@ -72,7 +74,7 @@ import { ligarObjetivoGuia, objectiveBusy, objectiveDo, objectiveDraft, objectiv
 import { ligarCatalogo, setTutNext, tutNext, tutoriaisPage } from "./tutoriais/catalogo.js";
 import { aoMudarCrm, crmAfterAgentKey, crmLocalState, crmSituacao, crmState, instalarCrm, ligarCrmGuia, refreshCrm } from "./crm/crm-guia.js";
 import { crmProprio, license, motorCrm, navLicenseAsked, refreshLicense, setPlanBadge } from "./licenca/licenca.js";
-import { NAV_TUTORIAL, disposeNav, ligarNavegador, navAccess, navCurrent, navCurrentHost, navDonoView, navEstavaAberto, navExtensions, navFavsShown, navMarcarAberto, navPage, navPartition, navServicosCount, navTabs, navReavaliar, navZoomStep, openNavTab, origemNome, paintNav, toggleFavsBar } from "./navegador/navegador.js";
+import { NAV_TUTORIAL, disposeNav, ligarNavegador, navAccess, navCurrent, navCurrentHost, navDonoView, navEstavaAberto, navExtensions, navFavsShown, navMarcarAberto, navPage, navPartition, navServicosCount, navTabs, navReavaliar, navZoomStep, openNavTab, origemNome, paintNav, paintNavCount, toggleFavsBar } from "./navegador/navegador.js";
 import { cssVar, disposeTerminal, ligarTerminal, openTerminalTab, rethemeTerminals, runInTerminal, terminals, themeNow, xtermClass } from "./terminal/terminal.js";
 import type { XTermCtor } from "./terminal/terminal.js";
 import { askAgentAbout, cancelAutoSend, goToChatFromGuide, preencherChat } from "./conversa/ponte-chat.js";
@@ -215,6 +217,7 @@ const ctxImpl = {
   get paintAcervoCount() { return paintAcervoCount; },
   get paintContext() { return paintContext; },
   get paintModulosLine() { return paintModulosLine; },
+  get paintEtiquetasPro() { return paintEtiquetasPro; },
   get paintGuide() { return paintGuide; },
   get paintGuideTargets() { return paintGuideTargets; },
   get paintListMode() { return paintListMode; },
@@ -491,6 +494,8 @@ function syncComposer(): void {
   const tab = active();
   const busy = tab?.busy ?? true;
   inputEl.disabled = busy;
+  // O exemplo fala da máquina desta janela ("neste Mac" ou "na máquina"); "na VM" era mentira na janela local.
+  inputEl.placeholder = placeholderDaCaixa(windowHost, nesteComputador());
   // Enviar (shot "cred-button-loading-to-tick"): clique → ponto pulsando até a resposta começar; aí Parar; ao terminar, ✓.
   const phase = tab === null ? "idle" : (sendPhase.get(tab.id) ?? (busy ? "streaming" : "idle"));
   sendBtn.disabled = tab === null;
@@ -1030,6 +1035,44 @@ function ligarAtalhos(): void {
 }
 
 /**
+ * Grupo "Agente" da lateral: WhatsApp, Claude Code e Ollama (as linhas de estado). Com duas ou mais à mostra o grupo
+ * vira uma linha de resumo ("2 de 3 prontos", verde com tudo pronto, âmbar no resto) e o clique abre as linhas com os
+ * botões de cada uma; com uma só ela aparece direto, sem resumo; sem nenhuma o grupo some com o título. Recolhido por
+ * padrão; a escolha fica no localStorage da janela, como a do grupo de atalhos. "Pronta" é a linha com a classe `on`,
+ * que cada dono pinta (paintWhatsapp, paintClaudeLine, paintOllamaLine).
+ */
+const LINHAS_AGENTE = ["wa-line", "cl-line", "ollama-line"];
+function agenteAberto(): boolean {
+  try { return localStorage.getItem("agenteAberto") === "1"; } catch { return false; }
+}
+function pintarAgente(): void {
+  const grupo = document.getElementById("agente-grupo");
+  const resumo = document.getElementById("agente-resumo");
+  const texto = document.getElementById("agente-resumo-texto");
+  const linhas = document.getElementById("agente-linhas");
+  if (grupo === null || resumo === null || texto === null || linhas === null) return;
+  const r = resumoAgente(LINHAS_AGENTE.map((id) => { const l = document.getElementById(id); return { visivel: l !== null && !l.hidden, pronto: l?.classList.contains("on") === true }; }));
+  const aberto = r.modo !== "resumo" || agenteAberto();
+  grupo.hidden = r.modo === "grupo-vazio";
+  resumo.hidden = r.modo !== "resumo";
+  resumo.className = `wa-line agente-resumo ${r.tom === "ok" ? "on" : "warn"}`;
+  resumo.setAttribute("aria-expanded", aberto ? "true" : "false");
+  texto.textContent = r.texto;
+  linhas.hidden = !aberto;
+}
+function ligarAgente(): void {
+  document.getElementById("agente-resumo")?.addEventListener("click", () => {
+    try { localStorage.setItem("agenteAberto", agenteAberto() ? "0" : "1"); } catch { /* opcional */ }
+    pintarAgente();
+  });
+  // Cada linha é pintada pelo seu dono (hidden e classe on/off): observar as três, e só elas, evita avisar em cada
+  // um. Não observa o contêiner: pintarAgente mexe no hidden dele e se chamaria de volta.
+  const obs = new MutationObserver(() => { pintarAgente(); });
+  for (const id of LINHAS_AGENTE) { const l = document.getElementById(id); if (l !== null) obs.observe(l, { attributes: true, attributeFilter: ["hidden", "class"] }); }
+  pintarAgente();
+}
+
+/**
  * Caixa de pergunta com um campo, no lugar de window.prompt: o Electron não implementa prompt (devolve undefined
  * e o código seguia como se a pessoa tivesse cancelado). Resolve com o texto, ou null se cancelou.
  */
@@ -1086,6 +1129,7 @@ function paintModeButton(): void {
   // A cor do modo vive no anel do botão; o mascote fica na cor do texto, para contrastar no escuro.
   modeBtn.style.setProperty("--hue", String(matizDoModelo(modelSelect.value)));
   modeBtn.title = `Modo do agente nesta conversa: ${text}`;
+  modeBtn.setAttribute("aria-label", modeBtn.title); // o botão é só o mascote: sem isto o leitor de tela diz "botão"
   modeBtn.disabled = modelSelect.disabled;
 }
 function paintModeMenu(): void {
@@ -1705,6 +1749,7 @@ paletteBtn.addEventListener("click", () => openPalette());
 topbarHideBtn.addEventListener("click", () => setTopbarHidden(true));
 topbarShowBtn.addEventListener("click", () => setTopbarHidden(false));
 ligarAtalhos();
+ligarAgente();
 paletteInput.addEventListener("input", () => { paletteSelected = 0; paintPalette(); });
 paletteInput.addEventListener("keydown", (ev) => {
   const count = paletteList.querySelectorAll("li[role=option]").length;
@@ -1881,6 +1926,16 @@ let computadorPage: ReturnType<typeof mountComputador> | null = null;
 /** Só existe no produto com a capacidade `inspector` (meu-bot-inspector-staging). */
 let inspectorPage: ReturnType<typeof mountInspector> | null = null;
 let modulosPage: ReturnType<typeof mountModulosPage> | null = null;
+/**
+ * Etiqueta "Pro" nas linhas da lateral (Conta Google, E-mail, Computador e Navegador): só no produto free e só para
+ * quem não tem o acesso; quem é Pro via a etiqueta em tudo o que já podia usar. Em branco enquanto a licença não
+ * chegou; refreshLicense (licenca.ts) repinta a cada leitura.
+ */
+function paintEtiquetasPro(): void {
+  const etiqueta = etiquetaPro(caps.planoExigido, navLicenseAsked ? browserAccess(license, windowHost, caps.planoExigido, caps.produto) : null);
+  for (const id of ["conta-google-count", "gmail-count", "computador-count"]) $<HTMLElement>(id).textContent = etiqueta;
+  paintNavCount();
+}
 /** A página Módulos nesta janela (regra em modulos-crm.ts): produto fixo do app, add-on de módulos em vigor, ou máquina por SSH (o CRM). */
 const modulosAqui = (): { visivel: boolean; temProdutos: boolean } => paginaModulos({ produtoFixo: caps.modulos !== null, addonEmVigor: modulosNaLicenca(license, windowHost, caps.addons), remoto: ehRemoto() });
 /** Botão "Módulos" da lateral. A etiqueta "Custom" é dos produtos sob medida: quem só tem o CRM (do Pro) não a vê. */
@@ -2047,10 +2102,7 @@ void (async () => {
   const computador = caps.telaComputador ? mountComputador({ panelsEl, definePage, openPage, api: window.meuBot, host: () => windowHost, local: () => windowHost === "local", license: () => license, licenseKnown: () => navLicenseAsked, planoExigido: caps.planoExigido, produto: caps.produto }) : null;
   computadorPage = computador;
   $<HTMLButtonElement>("computador-line").addEventListener("click", () => computador?.open());
-  // Etiqueta "Pro" na lateral, como no Navegador (só no produto free; nos apps com assinatura tudo é um pacote só).
-  $<HTMLElement>("conta-google-count").textContent = caps.planoExigido === "free" ? "Pro" : "";
-  $<HTMLElement>("gmail-count").textContent = caps.planoExigido === "free" ? "Pro" : "";
-  $<HTMLElement>("computador-count").textContent = caps.planoExigido === "free" ? "Pro" : "";
+  paintEtiquetasPro();
   // Módulos de produto: o fixo do app (caps.modulos, como no meu-bot-diego-staging) e os add-ons com módulos na licença
   // da máquina; e, nas máquinas por SSH, o CRM que já vem no meu-bot. A página é montada no app que pode ter módulos ou
   // instalar numa máquina; o botão segue a licença e a máquina da janela (paintModulosLine).

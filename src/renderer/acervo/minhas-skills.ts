@@ -109,7 +109,7 @@ export function renderMinhasSkills(out: HTMLElement): void {
     const item = el("div", "acervo-item on");
     const acoes = el("div", "skill-acoes");
     if (removendo === s.nome) {
-      const sim = el("button", "btn btn-danger btn-small", ocupado === "remover" ? "Removendo…" : "Remover mesmo"); sim.type = "button"; sim.disabled = ocupado !== null;
+      const sim = el("button", "btn btn-bad btn-small", ocupado === "remover" ? "Removendo…" : "Remover mesmo"); sim.type = "button"; sim.disabled = ocupado !== null;
       sim.addEventListener("click", () => { void remover(s.nome); });
       const nao = el("button", "btn btn-ghost btn-small", "Manter"); nao.type = "button"; nao.disabled = ocupado !== null;
       nao.addEventListener("click", () => { removendo = null; repinta(); });

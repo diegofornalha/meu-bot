@@ -80,8 +80,8 @@ function pintarMaiores(alvo: HTMLElement, lista: Maiores): void {
     let armado: ReturnType<typeof setTimeout> | null = null;
     const b = botao("Apagar", "btn-ghost", () => {
       if (armado === null) {
-        b.textContent = "Confirmar? apaga de vez"; b.classList.add("btn-danger");
-        armado = setTimeout(() => { armado = null; b.textContent = "Apagar"; b.classList.remove("btn-danger"); }, 5000);
+        b.textContent = "Confirmar? apaga de vez"; b.classList.add("btn-bad");
+        armado = setTimeout(() => { armado = null; b.textContent = "Apagar"; b.classList.remove("btn-bad"); }, 5000);
         return;
       }
       clearTimeout(armado); armado = null;
@@ -90,7 +90,7 @@ function pintarMaiores(alvo: HTMLElement, lista: Maiores): void {
         pintarMaiores(alvo, nova);
         try { avisarCota(await window.meuBot.cotaStatus()); } catch { /* a barra atualiza na próxima leitura */ }
       }, (err: unknown) => {
-        b.disabled = false; b.textContent = "Apagar"; b.classList.remove("btn-danger");
+        b.disabled = false; b.textContent = "Apagar"; b.classList.remove("btn-bad");
         erro.hidden = false; erro.textContent = `Não consegui apagar: ${ipcErrorText(err)}`;
       });
     });
