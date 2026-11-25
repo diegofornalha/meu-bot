@@ -150,7 +150,12 @@ test("token e porta: 64 hex; porta 1024–65535; a configuração pronta leva no
   assert.equal(isToken("abc"), false); assert.equal(isToken("G".repeat(64)), false);
   assert.equal(isPortaMcp(1024), true); assert.equal(isPortaMcp(1023), false); assert.equal(isPortaMcp(65535), true); assert.equal(isPortaMcp(65536), false); assert.equal(isPortaMcp("7830"), false); assert.equal(isPortaMcp(7830.5), false);
   assert.equal(urlMcp(7830), "http://127.0.0.1:7830/mcp");
-  assert.equal(configClaudeCode("meu-bot-staging", 7831, TOKEN), `claude mcp add --scope user --transport http meu-bot-staging http://127.0.0.1:7831/mcp --header "Authorization: Bearer ${TOKEN}" --header "X-Meu-Bot-Cliente: Claude Code"`);
+  // O comando copiado substitui o registro que já existe: sem o remove na frente, o `claude mcp add` recusa com "already exists".
+  const add = `claude mcp add --scope user --transport http meu-bot-staging http://127.0.0.1:7831/mcp --header "Authorization: Bearer ${TOKEN}" --header "X-Meu-Bot-Cliente: Claude Code"`;
+  assert.equal(configClaudeCode("meu-bot-staging", 7831, TOKEN), `claude mcp remove --scope user meu-bot-staging >/dev/null 2>&1; ${add}`);
+  assert.equal(configClaudeCode("meu-bot-staging", 7831, TOKEN, true), `claude mcp remove --scope user meu-bot-staging; ${add}`, "Windows: sem /dev/null");
+  // A chave só aparece no add: o remove (a parte antes do `;`) não leva token.
+  for (const windows of [false, true]) assert.equal(configClaudeCode("meu-bot-staging", 7831, TOKEN, windows).split("; ")[0].includes(TOKEN), false);
   assert.deepEqual(JSON.parse(configCursor("meu-bot", 7830, TOKEN)), { mcpServers: { "meu-bot": { url: "http://127.0.0.1:7830/mcp", headers: { Authorization: `Bearer ${TOKEN}`, "X-Meu-Bot-Cliente": "Cursor" } } } });
 });
 
