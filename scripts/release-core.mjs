@@ -24,6 +24,18 @@ export function recusaPromocao(versao, tagsNoHead) {
 }
 
 /**
+ * Release sem Developer ID no chaveiro sairia assinada com "meu-bot local" e sem notarização: o Gatekeeper a rejeita
+ * nos outros Macs e o atualizador não troca um app Developer ID por ela (foi a v1.2.3-staging.6, em 25 nov 2026).
+ * `identidade` é a "Developer ID Application: …" válida do chaveiro, ou null. Devolve o motivo da recusa, ou null.
+ * `permitido` (`--sem-developer-id`) é a saída consciente, para ensaiar a release num Mac sem o certificado.
+ */
+export function recusaSemDeveloperId(identidade, permitido = false) {
+  if (typeof identidade === "string" && identidade.startsWith("Developer ID Application:")) return null;
+  if (permitido) return null;
+  return "o chaveiro desta conta não tem um certificado \"Developer ID Application\" válido: a release sairia assinada com \"meu-bot local\", sem notarização. Instale o certificado (node scripts/developer-id.mjs) ou publique da conta que o tem. Para ensaiar mesmo assim: -- --sem-developer-id";
+}
+
+/**
  * Produtos que cada canal publica: staging = as linhas staging; estável = as estáveis (o admin inclusive). Ficam de
  * fora os produtos de módulos (`caps.modulos`, como o meu-bot-diego-staging): eles se empacotam à mão por enquanto
  * (docs/guia/meu-bot-diego.md); os módulos não vão no app, ele os baixa do repositório do produto.

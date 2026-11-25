@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { componentesSemVersao, dependenciasDesalinhadas, faltasParaPublicar, juntarFragmentos, lerVersao, notasDaRelease, produtosComInstalador, produtosDoCanal, proximaStaging, recusaPromocao, TRAVA_SEM_DONO_MS, travaOrfa } from "../release-core.mjs";
+import { componentesSemVersao, dependenciasDesalinhadas, faltasParaPublicar, juntarFragmentos, lerVersao, notasDaRelease, produtosComInstalador, produtosDoCanal, proximaStaging, recusaPromocao, recusaSemDeveloperId, TRAVA_SEM_DONO_MS, travaOrfa } from "../release-core.mjs";
 
 test("release staging: o próximo N sai das tags dessa versão", () => {
   assert.equal(proximaStaging("0.2.0", []), 1);
@@ -12,6 +12,14 @@ test("promoção: só num commit publicado como staging da mesma versão", () =>
   assert.match(recusaPromocao("0.2.0", ["v0.1.0"]), /não foi publicado como staging/);
   assert.match(recusaPromocao("0.2.0", ["v0.1.0-staging.4"]), /outra versão/);
   assert.equal(recusaPromocao("0.2.0", ["v0.2.0-staging.3"]), null);
+});
+
+test("release sem Developer ID no chaveiro é recusada; --sem-developer-id é a saída para ensaio", () => {
+  assert.equal(recusaSemDeveloperId("Developer ID Application: Fulano de Tal (ABCDE12345)"), null);
+  assert.match(recusaSemDeveloperId(null), /Developer ID Application/);
+  assert.match(recusaSemDeveloperId("meu-bot local"), /sem notarização/);
+  assert.match(recusaSemDeveloperId("-"), /sem notarização/);
+  assert.equal(recusaSemDeveloperId(null, true), null);
 });
 
 test("cada canal publica os seus produtos (o admin só no estável)", () => {
