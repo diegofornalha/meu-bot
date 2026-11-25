@@ -22,6 +22,8 @@
  *   de fora: têm as ferramentas deles) · POST /ui/clicar {n | texto | seletor} · POST /ui/digitar {texto, n?, seletor?, enter?}
  * · POST /erros {maquina?, desde?, limite?}: erros e avisos do console da interface dessa janela, quedas e travamentos
  * · POST /log {linhas?, filtro?, desde?}: as últimas linhas do meu-bot.log deste app
+ * · POST /comandos {maquina?}: tudo o que a paleta de comandos oferece (ações, conversas, tutoriais), com o id de cada item
+ * · POST /comando {id}: roda um deles · POST /conversa/enviar {texto}: manda a mensagem na conversa da frente
  * · POST /ui/tecla {tecla}. Agir na interface é execução (um clique desconecta o WhatsApp ou sai da conta): o controle
  *   externo só oferece as três com "Executar comandos e código" ligado (FERRAMENTAS_EXECUCAO).
  * Quem pede vem no cabeçalho `X-Meu-Bot-Dono` (o mesmo do Navegador, nav-donos-core.ts) e aparece como selo no
@@ -46,6 +48,7 @@ import { parseDono, type Dono } from "../navegador/nav-donos-core";
 import { alvoDeClique, alvoDeDigitacao, apertar, clicarScript, codigoDaTecla, DESMARCAR_SCRIPT, digitarValorScript, focarScript, MARCAR_SCRIPT, readScript } from "../navegador/nav-scripts";
 import { log } from "../maquina/backend";
 import { errosDaJanela, lerLog } from "../app/erros-janela";
+import { enviarMensagem, LISTAR_COMANDOS, rodarComando } from "./ui-acoes-core";
 import { estado as estadoDepuracao, evento as eventoDepuracao, modoDepuracao, registrarAcao, setDepuracao } from "../app/depuracao";
 
 export const termSocketPath = (): string => path.join(controlDir(), "term.sock");
@@ -194,6 +197,24 @@ async function act(route: string, b: Req, dono: Dono): Promise<unknown> {
       return { maquina: host, erros: erros.map((e) => ({ em: new Date(e.em).toISOString(), nivel: e.nivel, texto: e.texto, origem: e.origem })) };
     }
     case "/log": return lerLog({ linhas: b.linhas, filtro: b.filtro, desde: b.desde });
+    case "/comandos": {
+      const w = janela(b.maquina);
+      return { maquina: hostOfWindow(w), comandos: await w.webContents.executeJavaScript(LISTAR_COMANDOS, true) as unknown };
+    }
+    case "/comando": {
+      if (typeof b.id !== "string" || b.id === "") throw new Error("falta id (veja comando_listar)");
+      const w = janela(b.maquina);
+      await w.webContents.executeJavaScript(rodarComando(b.id), true);
+      await assentar(300);
+      return { ok: true, id: b.id, maquina: hostOfWindow(w) };
+    }
+    case "/conversa/enviar": {
+      const texto = typeof b.texto === "string" ? b.texto.trim() : "";
+      if (texto === "") throw new Error("falta texto");
+      const w = janela(b.maquina);
+      await w.webContents.executeJavaScript(enviarMensagem(texto), true);
+      return { ok: true, maquina: hostOfWindow(w) };
+    }
     case "/ui/ler": {
       const w = janela(b.maquina);
       const { marcas: _m, url: _u, ...lido } = await w.webContents.executeJavaScript(readScript(UI_IGNORAR), true) as Record<string, unknown>;
@@ -249,7 +270,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   try {
     const r = await act(route, body, dono);
     send(200, r);
-    if (route !== "/terminais" && route !== "/ler" && route !== "/ui/ler" && route !== "/erros" && route !== "/log") log(`[terminal] controle (${dono.origem}: ${dono.id}): ${route}${typeof body.id === "string" ? ` ${body.id}` : ""}`);
+    if (route !== "/terminais" && route !== "/ler" && route !== "/ui/ler" && route !== "/erros" && route !== "/log" && route !== "/comandos") log(`[terminal] controle (${dono.origem}: ${dono.id}): ${route}${typeof body.id === "string" ? ` ${body.id}` : ""}`);
     // /nota já entrou no fluxo como "nota" dentro do act(); as outras rotas entram como ações do terminal (o /print sem o PNG).
     if (route !== "/nota") registrarAcao({ origem: "terminal", dono, rota: route, corpo: body as Record<string, unknown>, t0, resultado: route === "/print" ? { png: true } : r });
   } catch (e) {

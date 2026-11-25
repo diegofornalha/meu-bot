@@ -49,6 +49,9 @@ export function resumoAcao(origem: string, rota: string, corpo: Corpo, resultado
       case "/ui/clicar": return `clicou na interface ${corpo["n"] !== undefined ? `no ${num(corpo["n"])}` : corpo["texto"] !== undefined ? `em "${str(corpo["texto"], 40)}"` : `em ${str(corpo["seletor"], 40)}`}`;
       case "/ui/digitar": return `digitou ${texto(corpo["texto"])} caracteres na interface${corpo["n"] !== undefined ? ` no ${num(corpo["n"])}` : ""}${corpo["enter"] === true ? " + Enter" : ""}`;
       case "/ui/tecla": return `tecla ${str(corpo["tecla"], 20)} na interface`;
+      case "/comandos": return `listou os comandos${Array.isArray(r["comandos"]) ? ` · ${(r["comandos"] as unknown[]).length}` : ""}`;
+      case "/comando": return `rodou o comando ${str(corpo["id"], 40)}`;
+      case "/conversa/enviar": return `mandou ${texto(corpo["texto"])} caracteres na conversa`;
       case "/erros": return `leu os erros da interface${Array.isArray(r["erros"]) ? ` · ${(r["erros"] as unknown[]).length}` : ""}`;
       case "/log": return `leu o log${Array.isArray(r["linhas"]) ? ` · ${(r["linhas"] as unknown[]).length} linha(s)` : ""}${corpo["filtro"] !== undefined ? ` com "${str(corpo["filtro"], 40)}"` : ""}`;
       default: break;

@@ -12,7 +12,7 @@ const INFO = { nome: "meu-bot", versao: "1.2.3", execucao: true };
 
 test("catálogo: as ferramentas do app-mcp (menos apps/app_abrir) mais as do app; cada uma com schema e anotações", () => {
   const nomes = FERRAMENTAS.map((f) => f.name);
-  for (const n of ["terminais", "terminal_abrir", "terminal_ler", "terminal_digitar", "terminal_fechar", "tela_dividir", "tela_juntar", "nav_abas", "nav_abrir", "nav_ler", "nav_clicar", "nav_digitar", "nav_tecla", "nav_print", "nav_recarregar", "nav_voltar", "nav_js", "nav_fechar", "nota", "depuracao", "app", "janela_abrir", "pagina_abrir", "tema", "print_janela", "ui_ler", "ui_clicar", "ui_digitar", "ui_tecla", "erros_ler", "log_ler"]) assert.ok(nomes.includes(n), `falta ${n}`);
+  for (const n of ["terminais", "terminal_abrir", "terminal_ler", "terminal_digitar", "terminal_fechar", "tela_dividir", "tela_juntar", "nav_abas", "nav_abrir", "nav_ler", "nav_clicar", "nav_digitar", "nav_tecla", "nav_print", "nav_recarregar", "nav_voltar", "nav_js", "nav_fechar", "nota", "depuracao", "app", "janela_abrir", "pagina_abrir", "tema", "print_janela", "ui_ler", "ui_clicar", "ui_digitar", "ui_tecla", "erros_ler", "log_ler", "comando_listar", "comando_rodar", "conversa_enviar"]) assert.ok(nomes.includes(n), `falta ${n}`);
   assert.ok(!nomes.includes("apps") && !nomes.includes("app_abrir"), "de dentro do app não se abre outro app");
   assert.equal(new Set(nomes).size, nomes.length, "nome repetido");
   for (const f of FERRAMENTAS) { assert.equal(f.inputSchema.type, "object"); assert.equal(typeof f.annotations.readOnlyHint, "boolean"); assert.ok(f.description.length > 10); assert.equal("outputSchema" in f, false, "sem outputSchema o resultado vai só como texto"); }
@@ -25,7 +25,7 @@ test("catálogo: as ferramentas do app-mcp (menos apps/app_abrir) mais as do app
 });
 
 test("execução (terminal_digitar, nav_js e agir na interface do app) só aparece com o interruptor ligado", () => {
-  assert.deepEqual([...FERRAMENTAS_EXECUCAO], ["terminal_digitar", "nav_js", "ui_clicar", "ui_digitar", "ui_tecla"]);
+  assert.deepEqual([...FERRAMENTAS_EXECUCAO], ["terminal_digitar", "nav_js", "ui_clicar", "ui_digitar", "ui_tecla", "comando_rodar", "conversa_enviar"]);
   const sem = ferramentasVisiveis(false).map((f) => f.name);
   assert.ok(!sem.includes("terminal_digitar") && !sem.includes("nav_js"));
   // Um clique na interface do app desconecta o WhatsApp ou sai da conta: agir nela é execução; ler, não.
@@ -61,6 +61,12 @@ test("roteador: tudo vai para um socket do app (terminal, com as rotas do app, o
   assert.deepEqual(roteador("ui_tecla", { tecla: "esc" }), { alvo: "terminal", rota: "ui/tecla", corpo: { tecla: "esc" } });
   assert.deepEqual(roteador("erros_ler", { maquina: "local", limite: 5 }), { alvo: "terminal", rota: "erros", corpo: { limite: 5, maquina: "local" } });
   assert.deepEqual(roteador("log_ler", { filtro: "atualização" }), { alvo: "terminal", rota: "log", corpo: { filtro: "atualização" } });
+  assert.deepEqual(roteador("comando_listar", {}), { alvo: "terminal", rota: "comandos", corpo: {} });
+  assert.deepEqual(roteador("comando_rodar", { id: "a:settings" }), { alvo: "terminal", rota: "comando", corpo: { id: "a:settings" } });
+  assert.deepEqual(roteador("conversa_enviar", { texto: "oi", maquina: "local" }), { alvo: "terminal", rota: "conversa/enviar", corpo: { texto: "oi", maquina: "local" } });
+  // Listar os comandos é leitura; rodar um e mandar mensagem ao agente são execução.
+  assert.ok(ferramentasVisiveis(false).some((f) => f.name === "comando_listar"));
+  assert.ok(!ferramentasVisiveis(false).some((f) => f.name === "comando_rodar" || f.name === "conversa_enviar"));
   // Ler erros e log é leitura: continua com a execução desligada.
   for (const n of ["erros_ler", "log_ler"]) { assert.equal(ferramenta(n).annotations.readOnlyHint, true, n); assert.ok(ferramentasVisiveis(false).some((f) => f.name === n), n); }
   assert.deepEqual(roteador("nav_abas", {}), { alvo: "navegador", rota: "abas" });

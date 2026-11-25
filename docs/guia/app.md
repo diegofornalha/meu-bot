@@ -35,6 +35,10 @@ cliente (um `claude mcp add` ou um trecho de `mcp.json`); o app só gera o texto
   já garantia. A leitura pula `webview` e `.xterm` (têm as ferramentas deles). Ler é livre; agir é execução, porque
   um clique no app desconecta o WhatsApp ou sai da conta. O que o DOM não tem (menus nativos, o "Salvar como", a tela
   do Computador, que é imagem) ainda não é alcançável por aqui.
+- **Comandos e conversa pelo nome (25 nov)**: `comando_listar` e `comando_rodar` usam a paleta de comandos inteira
+  (sem o corte de 30 da tela), e `conversa_enviar` manda a mensagem pela caixa e pelo botão Enviar, como a pessoa. A
+  paleta mora em variáveis de módulo do renderer: ele ouve dois eventos do DOM (`meu-bot:comandos`, `meu-bot:comando`)
+  que o processo principal dispara por `executeJavaScript` (`src/main/terminal/ui-acoes-core.ts`). Sem canal de IPC novo.
 - **Configuração** (`settings.json`: `mcpLigado`, `mcpExecucao`, `mcpPorta` null = padrão da variante, `mcpToken`) e
   porta por produto (`Produto.portaMcp`: 7830 meu-bot, 7831 staging, 7833 admin, 7834 admin-mac, 7835 inspector-staging;
   fora da 7822 do Rambox). IPC `controle-remoto:status|ligar|execucao|porta|regenerar` (shared);
