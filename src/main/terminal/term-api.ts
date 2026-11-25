@@ -201,12 +201,12 @@ async function act(route: string, b: Req, dono: Dono): Promise<unknown> {
     case "/log": return lerLog({ linhas: b.linhas, filtro: b.filtro, desde: b.desde });
     case "/comandos": {
       const w = janela(b.maquina);
-      return { maquina: hostOfWindow(w), comandos: await w.webContents.executeJavaScript(LISTAR_COMANDOS, true) as unknown };
+      return { maquina: hostOfWindow(w), comandos: await naJanela(w, LISTAR_COMANDOS) };
     }
     case "/comando": {
       if (typeof b.id !== "string" || b.id === "") throw new Error("falta id (veja comando_listar)");
       const w = janela(b.maquina);
-      await w.webContents.executeJavaScript(rodarComando(b.id), true);
+      await naJanela(w, rodarComando(b.id));
       await assentar(300);
       return { ok: true, id: b.id, maquina: hostOfWindow(w) };
     }
@@ -214,7 +214,7 @@ async function act(route: string, b: Req, dono: Dono): Promise<unknown> {
       const texto = typeof b.texto === "string" ? b.texto.trim() : "";
       if (texto === "") throw new Error("falta texto");
       const w = janela(b.maquina);
-      await w.webContents.executeJavaScript(enviarMensagem(texto), true);
+      await naJanela(w, enviarMensagem(texto));
       return { ok: true, maquina: hostOfWindow(w) };
     }
     case "/ui/ler": {
