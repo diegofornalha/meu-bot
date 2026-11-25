@@ -23,10 +23,22 @@ cliente (um `claude mcp add` ou um trecho de `mcp.json`); o app só gera o texto
   conhece (2024-11-05, 2025-03-26, 2025-06-18), senão a nossa mais nova. Sem lote JSON-RPC (saiu do MCP nessa
   revisão: array → -32600). Sem `structuredContent` (não declaramos `outputSchema`; o resultado é texto JSON, e
   `png_base64` vira `content` de imagem). `initialize`, `ping`, `tools/list`, `tools/call`, notificações → 202.
-- **Dois interruptores**: ligar/desligar o servidor, e "Executar comandos e código", que libera `terminal_digitar` e
-  `nav_js` (execução arbitrária em sessões já logadas; o Rambox deixa o equivalente fora do build de produção).
+- **Dois interruptores**: ligar/desligar o servidor, e "Executar comandos e código", que libera `terminal_digitar`,
+  `nav_js` e, desde 25 nov, `ui_clicar`, `ui_digitar` e `ui_tecla` (execução arbitrária em sessões já logadas; o
+  Rambox deixa o equivalente fora do build de produção).
   Desligado, elas nem aparecem em `tools/list` e a chamada volta `isError`. A chave **fica guardada ao desligar**
   (religar não obriga a reconfigurar os clientes); "Gerar outra" é o que invalida.
+- **A interface do próprio app (25 nov)**: `ui_ler`, `ui_clicar`, `ui_digitar`, `ui_tecla` e `print_janela` com
+  `marcas` fazem na janela do app o que as `nav_*` fazem nas páginas da web, com os mesmos trechos
+  (`src/main/navegador/nav-scripts.ts`, por `webContents.executeJavaScript` no processo principal). As rotas (`/ui/…`)
+  ficam **só no `term.sock`**, que não vai pelo túnel: o agente da máquina não alcança a interface, como o `nav-api.ts`
+  já garantia. A leitura pula `webview` e `.xterm` (têm as ferramentas deles). Ler é livre; agir é execução, porque
+  um clique no app desconecta o WhatsApp ou sai da conta. O que o DOM não tem (menus nativos, o "Salvar como", a tela
+  do Computador, que é imagem) ainda não é alcançável por aqui.
+- **Comandos e conversa pelo nome (25 nov)**: `comando_listar` e `comando_rodar` usam a paleta de comandos inteira
+  (sem o corte de 30 da tela), e `conversa_enviar` manda a mensagem pela caixa e pelo botão Enviar, como a pessoa. A
+  paleta mora em variáveis de módulo do renderer: ele ouve dois eventos do DOM (`meu-bot:comandos`, `meu-bot:comando`)
+  que o processo principal dispara por `executeJavaScript` (`src/main/terminal/ui-acoes-core.ts`). Sem canal de IPC novo.
 - **Configuração** (`settings.json`: `mcpLigado`, `mcpExecucao`, `mcpPorta` null = padrão da variante, `mcpToken`) e
   porta por produto (`Produto.portaMcp`: 7830 meu-bot, 7831 staging, 7833 admin, 7834 admin-mac, 7835 inspector-staging;
   fora da 7822 do Rambox). IPC `controle-remoto:status|ligar|execucao|porta|regenerar` (shared);

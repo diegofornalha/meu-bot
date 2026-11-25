@@ -48,7 +48,20 @@ export const FERRAMENTAS: readonly Ferramenta[] = [
   { name: "janela_abrir", description: "Abre (ou traz à frente) a janela de uma máquina do ~/.ssh/config, ou \"local\" para este Mac.", inputSchema: S({ maquina: { type: "string" } }, ["maquina"]), annotations: ACTION },
   { name: "pagina_abrir", description: `Põe uma página na frente da janela: ${PAGINAS_APP.join(", ")}.`, inputSchema: S({ ...MAQ, pagina: { type: "string", enum: [...PAGINAS_APP] } }, ["pagina"]), annotations: ACTION },
   { name: "tema", description: "Troca o tema do app (system, light, dark); vale para todas as janelas.", inputSchema: S({ tema: { type: "string", enum: [...TEMAS] } }, ["tema"]), annotations: WRITE },
-  { name: "print_janela", description: "Captura a janela inteira do app (a da máquina pedida, ou a em foco) como imagem.", inputSchema: S(MAQ), annotations: READ },
+  { name: "print_janela", description: "Captura a janela inteira do app (a da máquina pedida, ou a em foco) como imagem. marcas=true desenha o número de cada elemento da última leitura (ui_ler).", inputSchema: S({ ...MAQ, marcas: { type: "boolean" } }), annotations: READ },
+  // A interface do próprio app (não as páginas do Navegador): ler é livre; clicar, digitar e teclar são execução, porque
+  // um clique no app desconecta o WhatsApp, sai da conta ou apaga uma conversa.
+  { name: "ui_ler", description: "A interface do app na janela: o texto à vista e os botões, links e campos numerados. O conteúdo das abas do Navegador (nav_ler) e dos terminais (terminal_ler) fica de fora.", inputSchema: S(MAQ), annotations: READ },
+  { name: "ui_clicar", description: "Clica num elemento da interface do app: n (de ui_ler), ou por texto ou seletor CSS. A pessoa vê acontecer.", inputSchema: S({ ...MAQ, n: { type: "number" }, texto: { type: "string" }, seletor: { type: "string" } }), annotations: DESTRUCTIVE },
+  { name: "ui_digitar", description: "Digita num campo da interface do app (n de ui_ler, seletor, ou o campo em foco); enter=true confirma.", inputSchema: S({ ...MAQ, n: { type: "number" }, seletor: { type: "string" }, texto: { type: "string" }, enter: { type: "boolean" } }, ["texto"]), annotations: DESTRUCTIVE },
+  // A paleta de comandos e a conversa, pelo nome: chegar a qualquer estado sem depender de onde está o botão.
+  { name: "comando_listar", description: "Tudo o que a paleta de comandos (Cmd+K) oferece nessa janela: ações (a:settings, a:new, a:whatsapp…), conversas (c:<id>), tutoriais e modelos, cada um com o id para comando_rodar.", inputSchema: S(MAQ), annotations: READ },
+  { name: "comando_rodar", description: "Roda um item da paleta de comandos pelo id (de comando_listar): abrir Configurações, conversa nova, trocar de conversa, arquivar, abrir um tutorial…", inputSchema: S({ ...MAQ, id: { type: "string" } }, ["id"]), annotations: DESTRUCTIVE },
+  { name: "conversa_enviar", description: "Manda uma mensagem ao agente na conversa da frente, como a pessoa faria (a mensagem aparece na tela). Recusa se o agente ainda está respondendo. A resposta se lê com ui_ler.", inputSchema: S({ ...MAQ, texto: { type: "string" } }, ["texto"]), annotations: DESTRUCTIVE },
+  // Depurar sem reabrir o app em modo de teste: o que a interface reclamou e o que o app registrou.
+  { name: "erros_ler", description: "Erros e avisos do console da interface do app nessa janela, quedas do processo da página e travamentos, do mais velho ao mais novo. desde (data ISO ou ms) traz só os posteriores; guarde a hora antes de agir e leia depois.", inputSchema: S({ ...MAQ, desde: { type: ["string", "number"] }, limite: { type: "number" } }), annotations: READ },
+  { name: "log_ler", description: "Últimas linhas do log do app (meu-bot.log): túnel, backend, atualização, Navegador, ações do controle. filtro (texto, sem diferenciar maiúsculas), desde (data ISO ou ms), linhas (padrão 100, até 500).", inputSchema: S({ linhas: { type: "number" }, filtro: { type: "string" }, desde: { type: ["string", "number"] } }), annotations: READ },
+  { name: "ui_tecla", description: "Aperta uma tecla na interface do app (enter, tab, esc, down, up…).", inputSchema: S({ ...MAQ, tecla: { type: "string" } }, ["tecla"]), annotations: DESTRUCTIVE },
   { name: "terminais", description: "Terminais abertos no app (id, máquina, número).", inputSchema: S({}), annotations: READ },
   { name: "terminal_abrir", description: "Abre uma aba de terminal nova na janela da máquina e devolve o id e o prompt.", inputSchema: S(MAQ), annotations: ACTION },
   { name: "terminal_ler", description: "Últimas linhas da tela de um terminal (sem cores).", inputSchema: S({ id: { type: "string" }, linhas: { type: "number" } }, ["id"]), annotations: READ },
@@ -73,11 +86,12 @@ export const FERRAMENTAS: readonly Ferramenta[] = [
 ];
 export const ferramenta = (nome: string): Ferramenta | undefined => FERRAMENTAS.find((f) => f.name === nome);
 /**
- * Execução arbitrária em sessões já abertas (um comando no shell da pessoa, código numa página logada): o Rambox deixa
+ * Execução arbitrária em sessões já abertas (um comando no shell da pessoa, código numa página logada, um clique na
+ * interface do app, que desconecta o WhatsApp ou sai da conta): o Rambox deixa
  * o equivalente fora do build de produção; aqui ficam atrás de um interruptor próprio, desligado por padrão. Sem ele,
  * nem aparecem em tools/list.
  */
-export const FERRAMENTAS_EXECUCAO: readonly string[] = ["terminal_digitar", "nav_js"];
+export const FERRAMENTAS_EXECUCAO: readonly string[] = ["terminal_digitar", "nav_js", "ui_clicar", "ui_digitar", "ui_tecla", "comando_rodar", "conversa_enviar"];
 export const ferramentasVisiveis = (execucao: boolean): Ferramenta[] => FERRAMENTAS.filter((f) => execucao || !FERRAMENTAS_EXECUCAO.includes(f.name));
 
 /**
@@ -105,7 +119,7 @@ export type Destino =
   | { alvo: "navegador"; rota: string; corpo?: Record<string, unknown>; maquina?: string };
 const NAV_ROTAS: Record<string, string> = { nav_abas: "abas", nav_abrir: "abrir", nav_ler: "ler", nav_clicar: "clicar", nav_digitar: "digitar", nav_tecla: "tecla", nav_print: "print", nav_recarregar: "recarregar", nav_voltar: "voltar", nav_js: "js", nav_fechar: "fechar" };
 /** As rotas do app no term.sock (as mesmas que o scripts/app-mcp.mjs usa). */
-const APP_ROTAS: Record<string, string> = { app: "app", janela_abrir: "janela", pagina_abrir: "pagina", tema: "tema", print_janela: "print" };
+const APP_ROTAS: Record<string, string> = { app: "app", janela_abrir: "janela", pagina_abrir: "pagina", tema: "tema", print_janela: "print", ui_ler: "ui/ler", ui_clicar: "ui/clicar", ui_digitar: "ui/digitar", ui_tecla: "ui/tecla", erros_ler: "erros", log_ler: "log", comando_listar: "comandos", comando_rodar: "comando", conversa_enviar: "conversa/enviar" };
 export function roteador(nome: string, args: Record<string, unknown>): Destino {
   const { maquina, ...resto } = args;
   const maq = typeof maquina === "string" && maquina !== "" ? maquina : undefined;
