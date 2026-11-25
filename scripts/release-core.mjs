@@ -555,7 +555,11 @@ export function parseDerivados(raw) {
     if (typeof pasta !== "string" || !pasta.startsWith("/")) return { erro: `item ${i + 1} (${repo}): pasta tem de ser o caminho absoluto do clone do derivado` };
     if (itens.some((y) => y.repo.toLowerCase() === repo.toLowerCase())) return { erro: `item ${i + 1}: ${repo} aparece duas vezes` };
     if (itens.some((y) => y.pasta === pasta)) return { erro: `item ${i + 1}: a pasta ${pasta} aparece duas vezes` };
-    itens.push({ repo, pasta });
+    // `commit`: o commit do derivado que o dono deste Mac aprovou (os 40 caracteres, nunca um ramo nem um prefixo:
+    // tem de ser o que foi lido). Com ele, é esse commit que se empacota, e não o que estiver no ramo padrão.
+    const commit = x.commit ?? null;
+    if (commit !== null && (typeof commit !== "string" || !/^[0-9a-f]{40}$/.test(commit))) return { erro: `item ${i + 1} (${repo}): commit tem de ser o hash inteiro (40 caracteres hexadecimais) do commit aprovado` };
+    itens.push({ repo, pasta, commit });
   }
   return { itens };
 }
@@ -567,6 +571,20 @@ export function recusaDerivado(produto, repo) {
   if (produto.repoReleases === null || produto.repoReleases === undefined) return `a ficha de ${produto.nome} não diz onde saem as releases: ponha "releases": "${repo}" no produto.json`;
   if (produto.repoReleases.toLowerCase() !== repo.toLowerCase()) return `a ficha de ${produto.nome} manda procurar as releases em ${produto.repoReleases}, e a lista deste Mac publica em ${repo}`;
   if (produto.canal !== "staging") return `${produto.nome} não é do canal staging: a release automática de derivados só publica o canal de teste`;
+  return null;
+}
+/** Pasta do repositório de um derivado onde mora o código próprio dele (páginas de extensão); a ficha e o ícone não são código. */
+export const PASTA_DE_CODIGO = "codigo";
+/**
+ * Por que este derivado não pode ser empacotado neste commit, ou null. A regra do commit aprovado: um derivado que traz
+ * CÓDIGO é compilado, assinado com o Developer ID do dono e distribuído por atualização automática; por isso só sai do
+ * commit que o dono deste Mac leu e escreveu na lista (`commit`). Código novo no repositório não é assinado sozinho.
+ * Um derivado só de ficha e ícone pode seguir o ramo padrão: a ficha só escolhe nome, portas e páginas do core.
+ * `temCodigo` = a pasta PASTA_DE_CODIGO existe no commit; `commitAtual` = o HEAD do clone depois do checkout.
+ */
+export function recusaCommitDoDerivado({ repo, temCodigo, commitAprovado, commitAtual }) {
+  if (commitAprovado !== null && commitAprovado !== undefined && commitAtual !== commitAprovado) return `o clone de ${repo} está em ${String(commitAtual).slice(0, 12)}, e o commit aprovado é ${commitAprovado.slice(0, 12)}`;
+  if (temCodigo && (commitAprovado === null || commitAprovado === undefined)) return `${repo} traz código próprio (pasta ${PASTA_DE_CODIGO}/): leia o commit ${String(commitAtual).slice(0, 12)} e, se aprovar, escreva "commit": "${commitAtual}" no item dele na lista de derivados deste Mac`;
   return null;
 }
 /** A versão de um derivado é a do core de onde ele foi feito: tem de ser uma staging (`X.Y.Z-staging.N`). */

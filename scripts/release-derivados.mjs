@@ -11,7 +11,10 @@
 //
 // A lista fica FORA do repositório do core (o core não sabe de derivado nenhum):
 //   ~/Library/Application Support/meu-bot-release/derivados.json   (ou MEU_BOT_DERIVADOS)
-//   [ { "repo": "dono/meu-bot-x", "pasta": "/caminho/do/clone" } ]
+//   [ { "repo": "dono/meu-bot-x", "pasta": "/caminho/do/clone", "commit": "<hash inteiro, opcional>" } ]
+// `commit` fixa o commit do derivado que se empacota. É OBRIGATÓRIO quando o derivado traz código próprio (pasta
+// codigo/): esse código é assinado com o Developer ID e vai por atualização automática, então só sai do commit que o
+// dono deste Mac leu e aprovou. Derivado só de ficha e ícone pode seguir o ramo padrão.
 // A pasta é um clone só do agente: a cada rodada ele vai para o origin/main do derivado (mudança local é recusada).
 // Já publicada (a tag existe no repositório do derivado) = pulada: rodar de novo não repete nada, e sem nada a publicar
 // o script nem pede a chave. É assim que o agente o chama a cada rodada para um derivado não ficar para trás. A falha
@@ -25,7 +28,7 @@ import { join } from "node:path";
 import { identidadeDeveloperId } from "./assinatura.mjs";
 import { lerChavePrincipal } from "./chave-release.mjs";
 import { notarizar } from "./notarizar.mjs";
-import { argsReleaseDerivado, notasDoDerivado, parseDerivados, precisaDaChave, recusaDerivado, recusaSemDeveloperId, versaoDasTags, versaoStagingValida } from "./release-core.mjs";
+import { argsReleaseDerivado, notasDoDerivado, parseDerivados, PASTA_DE_CODIGO, precisaDaChave, recusaCommitDoDerivado, recusaDerivado, recusaSemDeveloperId, versaoDasTags, versaoStagingValida } from "./release-core.mjs";
 
 const arg = (nome) => { const i = process.argv.indexOf(nome); return i >= 0 ? process.argv[i + 1] : undefined; };
 const conferir = process.argv.includes("--conferir");
@@ -61,13 +64,16 @@ function lerFicha(pasta) {
  * repositório do derivado. Devolve o que falta publicar; o que já está lá é pulado. É o que deixa o agente chamar este
  * script a cada rodada para recuperar um derivado que ficou para trás, sem pedir a chave quando não há o que fazer.
  */
-function preparar({ repo, pasta }) {
+function preparar({ repo, pasta, commit }) {
   if (!existsSync(join(pasta, ".git"))) throw new Error(`${pasta} não é um clone do git (clone ${repo} lá)`);
   if (sh("git", ["status", "--porcelain"], pasta) !== "") throw new Error(`o clone ${pasta} tem mudanças locais: ele é só do agente, desfaça-as`);
   sh("git", ["fetch", "-q", "origin"], pasta);
-  // O ramo padrão do derivado: origin/HEAD quando o clone o conhece, senão origin/main.
-  sh("git", ["checkout", "-q", "--detach", shOu("git", ["rev-parse", "--verify", "-q", "origin/HEAD"], pasta) !== null ? "origin/HEAD" : "origin/main"], pasta);
+  // Com commit aprovado na lista, é ele; sem, o ramo padrão do derivado (origin/HEAD quando o clone o conhece, senão origin/main).
+  sh("git", ["checkout", "-q", "--detach", commit ?? (shOu("git", ["rev-parse", "--verify", "-q", "origin/HEAD"], pasta) !== null ? "origin/HEAD" : "origin/main")], pasta);
   const commitDerivado = sh("git", ["rev-parse", "HEAD"], pasta);
+  // Derivado com código próprio só sai do commit que o dono deste Mac aprovou (recusaCommitDoDerivado).
+  const semAprovacao = recusaCommitDoDerivado({ repo, temCodigo: existsSync(join(pasta, PASTA_DE_CODIGO)), commitAprovado: commit, commitAtual: commitDerivado });
+  if (semAprovacao !== null) throw new Error(semAprovacao);
   const produto = lerFicha(pasta);
   const recusa = recusaDerivado(produto, repo);
   if (recusa !== null) throw new Error(recusa);
