@@ -51,11 +51,11 @@ export function ligarCatalogo(): void {
     const archived: Arquivado[] = [];
     const pulados = loadTutPulados();
     // Primeiro cartão: o tour (onboarding). Começar/Rever fecha Tutoriais e começa o guia sobre a janela. "Pular" grava
-    // onboarding = "skipped" (o mesmo que o botão do próprio tour): vai para Pulados, de onde "Começar" o inicia (30 out).
+    // onboarding = "skipped" (o mesmo que o botão do próprio tour): vai para Pulados, de onde "Retomar" o inicia (30 out).
     {
       const done = tourDone();
       const pulado = !done && ctx.settings?.onboarding === "skipped";
-      const start = el("button", done || pulado ? `btn btn-ghost btn-small tut-row-act${pulado ? " retomar" : ""}` : "btn tut-start", done ? "Rever" : "Começar"); start.type = "button";
+      const start = el("button", done || pulado ? `btn btn-ghost btn-small tut-row-act${pulado ? " retomar" : ""}` : "btn tut-start", done ? "Rever" : pulado ? "Retomar" : "Começar"); start.type = "button";
       start.addEventListener("click", () => { tutNext = false; ctx.closePage(tutoriaisPage); void restartTour(); });
       if (done || pulado) {
         const estado: TutArquivo = done ? "concluido" : "pulado";
