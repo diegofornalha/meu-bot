@@ -110,7 +110,14 @@ export function ligarCatalogo(): void {
       ...(c.checking > 0 ? [`verificando ${c.checking} na máquina…`] : []),
     ].join(" · ");
     paintTutCount();
-    if (active.length === 0) tutList.append(el("div", "acervo-empty", archived.length > 0 && !showArchived ? "Tudo feito por aqui. Ligue \"arquivados\" para rever um tutorial." : "Nenhum tutorial ainda."));
+    // Nada pendente não é "nenhum tutorial": com arquivados, diz o que há neles (pulado não é feito) e onde estão.
+    if (active.length === 0) {
+      const ondeVer = showArchived ? "" : " Ligue \"arquivados\" para ver.";
+      const vazio = archived.length === 0 ? "Nenhum tutorial ainda."
+        : c.pulados > 0 ? `Nada pendente: ${c.pulados} ${c.pulados === 1 ? "pulado está" : "pulados estão"} nos arquivados.${ondeVer}`
+        : showArchived ? "Tudo feito por aqui." : "Tudo feito por aqui. Ligue \"arquivados\" para rever um tutorial.";
+      tutList.append(el("div", "acervo-empty", vazio));
+    }
     // Só os dois primeiros à vista: concluir ou pular um traz o próximo, para a lista não pesar.
     tutList.append(...active.slice(0, TUT_VISIVEIS));
     if (active.length > TUT_VISIVEIS) tutList.append(el("div", "acervo-empty", `Mais ${active.length - TUT_VISIVEIS} aparecem conforme você conclui estes.`));
