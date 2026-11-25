@@ -154,7 +154,7 @@ export function mountComputador(deps: ComputadorDeps): { open: () => void; repin
     const c = el("div", "admin-card computador-card");
     c.append(el("strong", "", est.titulo));
     if (est.texto !== "") c.append(el("p", "", est.texto));
-    if (est.acao !== null && est.botao !== null) { const acao = est.acao; c.append(btn(est.botao, "btn-primary", () => { void agir(acao); })); }
+    if (est.acao !== null && est.botao !== null) { const acao = est.acao; const pa = el("div", "admin-actions"); pa.append(btn(est.botao, "btn-primary", () => { void agir(acao); })); c.append(pa); }
     if (nota !== null) c.append(el("p", `hint ${nota.bad ? "bad-hint" : ""}`, nota.text));
     estadoBox.replaceChildren(head, c);
   }
