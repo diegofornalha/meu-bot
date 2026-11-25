@@ -22,3 +22,4 @@ a data em que entrou. Coisa nova vai no guia do assunto dela, no fim.
 | [Suporte, meu-bot-admin, auditoria e licença](guia/suporte-admin.md) | Suporte: meu-bot-admin; Auditoria: quem fez o quê; Licença lida por SSH quando o backend não tem a rota |
 | [CI e Claude no GitHub](guia/ci-e-claude.md) | Testes; Claude sob demanda (`@claude`); Claude automático (issue vira PR, falha diagnosticada, `sem-claude`); Token |
 | [meu-bot-diego: módulos de produto num submódulo](guia/meu-bot-diego.md) | O que é e onde mora cada coisa; Primeira vez: clonar com os módulos; Puxar as atualizações do meu-bot; Trazer uma versão nova dos módulos; Versões: o que precisa subir; Atualização do app para o Diego; Liberar para uma pessoa |
+| [Apps derivados](guia/derivados.md) | A regra (o core serve a todos; o derivado mora no repositório dele); O que o repositório de um derivado tem; A ficha (`produto.json`); Empacotar; Conferir |

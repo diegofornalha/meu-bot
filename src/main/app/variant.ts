@@ -1,13 +1,14 @@
 /**
- * Qual produto é este app: meu-bot (de cada pessoa), meu-bot-admin (suporte) ou meu-bot-crm (meu-bot + CRM
- * próprio). Mesmo código; o empacotamento grava Resources/variant.json (`scripts/package.mjs --variant <x>`).
- * Em dev: MEU_BOT_VARIANT=admin|crm|client-staging|crm-staging. A decisão em si é pura (variant-core.ts); aqui só a leitura e o cache.
+ * Qual produto é este app: um da tabela (meu-bot, os staging, os admin) ou um derivado, com a ficha embutida no
+ * pacote. Mesmo código; o empacotamento grava Resources/variant.json (`scripts/package.mjs --variant <x>` ou
+ * `--produto <pasta>`). Em dev: MEU_BOT_VARIANT=<id da tabela> ou MEU_BOT_PRODUTO=<pasta do derivado>. A decisão em si
+ * é pura (variant-core.ts); aqui só a leitura e o cache.
  */
 import fs from "node:fs";
 import path from "node:path";
 import { app } from "electron";
 import type { Compilacao } from "../../shared/ipc";
-import { capsFor, produtoDe, resolveVariant, titleFor, userDataNameFor, type AppVariant, type Capabilities, type Produto } from "./variant-core";
+import { capsFor, FICHA_EMBUTIDA, fichaEmbutida, produtoDe, registrarDerivado, resolveVariant, titleFor, userDataNameFor, type AppVariant, type Capabilities, type Produto } from "./variant-core";
 
 export type { AppVariant, Capabilities };
 let cached: AppVariant | null = null;
@@ -16,8 +17,21 @@ function readVariantJson(): unknown {
   try { return JSON.parse(fs.readFileSync(path.join(process.resourcesPath, "variant.json"), "utf8")); } catch { return undefined; }
 }
 
+/**
+ * A ficha de um app derivado, crua: empacotado, a que o empacotamento pôs ao lado deste arquivo, dentro do asar
+ * (scripts/package.mjs); em dev, a de `MEU_BOT_PRODUTO=<pasta do derivado>` (o mesmo produto.json). undefined = não há.
+ */
+function lerFichaDeDerivado(): unknown {
+  const arquivo = app.isPackaged ? path.join(__dirname, FICHA_EMBUTIDA) : process.env.MEU_BOT_PRODUTO ? path.join(process.env.MEU_BOT_PRODUTO, "produto.json") : null;
+  if (arquivo === null) return undefined;
+  try { return JSON.parse(fs.readFileSync(arquivo, "utf8")); } catch { return undefined; }
+}
+
 export function appVariant(): AppVariant {
   if (cached !== null) return cached;
+  // App derivado: a ficha veio no pacote (ou da pasta, em dev) e vale no lugar de uma linha da tabela.
+  const ficha = fichaEmbutida(lerFichaDeDerivado());
+  if (ficha !== null) { registrarDerivado(ficha); cached = "derivado"; return cached; }
   cached = resolveVariant({ packaged: app.isPackaged, env: process.env.MEU_BOT_VARIANT, variantJson: app.isPackaged ? readVariantJson() : undefined });
   return cached;
 }

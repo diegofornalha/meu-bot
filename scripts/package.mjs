@@ -2,7 +2,7 @@ import { packager } from "@electron/packager";
 import { copyFileSync, cpSync, existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
-import { archDe, empacotado, esquemaDe, exigeWindows, icoOf, plataformaFromArgv, produtoFromArgv, versaoFromArgv } from "./produtos.mjs";
+import { archDe, empacotado, esquemaDe, exigeWindows, FICHA_EMBUTIDA, icoOf, plataformaFromArgv, produtoFromArgv, versaoFromArgv } from "./produtos.mjs";
 import { avisoSemGoogle, decideGoogleConta } from "./google-client.mjs";
 
 // `--variant <id>` (ou `--admin`) empacota outro produto da tabela (src/main/app/variant-core.ts): mesmo código, outro
@@ -31,6 +31,12 @@ const googleConta = decideGoogleConta({ admin, existe: existsSync(join("config",
 if (googleConta === "falha") { console.error(avisoSemGoogle(name)); console.error("✗ release sem o client OAuth do Google: coloque o arquivo em config/ ou use --sem-google"); process.exit(1); }
 if (googleConta === "aviso") console.warn(avisoSemGoogle(name));
 if (googleConta === "permitido") console.warn(`⚠ ${name} sai sem Conta Google (--sem-google)`);
+// App derivado (`--produto <pasta>`): a ficha vai DENTRO do asar, ao lado do variant-core.js compilado, e é dela que o
+// app tira nome, portas e capacidades ao abrir (src/main/app/variant.ts). Um app da tabela não leva o arquivo: sai
+// daqui antes de empacotar, para a ficha de um derivado empacotado antes não ir junto.
+const fichaEmbutida = join("dist", "main", "app", FICHA_EMBUTIDA);
+rmSync(fichaEmbutida, { force: true });
+if (produto.ficha !== undefined) writeFileSync(fichaEmbutida, `${JSON.stringify(produto.ficha)}\n`);
 // Só a pasta desta variante: empacotar uma não apaga a outra (nem os .dmg em out/).
 rmSync(empacotado(produto, plataforma).pasta, { recursive: true, force: true });
 const paths = await packager({
@@ -65,6 +71,8 @@ const paths = await packager({
   extraResource: ["backend-colima", "config", "scripts/alivio"],
   ignore: [/^\/hermes-agent($|\/)/, /^\/backend-colima($|\/)/, /^\/conta-api($|\/)/, /^\/backend-vm($|\/)/, /^\/docs($|\/)/, /^\/assets($|\/)/, /^\/build($|\/)/, /^\/src($|\/)/, /^\/scripts($|\/)/, /^\/config($|\/)/, /^\/tsconfig/, /^\/\.gitignore$/, /^\/\.gitmodules$/, /^\/out($|\/)/, /^\/extensao-crm($|\/)/, /^\/produtos($|\/)/],
 });
+// A ficha já está no asar: fora dele, em dist/, ela faria o `npm start` seguinte abrir como o derivado.
+rmSync(fichaEmbutida, { force: true });
 for (const p of paths) {
   const res = win ? join(p, "resources") : join(p, `${name}.app`, "Contents", "Resources");
   writeFileSync(join(res, "variant.json"), `${JSON.stringify({ variant: produto.variant })}\n`);

@@ -72,11 +72,12 @@ test("a janela recebe o catálogo: caps leva addon, abreEm e os rótulos dos add
   }
 });
 
-test("tipo AppVariant (src/shared/ipc/app.ts) tem exatamente os produtos da tabela", () => {
+test("tipo AppVariant (src/shared/ipc/app.ts) tem exatamente os produtos da tabela, mais o genérico \"derivado\"", () => {
   const m = /export type AppVariant = ([^;]+);/.exec(fonte("src/shared/ipc/app.ts"));
   assert.ok(m, "AppVariant não encontrado");
   const tipo = [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]).sort();
-  assert.deepEqual(tipo, PRODUTOS.map((p) => p.variant).sort());
+  // "derivado" não tem linha na tabela: é o app cuja ficha vem do repositório dele (derivado-core.test.mjs).
+  assert.deepEqual(tipo, [...PRODUTOS.map((p) => p.variant), "derivado"].sort());
 });
 
 test("auditoria conhece todos os apps; nenhum nome da tabela pode virar MVP", () => {

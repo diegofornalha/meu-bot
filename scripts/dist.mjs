@@ -1,6 +1,7 @@
 // Empacota um produto da tabela (src/main/app/variant-core.ts) de ponta a ponta: build, extensões embutidas (se o
 // produto tiver), package e fuses. Um produto novo na tabela já empacota sem entrada nova no package.json:
 //   npm run dist -- --variant <id>      (sem --variant: o meu-bot)
+//   npm run dist -- --produto <pasta>   (um app derivado: a ficha e o ícone vêm do repositório dele)
 // `--plataforma win32` (só os produtos marcados `windows` na tabela) troca o fim: em vez de assinar e instalar neste
 // Mac, sai o instalador out/<nome>-<versão>-x64-setup.exe (scripts/instalador-win.mjs), para levar a um Windows.
 // Os atalhos dist:staging, dist:inspector-staging, dist:diego-staging e dist:admin só chamam este script com o id.
@@ -15,11 +16,11 @@ const passo = (cmd, args) => {
 
 passo("npm", ["run", "build"]);
 // A tabela é lida do compilado: só depois do build.
-const { exigeWindows, plataformaFromArgv, produtoFromArgv } = await import("./produtos.mjs");
+const { alvoDe, exigeWindows, plataformaFromArgv, produtoFromArgv } = await import("./produtos.mjs");
 const produto = produtoFromArgv();
 const plataforma = plataformaFromArgv();
 exigeWindows(produto, plataforma);
-const alvo = ["--variant", produto.variant, "--plataforma", plataforma];
+const alvo = [...alvoDe(produto), "--plataforma", plataforma];
 if (produto.extensoes.length > 0) passo("npm", ["run", "build:extensao"]);
 passo("node", ["scripts/package.mjs", ...alvo, ...(process.argv.includes("--sem-google") ? ["--sem-google"] : [])]);
 passo("node", ["scripts/fuses.mjs", ...alvo]);
