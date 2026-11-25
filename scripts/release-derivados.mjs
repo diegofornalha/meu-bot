@@ -13,8 +13,9 @@
 //   ~/Library/Application Support/meu-bot-release/derivados.json   (ou MEU_BOT_DERIVADOS)
 //   [ { "repo": "dono/meu-bot-x", "pasta": "/caminho/do/clone" } ]
 // A pasta é um clone só do agente: a cada rodada ele vai para o origin/main do derivado (mudança local é recusada).
-// Já publicada (a tag existe no repositório do derivado) = pulada: rodar de novo não repete nada. A falha de um
-// derivado não impede os outros; o script sai com 1 se algum falhou.
+// Já publicada (a tag existe no repositório do derivado) = pulada: rodar de novo não repete nada, e sem nada a publicar
+// o script nem pede a chave. É assim que o agente o chama a cada rodada para um derivado não ficar para trás. A falha
+// de um derivado não impede os outros; o script sai com 1 se algum falhou.
 import { execFileSync, spawnSync } from "node:child_process";
 import { sign } from "node:crypto";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -48,16 +49,6 @@ const tag = `v${versao}`;
 const commitCore = shOu("git", ["rev-parse", "--short", "HEAD"]) ?? "?";
 const arch = process.arch === "arm64" ? "arm64" : "x64";
 
-// As mesmas travas da release do core, antes de qualquer trabalho: Developer ID no chaveiro e a chave da release.
-let chave = null;
-if (!conferir) {
-  const recusa = recusaSemDeveloperId(identidadeDeveloperId());
-  if (recusa !== null) { console.error(`✗ ${recusa}\nnada foi publicado`); process.exit(64); }
-  step("lendo a chave da release no Chaveiro");
-  chave = lerChavePrincipal();
-  if (chave === null) { console.error("✗ a chave da release não está no Chaveiro (ou o acesso foi negado): nada foi publicado"); process.exit(1); }
-}
-
 /** A ficha do derivado, lida num processo à parte: uma ficha recusada sai com 64 lá, sem derrubar os outros. */
 function lerFicha(pasta) {
   const r = spawnSync(process.execPath, ["--input-type=module", "-e", `const { derivadoFromArgv } = await import(${JSON.stringify(new URL("./produtos.mjs", import.meta.url).href)}); process.stdout.write(JSON.stringify(derivadoFromArgv(["", "", "--produto", ${JSON.stringify(pasta)}])));`], { encoding: "utf8" });
@@ -65,7 +56,12 @@ function lerFicha(pasta) {
   return JSON.parse(r.stdout);
 }
 
-function publicar({ repo, pasta }) {
+/**
+ * Primeira passada, barata e sem chave: leva o clone ao ramo padrão, valida a ficha e vê se a versão já está no
+ * repositório do derivado. Devolve o que falta publicar; o que já está lá é pulado. É o que deixa o agente chamar este
+ * script a cada rodada para recuperar um derivado que ficou para trás, sem pedir a chave quando não há o que fazer.
+ */
+function preparar({ repo, pasta }) {
   if (!existsSync(join(pasta, ".git"))) throw new Error(`${pasta} não é um clone do git (clone ${repo} lá)`);
   if (sh("git", ["status", "--porcelain"], pasta) !== "") throw new Error(`o clone ${pasta} tem mudanças locais: ele é só do agente, desfaça-as`);
   sh("git", ["fetch", "-q", "origin"], pasta);
@@ -75,9 +71,12 @@ function publicar({ repo, pasta }) {
   const produto = lerFicha(pasta);
   const recusa = recusaDerivado(produto, repo);
   if (recusa !== null) throw new Error(recusa);
-  if (shOu("gh", ["release", "view", tag, "-R", repo, "--json", "tagName", "-q", ".tagName"]) === tag) { console.log(`  ${produto.nome} ${versao} já está em ${repo}: pulado`); return "pulado"; }
-  if (conferir) { console.log(`  publicaria ${produto.nome} ${versao} em ${repo} (ficha do commit ${commitDerivado.slice(0, 12)}, core ${commitCore})`); return "conferido"; }
+  if (shOu("gh", ["release", "view", tag, "-R", repo, "--json", "tagName", "-q", ".tagName"]) === tag) { console.log(`  ${produto.nome} ${versao} já está em ${repo}: em dia`); return null; }
+  console.log(`  ${conferir ? "publicaria" : "falta publicar"} ${produto.nome} ${versao} em ${repo} (ficha do commit ${commitDerivado.slice(0, 12)}, core ${commitCore})`);
+  return { repo, pasta, produto, commitDerivado };
+}
 
+function publicar({ repo, pasta, produto, commitDerivado }, chave) {
   step(`empacotando ${produto.nome} ${versao}`);
   if (!rodar("npm", ["run", "build"]) || !rodar("npm", ["run", "build:extensao"])) throw new Error("o build do core falhou");
   if (!rodar("node", ["scripts/package.mjs", "--produto", pasta, "--versao", versao]) || !rodar("node", ["scripts/fuses.mjs", "--produto", pasta, "--no-install"])) throw new Error("o empacotamento falhou");
@@ -98,13 +97,27 @@ function publicar({ repo, pasta }) {
   step(`publicando ${tag} em ${repo}`);
   execFileSync("gh", argsReleaseDerivado({ tag, repo, arquivos: [zip, `${zip}.sig`], titulo: `${produto.nome} ${versao}`, notasArquivo, commitDerivado }), { stdio: "inherit" });
   console.log(`✓ ${produto.nome} ${versao} publicado em ${repo}`);
-  return "publicado";
 }
 
+// A ficha é validada pelo core compilado: sem dist/ (worktree recém-criado ou trocado de commit), compila antes.
+if (!existsSync(new URL("../dist/main/app/variant-core.js", import.meta.url)) && !rodar("npm", ["run", "build"])) { console.error("✗ o build do core falhou: sem ele não dá para validar as fichas"); process.exit(1); }
+
 let falhas = 0;
+const faltam = [];
 for (const d of itens) {
   step(`${d.repo}`);
-  try { publicar(d); } catch (e) { falhas++; console.error(`✗ ${d.repo}: ${e instanceof Error ? e.message : String(e)}`); }
+  try { const p = preparar(d); if (p !== null) faltam.push(p); } catch (e) { falhas++; console.error(`✗ ${d.repo}: ${e instanceof Error ? e.message : String(e)}`); }
+}
+if (!conferir && faltam.length > 0) {
+  // As mesmas travas da release do core, só quando há o que publicar: Developer ID no chaveiro e a chave da release.
+  const recusa = recusaSemDeveloperId(identidadeDeveloperId());
+  if (recusa !== null) { console.error(`✗ ${recusa}\nnada foi publicado`); process.exit(64); }
+  step("lendo a chave da release no Chaveiro");
+  const chave = lerChavePrincipal();
+  if (chave === null) { console.error("✗ a chave da release não está no Chaveiro (ou o acesso foi negado): nada foi publicado"); process.exit(1); }
+  for (const p of faltam) {
+    try { publicar(p, chave); } catch (e) { falhas++; console.error(`✗ ${p.repo}: ${e instanceof Error ? e.message : String(e)}`); }
+  }
 }
 if (falhas > 0) { console.error(`\n✗ ${falhas} de ${itens.length} derivado(s) não ${conferir ? "passaram na conferência" : "foram publicados"}`); process.exit(1); }
 console.log(`\n✓ ${itens.length} derivado(s) ${conferir ? "conferido(s); nada foi publicado" : "em dia"}`);

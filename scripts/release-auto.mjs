@@ -28,7 +28,7 @@ import { createHash } from "node:crypto";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { commitNoAr, dataPorExtenso, decideRodada, decideSite, decideSiteStaging, dirDoEstado, estavelMaisNova, fecharChangelog, plistDoAgente, QUIETUDE_MS, quietudeMinDoAmbiente, proximaBase, SITE_NO_AR, stagingMaisNovo, travaOrfa } from "./release-core.mjs";
+import { commitNoAr, dataPorExtenso, decideRodada, decideSite, decideSiteStaging, dirDoEstado, estavelMaisNova, fecharChangelog, plistDoAgente, QUIETUDE_MS, quietudeMinDoAmbiente, proximaBase, SITE_NO_AR, stagingMaisNovo, travaOrfa, versaoDasTags } from "./release-core.mjs";
 import { bundleDoStaging, saudeDesteMac } from "./release-saude.mjs";
 import { arquivosDeFragmento, lerFragmentos } from "./changelog-fragmentos.mjs";
 
@@ -132,14 +132,26 @@ function fazerStaging(sha) {
 
 /**
  * Os apps derivados deste Mac (lista fora do repositório, scripts/release-derivados.mjs), empacotados contra a
- * staging que acabou de sair. Passo à parte: a staging do core já está publicada, e a falha de um derivado só avisa.
- * Rodar de novo com a mesma versão pula o que já foi publicado.
+ * staging do commit em que o worktree está. Passo à parte: a staging do core já está publicada, e a falha de um
+ * derivado só avisa. Chamado logo depois da staging e de novo a cada rodada em que não há o que fazer no core: um
+ * derivado que falhou (ou que entrou na lista depois) alcança o core sem esperar a próxima staging. Com tudo em dia o
+ * script só confere as tags (não empacota nem pede a chave).
  */
 function publicarDerivados() {
   if (!existsSync(join(WT, "scripts", "release-derivados.mjs"))) return;
-  if (rodar("node", ["scripts/release-derivados.mjs"], WT)) return;
-  log("release dos derivados falhou (a staging do core saiu); veja o log");
-  avisar("derivados não publicados", "A staging do meu-bot saiu, mas a release de um app derivado falhou. Rode node scripts/release-derivados.mjs no worktree da release (log: ~/Library/Logs/meu-bot-release.log)");
+  // Só com o worktree no commit da staging: a versão do derivado é a da tag que aponta para ele.
+  const versao = versaoDasTags((shOu("git", ["tag", "--points-at", "HEAD"], WT) ?? "").split("\n"));
+  if (versao === null) return;
+  const estado = lerEstado();
+  if (rodar("node", ["scripts/release-derivados.mjs"], WT)) {
+    if (estado.derivadosFalhou !== undefined && estado.derivadosFalhou !== null) { log(`derivados em dia na ${versao}`); gravarEstado({ ...lerEstado(), derivadosFalhou: null }); }
+    return;
+  }
+  // Avisa uma vez por versão; a tentativa se repete a cada rodada até o derivado alcançar o core.
+  if (estado.derivadosFalhou === versao) return;
+  log(`release dos derivados falhou na ${versao} (a staging do core saiu); tento de novo a cada rodada`);
+  gravarEstado({ ...lerEstado(), derivadosFalhou: versao });
+  avisar("derivado ficou para trás", `A ${versao} do meu-bot saiu, mas a de um app derivado falhou. Tento de novo a cada 10 min (log: ~/Library/Logs/meu-bot-release.log)`);
 }
 
 function promover(sha, base) {
@@ -261,6 +273,7 @@ function rodada() {
         spawnSync("open", ["-g", "-j", bundleDoStaging(HOME)]);
       }
       if (/voltou para a anterior/.test(decisao.motivo) && estado.avisadoVolta !== tag) { avisar("staging não ficou de pé", decisao.motivo); gravarEstado({ ...lerEstado(), avisadoVolta: tag }); }
+      publicarDerivados();
       return;
     }
     const segurada = decisao.acao === "promover" ? motivoSegurar() : null;
