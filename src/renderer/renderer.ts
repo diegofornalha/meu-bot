@@ -1056,9 +1056,15 @@ function setTopbarHidden(hidden: boolean): void {
   try { localStorage.setItem("topbarShown", hidden ? "0" : "1"); } catch { /* opcional */ }
   paintMini();
 }
-/** O nome da máquina (ou da pessoa, na janela de suporte) no canto esquerdo da barra: o mesmo que a barra recolhida mostra. */
+/**
+ * O nome da máquina (ou da pessoa, na janela de suporte): o mesmo que a barra recolhida mostra. Fica ao lado da seta
+ * dos atalhos, na lateral; a barra de cima só o mostra quando a lista está escondida (style.css decide pelo `:has`).
+ */
 function paintTopbarHost(): void {
-  topbarHost.textContent = windowHost === "" ? "" : windowPersonName ?? hostLabel(windowHost);
+  const nome = windowHost === "" ? "" : windowPersonName ?? hostLabel(windowHost);
+  topbarHost.textContent = nome;
+  const naSeta = document.getElementById("atalhos-host");
+  if (naSeta !== null) naSeta.textContent = nome;
 }
 function paintMini(): void {
   if (topbarMini.hidden) return;

@@ -90,6 +90,8 @@ body.dragging webview, body.dragging .term-box, body.dragging iframe { pointer-e
 .topbar .topbar-host { -webkit-app-region: drag; font-size: 12px; font-weight: 600; color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; max-width: 45%; }
 .topbar .topbar-host::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 7px; border-radius: 50%; background: var(--host-accent, var(--accent)); }
 .topbar .topbar-host:empty { display: none; }
+/* Com a lista à mostra, o nome mora ao lado da seta dos atalhos (.atalhos-host); aqui ele só aparece sem a lista. */
+body:has(#sidebar:not([hidden])) .topbar .topbar-host { display: none; }
 .pill-host { color: var(--host-accent, var(--accent)); border-color: var(--host-accent, var(--accent)); font-weight: 600; }
 .spacer { flex: 1; }
 .pill { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
@@ -468,6 +470,9 @@ dialog .zoom-pct { min-width: 44px; text-align: center; font-variant-numeric: ta
 .atalhos-toggle:hover { background: var(--bg); color: var(--fg); }
 .atalhos-seta { display: inline-block; font-size: 10px; line-height: 1; transition: transform .12s ease; }
 .atalhos-toggle[aria-expanded="false"] .atalhos-seta { transform: rotate(-90deg); }
+/* O nome da máquina desta janela, ao lado da seta: antes ficava sozinho na barra de cima, uma linha acima. */
+.atalhos-host { font-size: 12px; font-weight: 600; line-height: 16px; color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.atalhos-host:empty { display: none; }
 /* Recolhido, pendencia la dentro vira um ponto; numero viraria ruido numa faixa de 16px. */
 .atalhos-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
 .atalhos-dot[hidden] { display: none; }
