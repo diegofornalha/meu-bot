@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { TUTORIAIS, contagemDoTour, emptyContext, emptyFlags, guideTabTitle, guideView, parseTutMemory, parseTutPulados, sidebarBadge, tutorialKnown, tutorialState, GUIDE_SOURCES, tutorialBadge, tutorialNumber, visibleTutorials } from "../../dist/renderer/lib/tutoriais.js";
+import { TUTORIAIS, estadoCurto, listaVaziaTexto, separarArquivados, contagemDoTour, emptyContext, emptyFlags, guideTabTitle, guideView, parseTutMemory, parseTutPulados, sidebarBadge, tutorialKnown, tutorialState, GUIDE_SOURCES, tutorialBadge, tutorialNumber, visibleTutorials } from "../../dist/renderer/lib/tutoriais.js";
 import { quemEscolhido } from "../../dist/renderer/lib/whatsapp-grupos.js";
 
 const wa = (over = {}) => ({ present: true, gateway: "openclaw", agent: "OpenClaw", ready: false, missing: null, connected: false, state: "", number: null, loggedOut: false, detail: "", dmPolicy: null, channelConfig: null, audioIn: false, audioOut: null, ...over });
@@ -460,4 +460,35 @@ test("tutorial 14 · Gmail (Pro): Pro → Conta Google → ler, buscar, lixeira 
   assert.equal(tutorialState(g, null, emptyFlags(), emptyContext(), null), "unknown", "sem a fonte google, verificando");
   assert.ok(visibleTutorials(emptyContext(), (x) => x.id === "claude-login").some((x) => x.id === "gmail"), "entra na trilha depois do 1");
   assert.equal(byId("crm-gmail").steps.find((s) => s.body === "crm-gmail").title, "Abrir o Gmail web no Navegador (com a barra do CRM)");
+});
+
+test("linha de arquivado: estado curto diz o número e se foi concluído ou pulado; pulado já começado diz até onde foi", () => {
+  assert.equal(estadoCurto({ number: 3, estado: "concluido" }), "Tutorial 3 · concluído");
+  assert.equal(estadoCurto({ number: 3, estado: "concluido", feitos: 5, passos: 5 }), "Tutorial 3 · concluído");
+  assert.equal(estadoCurto({ number: 4, estado: "pulado" }), "Tutorial 4 · pulado");
+  assert.equal(estadoCurto({ number: 4, estado: "pulado", feitos: 0, passos: 5 }), "Tutorial 4 · pulado");
+  assert.equal(estadoCurto({ number: 4, estado: "pulado", feitos: 2, passos: 5 }), "Tutorial 4 · pulado · 2 de 5");
+  // O tour não tem número.
+  assert.equal(estadoCurto({ number: null, estado: "pulado" }), "Tour · pulado");
+  assert.equal(estadoCurto({ number: null, estado: "concluido" }), "Tour · concluído");
+});
+
+test("arquivados: pulado não é concluído; cada grupo sai pelo número, o tour (0) primeiro, sem mexer na lista recebida", () => {
+  const itens = [{ n: 5, estado: "concluido" }, { n: 4, estado: "pulado" }, { n: 0, estado: "concluido" }, { n: 2, estado: "pulado" }, { n: 1, estado: "concluido" }];
+  const copia = itens.map((x) => ({ ...x }));
+  const g = separarArquivados(itens);
+  assert.deepEqual(g.pulados.map((x) => x.n), [2, 4]);
+  assert.deepEqual(g.concluidos.map((x) => x.n), [0, 1, 5]);
+  assert.deepEqual(itens, copia);
+  assert.deepEqual(separarArquivados([]), { pulados: [], concluidos: [] });
+});
+
+test("lista sem pendentes: aponta os pulados (que ficam à vista), não manda ligar interruptor por eles, e só diz 'nenhum' sem nenhum", () => {
+  assert.equal(listaVaziaTexto({ pulados: 0, concluidos: 0, mostraConcluidos: false }), "Nenhum tutorial ainda.");
+  assert.equal(listaVaziaTexto({ pulados: 0, concluidos: 0, mostraConcluidos: true }), "Nenhum tutorial ainda.");
+  assert.equal(listaVaziaTexto({ pulados: 1, concluidos: 0, mostraConcluidos: false }), 'Nada pendente. O tutorial pulado está logo abaixo: "Retomar" traz de volta.');
+  assert.equal(listaVaziaTexto({ pulados: 3, concluidos: 8, mostraConcluidos: false }), 'Nada pendente. Os 3 tutoriais pulados estão logo abaixo: "Retomar" traz de volta.');
+  assert.equal(listaVaziaTexto({ pulados: 0, concluidos: 8, mostraConcluidos: true }), "Tudo feito por aqui.");
+  assert.equal(listaVaziaTexto({ pulados: 0, concluidos: 8, mostraConcluidos: false }), 'Tudo feito por aqui. Ligue "concluídos" para rever um tutorial.');
+  for (const c of [{ pulados: 2, concluidos: 1, mostraConcluidos: true }, { pulados: 0, concluidos: 4, mostraConcluidos: false }]) assert.doesNotMatch(listaVaziaTexto(c), /Nenhum tutorial|arquivados/);
 });

@@ -14,6 +14,9 @@ test("plano vem antes de tudo e nunca vira erro técnico", () => {
 
 test("cada motivo técnico tem o seu estado e a sua ação", () => {
   assert.equal(est({ local: true }).kind, "local");
+  // Este Mac não tem tela, mas a página não é beco sem saída: o botão leva ao seletor de máquinas.
+  assert.equal(est({ local: true }).acao, "maquina");
+  assert.equal(est({ local: true }).botao, "Abrir uma máquina");
   assert.equal(est({ status: null }).kind, "carregando");
   const fora = est({ status: { instalada: false, rodando: false, erro: "a máquina não respondeu a tempo" } });
   assert.equal(fora.kind, "maquina-fora"); assert.equal(fora.acao, "status"); assert.match(fora.texto, /não respondeu/);

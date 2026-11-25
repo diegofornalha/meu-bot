@@ -63,6 +63,8 @@ export function paintListMode(): void {
   listModeBtn.hidden = !waMirrorAvailable();
   listModeBtn.classList.toggle("on", mode === "whatsapp");
   listModeBtn.title = mode === "whatsapp" ? "Mostrando o WhatsApp; clique para ver as conversas do meu-bot" : "Mostrando o meu-bot; clique para ver o WhatsApp";
+  // O botão é só um ícone: o nome para leitor de tela é o mesmo texto da dica.
+  listModeBtn.setAttribute("aria-label", listModeBtn.title);
   for (const b of listModeEl.querySelectorAll<HTMLButtonElement>("button")) { const on = b.dataset["mode"] === mode; b.classList.toggle("on", on); b.setAttribute("aria-selected", String(on)); }
   pintarContadorSugestoes();
   paintArquivadas();

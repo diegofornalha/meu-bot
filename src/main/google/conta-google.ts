@@ -113,10 +113,17 @@ export async function contaConectar(host: string): Promise<GoogleContaStatus> {
   if (!temKeychain()) throw new Error("este Mac não tem o Keychain disponível para guardar a autorização");
   if (!conectando.has(host)) {
     conectando.add(host);
-    void fluxo(host, c).catch((e: unknown) => log(`[google conta] login não concluído: ${e instanceof Error ? e.message : String(e)}`)).finally(() => conectando.delete(host));
+    void fluxo(host, c).catch((e: unknown) => log(`[google conta] login não concluído: ${e instanceof Error ? e.message : String(e)}`)).finally(() => { conectando.delete(host); for (const cb of loginTerminouListeners) { try { cb(host); } catch { /* ouvinte não derruba o login */ } } });
   }
   return contaStatus(host);
 }
+/**
+ * Quem quer saber que o login de uma máquina terminou, com ou sem conta (registrado em ipc/shared.ts). Sem este aviso
+ * as páginas abertas ficavam com o estado de antes: "Esperando você concluir o login…" na Conta Google e "a conta
+ * Google desconectou" no E-mail, mesmo com a conta já conectada.
+ */
+const loginTerminouListeners = new Set<(host: string) => void>();
+export function onContaLoginTerminou(cb: (host: string) => void): void { loginTerminouListeners.add(cb); }
 async function fluxo(host: string, c: { clientId: string; clientSecret: string }): Promise<void> {
   const verifier = randomBytes(48).toString("base64url");
   const challenge = (await import("node:crypto")).createHash("sha256").update(verifier).digest("base64url");

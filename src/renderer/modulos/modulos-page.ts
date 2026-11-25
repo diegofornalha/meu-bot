@@ -11,6 +11,7 @@
  */
 import type { MeuBotApi, ModuloPasso, ModuloVista, ModulosLista } from "../../shared/ipc";
 import { el } from "../lib/dom.js";
+import { cabecalho } from "../lib/pagina.js";
 import { carregando } from "../lib/carregando.js";
 import type { PageTab } from "../lib/pages-types.js";
 import { ipcErrorText } from "../lib/ipc-error.js";
@@ -204,7 +205,7 @@ export function mountModulosPage(deps: ModulosPageDeps): { open: () => void; rep
     if (v.selo !== null) topo.append(el("span", `pill modulo-selo ${v.selo.classe}`, v.selo.texto));
     c.append(topo, el("strong", "", "CRM"), el("span", "hint", "Vendas e atendimento"), el("p", "hint modulo-cartao-desc", "Pipelines e caixas dentro do Gmail; o agente anota as conversas do WhatsApp."));
     for (const l of v.linhas) c.append(el("span", "", l));
-    if (v.aviso !== null) c.append(el("p", `hint ${v.aviso.ruim ? "bad-hint" : "guide-pair-note"}`, v.aviso.texto));
+    if (v.aviso !== null) c.append(el("p", v.aviso.ruim ? "hint bad-hint" : "hint", v.aviso.texto));
     if (v.log.length > 0) { const pre = el("pre", "modulo-log hint"); pre.textContent = v.log.join("\n"); c.append(pre); }
     if (v.acoes.length > 0) {
       const a = el("div", "admin-actions");
@@ -425,18 +426,17 @@ export function mountModulosPage(deps: ModulosPageDeps): { open: () => void; rep
       return;
     }
     aberto = null;
-    const head = el("div", "guide-head");
-    const body = el("div", "tut-body");
-    // O selo é só "módulos": a página junta o que já vem no meu-bot e os produtos, e cada bloco leva o seu nome.
+    // A página junta o que já vem no meu-bot e os produtos, e cada bloco leva o seu nome. Os botões do topo ficam numa
+    // linha própria, no tamanho do texto (dentro do cabeçalho em coluna, "Ver o Marketplace" virava uma barra).
     const temProdutos = deps.temProdutos();
-    body.append(el("span", "tut-badge", "módulos"), el("h2", "", "Módulos"), el("p", "", temProdutos ? "Cada módulo é uma peça à parte: ligue só o que for usar. As chaves ficam na máquina, só com você." : "O que já vem com o meu-bot nesta máquina."));
+    const head = cabecalho("Módulos", temProdutos ? "Cada módulo é uma peça à parte: ligue só o que for usar. As chaves ficam na máquina, só com você." : "O que já vem com o meu-bot nesta máquina.");
+    const body = el("div", "admin-actions");
     // O que mais dá para contratar fica no console da conta (abre logado, no navegador).
     const mk = el("button", "btn btn-ghost btn-small", "Ver o Marketplace"); mk.type = "button";
     mk.title = "Abre no site o que dá para somar à sua conta: apps, máquinas e Macs a mais";
     // Falha ao abrir (sem navegador padrão, IPC fora): o motivo aparece ao lado do botão, em vez de o clique não fazer nada.
     mk.addEventListener("click", () => { mk.nextElementSibling?.classList.contains("mk-erro") && mk.nextElementSibling.remove(); void deps.api.contaAbrirConsole(CAMINHO_MARKETPLACE).catch((e: unknown) => { mk.after(el("p", "hint bad-hint mk-erro", `Não consegui abrir o Marketplace: ${ipcErrorText(e)}`)); }); });
-    head.append(body);
-    panel.append(head);
+    panel.append(head, body);
     if (!temProdutos) body.append(mk);
     // Sem produto de módulos nesta máquina: só o que já vem no meu-bot, sem "Atualizar módulos" e sem lista para ler.
     if (!temProdutos) {
@@ -448,7 +448,7 @@ export function mountModulosPage(deps: ModulosPageDeps): { open: () => void; rep
     b.disabled = baixando || lendo || ocupado !== null;
     b.title = "Confere o repositório de cada produto de módulos (git pull) e relê o estado na máquina";
     b.addEventListener("click", () => { void atualizar(); });
-    body.append(b, document.createTextNode(" "), mk);
+    body.append(b, mk);
     if (baixando) panel.append(carregando("Conferindo os repositórios dos módulos…"));
     if (erro !== null) panel.append(el("p", "hint bad-hint", erro));
     if (deps.crm !== null) panel.append(blocoIncluido(deps.crm));

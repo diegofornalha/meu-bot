@@ -11,10 +11,11 @@ import type { LicenseView, PlanName } from "../../shared/ipc";
 import { browserAccess, proBlockText, pagamentoDoBloqueio } from "../lib/pro.js";
 import { blocoPagamento } from "../lib/aviso-pagamento.js";
 import { el } from "../lib/dom.js";
+import { cabecalho } from "../lib/pagina.js";
 import { carregando } from "../lib/carregando.js";
 import type { PageTab } from "../lib/pages-types.js";
 import { ipcErrorText } from "../lib/ipc-error.js";
-import { ehContaDesconectada, erroGoogleTexto, statusAposErro } from "../lib/erro-google.js";
+import { contaVoltou, ehContaDesconectada, erroGoogleTexto, statusAposErro } from "../lib/erro-google.js";
 import { blocosDoCorpo } from "../lib/email-texto-core.js";
 
 /** O que a página conta ao guia (tutorial 14): a pessoa leu uma mensagem, buscou, mandou para a lixeira, desfez. */
@@ -57,11 +58,14 @@ export function mountGmail(deps: GmailDeps): { open: () => void; refresh: () => 
   let proPedido = false;
   /** Ponte do agente: estado da chave (null = ainda não perguntado) e se a máquina tem o MCP (null = este Mac). */
   let agente: GmailAgenteState | null = null; let instalado: boolean | null | "?" = "?"; let instalando = false;
-  deps.api.on("google-conta:changed", (st) => { status = st; if (!panel.hidden) { render(); if (st.conectado && !st.precisaReconectar) void carregarLista(); } });
+  /** A conta caiu no meio da sessão e o aviso vermelho está na tela: some quando ela volta. */
+  let caiu = false;
+  const voltou = (st: GoogleContaStatus | null): void => { if (contaVoltou(caiu, st)) { caiu = false; msg = null; } };
+  deps.api.on("google-conta:changed", (st) => { status = st; voltou(st); if (!panel.hidden) { render(); if (st.conectado && !st.precisaReconectar) void carregarLista(); } });
   deps.api.on("gmail:agent", (st) => { agente = st; if (!panel.hidden) render(); });
 
   async function refresh(): Promise<void> {
-    try { status = await deps.api.googleContaStatus(); } catch (e) { msg = { text: ipcErrorText(e), bad: true }; }
+    try { status = await deps.api.googleContaStatus(); voltou(status); } catch (e) { msg = { text: ipcErrorText(e), bad: true }; }
     render();
     if (status?.conectado && !status.precisaReconectar) {
       // A chave do agente: perguntar liga sozinha (padrão ligado, salvo se a pessoa desligou); e se a máquina já tem o MCP (uma vez).
@@ -81,7 +85,7 @@ export function mountGmail(deps: GmailDeps): { open: () => void; refresh: () => 
   function contaCaiu(e: unknown): boolean {
     if (!ehContaDesconectada(e)) return false;
     status = statusAposErro(status, e); lista = null; listaErro = null; detalhe = null; detalheErro = null; abrindo = null;
-    msg = { text: erroGoogleTexto(e), bad: true };
+    msg = { text: erroGoogleTexto(e), bad: true }; caiu = true;
     return true;
   }
   async function instalarNaMaquina(): Promise<void> {
@@ -128,9 +132,7 @@ export function mountGmail(deps: GmailDeps): { open: () => void; refresh: () => 
 
   function render(): void {
     panel.replaceChildren();
-    const head = el("div", "guide-head"); const hb = el("div", "tut-body");
-    hb.append(el("span", "tut-badge", "e-mail"), el("h2", "", "E-mail"), el("p", "", status !== null ? `Seus e-mails da Conta Google da máquina ${status.maquina}, aqui dentro do meu-bot. Leia, busque e mande para a lixeira; o que vai para a lixeira pode voltar por 30 dias. O acesso fica só neste Mac.` : "Seus e-mails da Conta Google desta máquina, aqui dentro do meu-bot."));
-    head.append(hb); panel.append(head);
+    panel.append(cabecalho("E-mail", status !== null ? `Seus e-mails da Conta Google da máquina ${status.maquina}. O que vai para a lixeira pode voltar por 30 dias.` : "Seus e-mails da Conta Google desta máquina."));
     // Módulo Pro: sem o plano, a página é o bloqueio (como a Conta Google), com o pedido ao admin.
     if (!deps.licenseKnown()) { panel.append(carregando("Consultando a licença desta máquina…")); return; }
     const acesso = browserAccess(deps.license(), deps.host(), deps.planoExigido, deps.produto);
@@ -141,7 +143,7 @@ export function mountGmail(deps: GmailDeps): { open: () => void; refresh: () => 
       if (pg !== null) c.append(blocoPagamento(pg));
       if (t.askAdmin) {
         const b = btn(proPedido ? "Pedido enviado ao admin ✓" : acesso === "assinatura" ? "Avisar o admin" : acesso === "expired" ? "Pedir a renovação ao admin" : "Pedir o Pro ao admin", "btn-primary", () => { void agir(async () => { await deps.api.browserRequestPro(); proPedido = true; }, "pedido enviado ao admin; assim que ele liberar, esta página abre"); });
-        b.disabled = busy || proPedido; c.append(b);
+        b.disabled = busy || proPedido; const pa = el("div", "admin-actions"); pa.append(b); c.append(pa);
       }
       panel.append(c); if (msg) panel.append(el("p", `hint ${msg.bad ? "bad-hint" : ""}`, msg.text)); return;
     }

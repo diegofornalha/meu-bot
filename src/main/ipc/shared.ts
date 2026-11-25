@@ -32,7 +32,7 @@ import { applyQuickEntryShortcut } from "../app/quickEntry";
 import { getMemory, NOTAS_MAX, PERFIL_MAX, setMemory } from "../conversa/memory";
 import { knownModels, showPicker } from "../maquina/picker";
 import { broadcast, sendToHost } from "../app/windows";
-import { adotarContaDoMac, contaConectar, contaDesconectar, contaStatus, garantirFotoPerfil, onContaDesconectada } from "../google/conta-google";
+import { adotarContaDoMac, contaConectar, contaDesconectar, contaStatus, garantirFotoPerfil, onContaDesconectada, onContaLoginTerminou } from "../google/conta-google";
 import { garantirClientesGoogle } from "../google/cliente-release";
 import { dispararDadosAoDrive, enviarDadosAoDrive, estadoDadosDrive, listarCopias, pastaBackupDados, restaurarDoDrive } from "../google/dados-drive";
 import { definirSenhaBackup, limparSenhaBackup, temSenhaBackup } from "../google/senha-backup";
@@ -137,6 +137,9 @@ export function registerSharedIpc(deps: SharedIpcDeps): void {
   // O Google recusou renovar e o main apagou o token: as janelas da máquina viram "desconectada" na hora (a página E-mail
   // volta ao cartão com "Entrar com Google") e o agente do Gmail para, como no desconectar pela pessoa.
   onContaDesconectada((host) => { gmailAgenteParar(host); sendToHost(host, "google-conta:changed", contaStatus(host)); });
+  // O login terminou (a pessoa concluiu no Navegador, recusou ou passou do prazo): as janelas da máquina repintam com o
+  // estado de agora, em vez de esperar a página ser reaberta.
+  onContaLoginTerminou((host) => { sendToHost(host, "google-conta:changed", contaStatus(host)); });
   // Cópia do CRM e do financeiro desta máquina no Drive da Conta Google: estado, "guardar agora" e o interruptor.
   handleShared("backup-dados:status", (event) => {
     const h = hostFromEvent(event); if (h === null) throw new Error("origem inválida");
