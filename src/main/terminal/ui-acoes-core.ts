@@ -4,11 +4,13 @@
  * o renderer ouve dois eventos do DOM (`meu-bot:comandos`, `meu-bot:comando`, em renderer.ts) e devolve no `detail`.
  * Sem canal de IPC novo: quem consegue disparar estes eventos já roda código na página. Puro, testado.
  */
+import { literalJs } from "../navegador/nav-donos-core";
+
 /** A lista inteira da paleta (ações, conversas, tutoriais, modelos), sem o corte de 30 da tela. */
 export const LISTAR_COMANDOS = `(() => { const d = {}; document.dispatchEvent(new CustomEvent("meu-bot:comandos", { detail: d })); if (!Array.isArray(d.itens)) throw new Error("a interface não respondeu: a janela ainda está carregando?"); return d.itens; })()`;
 
 /** Roda a ação com esse id (os de `comando_listar`); id desconhecido é erro, não silêncio. */
-export const rodarComando = (id: string): string => `(() => { const d = { id: ${JSON.stringify(id)} }; document.dispatchEvent(new CustomEvent("meu-bot:comando", { detail: d })); if (d.achou !== true) throw new Error("comando desconhecido: veja os ids em comando_listar"); return true; })()`;
+export const rodarComando = (id: string): string => `(() => { const d = { id: ${literalJs(id)} }; document.dispatchEvent(new CustomEvent("meu-bot:comando", { detail: d })); if (d.achou !== true) throw new Error("comando desconhecido: veja os ids em comando_listar"); return true; })()`;
 
 /**
  * Manda a mensagem na conversa da frente, pelo mesmo caminho da pessoa: o texto na caixa e o clique em Enviar (a bolha
@@ -21,7 +23,7 @@ export const enviarMensagem = (texto: string): string => `(() => {
   // a caixa fica desligada e o botão vira "Parar".
   if (botao.disabled) throw new Error("nenhuma conversa na frente: traga uma (ui_clicar na aba dela) ou abra outra (comando_rodar a:new)");
   if (campo.disabled || botao.classList.contains("btn-bad")) throw new Error("o agente ainda está respondendo nesta conversa: espere (conversa_ler diz ocupada) ou abra outra (comando_rodar a:new)");
-  campo.value = ${JSON.stringify(texto)}; campo.dispatchEvent(new Event("input", { bubbles: true }));
+  campo.value = ${literalJs(texto)}; campo.dispatchEvent(new Event("input", { bubbles: true }));
   botao.click();
   return true;
 })()`;
