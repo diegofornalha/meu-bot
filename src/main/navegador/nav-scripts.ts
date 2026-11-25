@@ -72,6 +72,17 @@ export const focarScript = (target: string): string => `(() => { const e = ${tar
  * editável): aí quem chamou usa o `insertText`.
  */
 export const digitarValorScript = (target: string, texto: string): string => `(() => { const e = ${target}; e.scrollIntoView({ block: "center" }); e.focus(); if (!("value" in e) || typeof e.value !== "string") return false; e.value = ${JSON.stringify(texto)}; e.dispatchEvent(new Event("input", { bubbles: true })); e.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`;
+/**
+ * O `executeJavaScript` troca qualquer erro lançado na página por "Script failed to execute…", e a mensagem certa
+ * ("comando desconhecido", "nada com o seletor") se perdia. Este invólucro a traz de volta como valor; `valorOuErro`
+ * a relança no processo principal.
+ */
+export const comErro = (script: string): string => `(() => { try { return { v: ${script} }; } catch (e) { return { erro: String((e && e.message) || e) }; } })()`;
+export function valorOuErro(r: unknown): unknown {
+  const o = (r !== null && typeof r === "object" ? r : {}) as { v?: unknown; erro?: unknown };
+  if (typeof o.erro === "string") throw new Error(o.erro);
+  return o.v;
+}
 
 const TECLAS: Record<string, string> = { enter: "Return", tab: "Tab", esc: "Escape", escape: "Escape", backspace: "Backspace", space: "Space", up: "Up", down: "Down", left: "Left", right: "Right", pagedown: "PageDown", pageup: "PageUp" };
 /** O nome da tecla pedido → o keyCode do Electron; recusa o que não conhece. */
