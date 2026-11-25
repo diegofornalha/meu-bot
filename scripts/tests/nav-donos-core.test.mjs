@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
-const { DONO_SEM_IDENTIDADE, parseDono, limpar, abasDe, escolherAba, decidirAbrir, tomar, donoTexto, podeFechar, abasParaRecarregar, POSSE_TTL_MS, MAX_ABAS } = createRequire(import.meta.url)("../../dist/main/navegador/nav-donos-core.js");
+const { literalJs, DONO_SEM_IDENTIDADE, parseDono, limpar, abasDe, escolherAba, decidirAbrir, tomar, donoTexto, podeFechar, abasParaRecarregar, POSSE_TTL_MS, MAX_ABAS } = createRequire(import.meta.url)("../../dist/main/navegador/nav-donos-core.js");
 
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64");
 const WA = { id: "agent:main:whatsapp:direct:+5516992294486", rotulo: "WhatsApp", origem: "whatsapp" };
@@ -92,4 +92,12 @@ test("fechar: as abas da pessoa no mesmo site recarregam; as de conversas, de ou
   assert.deepEqual(abasParaRecarregar("about:blank", abas, 7, posses), [], "aba fechada sem origem: nada");
   assert.deepEqual(abasParaRecarregar("não é url", abas, 7, posses), []);
   assert.deepEqual(abasParaRecarregar("https://dalefit.cloud:8443/", abas, 7, posses), [], "porta diferente é outra origem");
+});
+
+test("literalJs: o texto do agente vira literal que não fecha o script e volta igual ao ser lido", () => {
+  for (const t of ['a[href="x"] > b', "</script><script>alert(1)//", "linha\u2028outra\u2029fim", "aspas \" e \\ barra", "ação <ok>"]) {
+    const lit = literalJs(t);
+    assert.equal(/[<>\u2028\u2029]/.test(lit), false, lit);
+    assert.equal(new Function(`return ${lit}`)(), t);
+  }
 });

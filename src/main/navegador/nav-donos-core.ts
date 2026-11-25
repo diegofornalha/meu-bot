@@ -121,3 +121,12 @@ export function abasParaRecarregar(urlFechada: string, abas: readonly { id: numb
   if (alvo === null) return [];
   return abas.filter((a) => a.id !== fechada && !posses.has(a.id) && origem(a.url) === alvo).map((a) => a.id);
 }
+
+/**
+ * Texto do agente (seletor, texto do botão) como literal dentro do script que a aba executa. O `JSON.stringify` sozinho
+ * deixa passar `<`, `>`, U+2028 e U+2029, que em alguns contextos (script embutido em HTML, motores antigos) fecham o
+ * literal; aqui eles viram `\uXXXX`, que o JavaScript lê como o mesmo caractere.
+ */
+export function literalJs(texto: string): string {
+  return JSON.stringify(texto).replace(/[<>\u2028\u2029]/g, (c) => "\\u" + c.charCodeAt(0).toString(16).padStart(4, "0"));
+}
