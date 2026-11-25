@@ -8,7 +8,7 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const core = require("../../dist/main/modulos/modulos-core.js");
 const mb = require("../../backend-colima/modulos.js");
-const { capsFor, produtoDe, ADDONS } = require("../../dist/main/app/variant-core.js");
+const { capsFor, parseFichaExterna, ADDONS } = require("../../dist/main/app/variant-core.js");
 
 const MANIFESTO = {
   produto: "meu-bot-diego",
@@ -121,16 +121,17 @@ test("backend: provedores de um módulo só entram com o módulo ligado e libera
   assert.deepEqual(mb.provedores(ok, { base: join(base, "nao-existe") }), []);
 });
 
-test("variante meu-bot-diego-staging: só ela leva os módulos (abre na página Módulos); o add-on está no catálogo e na cópia do backend", () => {
-  assert.equal(capsFor("diego-staging").modulos, "meu-bot-diego");
-  assert.equal(produtoDe("diego-staging").nome, "meu-bot-diego-staging");
-  assert.equal(produtoDe("diego-staging").abreEm, "modulos");
+test("produto de módulos fixo: nenhum app do core tem (é de app derivado, pela ficha); o add-on está no catálogo e na cópia do backend", () => {
   for (const v of ["client", "client-staging", "inspector-staging", "admin"]) assert.equal(capsFor(v).modulos, null, v);
+  // O meu-bot-diego-staging saiu do core: a ficha dele (github.com/diegofornalha/meu-bot-diego-app) é que liga os módulos.
+  const diego = parseFichaExterna({ nome: "meu-bot-diego-staging", bundleId: "local.meu-bot-diego.staging", canal: "staging", portaLocal: 8794, portaWsl: 2294, portaMcp: 7836, herdaDe: "meu-bot-staging", abreEm: "modulos", modulos: "meu-bot-diego", addon: "meu-bot-diego" });
+  assert.equal(diego.ok, true, diego.erro);
+  assert.deepEqual([diego.produto.caps.modulos, diego.produto.abreEm], ["meu-bot-diego", "modulos"]);
   assert.ok(ADDONS.some((a) => a.nome === "meu-bot-diego"));
   // Add-ons com módulos por licença: o Financeiro, do repositório público meu-bot-finance (issue #312), e o Grok (xAI),
   // do repositório privado meu-bot-grok (o Grok saiu do produto base e virou módulo opcional).
   assert.deepEqual(ADDONS.filter((a) => a.modulos).map((a) => a.nome), ["meu-bot-finance", "meu-bot-grok"]);
-  for (const v of ["client", "diego-staging"]) assert.deepEqual(capsFor(v).addons.map((a) => [a.nome, a.modulos]), ADDONS.map((a) => [a.nome, a.modulos]), v);
+  for (const v of ["client", "client-staging"]) assert.deepEqual(capsFor(v).addons.map((a) => [a.nome, a.modulos]), ADDONS.map((a) => [a.nome, a.modulos]), v);
   assert.ok(require("../../backend-colima/licenca.js").produtoOk({ plan: "free", status: "active", produtos: ["meu-bot-diego"] }, "meu-bot-diego"));
 });
 

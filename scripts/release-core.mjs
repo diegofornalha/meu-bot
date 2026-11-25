@@ -36,11 +36,10 @@ export function recusaSemDeveloperId(identidade, permitido = false) {
 }
 
 /**
- * Produtos que cada canal publica: staging = as linhas staging; estável = as estáveis (o admin inclusive). Ficam de
- * fora os produtos de módulos (`caps.modulos`, como o meu-bot-diego-staging): eles se empacotam à mão por enquanto
- * (docs/guia/meu-bot-diego.md); os módulos não vão no app, ele os baixa do repositório do produto.
+ * Produtos que cada canal publica: staging = as linhas staging; estável = as estáveis (o admin inclusive). São só os
+ * apps do core: um app derivado não está na tabela, sai do repositório dele pela release de derivados (mais abaixo).
  */
-export const produtosDoCanal = (produtos, canal) => produtos.filter((p) => p.canal === canal && (p.caps?.modulos ?? null) === null);
+export const produtosDoCanal = (produtos, canal) => produtos.filter((p) => p.canal === canal);
 /** Os do canal que também saem com o instalador .dmg (o app das pessoas: campo `instalador` em variant-core.ts). */
 export const produtosComInstalador = (produtos, canal) => produtosDoCanal(produtos, canal).filter((p) => p.instalador === true);
 
