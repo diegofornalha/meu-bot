@@ -35,7 +35,7 @@ test("linha da lateral da página na frente", () => {
 
 test("toda linha que linhaDaPagina devolve existe no index.html", () => {
   const html = ler("index.html");
-  for (const id of ["tutoriais", "acervo", "conta-google", "gmail", "computador", "inspector", "modulos", "navegador", "suporte", "auditoria", "preparar", "usuarios", "claude-global", "link-publico", "term-1"]) {
+  for (const id of ["tutoriais", "acervo", "conta-google", "gmail", "computador", "inspector", "modulos", "extensao", "navegador", "suporte", "auditoria", "preparar", "usuarios", "claude-global", "link-publico", "term-1"]) {
     assert.ok(html.includes(`id="${linhaDaPagina(id)}"`), `falta a linha de ${id}`);
   }
 });
