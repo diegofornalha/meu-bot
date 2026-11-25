@@ -4,11 +4,15 @@
  * Puro: testável com node --test.
  */
 
-/** O texto dos endereços soltos: um ao lado do outro; endereço com espaço vai entre aspas, para não se partir em dois. */
+/**
+ * O texto dos endereços soltos: um ao lado do outro; endereço com espaço ou aspa vai entre aspas, para não se partir em
+ * dois, e a aspa de dentro ganha uma barra. A barra invertida fica como está: é o separador dos endereços do Windows
+ * (onde nome de arquivo não tem aspa), e dobrá-la estragaria todo endereço com espaço de lá.
+ */
 export function textoDosCaminhos(caminhos: readonly string[]): string {
   return caminhos
     .filter((c) => c !== "")
-    .map((c) => (/\s/.test(c) ? `"${c}"` : c))
+    .map((c) => (/[\s"]/.test(c) ? `"${c.replace(/"/g, '\\"')}"` : c))
     .join(" ");
 }
 
