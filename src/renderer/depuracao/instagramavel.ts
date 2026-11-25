@@ -6,7 +6,7 @@
  *    voltam. As de uma aba valem até a página dela mudar (log do Navegador que mexe nela, endereço diferente) ou
  *    MARCAS_MS depois da leitura.
  *  - Lista: os logs sem lugar na página (nota, abrir aba, terminal) ficam numa coluna fixa no canto de baixo, à direita, com quem
- *    agiu e o que fez; saem aos poucos depois de SILENCIO_MS.
+ *    agiu e o que fez; saem aos poucos depois de SILENCIO_MS, ou na hora, um a um, pelo × de cada aviso.
  * O cursor do agente (cursor-agente.ts, o modo "real") tem a cena: enquanto ele está nela, marcas e lista saem.
  * Nada aqui se mexe sozinho. Liga no seletor (o ✨ colado no Intro) ou na paleta; gravado em `instagramavel`.
  */
@@ -113,7 +113,11 @@ function listar(e: EventoDepuracao): void {
   const item = document.createElement("div"); item.className = `insta-item${e.ok ? "" : " insta-erro"}`;
   const nome = Object.assign(document.createElement("span"), { className: "insta-nome", textContent: rotuloDoDono(e.dono) });
   const texto = Object.assign(document.createElement("span"), { className: "insta-fala", textContent: fala });
-  item.append(nome, texto);
+  // O × tira este aviso na hora, sem esperar o silêncio. O palco não recebe clique (não pode tapar a página): só o × recebe.
+  const fechar = Object.assign(document.createElement("button"), { type: "button", className: "insta-fechar", textContent: "×", title: "Tirar este aviso da tela" });
+  fechar.setAttribute("aria-label", "Tirar este aviso da tela");
+  fechar.addEventListener("click", () => item.remove());
+  item.append(nome, texto, fechar);
   posicionarLista();
   listaEl.append(item);
   while (listaEl.children.length > LISTA_MAX) listaEl.firstElementChild?.remove();

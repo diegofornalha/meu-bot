@@ -1305,6 +1305,10 @@ table.fin-abc tr.fin-abc-C td.fin-abc-tag { color: #757575; }
 .insta-item.sai { opacity: 0; }
 .insta-nome { flex: none; padding: 1px 6px; border-radius: 6px; background: #111; color: #fff; font-weight: 600; font-size: 11px; white-space: nowrap; }
 .insta-fala { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* O × de cada aviso: o palco é `pointer-events: none` (não tapa a página), então só este botão recebe o clique. */
+.insta-fechar { flex: none; align-self: center; pointer-events: auto; width: 18px; height: 18px; margin-right: -4px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font: 600 14px/1 -apple-system, system-ui, sans-serif; cursor: pointer; }
+.insta-fechar:hover { background: var(--bg); color: var(--fg); }
+.insta-item.sai .insta-fechar { pointer-events: none; }
 @keyframes insta-entra { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .insta-marca, .insta-item { animation: none; } .insta-item { transition: none; } }
 
