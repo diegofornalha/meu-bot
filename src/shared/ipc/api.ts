@@ -288,6 +288,8 @@ export interface MeuBotSharedApi {
   zoomFactorNow(): number;
   /** Abre um link http(s) no navegador do sistema. */
   openExternal(url: string): Promise<void>;
+  /** Endereço no disco de um arquivo ou pasta solto na janela (File do evento de drop); "" se não veio do disco. Só neste computador. */
+  caminhoDoArquivo(arquivo: object): string;
   on<K extends MainEventChannel>(channel: K, callback: (payload: MainEvents[K]) => void): () => void;
 }
 
