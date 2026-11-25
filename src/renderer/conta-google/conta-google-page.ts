@@ -103,12 +103,9 @@ export function mountContaGoogle(deps: ContaGoogleDeps): { open: () => void; ref
 
   /** Botões lado a lado no tamanho do texto: `.admin-card` é flex em coluna e esticaria o botão solto à largura toda. */
   const acoes = (...bs: HTMLElement[]): HTMLElement => { const a = el("div", "admin-actions"); a.append(...bs); return a; };
-  /**
-   * Ação destrutiva: cor de perigo desde o primeiro olhar e segundo clique pelo `armConfirm`. Ele tira o `btn-bad` ao
-   * desarmar (é a classe que ele mesmo põe ao armar), então a cor é devolvida aqui depois dos 4 s dele.
-   */
+  /** Ação destrutiva: cor de perigo desde o primeiro olhar e segundo clique pelo `armConfirm` (que preserva a cor). */
   const perigo = (label: string, confirmar: string, run: () => void): HTMLButtonElement => {
-    const b = btn(label, "btn-bad", () => { deps.armConfirm(b, confirmar, run); window.setTimeout(() => { b.classList.add("btn-bad"); }, 4100); });
+    const b = btn(label, "btn-bad", () => { deps.armConfirm(b, confirmar, run); });
     return b;
   };
   // O motivo de atenção do backup enquanto o estado é relido (cada ação relê): sem isto a seção piscaria fechada.

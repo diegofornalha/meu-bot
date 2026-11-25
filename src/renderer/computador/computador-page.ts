@@ -101,7 +101,8 @@ export function mountComputador(deps: ComputadorDeps): { open: () => void; repin
 
   async function agir(acao: AcaoComputador): Promise<void> {
     nota = null;
-    if (acao === "maquina") { void deps.api.openPicker(); return; } // o seletor, como "Nova janela em outra máquina" da paleta
+    // O seletor, como "Nova janela em outra máquina" da paleta. Falhou: o motivo aparece no cartão, em vez de o clique não fazer nada.
+    if (acao === "maquina") { void deps.api.openPicker().catch((e: unknown) => { nota = { text: `Não consegui abrir o seletor de máquinas: ${ipcErrorText(e)}`, bad: true }; render(); }); return; }
     if (acao === "status") { status = null; render(); await lerStatus(); return; }
     if (acao === "reconectar") { quedas = []; caiuDemais = false; await abrirTela(); return; }
     if (acao === "instalar") {
@@ -131,8 +132,9 @@ export function mountComputador(deps: ComputadorDeps): { open: () => void; repin
     const est = estadoComputador({ local: deps.local(), acesso: a, status, fase, instalacaoPrecisaAdmin: precisaAdmin, caiuDemais, semImagem });
     telaBox.hidden = !est.mostrarTela;
     if (!est.mostrarTela && wv !== null && est.kind !== "caiu") fecharTela();
-    const head = el("div", "computador-head");
-    head.append(el("span", "tut-badge", "computador"));
+    // Título no lugar da etiqueta verde; com a tela à mostra ele encolhe, para a tela ficar com a altura.
+    const head = el("div", est.mostrarTela ? "computador-head com-tela" : "computador-head");
+    head.append(el("h2", "", "Computador"));
     if (est.kind === "sem-plano" && a !== "ok") {
       const t = proBlockText(a, deps.license(), "computador", deps.produto);
       const c = el("div", "admin-card"); c.append(el("strong", "", t.title), el("p", "", t.text));
@@ -153,7 +155,7 @@ export function mountComputador(deps: ComputadorDeps): { open: () => void; repin
     const c = el("div", "admin-card computador-card");
     c.append(el("strong", "", est.titulo));
     if (est.texto !== "") c.append(el("p", "", est.texto));
-    if (est.acao !== null && est.botao !== null) { const acao = est.acao; c.append(btn(est.botao, "btn-primary", () => { void agir(acao); })); }
+    if (est.acao !== null && est.botao !== null) { const acao = est.acao; const pa = el("div", "admin-actions"); pa.append(btn(est.botao, "btn-primary", () => { void agir(acao); })); c.append(pa); }
     if (nota !== null) c.append(el("p", `hint ${nota.bad ? "bad-hint" : ""}`, nota.text));
     estadoBox.replaceChildren(head, c);
   }

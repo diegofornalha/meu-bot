@@ -11,6 +11,7 @@ import type { LicenseView, PlanName } from "../../shared/ipc";
 import { browserAccess, proBlockText, pagamentoDoBloqueio } from "../lib/pro.js";
 import { blocoPagamento } from "../lib/aviso-pagamento.js";
 import { el } from "../lib/dom.js";
+import { cabecalho } from "../lib/pagina.js";
 import { carregando } from "../lib/carregando.js";
 import type { PageTab } from "../lib/pages-types.js";
 import { ipcErrorText } from "../lib/ipc-error.js";
@@ -131,9 +132,7 @@ export function mountGmail(deps: GmailDeps): { open: () => void; refresh: () => 
 
   function render(): void {
     panel.replaceChildren();
-    const head = el("div", "guide-head"); const hb = el("div", "tut-body");
-    hb.append(el("span", "tut-badge", "e-mail"), el("h2", "", "E-mail"), el("p", "", status !== null ? `Seus e-mails da Conta Google da máquina ${status.maquina}, aqui dentro do meu-bot. Leia, busque e mande para a lixeira; o que vai para a lixeira pode voltar por 30 dias. O acesso fica só neste Mac.` : "Seus e-mails da Conta Google desta máquina, aqui dentro do meu-bot."));
-    head.append(hb); panel.append(head);
+    panel.append(cabecalho("E-mail", status !== null ? `Seus e-mails da Conta Google da máquina ${status.maquina}. O que vai para a lixeira pode voltar por 30 dias.` : "Seus e-mails da Conta Google desta máquina."));
     // Módulo Pro: sem o plano, a página é o bloqueio (como a Conta Google), com o pedido ao admin.
     if (!deps.licenseKnown()) { panel.append(carregando("Consultando a licença desta máquina…")); return; }
     const acesso = browserAccess(deps.license(), deps.host(), deps.planoExigido, deps.produto);
@@ -144,7 +143,7 @@ export function mountGmail(deps: GmailDeps): { open: () => void; refresh: () => 
       if (pg !== null) c.append(blocoPagamento(pg));
       if (t.askAdmin) {
         const b = btn(proPedido ? "Pedido enviado ao admin ✓" : acesso === "assinatura" ? "Avisar o admin" : acesso === "expired" ? "Pedir a renovação ao admin" : "Pedir o Pro ao admin", "btn-primary", () => { void agir(async () => { await deps.api.browserRequestPro(); proPedido = true; }, "pedido enviado ao admin; assim que ele liberar, esta página abre"); });
-        b.disabled = busy || proPedido; c.append(b);
+        b.disabled = busy || proPedido; const pa = el("div", "admin-actions"); pa.append(b); c.append(pa);
       }
       panel.append(c); if (msg) panel.append(el("p", `hint ${msg.bad ? "bad-hint" : ""}`, msg.text)); return;
     }
