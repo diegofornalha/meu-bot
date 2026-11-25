@@ -39,7 +39,7 @@ const S = (props: Record<string, unknown>, required: string[] = []): Ferramenta[
 const MAQ = { maquina: { type: "string", description: "máquina da janela (ex.: agente-box-lv); opcional se só uma janela está aberta" } };
 const ABA = { aba: { type: "number", description: "id da aba do Navegador (veja nav_abas); sem ele, a aba deste cliente" } };
 /** Páginas que `pagina_abrir` põe na frente (as mesmas que a aba fixada sabe abrir). */
-export const PAGINAS_APP = ["tutoriais", "acervo", "inspector", "modulos", "conta-google", "gmail", "computador", "navegador"] as const;
+export const PAGINAS_APP = ["tutoriais", "acervo", "inspector", "modulos", "extensao", "conta-google", "gmail", "computador", "navegador"] as const;
 export type PaginaApp = (typeof PAGINAS_APP)[number];
 export const TEMAS = ["system", "light", "dark"] as const;
 

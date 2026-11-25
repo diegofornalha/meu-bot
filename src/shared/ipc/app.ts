@@ -77,7 +77,7 @@ export interface SettingsView {
  * Aba que fica na frente ao abrir: "padrao" = a do produto (Inspector no inspector-staging, Tutoriais nos outros, para
  * quem chega leigo); "conversa" = sem alfinete, a última conversa; o resto é o id de uma página.
  */
-export type AbaFixa = "padrao" | "conversa" | "tutoriais" | "acervo" | "conta-google" | "gmail" | "computador" | "inspector" | "modulos" | "navegador" | "usuarios";
+export type AbaFixa = "padrao" | "conversa" | "tutoriais" | "acervo" | "conta-google" | "gmail" | "computador" | "inspector" | "modulos" | "extensao" | "navegador" | "usuarios";
 
 export interface SettingsUpdate {
   backendModel?: BackendModel;
@@ -174,6 +174,11 @@ export interface Capabilities {
   /** meu-bot-inspector-staging: botão e página Inspector (o MCP Inspector oficial ligado ao controle externo deste app). */
   inspector: boolean;
   /**
+   * Página própria de um app derivado (o campo `extensao` da ficha; contrato em src/shared/ipc/derivado.ts): o texto do
+   * botão da lateral. null = o app não traz página própria, que é o caso de todo app da tabela.
+   */
+  extensao: { rotulo: string } | null;
+  /**
    * Produto de módulos fixo deste app (o add-on cujo repositório o app baixa sempre, como o meu-bot-diego no
    * meu-bot-diego-staging, um app derivado): a página "Módulos" fica sempre. null = sem produto fixo; os add-ons com `modulos` na licença
    * da máquina ainda trazem a página (src/main/modulos/modulos-fonte-core.ts, `produtosDeModulos`).
@@ -197,7 +202,7 @@ export interface Capabilities {
   titulo: string;
   /** Add-on que é a razão deste app (a entrada dele fica sempre à vista); null = nenhum. Tabela em variant-core.ts. */
   addon: string | null;
-  /** Página que fica na frente quando a janela abre ("inspector", "modulos"); null = as abas de conversa. */
+  /** Página que fica na frente quando a janela abre ("inspector", "modulos", "extensao"); null = as abas de conversa. */
   abreEm: string | null;
   /** Catálogo de add-ons (nome e rótulo para ler), para as telas não escreverem nomes à mão. */
   /** `modulos`: o add-on chega como módulos (página Módulos) quando está na licença da máquina. */
