@@ -100,8 +100,23 @@ A lista fica **fora do repositório do core**, em `~/Library/Application Support
   espere a próxima.
 - `node scripts/release-derivados.mjs --conferir` diz o que publicaria, sem empacotar, sem pedir a chave e sem publicar.
 
-Quem tem permissão de escrita no repositório de um derivado listado faz o Mac publicar um app assinado com a ficha de
-lá. A ficha só escolhe nome, portas e páginas (não traz código), mas proteja o ramo padrão do repositório.
+### Commit aprovado
+
+Quem tem permissão de escrita no repositório de um derivado listado faz o Mac publicar um app assinado com o que está
+lá. Para um derivado **só de ficha e ícone** isso é pouco: a ficha escolhe nome, portas e páginas do core, não traz
+código. Proteja o ramo padrão do repositório e pronto.
+
+Um derivado que traz **código próprio** (a pasta `codigo/`) é outra coisa: esse código é compilado, assinado com o
+Developer ID e distribuído por atualização automática. Por isso ele só sai do commit que o dono do Mac leu e aprovou,
+escrito na lista:
+
+```json
+[ { "repo": "dono/meu-bot-x", "pasta": "/caminho/do/clone", "commit": "<o hash inteiro do commit aprovado>" } ]
+```
+
+- Com `commit`, o agente empacota exatamente esse commit, não o ramo padrão. Código novo no repositório fica esperando.
+- Derivado com `codigo/` e sem `commit` na lista é recusado, e a mensagem já traz a linha a escrever.
+- Aprovar uma versão nova do código é ler o diff no repositório do derivado e trocar o hash na lista.
 
 ## Conferir
 
