@@ -2,9 +2,10 @@
  * Handlers IPC comuns ao meu-bot e ao meu-bot-admin: leituras da máquina (WhatsApp, logins) e o que é só
  * deste Mac (configurações, memória, abrir o seletor). Nada aqui escreve na máquina da pessoa.
  */
-import { app, dialog, Menu, nativeTheme, shell } from "electron";
+import { app, dialog, nativeTheme, shell } from "electron";
 import fs from "node:fs";
 import path from "node:path";
+import { abrirMenu } from "../app/menu-aberto";
 import type { ControleRemotoView, SettingsUpdate, SettingsView, WhatsappGroupMenuAction, WhatsappGroupPatch, WhatsappMenuAction, WhatsappStatus } from "../../shared/ipc";
 import { slugify } from "../conversa/export";
 import { log } from "../maquina/backend";
@@ -264,9 +265,8 @@ export function registerSharedIpc(deps: SharedIpcDeps): void {
         "separator" in e ? { type: "separator" }
           : "submenu" in e ? { label: e.label, submenu: e.submenu.map(toItem) }
             : { label: e.label, enabled: e.enabled, ...(e.action === null ? {} : { click: () => pick(e.action) }) };
-      const menu = Menu.buildFromTemplate(entries.map(toItem));
       // O callback de fechamento corre antes do click; o adiamento deixa o click vencer.
-      menu.popup({ window: h.win, callback: () => setTimeout(() => pick(null), 0) });
+      abrirMenu(h.win, entries.map(toItem), () => setTimeout(() => pick(null), 0));
     });
   });
   // Grupos: a área "Grupos" da lista e o tutorial 10. As regras (nunca "*", nunca ligar sem quem aciona, desligar o
@@ -326,8 +326,7 @@ export function registerSharedIpc(deps: SharedIpcDeps): void {
     return new Promise<WhatsappGroupMenuAction | null>((resolve) => {
       let settled = false;
       const pick = (action: WhatsappGroupMenuAction | null): void => { if (!settled) { settled = true; resolve(action); } };
-      const menu = Menu.buildFromTemplate(waGroupMenuTemplate(waGroupAgente(payload), waMenuCapsOf(h.host), waGroupDeleted(payload)).map((e) => ("separator" in e ? { type: "separator" as const } : { label: e.label, click: () => pick(e.action) })));
-      menu.popup({ window: h.win, callback: () => setTimeout(() => pick(null), 0) });
+      abrirMenu(h.win, waGroupMenuTemplate(waGroupAgente(payload), waMenuCapsOf(h.host), waGroupDeleted(payload)).map((e) => ("separator" in e ? { type: "separator" as const } : { label: e.label, click: () => pick(e.action) })), () => setTimeout(() => pick(null), 0));
     });
   });
   handleShared("whatsapp:export", async (event, payload: unknown) => {

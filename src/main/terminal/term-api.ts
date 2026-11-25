@@ -15,14 +15,30 @@
  * · GET /app: nome, versão, tema, janelas abertas (qual em foco) e máquinas conhecidas
  * · POST /janela {maquina}: abre (ou traz) a janela de uma máquina do ~/.ssh/config, ou "local"
  * · POST /pagina {pagina, maquina?}: põe uma página na frente (tutoriais, acervo, inspector, modulos, extensao, conta-google, gmail, computador, navegador)
- * · POST /tema {tema: system|light|dark} · POST /print {maquina?}: a janela inteira como PNG (png_base64, ≤ 1280 px)
+ * · POST /tema {tema: system|light|dark} · POST /print {maquina?, marcas?}: a janela inteira como PNG (png_base64, ≤ 1280 px)
+ * A interface do app em si (25 nov): o que o Navegador já tinha para as páginas da web, agora na janela do app, com os
+ * mesmos trechos (nav-scripts.ts). Fica só neste socket, que não vai pelo túnel: o agente da máquina nunca a alcança.
+ * · POST /ui/ler {maquina?}: o texto da janela e os botões, links e campos à vista, numerados (webviews e terminais ficam
+ *   de fora: têm as ferramentas deles) · POST /ui/clicar {n | texto | seletor} · POST /ui/digitar {texto, n?, seletor?, enter?}
+ * · POST /erros {maquina?, desde?, limite?}: erros e avisos do console da interface dessa janela, quedas e travamentos
+ * · POST /log {linhas?, filtro?, desde?}: as últimas linhas do meu-bot.log deste app
+ * · POST /menu: os itens do menu nativo aberto (o da aba da conversa, o do WhatsApp), ou null · POST /menu/escolher {rotulo | fechar}
+ * · POST /conversa/exportar {id, formato?: md|json}: o texto da conversa, sem o "Salvar como"
+ * · Nas rotas /ui/…, alvo: "pagina" mira a página embutida que está à vista (Inspector, página de módulo), que é outra
+ *   página dentro da janela; as abas do Navegador ficam com as rotas dele, que respeitam de quem é cada aba
+ * · POST /estado {maquina?}: o retrato da máquina (configurações, WhatsApp, Claude, Ollama, Google, backup, licença, módulos)
+ * · POST /conversas {maquina?}: as conversas da máquina · POST /conversa/ler {id, ultimas?}: as últimas mensagens de uma
+ * · POST /comandos {maquina?}: tudo o que a paleta de comandos oferece (ações, conversas, tutoriais), com o id de cada item
+ * · POST /comando {id}: roda um deles · POST /conversa/enviar {texto}: manda a mensagem na conversa da frente
+ * · POST /ui/tecla {tecla}. Agir na interface é execução (um clique desconecta o WhatsApp ou sai da conta): o controle
+ *   externo só oferece as três com "Executar comandos e código" ligado (FERRAMENTAS_EXECUCAO).
  * Quem pede vem no cabeçalho `X-Meu-Bot-Dono` (o mesmo do Navegador, nav-donos-core.ts) e aparece como selo no
  * terminal ("✳️ Claude Code (Mac) · digitou"), para a pessoa saber quem está mexendo.
  */
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
-import { app, BrowserWindow, nativeTheme } from "electron";
+import { app, BrowserWindow, nativeTheme, webContents, type WebContents } from "electron";
 import type { Theme } from "../../shared/ipc";
 import { controlDir } from "../app/control-dir";
 import { allMainWindows, broadcast, hostOfWindow, lastFocusedWindow, openMainWindow, sendWhenLoaded, windowForHost } from "../app/windows";
@@ -35,12 +51,40 @@ import { PAGINAS_APP } from "../controle-remoto/controle-remoto-core";
 import { closeTerminal, liveTerminals, replayTerminal, terminalById, waitNewTerminal, writeTerminal } from "./terminal";
 import { entradaDigitar, textoDoTerminal } from "./term-api-core";
 import { parseDono, type Dono } from "../navegador/nav-donos-core";
+import { alvoDeClique, alvoDeDigitacao, apertar, clicarScript, cliqueDireitoScript, codigoDaTecla, comErro, DESMARCAR_SCRIPT, digitarValorScript, focarScript, MARCAR_SCRIPT, readScript, valorOuErro } from "../navegador/nav-scripts";
 import { log } from "../maquina/backend";
+import { errosDaJanela, lerLog } from "../app/erros-janela";
+import { enviarMensagem, LISTAR_COMANDOS, rodarComando } from "./ui-acoes-core";
+import { conversasDaMaquina, estadoDaMaquina, exportarConversa, lerConversa } from "../controle-remoto/estado";
+import { escolherNoMenu, menuAberto } from "../app/menu-aberto";
+import { browserWebContents } from "../navegador/browser";
 import { estado as estadoDepuracao, evento as eventoDepuracao, modoDepuracao, registrarAcao, setDepuracao } from "../app/depuracao";
 
 export const termSocketPath = (): string => path.join(controlDir(), "term.sock");
 
-interface Req { id?: unknown; maquina?: unknown; linhas?: unknown; texto?: unknown; enter?: unknown; tecla?: unknown; pagina?: unknown; on?: unknown; tema?: unknown }
+interface Req { id?: unknown; maquina?: unknown; linhas?: unknown; texto?: unknown; enter?: unknown; tecla?: unknown; pagina?: unknown; on?: unknown; tema?: unknown; n?: unknown; seletor?: unknown; marcas?: unknown; desde?: unknown; limite?: unknown; filtro?: unknown; ultimas?: unknown; alvo?: unknown; direito?: unknown; rotulo?: unknown; fechar?: unknown; formato?: unknown }
+/** O que a leitura da interface pula: o conteúdo das webviews (Navegador, Inspector, módulos) e dos terminais não é interface do app. */
+const UI_IGNORAR = "webview, .xterm";
+const assentar = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+/** Roda o trecho numa página e devolve o valor; o erro lançado lá chega aqui com a mensagem dele. */
+const naPagina = async (wc: WebContents, script: string): Promise<unknown> => valorOuErro(await wc.executeJavaScript(comErro(script), true));
+const naJanela = (w: BrowserWindow, script: string): Promise<unknown> => naPagina(w.webContents, script);
+/** Os ids das páginas embutidas (<webview>) que estão à vista na janela, de cima para baixo. */
+const WEBVIEWS_A_VISTA = `[...document.querySelectorAll("webview")].filter((v) => { const r = v.getBoundingClientRect(); return r.width > 0 && r.height > 0 && (!v.checkVisibility || v.checkVisibility()); }).map((v) => { try { return v.getWebContentsId(); } catch { return null; } }).filter((id) => typeof id === "number")`;
+/**
+ * Onde a rota /ui/… age: a janela do app, ou (alvo "pagina") a página embutida à vista que não é aba do Navegador.
+ * As abas do Navegador têm dono (nav-donos-core) e ficam só com as rotas dele.
+ */
+async function alvoDaUi(b: Req): Promise<{ w: BrowserWindow; wc: WebContents; embutida: boolean }> {
+  const w = janela(b.maquina);
+  if (b.alvo === undefined || b.alvo === "app") return { w, wc: w.webContents, embutida: false };
+  if (b.alvo !== "pagina") throw new Error('alvo: "app" (a interface do app, o padrão) ou "pagina" (a página embutida à vista)');
+  const doNavegador = new Set(browserWebContents(hostOfWindow(w) ?? "").map((x) => x.id));
+  const ids = (await naJanela(w, WEBVIEWS_A_VISTA) as number[]).filter((id) => !doNavegador.has(id));
+  const wc = ids.map((id) => webContents.fromId(id)).find((x) => x !== undefined && !x.isDestroyed());
+  if (wc === undefined) throw new Error("nenhuma página embutida à vista nesta janela (as abas do Navegador usam nav_ler, nav_clicar…)");
+  return { w, wc, embutida: true };
+}
 const PAGINAS = ["navegador", "tutoriais", "acervo", "vazia"] as const;
 
 /** Janela da máquina pedida (ou a última focada que tenha máquina). */
@@ -166,9 +210,73 @@ async function act(route: string, b: Req, dono: Dono): Promise<unknown> {
       return { ok: true, tema: view.theme };
     }
     case "/print": {
-      const img = await janela(b.maquina).webContents.capturePage();
-      return { png_base64: (img.getSize().width > 1280 ? img.resize({ width: 1280 }) : img).toPNG().toString("base64") };
+      const wc = janela(b.maquina).webContents; const marcar = b.marcas === true;
+      if (marcar) {
+        const n = await wc.executeJavaScript(MARCAR_SCRIPT, true) as unknown;
+        if (n === 0) { await wc.executeJavaScript(DESMARCAR_SCRIPT, true); throw new Error("sem elementos numerados à vista: leia a interface antes (ui_ler)"); }
+        await assentar(120); // um quadro para as marcas serem pintadas
+      }
+      try { const img = await wc.capturePage(); return { png_base64: (img.getSize().width > 1280 ? img.resize({ width: 1280 }) : img).toPNG().toString("base64") }; }
+      finally { if (marcar) await wc.executeJavaScript(DESMARCAR_SCRIPT, true).catch(() => undefined); }
     }
+    case "/erros": {
+      const host = hostOfWindow(janela(b.maquina)) ?? "";
+      const erros = errosDaJanela(host, b.desde, b.limite);
+      return { maquina: host, erros: erros.map((e) => ({ em: new Date(e.em).toISOString(), nivel: e.nivel, texto: e.texto, origem: e.origem })) };
+    }
+    case "/log": return lerLog({ linhas: b.linhas, filtro: b.filtro, desde: b.desde });
+    case "/estado": return estadoDaMaquina(hostOfWindow(janela(b.maquina)) ?? "");
+    case "/conversas": { const host = hostOfWindow(janela(b.maquina)) ?? ""; return { maquina: host, conversas: conversasDaMaquina(host) }; }
+    case "/conversa/ler": return lerConversa(hostOfWindow(janela(b.maquina)) ?? "", b.id, b.ultimas);
+    case "/comandos": {
+      const w = janela(b.maquina);
+      return { maquina: hostOfWindow(w), comandos: await naJanela(w, LISTAR_COMANDOS) };
+    }
+    case "/comando": {
+      if (typeof b.id !== "string" || b.id === "") throw new Error("falta id (veja comando_listar)");
+      const w = janela(b.maquina);
+      await naJanela(w, rodarComando(b.id));
+      await assentar(300);
+      return { ok: true, id: b.id, maquina: hostOfWindow(w) };
+    }
+    case "/conversa/enviar": {
+      const texto = typeof b.texto === "string" ? b.texto.trim() : "";
+      if (texto === "") throw new Error("falta texto");
+      const w = janela(b.maquina);
+      await naJanela(w, enviarMensagem(texto));
+      return { ok: true, maquina: hostOfWindow(w) };
+    }
+    case "/ui/ler": {
+      const { w, wc, embutida } = await alvoDaUi(b);
+      const lido = await wc.executeJavaScript(readScript(embutida ? "" : UI_IGNORAR), true) as Record<string, unknown>;
+      const { marcas: _m, ...resto } = lido; if (!embutida) delete resto["url"]; // a url da janela do app é um caminho de arquivo
+      return { maquina: hostOfWindow(w), alvo: embutida ? "pagina" : "app", ...resto };
+    }
+    case "/ui/clicar": {
+      const { w, wc } = await alvoDaUi(b);
+      // O clique direito abre os menus nativos (o da aba, o do WhatsApp), que se leem e escolhem por /menu.
+      await naPagina(wc, (b.direito === true ? cliqueDireitoScript : clicarScript)(alvoDeClique(b)));
+      await assentar(300); // a tela repinta antes da próxima leitura
+      return { ok: true, maquina: hostOfWindow(w) };
+    }
+    case "/ui/digitar": {
+      if (typeof b.texto !== "string") throw new Error("falta texto");
+      const { w, wc } = await alvoDaUi(b);
+      // Campo de valor: entra direto, com os eventos (funciona com a janela atrás). Área editável: digitação de verdade.
+      const alvo = alvoDeDigitacao(b);
+      if (await naPagina(wc, digitarValorScript(alvo, b.texto)) !== true) { await naPagina(wc, focarScript(alvo)); wc.focus(); await wc.insertText(b.texto); }
+      if (b.enter === true) { apertar(wc, "Return"); await assentar(300); }
+      return { ok: true, maquina: hostOfWindow(w) };
+    }
+    case "/ui/tecla": {
+      const { w, wc } = await alvoDaUi(b);
+      apertar(wc, codigoDaTecla(b.tecla));
+      await assentar(300);
+      return { ok: true, maquina: hostOfWindow(w) };
+    }
+    case "/menu": return { menu: menuAberto() };
+    case "/menu/escolher": return { ok: true, ...escolherNoMenu(b.rotulo, b.fechar) };
+    case "/conversa/exportar": return exportarConversa(hostOfWindow(janela(b.maquina)) ?? "", b.id, b.formato);
     default: throw Object.assign(new Error(`rota desconhecida: ${route}`), { status: 404 });
   }
 }
@@ -198,7 +306,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   try {
     const r = await act(route, body, dono);
     send(200, r);
-    if (route !== "/terminais" && route !== "/ler") log(`[terminal] controle (${dono.origem}: ${dono.id}): ${route}${typeof body.id === "string" ? ` ${body.id}` : ""}`);
+    if (route !== "/terminais" && route !== "/ler" && route !== "/ui/ler" && !["/erros", "/log", "/comandos", "/estado", "/conversas", "/conversa/ler", "/conversa/exportar", "/menu"].includes(route)) log(`[terminal] controle (${dono.origem}: ${dono.id}): ${route}${typeof body.id === "string" ? ` ${body.id}` : ""}`);
     // /nota já entrou no fluxo como "nota" dentro do act(); as outras rotas entram como ações do terminal (o /print sem o PNG).
     if (route !== "/nota") registrarAcao({ origem: "terminal", dono, rota: route, corpo: body as Record<string, unknown>, t0, resultado: route === "/print" ? { png: true } : r });
   } catch (e) {

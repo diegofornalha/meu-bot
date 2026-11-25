@@ -4,9 +4,10 @@
  * stub que recusa (ipc/registry.ts): o admin só lê e usa as ações de suporte.
  */
 import { VOZES, isVozId } from "../whatsapp/vozes-core";
-import { app, dialog, Menu, Notification } from "electron";
+import { app, dialog, Notification } from "electron";
 import fs from "node:fs";
 import path from "node:path";
+import { abrirMenu } from "../app/menu-aberto";
 import type { CrmPipelineExtras, AudioSetup, ClaudeLoginEvent, LicenseView, ClaudeSessionRef, ExportFormat, LimiaresClaude, TabMenuAction, WhatsappEvent, WhatsappStatus } from "../../shared/ipc";
 import { conversationToMarkdown, conversationTitle, slugify } from "../conversa/export";
 import { atualizarContaClaude, conferirContaClaude, criarContaClaude, deleteBackendSession, fetchAccountStatus, fetchAlertPrefs, fetchBackendSession, fetchContasClaude, limiaresContasClaude, log, reapresentarMachine, removerContaClaude, reordenarContasClaude, runBackendTurn, saveAlertPrefs, usarAgoraContaClaude } from "../maquina/backend";
@@ -727,7 +728,7 @@ export function registerClientIpc(): void {
       const pick = (action: TabMenuAction | null): void => { if (!settled) { settled = true; resolve(action); } };
       const item = (label: string, action: TabMenuAction, enabled = true): Electron.MenuItemConstructorOptions =>
         ({ label, enabled, click: () => pick(action) });
-      const menu = Menu.buildFromTemplate([
+      abrirMenu(owned.win, [
         item("Renomear", "rename"),
         item("Duplicar", "duplicate", !busy),
         { label: "Exportar", submenu: [item("Markdown (.md)", "export-md"), item("JSON (.json)", "export-json")] },
@@ -736,9 +737,8 @@ export function registerClientIpc(): void {
         { type: "separator" },
         item("Fechar aba", "close"),
         item("Excluir conversa…", "delete", !busy),
-      ]);
-      // O callback de fechamento corre antes do click; o adiamento deixa o click vencer.
-      menu.popup({ window: owned.win, callback: () => setTimeout(() => pick(null), 0) });
+        // O callback de fechamento corre antes do click; o adiamento deixa o click vencer.
+      ], () => setTimeout(() => pick(null), 0));
     });
   });
 

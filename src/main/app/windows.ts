@@ -4,6 +4,7 @@
  * a última janela dela fecha.
  */
 import { molduraDaJanela } from "./moldura-core";
+import { observarErros } from "./erros-janela";
 import { BrowserWindow, Menu, nativeTheme, screen, session, shell } from "electron";
 import path from "node:path";
 import type { MainEventChannel, MainEvents } from "../../shared/ipc";
@@ -129,6 +130,7 @@ export function openMainWindow(host: string, origin: OpenOrigin): BrowserWindow 
     },
   });
   byId.set(win.id, { win, host });
+  observarErros(win, host); // o controle externo lê por erros_ler
   ligarMenuDeTexto(win);
   // Busca na página: o Chromium responde a cada findInPage por aqui, e a barra do renderer mostra "n de N".
   win.webContents.on("found-in-page", (_e, r) => {

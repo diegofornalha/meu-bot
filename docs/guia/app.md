@@ -23,10 +23,45 @@ cliente (um `claude mcp add` ou um trecho de `mcp.json`); o app só gera o texto
   conhece (2024-11-05, 2025-03-26, 2025-06-18), senão a nossa mais nova. Sem lote JSON-RPC (saiu do MCP nessa
   revisão: array → -32600). Sem `structuredContent` (não declaramos `outputSchema`; o resultado é texto JSON, e
   `png_base64` vira `content` de imagem). `initialize`, `ping`, `tools/list`, `tools/call`, notificações → 202.
-- **Dois interruptores**: ligar/desligar o servidor, e "Executar comandos e código", que libera `terminal_digitar` e
-  `nav_js` (execução arbitrária em sessões já logadas; o Rambox deixa o equivalente fora do build de produção).
+- **Dois interruptores**: ligar/desligar o servidor, e "Executar comandos e código", que libera `terminal_digitar`,
+  `nav_js` e, desde 25 nov, `ui_clicar`, `ui_digitar` e `ui_tecla` (execução arbitrária em sessões já logadas; o
+  Rambox deixa o equivalente fora do build de produção).
   Desligado, elas nem aparecem em `tools/list` e a chamada volta `isError`. A chave **fica guardada ao desligar**
   (religar não obriga a reconfigurar os clientes); "Gerar outra" é o que invalida.
+- **A interface do próprio app (25 nov)**: `ui_ler`, `ui_clicar`, `ui_digitar`, `ui_tecla` e `print_janela` com
+  `marcas` fazem na janela do app o que as `nav_*` fazem nas páginas da web, com os mesmos trechos
+  (`src/main/navegador/nav-scripts.ts`, por `webContents.executeJavaScript` no processo principal). As rotas (`/ui/…`)
+  ficam **só no `term.sock`**, que não vai pelo túnel: o agente da máquina não alcança a interface, como o `nav-api.ts`
+  já garantia. A leitura pula `webview` e `.xterm` (têm as ferramentas deles). Ler é livre; agir é execução, porque
+  um clique no app desconecta o WhatsApp ou sai da conta. O que o DOM não tem (menus nativos, o "Salvar como", a tela
+  do Computador, que é imagem) ainda não é alcançável por aqui.
+- **Comandos e conversa pelo nome (25 nov)**: `comando_listar` e `comando_rodar` usam a paleta de comandos inteira
+  (sem o corte de 30 da tela), e `conversa_enviar` manda a mensagem pela caixa e pelo botão Enviar, como a pessoa. A
+  paleta mora em variáveis de módulo do renderer: ele ouve dois eventos do DOM (`meu-bot:comandos`, `meu-bot:comando`)
+  que o processo principal dispara por `executeJavaScript` (`src/main/terminal/ui-acoes-core.ts`). Sem canal de IPC novo.
+- **O que não está no DOM (25 nov)**: os menus nativos (aba da conversa, contato e grupo do WhatsApp) abrem por
+  `abrirMenu` (`src/main/app/menu-aberto.ts`), que lembra os itens; `ui_clicar direito=true` abre, `menu_ler` lê e
+  `menu_escolher` escolhe. `conversa_exportar` devolve o texto sem o "Salvar como". `alvo: "pagina"` nas `ui_*` mira a
+  página embutida à vista (Inspector, página de módulo); as abas do Navegador ficam com as `nav_*`, que respeitam a
+  posse de cada aba.
+- **Cobertura do controle externo (25 nov)**: cada área do app e a ferramenta que a alcança.
+
+  | Área | Ver | Agir |
+  |---|---|---|
+  | Qualquer tela do app (páginas, Configurações, lateral, abas) | `ui_ler`, `print_janela` | `ui_clicar`, `ui_digitar`, `ui_tecla` |
+  | Paleta de comandos (ações, conversas, tutoriais, modelos) | `comando_listar` | `comando_rodar` |
+  | Conversa com o agente | `conversas_listar`, `conversa_ler`, `conversa_exportar` | `conversa_enviar` |
+  | Menus nativos (aba, WhatsApp, grupos) | `menu_ler` | `ui_clicar direito`, `menu_escolher` |
+  | WhatsApp, contas, licença, Google, backup, módulos | `estado` e as páginas por `ui_ler` | as páginas por `ui_*` |
+  | Navegador | `nav_abas`, `nav_ler`, `nav_print` | `nav_abrir`, `nav_clicar`, `nav_digitar`, `nav_tecla`, `nav_js`… |
+  | Terminais | `terminais`, `terminal_ler` | `terminal_abrir`, `terminal_digitar`, `terminal_fechar` |
+  | Páginas embutidas (Inspector, módulos) | `ui_ler alvo=pagina` | `ui_* alvo=pagina` |
+  | Janelas, layout, tema | `app` | `janela_abrir`, `pagina_abrir`, `tela_dividir`, `tela_juntar`, `tema` |
+  | Erros e registro | `erros_ler`, `log_ler` | (leitura) |
+
+  **Fora do alcance, de propósito ou por limite**: a tela do Computador (é imagem transmitida: só `print_janela`); a
+  janela "Salvar como" e os avisos nativos do sistema; o seletor de máquinas e as janelas menores (entrada rápida,
+  produtos), que não são janela de máquina; o menu da barra do macOS; e o Windows, que não tem controle externo.
 - **Configuração** (`settings.json`: `mcpLigado`, `mcpExecucao`, `mcpPorta` null = padrão da variante, `mcpToken`) e
   porta por produto (`Produto.portaMcp`: 7830 meu-bot, 7831 staging, 7833 admin, 7834 admin-mac, 7835 inspector-staging;
   fora da 7822 do Rambox). IPC `controle-remoto:status|ligar|execucao|porta|regenerar` (shared);

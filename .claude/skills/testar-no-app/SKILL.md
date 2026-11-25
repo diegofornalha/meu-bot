@@ -62,7 +62,16 @@ O app caiu ou há erro novo no log: pare e mostre o trecho do log.
    conecta (registra em escopo local e remove ao sair).
 1. **Ver**: `osascript -e 'tell application "<app>" to activate'`, `screencapture -x <scratchpad>/tela.png`,
    `sips -Z 1600` para reduzir e Read na imagem. A captura funciona sem permissão extra.
-2. **Navegar até a mudança sem Acessibilidade (o normal neste Mac): DevTools remoto.** Antes, confirme que o app
+2. **Navegar até a mudança: primeiro pelo próprio controle externo (desde 25 nov).** Com o app aberto e "Executar
+   comandos e código" ligado, as ferramentas do app-mcp fazem o que antes pedia o DevTools, sem reabrir o app com
+   porta de depuração: `ui_ler` (o texto e os botões numerados da janela), `ui_clicar` (por `n`, `texto` ou `seletor`;
+   `direito: true` abre o menu da aba ou do WhatsApp, que se lê com `menu_ler`), `ui_digitar`, `ui_tecla`,
+   `comando_rodar` (qualquer ação da paleta, ex.: `a:settings`), `conversa_enviar` + `conversa_ler`, `estado`,
+   e `print_janela marcas=true` para ver os números na imagem. Guarde a hora antes de agir e leia depois
+   `erros_ler {desde}` e `log_ler {desde}`: é como se acha o erro que a tela não mostra. Se a sessão não lista essas
+   ferramentas (o cliente carregou a lista antes do build novo), chame por HTTP como o `scripts/mcp-fumaca.sh` faz.
+   O DevTools remoto, abaixo, fica para o que elas não alcançam (`import()` de módulo, o console ao recarregar).
+   **Sem Acessibilidade e sem as ferramentas acima: DevTools remoto.** Antes, confirme que o app
    instalado é o seu build (`grep -a -c <símbolo novo> ~/Applications/<app>.app/Contents/Resources/app.asar`; o hook de
    outra sessão pode ter reinstalado outro branch). Feche o app e lance o binário com a porta (`open -a` não passa
    argumentos; os fuses não bloqueiam esta flag):

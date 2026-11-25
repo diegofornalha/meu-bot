@@ -43,7 +43,7 @@ INIT="$(post '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolV
 echo "$INIT" | grep -q '"protocolVersion":"2025-06-18"' || falha "initialize não anunciou 2025-06-18: $INIT"
 ok "initialize em $URL (revisão 2025-06-18)"
 N="$(post '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' | node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>{const j=JSON.parse(s);console.log(Array.isArray(j.result?.tools)?j.result.tools.length:0)})')"
-[ "$N" -ge 20 ] || falha "tools/list veio com $N ferramentas (esperava pelo menos 20)"
+[ "$N" -ge 30 ] || falha "tools/list veio com $N ferramentas (esperava pelo menos 30)"
 ok "tools/list: $N ferramentas"
 C="$(curl -s -m 10 -o /dev/null -w '%{http_code}' "$URL" -H "Authorization: Bearer $TOKEN")"; [ "$C" = "405" ] || falha "GET devia dar 405 e deu $C"
 C="$(curl -s -m 10 -o /dev/null -w '%{http_code}' -X POST "$URL" -H "Content-Type: application/json" -d '{}')"; [ "$C" = "401" ] || falha "sem Bearer devia dar 401 e deu $C"

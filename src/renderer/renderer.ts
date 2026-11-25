@@ -1367,6 +1367,19 @@ function paintPalette(): void {
   selectPalette(paletteSelected, true);
 }
 
+// Controle externo (comando_listar, comando_rodar): o processo principal dispara estes eventos na página e lê a resposta
+// no `detail` (src/main/terminal/ui-acoes-core.ts). A lista vai inteira, sem o corte de 30 da tela da paleta.
+document.addEventListener("meu-bot:comandos", (ev) => {
+  (ev as CustomEvent<{ itens?: unknown }>).detail.itens = buildPaletteItems().map((i) => ({ id: i.id, tipo: i.kind === "action" ? "ação" : i.kind === "conversation" ? "conversa" : "config", rotulo: i.label, detalhe: i.detail ?? null }));
+});
+document.addEventListener("meu-bot:comando", (ev) => {
+  const d = (ev as CustomEvent<{ id?: unknown; achou?: boolean }>).detail;
+  buildPaletteItems();
+  const run = typeof d.id === "string" ? paletteActions.get(d.id) : undefined;
+  d.achou = run !== undefined;
+  if (run !== undefined) { if (!paletteEl.hidden) closePalette(); void run(); }
+});
+
 async function runPalette(id: string): Promise<void> {
   const run = paletteActions.get(id);
   closePalette();
