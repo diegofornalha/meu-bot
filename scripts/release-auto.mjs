@@ -28,7 +28,7 @@ import { createHash } from "node:crypto";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { commitNoAr, dataPorExtenso, decideRodada, decideSite, decideSiteStaging, dirDoEstado, estavelMaisNova, fecharChangelog, plistDoAgente, QUIETUDE_MS, quietudeMinDoAmbiente, proximaBase, SITE_NO_AR, stagingMaisNovo, travaOrfa, versaoDasTags } from "./release-core.mjs";
+import { commitNoAr, dataPorExtenso, decideRodada, decideSite, decideSiteStaging, dirDoEstado, estavelMaisNova, fecharChangelog, plistDoAgente, QUIETUDE_MS, quietudeMinDoAmbiente, proximaBase, SITE_NO_AR, stagingMaisNovo, travaOrfa, versaoDasTags, decideAvisoDerivado, motivoDaFalhaDerivados } from "./release-core.mjs";
 import { bundleDoStaging, saudeDesteMac } from "./release-saude.mjs";
 import { arquivosDeFragmento, lerFragmentos } from "./changelog-fragmentos.mjs";
 
@@ -139,19 +139,24 @@ function fazerStaging(sha) {
  */
 function publicarDerivados() {
   if (!existsSync(join(WT, "scripts", "release-derivados.mjs"))) return;
-  // Só com o worktree no commit da staging: a versão do derivado é a da tag que aponta para ele.
+  // Só com o worktree no commit da staging: a versão do derivado é a da tag que aponta para ele. De propósito: quando
+  // um merge novo entra no main o worktree anda, e a staging que vem em seguida (10 min) refaz os derivados com ela;
+  // empacotar um derivado numa versão que o core já vai trocar seria trabalho jogado fora.
   const versao = versaoDasTags((shOu("git", ["tag", "--points-at", "HEAD"], WT) ?? "").split("\n"));
   if (versao === null) return;
+  log(`$ node scripts/release-derivados.mjs  (em ${WT})`);
+  const r = spawnSync("node", ["scripts/release-derivados.mjs"], { cwd: WT, stdio: ["ignore", "pipe", "pipe"], encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
+  const saida = `${r.stdout ?? ""}${r.stderr ?? ""}`;
+  appendFileSync(LOG, saida);
   const estado = lerEstado();
-  if (rodar("node", ["scripts/release-derivados.mjs"], WT)) {
-    if (estado.derivadosFalhou !== undefined && estado.derivadosFalhou !== null) { log(`derivados em dia na ${versao}`); gravarEstado({ ...lerEstado(), derivadosFalhou: null }); }
-    return;
-  }
-  // Avisa uma vez por versão; a tentativa se repete a cada rodada até o derivado alcançar o core.
-  if (estado.derivadosFalhou === versao) return;
-  log(`release dos derivados falhou na ${versao} (a staging do core saiu); tento de novo a cada rodada`);
+  const acao = decideAvisoDerivado({ versao, falhouAntes: estado.derivadosFalhou, ok: r.status === 0 });
+  if (acao === "limpar") { log(`derivados em dia na ${versao}`); gravarEstado({ ...lerEstado(), derivadosFalhou: null }); }
+  if (acao !== "avisar") return;
+  // Avisa uma vez por versão, dizendo a causa; a tentativa se repete a cada rodada até o derivado alcançar o core.
+  const motivo = motivoDaFalhaDerivados(saida) ?? "o script parou sem dizer por quê";
+  log(`release dos derivados falhou na ${versao} (${motivo}); tento de novo a cada rodada`);
   gravarEstado({ ...lerEstado(), derivadosFalhou: versao });
-  avisar("derivado ficou para trás", `A ${versao} do meu-bot saiu, mas a de um app derivado falhou. Tento de novo a cada 10 min (log: ~/Library/Logs/meu-bot-release.log)`);
+  avisar("derivado ficou para trás", `${versao}: ${motivo}. Tento de novo a cada 10 min (log: ~/Library/Logs/meu-bot-release.log)`);
 }
 
 function promover(sha, base) {

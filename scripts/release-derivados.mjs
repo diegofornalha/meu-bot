@@ -25,7 +25,7 @@ import { join } from "node:path";
 import { identidadeDeveloperId } from "./assinatura.mjs";
 import { lerChavePrincipal } from "./chave-release.mjs";
 import { notarizar } from "./notarizar.mjs";
-import { argsReleaseDerivado, notasDoDerivado, parseDerivados, recusaDerivado, recusaSemDeveloperId, versaoDasTags, versaoStagingValida } from "./release-core.mjs";
+import { argsReleaseDerivado, notasDoDerivado, parseDerivados, precisaDaChave, recusaDerivado, recusaSemDeveloperId, versaoDasTags, versaoStagingValida } from "./release-core.mjs";
 
 const arg = (nome) => { const i = process.argv.indexOf(nome); return i >= 0 ? process.argv[i + 1] : undefined; };
 const conferir = process.argv.includes("--conferir");
@@ -108,7 +108,7 @@ for (const d of itens) {
   step(`${d.repo}`);
   try { const p = preparar(d); if (p !== null) faltam.push(p); } catch (e) { falhas++; console.error(`✗ ${d.repo}: ${e instanceof Error ? e.message : String(e)}`); }
 }
-if (!conferir && faltam.length > 0) {
+if (precisaDaChave({ conferir, faltam: faltam.length })) {
   // As mesmas travas da release do core, só quando há o que publicar: Developer ID no chaveiro e a chave da release.
   const recusa = recusaSemDeveloperId(identidadeDeveloperId());
   if (recusa !== null) { console.error(`✗ ${recusa}\nnada foi publicado`); process.exit(64); }
