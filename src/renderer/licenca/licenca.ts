@@ -18,11 +18,12 @@ const computadorLine = $<HTMLElement>("computador-line");
 function paintComputadorLine(): void { computadorLine.hidden = !ctx.caps.telaComputador || browserAccess(license, ctx.windowHost, ctx.caps.planoExigido, ctx.caps.produto) !== "ok"; }
 export let navLicenseAsked = false;
 export async function refreshLicense(): Promise<LicenseView | null> {
-  if (!ctx.caps.chat) { license = null; navLicenseAsked = true; setPlanBadge(false); return null; }
+  if (!ctx.caps.chat) { license = null; navLicenseAsked = true; setPlanBadge(false); ctx.paintEtiquetasPro(); return null; }
   try { license = await window.meuBot.getLicense(); } catch { /* backend antigo/fora do ar: fica o que havia */ }
   navLicenseAsked = true;
   setPlanBadge(license !== null && planoLiberaPro(license.license.plan));
   ctx.paintModulosLine();
   paintComputadorLine();
+  ctx.paintEtiquetasPro();
   return license;
 }

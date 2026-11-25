@@ -2,6 +2,7 @@ import { el, byId as $ } from "../lib/dom.js";
 import type { AbaFixa } from "../../shared/ipc";
 import type { PageTab } from "../lib/pages-types.js";
 import { browserAccess } from "../lib/pro.js";
+import { linhaDaPagina } from "../lib/casca.js";
 import { splitPrefPageIds, maxColunas, clampSplitRatio, SPLIT_MIN_PX, minDireita, splitLayout, splitAdd, parseSplitPref } from "../lib/split.js";
 import { TUTORIAIS } from "../lib/tutoriais.js";
 import { mountSnake } from "../snake.js";
@@ -45,6 +46,16 @@ function alternarFixada(page: PageTab): void {
   void window.meuBot.setSettings({ abaFixa }).then(ctx.applySettings).catch(() => { /* não salvou: o alfinete fica como estava */ });
 }
 
+/**
+ * "Você está aqui" na lateral: a linha da página que está na frente ganha aria-current="page" (o realce é do
+ * style.css); com uma conversa na frente, nenhuma. Uma linha só por vez: quem a tinha antes perde.
+ */
+function pintarLinhaAtiva(): void {
+  const alvo = linhaDaPagina(pageActive?.id ?? null);
+  for (const l of document.querySelectorAll<HTMLElement>('#atalhos [aria-current="page"]')) if (l.id !== alvo) l.removeAttribute("aria-current");
+  if (alvo !== null) document.getElementById(alvo)?.setAttribute("aria-current", "page");
+}
+
 export function definePage(id: string, title: string, panel: HTMLElement, render: () => void): PageTab {
   const page: PageTab = { id, title, panel, render, tabEl: null };
   pages.set(id, page);
@@ -68,6 +79,7 @@ export function activatePage(page: PageTab): void {
   for (const t of ctx.tabs.values()) { t.tabEl.classList.remove("active"); t.messagesEl.hidden = true; }
   page.tabEl?.classList.add("active");
   page.panel.hidden = false;
+  pintarLinhaAtiva();
   relayoutSplit();
   page.render();
   ctx.inputEl.value = "";
@@ -83,6 +95,7 @@ export function deactivatePage(): void {
   pageActive.panel.hidden = true;
   pageActive.tabEl?.classList.remove("active");
   pageActive = null;
+  pintarLinhaAtiva();
   relayoutSplit();
   ctx.paintGuideTargets();
 }
