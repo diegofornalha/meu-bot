@@ -47,7 +47,7 @@ test("openDirect: true por padrão, respeita false", () => {
 test("abaFixa: padrão até escolher (Tutoriais ou a do produto); conversa desafixa; lixo volta ao padrão", () => {
   assert.equal(normalizeSettings({}).abaFixa, "padrao");
   assert.equal(defaultSettings().abaFixa, "padrao");
-  for (const v of ["conversa", "tutoriais", "acervo", "conta-google", "inspector", "navegador"]) assert.equal(normalizeSettings({ abaFixa: v }).abaFixa, v);
+  for (const v of ["conversa", "tutoriais", "acervo", "conta-google", "inspector", "extensao", "navegador"]) assert.equal(normalizeSettings({ abaFixa: v }).abaFixa, v);
   assert.equal(normalizeSettings({ abaFixa: "terminal" }).abaFixa, "padrao");
   assert.equal(normalizeSettings({ abaFixa: 3 }).abaFixa, "padrao");
 });

@@ -109,7 +109,7 @@ export interface MainEvents {
   /** Terminal: o controle local (term-api.ts) pede uma aba nova de terminal nesta janela. */
   "term:ask": { kind: "new" };
   /** Controle remoto (MCP), ferramenta `pagina_abrir`: põe esta página na frente da janela. */
-  "ui:abrir-pagina": { pagina: "tutoriais" | "acervo" | "inspector" | "modulos" | "conta-google" | "gmail" | "computador" | "navegador" };
+  "ui:abrir-pagina": { pagina: "tutoriais" | "acervo" | "inspector" | "modulos" | "extensao" | "conta-google" | "gmail" | "computador" | "navegador" };
   /** Controle remoto (MCP) ligou/desligou, trocou de porta ou de token: a seção das Configurações repinta em todas as janelas. */
   "controle-remoto:changed": ControleRemotoView;
   /** Controle local (term-api.ts): mais uma coluna com a página à direita; juntar tira uma (id/pagina) ou todas. */
@@ -412,6 +412,11 @@ export interface MeuBotClientApi {
   computadorUrl(): Promise<TelaEndereco>;
   /** Inspector (meu-bot-inspector-staging): sobe o MCP Inspector ligado ao controle externo deste app e devolve o endereço, ou o que falta. */
   inspectorAbrir(): Promise<InspectorAbrir>;
+  /**
+   * Página própria de um app derivado: chama o canal `nome` que o código do derivado registrou no processo principal
+   * (src/main/extensao). É o único caminho da página até lá; sem extensão no app, ou com nome desconhecido, recusa.
+   */
+  extInvocar(nome: string, payload: unknown): Promise<unknown>;
   /** Resposta ao balão de câmera/microfone de um site do Navegador. */
   browserPermissao(id: string, decisao: "sempre" | "agora" | "nunca"): Promise<void>;
   /** Esquece as permissões de câmera/microfone dadas aos sites (uma origem ou todas) nesta máquina. */

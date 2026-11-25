@@ -18,6 +18,8 @@ import { closeTerminalsOfWindow } from "../terminal/terminal";
 import { browserForget } from "../navegador/browser";
 import { PARTICAO_COMPUTADOR, particaoComputador, urlTelaPermitida } from "../maquina/tela-core";
 import { PARTICAO_INSPECTOR, mesmaOrigem, urlInspectorPermitida } from "../inspector/inspector-core";
+import { PREFIXO_PARTICAO_DE_EXTENSAO, navegacaoDeExtensaoPermitida } from "../extensao/extensao-core";
+import { webviewDaExtensao } from "../extensao/registro";
 import { PARTICAO_MODULO, lerAcao, urlNaOrigem } from "../modulos/modulos-pagina-core";
 import { paginaRegistrada, particoesDaMaquina } from "../modulos/modulos";
 
@@ -158,6 +160,16 @@ export function openMainWindow(host: string, origin: OpenOrigin): BrowserWindow 
       prefs.nodeIntegration = false; prefs.contextIsolation = true; prefs.sandbox = true; prefs.webSecurity = true;
       return;
     }
+    // Página própria de um derivado: só a partição que a extensão declarou no `ativar` (sempre `ext-…`, em memória) e
+    // só a URL que o predicado dela aceita (http/https, conferido no core); sem preload, como o Inspector. Partição
+    // `ext-…` sem extensão que a tenha declarado não anexa.
+    if (params.partition?.startsWith(PREFIXO_PARTICAO_DE_EXTENSAO) === true) {
+      const ext = webviewDaExtensao();
+      if (ext === null || params.partition !== ext.particao || params.src === undefined || !ext.urlPermitida(params.src)) { event.preventDefault(); return; }
+      delete prefs.preload;
+      prefs.nodeIntegration = false; prefs.contextIsolation = true; prefs.sandbox = true; prefs.webSecurity = true;
+      return;
+    }
     // Página de módulo: só a partição que o app abriu para esta máquina (abrirPaginaModulo) e só a origem do forward dela.
     if (params.partition?.startsWith(PARTICAO_MODULO) === true) {
       const reg = paginaRegistrada(params.partition);
@@ -176,6 +188,14 @@ export function openMainWindow(host: string, origin: OpenOrigin): BrowserWindow 
     if (caps().inspector && guest.session === session.fromPartition(PARTICAO_INSPECTOR)) {
       const dentro = (url: string): boolean => { const atual = guest.getURL(); return atual === "" ? urlInspectorPermitida(url) : mesmaOrigem(url, atual); };
       guest.on("will-navigate", (e, url) => { if (!dentro(url)) e.preventDefault(); });
+      guest.setWindowOpenHandler(({ url }) => { if (/^https:\/\//.test(url)) void shell.openExternal(url); return { action: "deny" }; });
+      return;
+    }
+    // Página própria de um derivado: as mesmas regras do Inspector. Não sai da origem em que está; links https de fora
+    // abrem no navegador do sistema.
+    const ext = webviewDaExtensao();
+    if (ext !== null && guest.session === session.fromPartition(ext.particao)) {
+      guest.on("will-navigate", (e, url) => { if (!navegacaoDeExtensaoPermitida(url, guest.getURL(), ext.urlPermitida)) e.preventDefault(); });
       guest.setWindowOpenHandler(({ url }) => { if (/^https:\/\//.test(url)) void shell.openExternal(url); return { action: "deny" }; });
       return;
     }
