@@ -44,6 +44,11 @@ export function resumoAcao(origem: string, rota: string, corpo: Corpo, resultado
       case "/juntar": return "juntou";
       case "/nota": return str(corpo["texto"], 200);
       case "/depuracao": return `modo ${r["ligado"] === true ? "ligado" : "desligado"}`;
+      // A interface do app: o texto digitado nunca vai ao log (pode ser uma senha), só o tamanho.
+      case "/ui/ler": return `leu a interface${Array.isArray(r["elements"]) ? ` · ${(r["elements"] as unknown[]).length} elementos` : ""}`;
+      case "/ui/clicar": return `clicou na interface ${corpo["n"] !== undefined ? `no ${num(corpo["n"])}` : corpo["texto"] !== undefined ? `em "${str(corpo["texto"], 40)}"` : `em ${str(corpo["seletor"], 40)}`}`;
+      case "/ui/digitar": return `digitou ${texto(corpo["texto"])} caracteres na interface${corpo["n"] !== undefined ? ` no ${num(corpo["n"])}` : ""}${corpo["enter"] === true ? " + Enter" : ""}`;
+      case "/ui/tecla": return `tecla ${str(corpo["tecla"], 20)} na interface`;
       default: break;
     }
   }
