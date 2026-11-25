@@ -49,6 +49,9 @@ export function resumoAcao(origem: string, rota: string, corpo: Corpo, resultado
       case "/ui/clicar": return `clicou na interface ${corpo["n"] !== undefined ? `no ${num(corpo["n"])}` : corpo["texto"] !== undefined ? `em "${str(corpo["texto"], 40)}"` : `em ${str(corpo["seletor"], 40)}`}`;
       case "/ui/digitar": return `digitou ${texto(corpo["texto"])} caracteres na interface${corpo["n"] !== undefined ? ` no ${num(corpo["n"])}` : ""}${corpo["enter"] === true ? " + Enter" : ""}`;
       case "/ui/tecla": return `tecla ${str(corpo["tecla"], 20)} na interface`;
+      case "/estado": return "leu o estado da máquina";
+      case "/conversas": return `listou as conversas${Array.isArray(r["conversas"]) ? ` · ${(r["conversas"] as unknown[]).length}` : ""}`;
+      case "/conversa/ler": return `leu a conversa ${str(corpo["id"], 40)}`;
       case "/comandos": return `listou os comandos${Array.isArray(r["comandos"]) ? ` · ${(r["comandos"] as unknown[]).length}` : ""}`;
       case "/comando": return `rodou o comando ${str(corpo["id"], 40)}`;
       case "/conversa/enviar": return `mandou ${texto(corpo["texto"])} caracteres na conversa`;

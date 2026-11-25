@@ -94,12 +94,15 @@ const TOOLS = [
   { name: 'comando_listar', description: 'Tudo o que a paleta de comandos (Cmd+K) oferece nessa janela: ações, conversas, tutoriais e modelos, cada um com o id para comando_rodar.', inputSchema: S({ ...APP, ...MAQ }) },
   { name: 'comando_rodar', description: 'Roda um item da paleta de comandos pelo id (de comando_listar).', inputSchema: S({ ...APP, ...MAQ, id: { type: 'string' } }, ['id']) },
   { name: 'conversa_enviar', description: 'Manda uma mensagem ao agente na conversa da frente, como a pessoa faria. Recusa se o agente ainda está respondendo.', inputSchema: S({ ...APP, ...MAQ, texto: { type: 'string' } }, ['texto']) },
+  { name: 'estado', description: 'Retrato da máquina da janela, sem depender da tela: configurações, WhatsApp, Claude Code, Ollama, Conta Google, backup, licença e módulos. Sem chaves nem senhas.', inputSchema: S({ ...APP, ...MAQ }) },
+  { name: 'conversas_listar', description: 'As conversas com o agente nessa máquina: id, título, mensagens, aberta, arquivada, ocupada.', inputSchema: S({ ...APP, ...MAQ }) },
+  { name: 'conversa_ler', description: 'As últimas mensagens de uma conversa (id de conversas_listar; ultimas: padrão 20, até 100).', inputSchema: S({ ...APP, ...MAQ, id: { type: 'string' }, ultimas: { type: 'number' } }, ['id']) },
   { name: 'erros_ler', description: 'Erros e avisos do console da interface do app nessa janela, quedas do processo da página e travamentos. desde (data ISO ou ms) traz só os posteriores.', inputSchema: S({ ...APP, ...MAQ, desde: { type: ['string', 'number'] }, limite: { type: 'number' } }) },
   { name: 'log_ler', description: 'Últimas linhas do log do app (meu-bot.log). filtro (texto), desde (data ISO ou ms), linhas (padrão 100, até 500).', inputSchema: S({ ...APP, linhas: { type: 'number' }, filtro: { type: 'string' }, desde: { type: ['string', 'number'] } }) },
   { name: 'ui_tecla', description: 'Aperta uma tecla na interface do app (enter, tab, esc, down, up…).', inputSchema: S({ ...APP, ...MAQ, tecla: { type: 'string' } }, ['tecla']) },
 ];
 const NAV_ROTAS = { nav_abas: 'abas', nav_abrir: 'abrir', nav_ler: 'ler', nav_clicar: 'clicar', nav_digitar: 'digitar', nav_tecla: 'tecla', nav_print: 'print', nav_recarregar: 'recarregar', nav_voltar: 'voltar', nav_js: 'js', nav_fechar: 'fechar' };
-const APP_ROTAS = { app: 'app', janela_abrir: 'janela', pagina_abrir: 'pagina', tema: 'tema', print_janela: 'print', ui_ler: 'ui/ler', ui_clicar: 'ui/clicar', ui_digitar: 'ui/digitar', ui_tecla: 'ui/tecla', erros_ler: 'erros', log_ler: 'log', comando_listar: 'comandos', comando_rodar: 'comando', conversa_enviar: 'conversa/enviar' };
+const APP_ROTAS = { app: 'app', janela_abrir: 'janela', pagina_abrir: 'pagina', tema: 'tema', print_janela: 'print', ui_ler: 'ui/ler', ui_clicar: 'ui/clicar', ui_digitar: 'ui/digitar', ui_tecla: 'ui/tecla', erros_ler: 'erros', log_ler: 'log', comando_listar: 'comandos', comando_rodar: 'comando', conversa_enviar: 'conversa/enviar', estado: 'estado', conversas_listar: 'conversas', conversa_ler: 'conversa/ler' };
 
 async function call(name, args) {
   const { app, maquina, ...resto } = args;

@@ -22,6 +22,8 @@
  *   de fora: têm as ferramentas deles) · POST /ui/clicar {n | texto | seletor} · POST /ui/digitar {texto, n?, seletor?, enter?}
  * · POST /erros {maquina?, desde?, limite?}: erros e avisos do console da interface dessa janela, quedas e travamentos
  * · POST /log {linhas?, filtro?, desde?}: as últimas linhas do meu-bot.log deste app
+ * · POST /estado {maquina?}: o retrato da máquina (configurações, WhatsApp, Claude, Ollama, Google, backup, licença, módulos)
+ * · POST /conversas {maquina?}: as conversas da máquina · POST /conversa/ler {id, ultimas?}: as últimas mensagens de uma
  * · POST /comandos {maquina?}: tudo o que a paleta de comandos oferece (ações, conversas, tutoriais), com o id de cada item
  * · POST /comando {id}: roda um deles · POST /conversa/enviar {texto}: manda a mensagem na conversa da frente
  * · POST /ui/tecla {tecla}. Agir na interface é execução (um clique desconecta o WhatsApp ou sai da conta): o controle
@@ -49,11 +51,12 @@ import { alvoDeClique, alvoDeDigitacao, apertar, clicarScript, codigoDaTecla, DE
 import { log } from "../maquina/backend";
 import { errosDaJanela, lerLog } from "../app/erros-janela";
 import { enviarMensagem, LISTAR_COMANDOS, rodarComando } from "./ui-acoes-core";
+import { conversasDaMaquina, estadoDaMaquina, lerConversa } from "../controle-remoto/estado";
 import { estado as estadoDepuracao, evento as eventoDepuracao, modoDepuracao, registrarAcao, setDepuracao } from "../app/depuracao";
 
 export const termSocketPath = (): string => path.join(controlDir(), "term.sock");
 
-interface Req { id?: unknown; maquina?: unknown; linhas?: unknown; texto?: unknown; enter?: unknown; tecla?: unknown; pagina?: unknown; on?: unknown; tema?: unknown; n?: unknown; seletor?: unknown; marcas?: unknown; desde?: unknown; limite?: unknown; filtro?: unknown }
+interface Req { id?: unknown; maquina?: unknown; linhas?: unknown; texto?: unknown; enter?: unknown; tecla?: unknown; pagina?: unknown; on?: unknown; tema?: unknown; n?: unknown; seletor?: unknown; marcas?: unknown; desde?: unknown; limite?: unknown; filtro?: unknown; ultimas?: unknown }
 /** O que a leitura da interface pula: o conteúdo das webviews (Navegador, Inspector, módulos) e dos terminais não é interface do app. */
 const UI_IGNORAR = "webview, .xterm";
 const assentar = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
@@ -197,6 +200,9 @@ async function act(route: string, b: Req, dono: Dono): Promise<unknown> {
       return { maquina: host, erros: erros.map((e) => ({ em: new Date(e.em).toISOString(), nivel: e.nivel, texto: e.texto, origem: e.origem })) };
     }
     case "/log": return lerLog({ linhas: b.linhas, filtro: b.filtro, desde: b.desde });
+    case "/estado": return estadoDaMaquina(hostOfWindow(janela(b.maquina)) ?? "");
+    case "/conversas": { const host = hostOfWindow(janela(b.maquina)) ?? ""; return { maquina: host, conversas: conversasDaMaquina(host) }; }
+    case "/conversa/ler": return lerConversa(hostOfWindow(janela(b.maquina)) ?? "", b.id, b.ultimas);
     case "/comandos": {
       const w = janela(b.maquina);
       return { maquina: hostOfWindow(w), comandos: await w.webContents.executeJavaScript(LISTAR_COMANDOS, true) as unknown };
@@ -270,7 +276,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   try {
     const r = await act(route, body, dono);
     send(200, r);
-    if (route !== "/terminais" && route !== "/ler" && route !== "/ui/ler" && route !== "/erros" && route !== "/log" && route !== "/comandos") log(`[terminal] controle (${dono.origem}: ${dono.id}): ${route}${typeof body.id === "string" ? ` ${body.id}` : ""}`);
+    if (route !== "/terminais" && route !== "/ler" && route !== "/ui/ler" && !["/erros", "/log", "/comandos", "/estado", "/conversas", "/conversa/ler"].includes(route)) log(`[terminal] controle (${dono.origem}: ${dono.id}): ${route}${typeof body.id === "string" ? ` ${body.id}` : ""}`);
     // /nota já entrou no fluxo como "nota" dentro do act(); as outras rotas entram como ações do terminal (o /print sem o PNG).
     if (route !== "/nota") registrarAcao({ origem: "terminal", dono, rota: route, corpo: body as Record<string, unknown>, t0, resultado: route === "/print" ? { png: true } : r });
   } catch (e) {

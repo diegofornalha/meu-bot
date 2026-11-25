@@ -12,7 +12,7 @@ const INFO = { nome: "meu-bot", versao: "1.2.3", execucao: true };
 
 test("catálogo: as ferramentas do app-mcp (menos apps/app_abrir) mais as do app; cada uma com schema e anotações", () => {
   const nomes = FERRAMENTAS.map((f) => f.name);
-  for (const n of ["terminais", "terminal_abrir", "terminal_ler", "terminal_digitar", "terminal_fechar", "tela_dividir", "tela_juntar", "nav_abas", "nav_abrir", "nav_ler", "nav_clicar", "nav_digitar", "nav_tecla", "nav_print", "nav_recarregar", "nav_voltar", "nav_js", "nav_fechar", "nota", "depuracao", "app", "janela_abrir", "pagina_abrir", "tema", "print_janela", "ui_ler", "ui_clicar", "ui_digitar", "ui_tecla", "erros_ler", "log_ler", "comando_listar", "comando_rodar", "conversa_enviar"]) assert.ok(nomes.includes(n), `falta ${n}`);
+  for (const n of ["terminais", "terminal_abrir", "terminal_ler", "terminal_digitar", "terminal_fechar", "tela_dividir", "tela_juntar", "nav_abas", "nav_abrir", "nav_ler", "nav_clicar", "nav_digitar", "nav_tecla", "nav_print", "nav_recarregar", "nav_voltar", "nav_js", "nav_fechar", "nota", "depuracao", "app", "janela_abrir", "pagina_abrir", "tema", "print_janela", "ui_ler", "ui_clicar", "ui_digitar", "ui_tecla", "erros_ler", "log_ler", "comando_listar", "comando_rodar", "conversa_enviar", "estado", "conversas_listar", "conversa_ler"]) assert.ok(nomes.includes(n), `falta ${n}`);
   assert.ok(!nomes.includes("apps") && !nomes.includes("app_abrir"), "de dentro do app não se abre outro app");
   assert.equal(new Set(nomes).size, nomes.length, "nome repetido");
   for (const f of FERRAMENTAS) { assert.equal(f.inputSchema.type, "object"); assert.equal(typeof f.annotations.readOnlyHint, "boolean"); assert.ok(f.description.length > 10); assert.equal("outputSchema" in f, false, "sem outputSchema o resultado vai só como texto"); }
@@ -64,6 +64,10 @@ test("roteador: tudo vai para um socket do app (terminal, com as rotas do app, o
   assert.deepEqual(roteador("comando_listar", {}), { alvo: "terminal", rota: "comandos", corpo: {} });
   assert.deepEqual(roteador("comando_rodar", { id: "a:settings" }), { alvo: "terminal", rota: "comando", corpo: { id: "a:settings" } });
   assert.deepEqual(roteador("conversa_enviar", { texto: "oi", maquina: "local" }), { alvo: "terminal", rota: "conversa/enviar", corpo: { texto: "oi", maquina: "local" } });
+  assert.deepEqual(roteador("estado", { maquina: "local" }), { alvo: "terminal", rota: "estado", corpo: { maquina: "local" } });
+  assert.deepEqual(roteador("conversas_listar", {}), { alvo: "terminal", rota: "conversas", corpo: {} });
+  assert.deepEqual(roteador("conversa_ler", { id: "c1", ultimas: 5 }), { alvo: "terminal", rota: "conversa/ler", corpo: { id: "c1", ultimas: 5 } });
+  for (const n of ["estado", "conversas_listar", "conversa_ler"]) assert.ok(ferramentasVisiveis(false).some((f) => f.name === n) && ferramenta(n).annotations.readOnlyHint, n);
   // Listar os comandos é leitura; rodar um e mandar mensagem ao agente são execução.
   assert.ok(ferramentasVisiveis(false).some((f) => f.name === "comando_listar"));
   assert.ok(!ferramentasVisiveis(false).some((f) => f.name === "comando_rodar" || f.name === "conversa_enviar"));
