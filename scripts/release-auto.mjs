@@ -43,7 +43,7 @@ const ROTULO = "com.meu-bot.release-auto";
 // Segundo Mac que publica: MEU_BOT_RELEASE_QUIETUDE_MIN=25 no --instalar (vai para o plist) faz este esperar mais que o principal.
 const ESPERA_MIN = quietudeMinDoAmbiente(process.env);
 const PLIST = join(HOME, "Library", "LaunchAgents", `${ROTULO}.plist`);
-const STAGING_APPS = ["meu-bot-staging", "meu-bot-inspector-staging"];
+const STAGING_APPS = ["meu-bot-staging", "meu-bot-inspector-staging", "meu-bot-diego-staging"];
 /** Uma ação que falhou (testes, chave negada…) só é tentada de novo no mesmo commit depois disto. */
 const ESPERA_FALHA_MS = 60 * 60 * 1000;
 

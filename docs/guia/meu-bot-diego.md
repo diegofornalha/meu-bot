@@ -9,8 +9,9 @@ Um **produto** é um meu-bot para uma pessoa ou um nicho (`meu-bot-<nome>`, o ad
 o que liga o serviço no agente da máquina (MCP, regras do turno) e a **ficha** que a página Módulos mostra. O app não leva
 módulo nenhum dentro: baixa o repositório com git. Um nicho novo é um repositório novo e uma linha em `variant-core.ts`.
 
-Hoje há um produto, o `meu-bot-diego`, e um app, o `meu-bot-diego-staging` (`npm run dist:diego-staging`; fora da
-release automática: `release-core.mjs` deixa de fora os produtos com `caps.modulos`).
+Hoje há um produto, o `meu-bot-diego`, e um app, o `meu-bot-diego-staging`. Desde 25 nov 2026 ele sai na release staging
+automática como os outros apps e se atualiza pelo atualizador; antes ficava de fora (`caps.modulos`) e era empacotado à
+mão. `npm run dist:diego-staging` continua servindo para ver um ramo antes do merge.
 
 ## Como o app pega os módulos (`src/main/modulos/`)
 

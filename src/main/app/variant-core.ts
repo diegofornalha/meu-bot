@@ -135,8 +135,8 @@ export const PRODUTOS: readonly Produto[] = [
     descricao: "O meu-bot em teste com o MCP Inspector na frente (abre na página Inspector): a interface oficial do Inspector ligada ao controle externo (MCP) do próprio app." },
   // meu-bot-diego-staging: o meu-bot em teste com a página Módulos na frente. O app não leva módulo nenhum: baixa-os
   // com git do repositório do produto (diegofornalha/meu-bot-diego, src/main/modulos/modulos-fonte-core.ts) e cada
-  // módulo traz o MCP, as regras e o tutorial dele. Liberado pelo add-on meu-bot-diego na licença. Fica fora da release
-  // automática (release-core.mjs, `caps.modulos`): empacota-se à mão (docs/guia/meu-bot-diego.md).
+  // módulo traz o MCP, as regras e o tutorial dele. Liberado pelo add-on meu-bot-diego na licença. Sai na release
+  // staging automática como os outros (release-core.mjs) e se atualiza pelo atualizador (docs/guia/meu-bot-diego.md).
   { ...staging(CLIENT, "diego-staging", 8794, 2294, 7836), nome: "meu-bot-diego-staging", bundleId: "local.meu-bot-diego.staging", icone: "assets/icon-diego-staging.icns", userData: "meu-bot-diego-staging", herdaDe: "meu-bot-staging", fundeDe: null, addon: "meu-bot-diego", instalador: false, abreEm: "modulos", caps: { ...PESSOA, modulos: "meu-bot-diego" },
     descricao: "O meu-bot em teste com os módulos do Diego na frente (abre na página Módulos): os módulos vêm do repositório meu-bot-diego, baixados pelo app, com MCP e tutorial." },
 ];

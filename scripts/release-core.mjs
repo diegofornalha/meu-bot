@@ -36,11 +36,13 @@ export function recusaSemDeveloperId(identidade, permitido = false) {
 }
 
 /**
- * Produtos que cada canal publica: staging = as linhas staging; estável = as estáveis (o admin inclusive). Ficam de
- * fora os produtos de módulos (`caps.modulos`, como o meu-bot-diego-staging): eles se empacotam à mão por enquanto
- * (docs/guia/meu-bot-diego.md); os módulos não vão no app, ele os baixa do repositório do produto.
+ * Produtos que cada canal publica: staging = as linhas staging; estável = as estáveis (o admin inclusive). Todo
+ * produto da tabela sai na release do seu canal, sem exceção (decisão do usuário em 25 nov 2026: "o empacotamento da
+ * release por padrão precisa ser automático"). Até então os produtos de módulos (`caps.modulos`, como o
+ * meu-bot-diego-staging) ficavam de fora e se empacotavam à mão: o instalado envelhecia (0.84.0 ao lado do staging
+ * 1.2.3) e não se atualizava sozinho. Os módulos continuam fora do app: ele os baixa do repositório do produto.
  */
-export const produtosDoCanal = (produtos, canal) => produtos.filter((p) => p.canal === canal && (p.caps?.modulos ?? null) === null);
+export const produtosDoCanal = (produtos, canal) => produtos.filter((p) => p.canal === canal);
 /** Os do canal que também saem com o instalador .dmg (o app das pessoas: campo `instalador` em variant-core.ts). */
 export const produtosComInstalador = (produtos, canal) => produtosDoCanal(produtos, canal).filter((p) => p.instalador === true);
 
