@@ -42,7 +42,7 @@ cliente (um `claude mcp add` ou um trecho de `mcp.json`); o app só gera o texto
   e chave, e não só o nome: "Gerar outra" ou trocar a porta vira **desatualizado**, e Atualizar faz `remove` + `add-json`
   (o `add-json` recusa nome existente). A entrada leva `X-Meu-Bot-Cliente`, então o selo diz "Claude Code (MCP)". O
   `claude` vem do `findClaude` (achado fica em cache; "não achei" vale 1 min) e roda com a pasta dele no PATH (o
-  instalado pelo npm é `#!/usr/bin/env node`). Sem `claude`, o "Copiar comando" (agora com `--scope user`) é o plano B; ele leva um `claude mcp remove` na frente, porque o `claude mcp add` recusa um nome já registrado.
+  instalado pelo npm é `#!/usr/bin/env node`). Sem `claude`, o "Copiar comando" (agora com `--scope user`) é o plano B; ele leva um `claude mcp remove` na frente, porque o `claude mcp add` recusa um nome já registrado (no Windows os dois vão ligados por `;`, que vale no PowerShell e não no `cmd.exe`).
   **Entradas locais** (`estadoClaudeCode`): o comando antigo, sem `--scope`, criava `projects[pasta].mcpServers[nome]`,
   e a local vence a user naquela pasta. Uma local com chave ou porta velhas deixa o cliente "desatualizado"; Atualizar
   roda `claude mcp remove --scope local` com o `cwd` na pasta dela (o `claude` só a tira de lá dentro), e Remover tira

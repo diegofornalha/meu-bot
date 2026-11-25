@@ -218,7 +218,8 @@ export function entradaMcp(porta: number, token: string, cliente: ClienteMcp): R
  * `claude mcp remove` na frente porque o `claude mcp add` recusa um nome já registrado ("already exists"): colado de
  * novo, depois de trocar a chave ou a porta, o comando tem de substituir o registro, como o botão Instalar faz. No
  * Windows a saída do remove não é escondida (`>/dev/null` não existe no PowerShell): sem registro anterior ele só
- * avisa que não achou o servidor e o add roda em seguida.
+ * avisa que não achou o servidor e o add roda em seguida. O `;` encadeia no PowerShell e no Git Bash, não no
+ * `cmd.exe` (lá o add viraria argumento do remove): a dica do botão diz para colar no PowerShell.
  */
 export const configClaudeCode = (nome: string, porta: number, token: string, windows = false): string =>
   `claude mcp remove --scope user ${nome}${windows ? "" : " >/dev/null 2>&1"}; claude mcp add --scope user --transport http ${nome} ${urlMcp(porta)} --header "Authorization: Bearer ${token}" --header "X-Meu-Bot-Cliente: ${ROTULO_CLIENTE["claude-code"]}"`;

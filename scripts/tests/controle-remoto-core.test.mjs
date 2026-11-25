@@ -154,6 +154,8 @@ test("token e porta: 64 hex; porta 1024–65535; a configuração pronta leva no
   const add = `claude mcp add --scope user --transport http meu-bot-staging http://127.0.0.1:7831/mcp --header "Authorization: Bearer ${TOKEN}" --header "X-Meu-Bot-Cliente: Claude Code"`;
   assert.equal(configClaudeCode("meu-bot-staging", 7831, TOKEN), `claude mcp remove --scope user meu-bot-staging >/dev/null 2>&1; ${add}`);
   assert.equal(configClaudeCode("meu-bot-staging", 7831, TOKEN, true), `claude mcp remove --scope user meu-bot-staging; ${add}`, "Windows: sem /dev/null");
+  // A chave só aparece no add: o remove (a parte antes do `;`) não leva token.
+  for (const windows of [false, true]) assert.equal(configClaudeCode("meu-bot-staging", 7831, TOKEN, windows).split("; ")[0].includes(TOKEN), false);
   assert.deepEqual(JSON.parse(configCursor("meu-bot", 7830, TOKEN)), { mcpServers: { "meu-bot": { url: "http://127.0.0.1:7830/mcp", headers: { Authorization: `Bearer ${TOKEN}`, "X-Meu-Bot-Cliente": "Cursor" } } } });
 });
 
