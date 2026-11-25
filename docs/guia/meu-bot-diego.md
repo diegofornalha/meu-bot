@@ -7,10 +7,12 @@
 Um **produto** é um meu-bot para uma pessoa ou um nicho (`meu-bot-<nome>`, o add-on na licença). Cada produto tem um
 **repositório de módulos** (`https://github.com/diegofornalha/<produto>.git`, ou a URL de Configurações). Cada módulo traz
 o que liga o serviço no agente da máquina (MCP, regras do turno) e a **ficha** que a página Módulos mostra. O app não leva
-módulo nenhum dentro: baixa o repositório com git. Um nicho novo é um repositório novo e uma linha em `variant-core.ts`.
+módulo nenhum dentro: baixa o repositório com git. Um nicho novo é um repositório de módulos novo e, se tiver app
+próprio, um app derivado no repositório dele ([derivados.md](derivados.md)); nada disso entra na tabela do core.
 
-Hoje há um produto, o `meu-bot-diego`, e um app, o `meu-bot-diego-staging` (`npm run dist:diego-staging`; fora da
-release automática: `release-core.mjs` deixa de fora os produtos com `caps.modulos`).
+Hoje há um produto, o `meu-bot-diego`, e um app, o `meu-bot-diego-staging`. O app é um **derivado**: a ficha e o ícone
+moram em `github.com/diegofornalha/meu-bot-diego-app` (público), as releases saem lá, automáticas, a cada staging do
+core, e o app instalado se atualiza de lá. Os módulos continuam no `meu-bot-diego` (privado).
 
 ## Como o app pega os módulos (`src/main/modulos/`)
 

@@ -4,6 +4,7 @@
  * Tudo aqui roda no processo principal, por `webContents.executeJavaScript` / `sendInputEvent`.
  */
 import type { WebContents } from "electron";
+import { literalJs } from "./nav-donos-core";
 
 /** Texto e elementos interativos da página, numerados; o número é o que o agente usa em clicar/digitar. */
 export const readScript = (ignorar = ""): string => `(() => {
@@ -11,7 +12,7 @@ export const readScript = (ignorar = ""): string => `(() => {
   const items = []; const marcas = []; window.__meuBotEls = [];
   const sel = "a[href], button, input, textarea, select, [role=button], [role=link], [role=tab], [role=menuitem], [role=textbox], [contenteditable=true], summary";
   for (const e of document.querySelectorAll(sel)) {
-    if (!vis(e) || items.length >= 400) continue;${ignorar === "" ? "" : `\n    if (e.closest(${JSON.stringify(ignorar)})) continue;`}
+    if (!vis(e) || items.length >= 400) continue;${ignorar === "" ? "" : `\n    if (e.closest(${literalJs(ignorar)})) continue;`}
     const tag = e.tagName.toLowerCase();
     const type = e.getAttribute("type") || "";
     const label = (e.getAttribute("aria-label") || e.getAttribute("placeholder") || e.getAttribute("title") || e.getAttribute("alt") || (e.labels && e.labels[0] && e.labels[0].innerText) || e.innerText || e.value || "").replace(/\\s+/g, " ").trim().slice(0, 80);
@@ -53,8 +54,8 @@ export const pick = (n: number): string => `(() => { const e = (window.__meuBotE
 /** O elemento pedido: pelo número da última leitura, por seletor CSS ou pelo texto do botão/link. */
 export function alvoDeClique(b: { n?: unknown; seletor?: unknown; texto?: unknown }): string {
   const target = typeof b.n === "number" ? pick(b.n)
-    : typeof b.seletor === "string" ? `(() => { const e = document.querySelector(${JSON.stringify(b.seletor)}); if (!e) throw new Error("nada com o seletor"); return e; })()`
-      : typeof b.texto === "string" ? `(() => { const q = ${JSON.stringify(b.texto)}.toLowerCase(); const all = [...document.querySelectorAll("a, button, [role=button], [role=link], [role=tab], [role=menuitem], input[type=submit], input[type=button], summary, label")]; const e = all.find((x) => (x.innerText || x.value || x.getAttribute("aria-label") || "").toLowerCase().trim() === q) || all.find((x) => (x.innerText || x.value || x.getAttribute("aria-label") || "").toLowerCase().includes(q)); if (!e) throw new Error("nenhum botão/link com esse texto"); return e; })()`
+    : typeof b.seletor === "string" ? `(() => { const e = document.querySelector(${literalJs(b.seletor)}); if (!e) throw new Error("nada com o seletor"); return e; })()`
+      : typeof b.texto === "string" ? `(() => { const q = ${literalJs(b.texto)}.toLowerCase(); const all = [...document.querySelectorAll("a, button, [role=button], [role=link], [role=tab], [role=menuitem], input[type=submit], input[type=button], summary, label")]; const e = all.find((x) => (x.innerText || x.value || x.getAttribute("aria-label") || "").toLowerCase().trim() === q) || all.find((x) => (x.innerText || x.value || x.getAttribute("aria-label") || "").toLowerCase().includes(q)); if (!e) throw new Error("nenhum botão/link com esse texto"); return e; })()`
         : null;
   if (target === null) throw new Error("diga n (número do 'ler'), texto ou seletor");
   return target;
@@ -64,7 +65,7 @@ export const cliqueDireitoScript = (target: string): string => `(() => { const e
 /** Rola até o elemento, mede o ponto (para a faixa de depuração), foca e clica. */
 export const clicarScript = (target: string): string => `(() => { const e = ${target}; e.scrollIntoView({ block: "center" }); const r = e.getBoundingClientRect(); const ponto = { x: r.left + r.width / 2, y: r.top + r.height / 2, vw: innerWidth, vh: innerHeight }; e.focus && e.focus(); e.click(); return ponto; })()`;
 /** O campo onde digitar: pelo número, por seletor, ou o que já está com o foco. */
-export const alvoDeDigitacao = (b: { n?: unknown; seletor?: unknown }): string => (typeof b.n === "number" ? pick(b.n) : typeof b.seletor === "string" ? `(() => { const e = document.querySelector(${JSON.stringify(b.seletor)}); if (!e) throw new Error("nada com o seletor"); return e; })()` : "document.activeElement");
+export const alvoDeDigitacao = (b: { n?: unknown; seletor?: unknown }): string => (typeof b.n === "number" ? pick(b.n) : typeof b.seletor === "string" ? `(() => { const e = document.querySelector(${literalJs(b.seletor)}); if (!e) throw new Error("nada com o seletor"); return e; })()` : "document.activeElement");
 /** Foca o campo e seleciona o que há nele, para o texto novo entrar por cima. */
 export const focarScript = (target: string): string => `(() => { const e = ${target}; e.scrollIntoView({ block: "center" }); const r = e.getBoundingClientRect(); const ponto = { x: r.left + r.width / 2, y: r.top + r.height / 2, vw: innerWidth, vh: innerHeight }; e.focus(); if ("value" in e && typeof e.value === "string") { e.select && e.select(); } else if (e.isContentEditable) { const r = document.createRange(); r.selectNodeContents(e); const s = getSelection(); s.removeAllRanges(); s.addRange(r); } return ponto; })()`;
 /**
@@ -73,7 +74,7 @@ export const focarScript = (target: string): string => `(() => { const e = ${tar
  * entrava nada); a interface é DOM puro, então isto basta. Devolve false se o alvo não é um campo de valor (área
  * editável): aí quem chamou usa o `insertText`.
  */
-export const digitarValorScript = (target: string, texto: string): string => `(() => { const e = ${target}; e.scrollIntoView({ block: "center" }); e.focus(); if (!("value" in e) || typeof e.value !== "string") return false; e.value = ${JSON.stringify(texto)}; e.dispatchEvent(new Event("input", { bubbles: true })); e.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`;
+export const digitarValorScript = (target: string, texto: string): string => `(() => { const e = ${target}; e.scrollIntoView({ block: "center" }); e.focus(); if (!("value" in e) || typeof e.value !== "string") return false; e.value = ${literalJs(texto)}; e.dispatchEvent(new Event("input", { bubbles: true })); e.dispatchEvent(new Event("change", { bubbles: true })); return true; })()`;
 /**
  * O `executeJavaScript` troca qualquer erro lançado na página por "Script failed to execute…", e a mensagem certa
  * ("comando desconhecido", "nada com o seletor") se perdia. Este invólucro a traz de volta como valor; `valorOuErro`

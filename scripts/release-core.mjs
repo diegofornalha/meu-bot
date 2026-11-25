@@ -36,11 +36,10 @@ export function recusaSemDeveloperId(identidade, permitido = false) {
 }
 
 /**
- * Produtos que cada canal publica: staging = as linhas staging; estável = as estáveis (o admin inclusive). Ficam de
- * fora os produtos de módulos (`caps.modulos`, como o meu-bot-diego-staging): eles se empacotam à mão por enquanto
- * (docs/guia/meu-bot-diego.md); os módulos não vão no app, ele os baixa do repositório do produto.
+ * Produtos que cada canal publica: staging = as linhas staging; estável = as estáveis (o admin inclusive). São só os
+ * apps do core: um app derivado não está na tabela, sai do repositório dele pela release de derivados (mais abaixo).
  */
-export const produtosDoCanal = (produtos, canal) => produtos.filter((p) => p.canal === canal && (p.caps?.modulos ?? null) === null);
+export const produtosDoCanal = (produtos, canal) => produtos.filter((p) => p.canal === canal);
 /** Os do canal que também saem com o instalador .dmg (o app das pessoas: campo `instalador` em variant-core.ts). */
 export const produtosComInstalador = (produtos, canal) => produtosDoCanal(produtos, canal).filter((p) => p.instalador === true);
 
@@ -536,3 +535,97 @@ export function plistDoAgente({ rotulo, node, principal, wt, path, log, interval
 `;
 }
 
+
+/* ---------- release dos apps derivados (scripts/release-derivados.mjs) ---------- */
+
+const REPO_GITHUB = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\/[A-Za-z0-9_.-]{1,100}$/;
+/**
+ * A lista dos derivados que este Mac publica, lida de fora do repositório do core (pasta de estado do agente): cada
+ * item diz o repositório público do derivado e a pasta do clone dele neste Mac. Devolve `{ itens }` ou `{ erro }`.
+ * Lista ausente é lista vazia: o core não sabe de derivado nenhum, e publicar é decisão de quem cuida deste Mac.
+ */
+export function parseDerivados(raw) {
+  if (raw === undefined || raw === null) return { itens: [] };
+  if (!Array.isArray(raw)) return { erro: "a lista de derivados tem de ser um array de { repo, pasta }" };
+  const itens = [];
+  for (const [i, x] of raw.entries()) {
+    if (typeof x !== "object" || x === null) return { erro: `item ${i + 1}: tem de ser { repo, pasta }` };
+    const { repo, pasta } = x;
+    if (typeof repo !== "string" || !REPO_GITHUB.test(repo) || repo.includes("..")) return { erro: `item ${i + 1}: repo tem de ser "dono/repositório" do GitHub` };
+    if (typeof pasta !== "string" || !pasta.startsWith("/")) return { erro: `item ${i + 1} (${repo}): pasta tem de ser o caminho absoluto do clone do derivado` };
+    if (itens.some((y) => y.repo.toLowerCase() === repo.toLowerCase())) return { erro: `item ${i + 1}: ${repo} aparece duas vezes` };
+    if (itens.some((y) => y.pasta === pasta)) return { erro: `item ${i + 1}: a pasta ${pasta} aparece duas vezes` };
+    // `commit`: o commit do derivado que o dono deste Mac aprovou (os 40 caracteres, nunca um ramo nem um prefixo:
+    // tem de ser o que foi lido). Com ele, é esse commit que se empacota, e não o que estiver no ramo padrão.
+    const commit = x.commit ?? null;
+    if (commit !== null && (typeof commit !== "string" || !/^[0-9a-f]{40}$/.test(commit))) return { erro: `item ${i + 1} (${repo}): commit tem de ser o hash inteiro (40 caracteres hexadecimais) do commit aprovado` };
+    itens.push({ repo, pasta, commit });
+  }
+  return { itens };
+}
+/**
+ * Por que a ficha de um derivado não pode ser publicada em `repo`, ou null. O app procura as atualizações no
+ * repositório que a ficha diz (`releases`): publicar noutro lugar deixaria os instalados sem atualização, calados.
+ */
+export function recusaDerivado(produto, repo) {
+  if (produto.repoReleases === null || produto.repoReleases === undefined) return `a ficha de ${produto.nome} não diz onde saem as releases: ponha "releases": "${repo}" no produto.json`;
+  if (produto.repoReleases.toLowerCase() !== repo.toLowerCase()) return `a ficha de ${produto.nome} manda procurar as releases em ${produto.repoReleases}, e a lista deste Mac publica em ${repo}`;
+  if (produto.canal !== "staging") return `${produto.nome} não é do canal staging: a release automática de derivados só publica o canal de teste`;
+  return null;
+}
+/** Pasta do repositório de um derivado onde mora o código próprio dele (páginas de extensão); a ficha e o ícone não são código. */
+export const PASTA_DE_CODIGO = "codigo";
+/**
+ * Por que este derivado não pode ser empacotado neste commit, ou null. A regra do commit aprovado: um derivado que traz
+ * CÓDIGO é compilado, assinado com o Developer ID do dono e distribuído por atualização automática; por isso só sai do
+ * commit que o dono deste Mac leu e escreveu na lista (`commit`). Código novo no repositório não é assinado sozinho.
+ * Um derivado só de ficha e ícone pode seguir o ramo padrão: a ficha só escolhe nome, portas e páginas do core.
+ * `temCodigo` = a pasta PASTA_DE_CODIGO existe no commit; `commitAtual` = o HEAD do clone depois do checkout.
+ */
+export function recusaCommitDoDerivado({ repo, temCodigo, commitAprovado, commitAtual }) {
+  if (commitAprovado !== null && commitAprovado !== undefined && commitAtual !== commitAprovado) return `o clone de ${repo} está em ${String(commitAtual).slice(0, 12)}, e o commit aprovado é ${commitAprovado.slice(0, 12)}`;
+  if (temCodigo && (commitAprovado === null || commitAprovado === undefined)) return `${repo} traz código próprio (pasta ${PASTA_DE_CODIGO}/): leia o commit ${String(commitAtual).slice(0, 12)} e, se aprovar, escreva "commit": "${commitAtual}" no item dele na lista de derivados deste Mac`;
+  return null;
+}
+/** A versão de um derivado é a do core de onde ele foi feito: tem de ser uma staging (`X.Y.Z-staging.N`). */
+export const versaoStagingValida = (v) => typeof v === "string" && STAGING.test(`v${v}`);
+/** A versão staging das tags que apontam para o commit de onde se empacota (a release do core acabou de criá-la); null sem nenhuma. */
+export function versaoDasTags(tagsNoHead) {
+  let melhor = null;
+  for (const t of tagsNoHead) { const m = STAGING.exec(t.trim()); if (m !== null && (melhor === null || Number(m[2]) > melhor.n)) melhor = { v: t.trim().slice(1), n: Number(m[2]) }; }
+  return melhor === null ? null : melhor.v;
+}
+/** As notas da release de um derivado: de qual core e de qual commit do derivado ela saiu (o que mudou está no core). */
+export const notasDoDerivado = ({ nome, versao, commitCore, commitDerivado }) =>
+  `${nome} ${versao}, feito do meu-bot ${versao} (core ${commitCore}) e da ficha deste repositório (${commitDerivado}).\n\nO que mudou no app está nas notas do meu-bot: https://github.com/diegofornalha/meu-bot/releases/tag/v${versao}\n`;
+/** Os argumentos do `gh release create` de um derivado: sempre com `-R` (o repositório dele), pre-release e o commit do derivado como alvo da tag. */
+export const argsReleaseDerivado = ({ tag, repo, arquivos, titulo, notasArquivo, commitDerivado }) =>
+  ["release", "create", tag, ...arquivos, "-R", repo, "--title", titulo, "--notes-file", notasArquivo, "--prerelease", "--target", commitDerivado];
+
+/**
+ * O que o agente faz depois de tentar a release dos derivados numa versão: `ok` = o script saiu 0 (tudo publicado ou
+ * já em dia); `falhouAntes` = a versão em que a tentativa anterior falhou (do estado), ou null.
+ * - "limpar": voltou a ficar em dia depois de uma falha (registra no log e limpa o estado);
+ * - "avisar": primeira falha nesta versão (grava o estado e avisa a pessoa);
+ * - "calar": continua falhando na mesma versão (a tentativa se repete a cada rodada; o aviso, não);
+ * - "nada": em dia, sem falha anterior.
+ */
+export function decideAvisoDerivado({ versao, falhouAntes, ok }) {
+  const antes = falhouAntes ?? null;
+  if (ok) return antes === null ? "nada" : "limpar";
+  return antes === versao ? "calar" : "avisar";
+}
+/**
+ * Por que a release dos derivados falhou, para o aviso dizer mais que "falhou": a última linha `✗ …` da saída do
+ * script que não seja o resumo ("✗ 1 de 2 derivado(s)…"), sem o `✗`, cortada para caber na notificação. null se a
+ * saída não tem nenhuma (o script morreu antes de dizer).
+ */
+export function motivoDaFalhaDerivados(saida) {
+  const linhas = String(saida ?? "").split("\n").map((l) => l.trim()).filter((l) => l.startsWith("✗ ") && !/^✗ \d+ de \d+ derivado/.test(l));
+  const ultima = linhas[linhas.length - 1];
+  if (ultima === undefined) return null;
+  const texto = ultima.slice(2).trim();
+  return texto.length > 180 ? `${texto.slice(0, 179)}…` : texto;
+}
+/** A chave da release e o Developer ID só entram quando há o que publicar de verdade: na conferência ou com tudo em dia, o Chaveiro nem é tocado. */
+export const precisaDaChave = ({ conferir, faltam }) => !conferir && faltam > 0;

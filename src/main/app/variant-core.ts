@@ -51,6 +51,12 @@ export interface Produto {
   windows: boolean;
   /** Página que fica na frente quando a janela abre (de PAGINAS_INICIAIS); null = as abas de conversa, como sempre. */
   abreEm: PaginaInicial | null;
+  /**
+   * Repositório do GitHub ("dono/nome") onde saem as releases deste app; null = o do core (UPDATE_REPO). Um derivado
+   * publica no repositório dele, e é lá que o atualizador dele procura (updater-core.ts `releasesUrl`). A confiança
+   * não muda: o que se baixa passa pela mesma assinatura Ed25519, pelo mesmo bundle id e pelo Developer ID do time.
+   */
+  repoReleases: string | null;
   caps: Omit<Capabilities, "variant" | "produto" | "canal" | "nome" | "titulo" | "addon" | "abreEm" | "addons" | CapDePlataforma>;
 }
 /**
@@ -108,7 +114,7 @@ const ADMIN: Produto["caps"] = {
 
 // meu-bot: o app da pessoa. Traz as duas extensões; o CRM próprio no Gmail abre pela licença da máquina (Pro ou superior,
 // ou o produto meu-bot-crm contratado), nunca por variante. Funde a pasta do antigo meu-bot-crm na primeira abertura.
-const CLIENT: Produto = { variant: "client", nome: "meu-bot", bundleId: "local.meu-bot", icone: "assets/icon.icns", userData: null, extensoes: ["extensao-crm", "extensao-autenticador"], canal: "estavel", licenca: "meu-bot", herdaDe: null, portaLocal: 8790, portaWsl: 2290, portaMcp: 7830, fundeDe: "meu-bot-crm", addon: null, instalador: true, windows: false, abreEm: null, caps: PESSOA,
+const CLIENT: Produto = { variant: "client", nome: "meu-bot", bundleId: "local.meu-bot", icone: "assets/icon.icns", userData: null, extensoes: ["extensao-crm", "extensao-autenticador"], canal: "estavel", licenca: "meu-bot", herdaDe: null, portaLocal: 8790, portaWsl: 2290, portaMcp: 7830, fundeDe: "meu-bot-crm", addon: null, instalador: true, windows: false, abreEm: null, repoReleases: null, caps: PESSOA,
   descricao: "O app da pessoa: chat e WhatsApp no plano Free; Navegador e CRM próprio no Pro; add-ons por cima, com ou sem o Pro." };
 
 /** A cópia staging de um app estável: "<nome>-staging", ícone com a faixa, dados próprios herdados dele, porta própria. */
@@ -121,24 +127,18 @@ export const PRODUTOS: readonly Produto[] = [
   CLIENT,
   // Até 4 nov chamava-se meu-bot-admin: a pasta de dados antiga é trazida na primeira abertura (admin/user-data.ts). A licença
   // continua "meu-bot-admin" (é o nome contratado, não o do app).
-  { variant: "admin", nome: "meu-bot-admin-gestao", bundleId: "local.meu-bot-admin-gestao", icone: "assets/icon-admin.icns", userData: "meu-bot-admin-gestao", extensoes: [], canal: "estavel", licenca: "meu-bot-admin", herdaDe: null, portaLocal: 8790, portaWsl: 2292, portaMcp: 7833, fundeDe: null, addon: null, instalador: false, windows: false, abreEm: null, caps: ADMIN,
+  { variant: "admin", nome: "meu-bot-admin-gestao", bundleId: "local.meu-bot-admin-gestao", icone: "assets/icon-admin.icns", userData: "meu-bot-admin-gestao", extensoes: [], canal: "estavel", licenca: "meu-bot-admin", herdaDe: null, portaLocal: 8790, portaWsl: 2292, portaMcp: 7833, fundeDe: null, addon: null, instalador: false, windows: false, abreEm: null, repoReleases: null, caps: ADMIN,
     descricao: "Este app: suporte, licenças, espelho das máquinas, auditoria e o registro de produtos (MVPs)." },
   // O primeiro a sair para Windows: só no canal de teste, até o instalador ter assinatura Authenticode.
   { ...staging(CLIENT, "client-staging", 8791, 2291, 7831), windows: true },
   // meu-bot-admin-mac: só as contas deste Mac (quem abre o meu-bot aqui; o bot de cada um roda numa VM, assunto do
   // meu-bot-admin). Sem seletor, sem chat; cria contas administrador com o meu-bot na mesa, muda o apelido e apaga.
-  { variant: "admin-mac", nome: "meu-bot-admin-mac", bundleId: "local.meu-bot-admin-mac", icone: "assets/icon-admin-mac.icns", userData: "meu-bot-admin-mac", extensoes: [], canal: "estavel", licenca: "meu-bot-admin", herdaDe: null, portaLocal: 8790, portaWsl: 2295, portaMcp: 7834, fundeDe: null, addon: null, instalador: false, windows: false, abreEm: null, caps: { ...ADMIN, supportAdmin: false, usuariosMac: true },
+  { variant: "admin-mac", nome: "meu-bot-admin-mac", bundleId: "local.meu-bot-admin-mac", icone: "assets/icon-admin-mac.icns", userData: "meu-bot-admin-mac", extensoes: [], canal: "estavel", licenca: "meu-bot-admin", herdaDe: null, portaLocal: 8790, portaWsl: 2295, portaMcp: 7834, fundeDe: null, addon: null, instalador: false, windows: false, abreEm: null, repoReleases: null, caps: { ...ADMIN, supportAdmin: false, usuariosMac: true },
     descricao: "As contas deste Mac: cria (administrador, senha mostrada uma vez, meu-bot na mesa), muda o apelido e apaga. O bot de cada pessoa roda numa VM." },
   // meu-bot-inspector-staging: o meu-bot em teste com o MCP Inspector na frente (abre na página Inspector, que sobe a
   // interface oficial do @modelcontextprotocol/inspector já ligada ao controle externo deste app). Nome, ícone, dados e portas próprios; nasce como cópia dos dados do meu-bot-staging. Só staging.
   { ...staging(CLIENT, "inspector-staging", 8793, 2293, 7835), nome: "meu-bot-inspector-staging", bundleId: "local.meu-bot-inspector.staging", icone: "assets/icon-inspector-staging.icns", userData: "meu-bot-inspector-staging", herdaDe: "meu-bot-staging", fundeDe: null, addon: null, instalador: false, abreEm: "inspector", caps: { ...PESSOA, inspector: true },
     descricao: "O meu-bot em teste com o MCP Inspector na frente (abre na página Inspector): a interface oficial do Inspector ligada ao controle externo (MCP) do próprio app." },
-  // meu-bot-diego-staging: o meu-bot em teste com a página Módulos na frente. O app não leva módulo nenhum: baixa-os
-  // com git do repositório do produto (diegofornalha/meu-bot-diego, src/main/modulos/modulos-fonte-core.ts) e cada
-  // módulo traz o MCP, as regras e o tutorial dele. Liberado pelo add-on meu-bot-diego na licença. Fica fora da release
-  // automática (release-core.mjs, `caps.modulos`): empacota-se à mão (docs/guia/meu-bot-diego.md).
-  { ...staging(CLIENT, "diego-staging", 8794, 2294, 7836), nome: "meu-bot-diego-staging", bundleId: "local.meu-bot-diego.staging", icone: "assets/icon-diego-staging.icns", userData: "meu-bot-diego-staging", herdaDe: "meu-bot-staging", fundeDe: null, addon: "meu-bot-diego", instalador: false, abreEm: "modulos", caps: { ...PESSOA, modulos: "meu-bot-diego" },
-    descricao: "O meu-bot em teste com os módulos do Diego na frente (abre na página Módulos): os módulos vêm do repositório meu-bot-diego, baixados pelo app, com MCP e tutorial." },
 ];
 
 /**
@@ -168,15 +168,16 @@ export const esquemaDe = (p: Produto): string => p.nome;
  * (variant.ts) e passa a ser a variante "derivado". Assim um derivado novo não acrescenta linha nenhuma ao core
  * (docs/guia/derivados.md).
  *
- * As duas linhas da tabela com `herdaDe: "meu-bot-staging"` (inspector e diego) são os derivados antigos, de saída
- * para os repositórios deles; enquanto não saem, uma ficha externa pode repetir o nome e o bundle id delas.
+ * A linha da tabela com `herdaDe: "meu-bot-staging"` (o inspector) é o último derivado antigo, de saída para o
+ * repositório dele; enquanto não sai, uma ficha externa pode repetir o nome e o bundle id dela. O meu-bot-diego-staging
+ * já saiu: mora em github.com/diegofornalha/meu-bot-diego-app.
  */
 const ehDerivadoDaTabela = (p: Produto): boolean => p.herdaDe === "meu-bot-staging";
 /** Os apps do core: a tabela sem os derivados antigos. */
 export const produtosDoCore = (): readonly Produto[] => PRODUTOS.filter((p) => !ehDerivadoDaTabela(p));
 
 /** Campos que a ficha de um derivado aceita; qualquer outro é erro (um nome trocado não pode passar calado). */
-const CAMPOS_DA_FICHA = ["nome", "bundleId", "canal", "portaLocal", "portaWsl", "portaMcp", "herdaDe", "abreEm", "modulos", "inspector", "addon", "descricao"] as const;
+const CAMPOS_DA_FICHA = ["nome", "bundleId", "canal", "portaLocal", "portaWsl", "portaMcp", "herdaDe", "abreEm", "modulos", "inspector", "addon", "descricao", "releases"] as const;
 /**
  * O nome é também a pasta de dados, o esquema do deep link e o nome do app no servidor de contas, que só aceita
  * `meu-bot` mais até 6 pedaços de letras e dígitos, com no máximo 30 caracteres depois de "meu-bot-"
@@ -186,6 +187,9 @@ const NOME_DERIVADO_RE = /^meu-bot(?:-[a-z0-9]+){1,6}$/;
 const NOME_DERIVADO_MAX = "meu-bot-".length + 30;
 const BUNDLE_RE = /^[a-z0-9]+(\.[a-z0-9-]+){1,5}$/;
 const PRODUTO_MODULOS_RE = /^meu-bot-[a-z0-9-]{1,30}$/;
+/** "dono/repositório" do GitHub: só o que cabe num caminho de URL sem barra a mais, ponto-ponto nem espaço. */
+export const REPO_GITHUB_RE = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\/[A-Za-z0-9_.-]{1,100}$/;
+export const repoGithubValido = (v: unknown): v is string => typeof v === "string" && REPO_GITHUB_RE.test(v) && !v.includes("..");
 const ehPorta = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 1024 && v <= 65535;
 export type FichaExterna = { ok: true; produto: Produto } | { ok: false; erro: string };
 /**
@@ -225,11 +229,13 @@ export function parseFichaExterna(raw: unknown): FichaExterna {
   if (typeof inspector !== "boolean") return nao("inspector: true ou false");
   const addon = o.addon ?? null;
   if (addon !== null && !ADDONS.some((a) => a.nome === addon)) return nao(`addon: null ou um destes: ${ADDONS.map((a) => a.nome).join(", ")}`);
+  const releases = o.releases ?? null;
+  if (releases !== null && !repoGithubValido(releases)) return nao('releases: null ou "dono/repositório" do GitHub, o repositório público onde saem as releases do app');
   const descricao = o.descricao ?? "";
   if (typeof descricao !== "string" || descricao.length > 300) return nao("descricao: um texto de até 300 caracteres");
   return { ok: true, produto: {
     ...CLIENT, variant: "derivado", nome, bundleId, icone: "assets/icon.icns", userData: nome, canal, herdaDe: herdaDe as string | null, portaLocal: portaLocal as number, portaWsl: portaWsl as number, portaMcp: portaMcp as number,
-    fundeDe: null, descricao, addon: addon as string | null, instalador: false, windows: false, abreEm: abreEm as PaginaInicial | null, caps: { ...PESSOA, inspector, modulos: modulos as string | null },
+    fundeDe: null, descricao, addon: addon as string | null, instalador: false, windows: false, abreEm: abreEm as PaginaInicial | null, repoReleases: releases, caps: { ...PESSOA, inspector, modulos: modulos as string | null },
   } };
 }
 /** Nome do arquivo da ficha embutida, ao lado do variant-core.js compilado (dentro do asar). */
