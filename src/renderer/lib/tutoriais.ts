@@ -911,3 +911,27 @@ export function sidebarBadge(c: { todo: number; novos: number; avisar: boolean }
   if (c.avisar) return c.todo > 0 ? { text: String(c.todo), pulse: c.novos > 0 } : null;
   return c.novos > 0 ? { text: String(c.novos), pulse: true } : null;
 }
+
+/** Arquivado da página Tutoriais: "concluido" (feito) ou "pulado" (pendência adiada, não feita). */
+export type TutArquivo = "concluido" | "pulado";
+/** Estado curto da linha de um arquivado: "Tutorial 3 · concluído", "Tutorial 4 · pulado · 2 de 5" (pulado já começado
+ *  diz até onde foi); o tour, sem número, é só "Tour". */
+export function estadoCurto(a: { number: number | null; estado: TutArquivo; feitos?: number; passos?: number }): string {
+  const quem = a.number === null ? "Tour" : `Tutorial ${a.number}`;
+  if (a.estado === "concluido") return `${quem} · concluído`;
+  const andou = a.feitos !== undefined && a.passos !== undefined && a.feitos > 0 && a.passos > 0;
+  return `${quem} · pulado${andou ? ` · ${a.feitos} de ${a.passos}` : ""}`;
+}
+/** Separa os arquivados em dois grupos, cada um pela ordem do número (o tour, n = 0, primeiro): pulado ainda pode ser
+ *  feito e fica sempre à vista; concluído obedece ao interruptor. Não muda a lista recebida. */
+export function separarArquivados<T extends { n: number; estado: TutArquivo }>(itens: readonly T[]): { pulados: T[]; concluidos: T[] } {
+  const ordem = (a: T, b: T): number => a.n - b.n;
+  return { pulados: itens.filter((x) => x.estado === "pulado").sort(ordem), concluidos: itens.filter((x) => x.estado === "concluido").sort(ordem) };
+}
+/** Texto da lista sem nenhum pendente. Os pulados estão logo abaixo (sempre à vista), então a frase aponta para eles em
+ *  vez de mandar ligar um interruptor; "Nenhum tutorial ainda." só quando não há mesmo nenhum. */
+export function listaVaziaTexto(c: { pulados: number; concluidos: number; mostraConcluidos: boolean }): string {
+  if (c.pulados > 0) return `Nada pendente. ${c.pulados === 1 ? "O tutorial pulado está" : `Os ${c.pulados} tutoriais pulados estão`} logo abaixo: "Retomar" traz de volta.`;
+  if (c.concluidos === 0) return "Nenhum tutorial ainda.";
+  return c.mostraConcluidos ? "Tudo feito por aqui." : "Tudo feito por aqui. Ligue \"concluídos\" para rever um tutorial.";
+}
