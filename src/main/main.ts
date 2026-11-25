@@ -13,7 +13,7 @@ import { loadConversations } from "./conversa/conversation";
 import { getAceleracaoHardware, getLastHost, getQuickEntry, getTheme, loadSettings, setLastHost, setQuickEntryStatusProvider } from "./app/settings";
 import { applyQuickEntryShortcut, disposeQuickEntry, initQuickEntry, quickEntryStatus } from "./app/quickEntry";
 import { loadMemory } from "./conversa/memory";
-import { appVariant, caps, produto, userDataName } from "./app/variant";
+import { caps, produto, userDataName } from "./app/variant";
 import { personInfo } from "./admin/support-admin";
 import { adminPickerSource } from "./admin/picker-source";
 import { migrateAdminPessoas } from "./admin/user-data";
@@ -59,7 +59,7 @@ if (!getAceleracaoHardware()) app.disableHardwareAcceleration();
 // própria (sem Team ID da Apple) cada build é "outro app" para o macOS e o pedido de senha voltava a cada rebuild,
 // mesmo com "Permitir Sempre". Produção segue no Keychain até haver certificado Apple. Custo em staging, uma vez na
 // troca: os logins do Navegador e o que o safeStorage guardou (Google, Tailscale) precisam ser refeitos.
-if (appVariant().endsWith("-staging")) app.commandLine.appendSwitch("use-mock-keychain");
+if (produto().canal === "staging") app.commandLine.appendSwitch("use-mock-keychain");
 
 // Esquema do deep link do login da conta (`meu-bot://auth?…`, um por produto). O `open-url` do macOS precisa estar
 // ligado antes do `ready`: com o app fechado, o clique no link o abre e o evento chega ainda no arranque.

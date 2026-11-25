@@ -2,9 +2,9 @@
  * Qual produto é este app (meu-bot, meu-bot-admin e os staging) e o que cada um pode fazer. Puro: testável com
  * node --test. Ler o variant.json e o ambiente é tarefa do variant.ts; aqui só a decisão e a tabela.
  *
- * PRODUTOS é a única fonte: o runtime (caps, título, userData) e os scripts de empacotamento
- * (scripts/produtos.mjs lê dist/main/app/variant-core.js) saem daqui. Produto novo (meu-bot-vendas,
- * meu-bot-imobiliaria…) = um membro em AppVariant, uma linha aqui e um ícone em assets/.
+ * PRODUTOS é a fonte dos apps do core: o runtime (caps, título, userData) e os scripts de empacotamento
+ * (scripts/produtos.mjs lê dist/main/app/variant-core.js) saem daqui. Um app derivado (meu-bot-vendas,
+ * meu-bot-imobiliaria…) NÃO entra aqui: a ficha dele vem do repositório dele (`parseFichaExterna`, abaixo).
  *
  * Canais (modelo VS Code / Insiders): o meu-bot tem cópias staging lado a lado, com nome, ícone,
  * dados e porta próprios, que recebe o que está em teste; a linha staging sai da estável (`staging()`), não é
@@ -160,7 +160,96 @@ export function nomesReservados(): Set<string> {
 export const ESQUEMA_RE = /^[a-z][a-z0-9-]*$/;
 export const esquemaDe = (p: Produto): string => p.nome;
 
+/**
+ * Apps derivados: um derivado é um meu-bot com nome, ícone, dados e portas próprios, cuja FICHA mora no repositório
+ * dele (`produto.json`), não nesta tabela. O empacotamento (`--produto <pasta>`, scripts/produtos.mjs) valida a ficha e
+ * a embute DENTRO do asar (dist/main/app/produto-embutido.json, FICHA_EMBUTIDA): a integridade do asar a cobre, e
+ * ninguém troca as capacidades do app editando um arquivo solto em Resources/. Ao abrir, o app a registra aqui
+ * (variant.ts) e passa a ser a variante "derivado". Assim um derivado novo não acrescenta linha nenhuma ao core
+ * (docs/guia/derivados.md).
+ *
+ * As duas linhas da tabela com `herdaDe: "meu-bot-staging"` (inspector e diego) são os derivados antigos, de saída
+ * para os repositórios deles; enquanto não saem, uma ficha externa pode repetir o nome e o bundle id delas.
+ */
+const ehDerivadoDaTabela = (p: Produto): boolean => p.herdaDe === "meu-bot-staging";
+/** Os apps do core: a tabela sem os derivados antigos. */
+export const produtosDoCore = (): readonly Produto[] => PRODUTOS.filter((p) => !ehDerivadoDaTabela(p));
+
+/** Campos que a ficha de um derivado aceita; qualquer outro é erro (um nome trocado não pode passar calado). */
+const CAMPOS_DA_FICHA = ["nome", "bundleId", "canal", "portaLocal", "portaWsl", "portaMcp", "herdaDe", "abreEm", "modulos", "inspector", "addon", "descricao"] as const;
+/**
+ * O nome é também a pasta de dados, o esquema do deep link e o nome do app no servidor de contas, que só aceita
+ * `meu-bot` mais até 6 pedaços de letras e dígitos, com no máximo 30 caracteres depois de "meu-bot-"
+ * (ESQUEMA_RE e APP_RE em conta-api/src/sessao-core.ts): fora disso o login da conta falharia.
+ */
+const NOME_DERIVADO_RE = /^meu-bot(?:-[a-z0-9]+){1,6}$/;
+const NOME_DERIVADO_MAX = "meu-bot-".length + 30;
+const BUNDLE_RE = /^[a-z0-9]+(\.[a-z0-9-]+){1,5}$/;
+const PRODUTO_MODULOS_RE = /^meu-bot-[a-z0-9-]{1,30}$/;
+const ehPorta = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 1024 && v <= 65535;
+export type FichaExterna = { ok: true; produto: Produto } | { ok: false; erro: string };
+/**
+ * A ficha de um derivado (o `produto.json` do repositório dele) vira um Produto, ou o motivo da recusa. Um derivado é
+ * sempre um app da pessoa (as capacidades do meu-bot): a ficha escolhe o nome, o bundle id, o canal, as portas, de
+ * quem herda os dados na primeira abertura, a página que abre na frente e o produto de módulos fixo. O resto vem do
+ * meu-bot (extensões, licença "meu-bot") e não é da ficha. Não pode repetir nome, bundle id nem porta de um app do core.
+ */
+export function parseFichaExterna(raw: unknown): FichaExterna {
+  const nao = (erro: string): FichaExterna => ({ ok: false, erro });
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return nao("a ficha tem de ser um objeto");
+  const o = raw as Record<string, unknown>;
+  const estranho = Object.keys(o).find((k) => !(CAMPOS_DA_FICHA as readonly string[]).includes(k));
+  if (estranho !== undefined) return nao(`campo desconhecido "${estranho}" (aceitos: ${CAMPOS_DA_FICHA.join(", ")})`);
+  const core = produtosDoCore();
+  const { nome, bundleId, canal, portaLocal, portaWsl, portaMcp } = o;
+  if (typeof nome !== "string" || !NOME_DERIVADO_RE.test(nome) || nome.length > NOME_DERIVADO_MAX) return nao("nome: use meu-bot-<nome>, só minúsculas, dígitos e hífen (até 6 pedaços e 30 caracteres depois de meu-bot-)");
+  const reservados = new Set<string>([...ADDONS.map((a) => a.nome), ...NAO_ADDON]);
+  for (const p of core) for (const n of [p.nome, p.licenca, p.fundeDe]) if (n !== null) reservados.add(n);
+  if (reservados.has(nome)) return nao(`nome: "${nome}" já é de um app do core, de uma licença ou de um add-on`);
+  if (typeof bundleId !== "string" || !BUNDLE_RE.test(bundleId)) return nao("bundleId: use o formato local.meu-bot-<nome>");
+  if (core.some((p) => p.bundleId === bundleId)) return nao(`bundleId: "${bundleId}" já é de um app do core`);
+  // Só o canal de teste por enquanto: a promoção para estável (24 h, prova de saúde) é uma esteira do core.
+  if (canal !== "staging") return nao('canal: por enquanto só "staging"');
+  for (const [campo, v] of [["portaLocal", portaLocal], ["portaWsl", portaWsl], ["portaMcp", portaMcp]] as const) {
+    if (!ehPorta(v)) return nao(`${campo}: um número inteiro de 1024 a 65535`);
+    if (core.some((p) => p[campo] === v)) return nao(`${campo}: ${v} já é de um app do core (dois apps abertos juntos não podem dividir a porta)`);
+  }
+  const herdaDe = o.herdaDe ?? null;
+  // Só de um app da pessoa do core: é de lá que vêm as configurações que um derivado sabe ler.
+  if (herdaDe !== null && !core.some((p) => p.nome === herdaDe && p.caps.chat)) return nao(`herdaDe: null ou um destes: ${core.filter((p) => p.caps.chat).map((p) => p.nome).join(", ")}`);
+  const abreEm = o.abreEm ?? null;
+  if (abreEm !== null && !(PAGINAS_INICIAIS as readonly unknown[]).includes(abreEm)) return nao(`abreEm: null ou uma destas: ${PAGINAS_INICIAIS.join(", ")}`);
+  const modulos = o.modulos ?? null;
+  if (modulos !== null && (typeof modulos !== "string" || !PRODUTO_MODULOS_RE.test(modulos))) return nao("modulos: null ou o nome do produto de módulos (meu-bot-<nome>)");
+  const inspector = o.inspector ?? false;
+  if (typeof inspector !== "boolean") return nao("inspector: true ou false");
+  const addon = o.addon ?? null;
+  if (addon !== null && !ADDONS.some((a) => a.nome === addon)) return nao(`addon: null ou um destes: ${ADDONS.map((a) => a.nome).join(", ")}`);
+  const descricao = o.descricao ?? "";
+  if (typeof descricao !== "string" || descricao.length > 300) return nao("descricao: um texto de até 300 caracteres");
+  return { ok: true, produto: {
+    ...CLIENT, variant: "derivado", nome, bundleId, icone: "assets/icon.icns", userData: nome, canal, herdaDe: herdaDe as string | null, portaLocal: portaLocal as number, portaWsl: portaWsl as number, portaMcp: portaMcp as number,
+    fundeDe: null, descricao, addon: addon as string | null, instalador: false, windows: false, abreEm: abreEm as PaginaInicial | null, caps: { ...PESSOA, inspector, modulos: modulos as string | null },
+  } };
+}
+/** Nome do arquivo da ficha embutida, ao lado do variant-core.js compilado (dentro do asar). */
+export const FICHA_EMBUTIDA = "produto-embutido.json";
+/** O derivado deste processo: a ficha embutida no pacote, registrada uma vez ao abrir (variant.ts). null = app da tabela. */
+let derivado: Produto | null = null;
+export function registrarDerivado(p: Produto | null): void { derivado = p; }
+/**
+ * A ficha embutida no pacote (o conteúdo de FICHA_EMBUTIDA), já validada; null quando o pacote é de um app da tabela
+ * (não há arquivo) ou a ficha não passa. O empacotamento recusa ficha inválida, então null com arquivo presente é
+ * pacote estragado: o app abre como meu-bot, a regra de sempre para o que não reconhece.
+ */
+export function fichaEmbutida(conteudo: unknown): Produto | null {
+  if (conteudo === undefined || conteudo === null) return null;
+  const r = parseFichaExterna(conteudo);
+  return r.ok ? r.produto : null;
+}
+
 export function produtoDe(v: AppVariant): Produto {
+  if (v === "derivado") { if (derivado === null) throw new Error("produto desconhecido: derivado sem ficha registrada"); return derivado; }
   const p = PRODUTOS.find((x) => x.variant === v);
   if (p === undefined) throw new Error(`produto desconhecido: ${v}`);
   return p;
