@@ -396,6 +396,7 @@ const topbarMini = $<HTMLElement>("topbar-mini");
 const composerMini = $<HTMLElement>("composer-mini");
 const miniText = $<HTMLSpanElement>("mini-text");
 const topbarHost = $<HTMLSpanElement>("topbar-host");
+const atalhosHost = $<HTMLSpanElement>("atalhos-host");
 const topbarHideBtn = $<HTMLButtonElement>("btn-topbar-hide");
 const topbarShowBtn = $<HTMLButtonElement>("btn-topbar-show");
 const paletteEl = $<HTMLElement>("palette");
@@ -1056,9 +1057,14 @@ function setTopbarHidden(hidden: boolean): void {
   try { localStorage.setItem("topbarShown", hidden ? "0" : "1"); } catch { /* opcional */ }
   paintMini();
 }
-/** O nome da máquina (ou da pessoa, na janela de suporte) no canto esquerdo da barra: o mesmo que a barra recolhida mostra. */
+/**
+ * O nome da máquina (ou da pessoa, na janela de suporte): o mesmo que a barra recolhida mostra. Fica ao lado da seta
+ * dos atalhos, na lateral; a barra de cima só o mostra quando a lista está escondida (style.css decide pelo `:has`).
+ */
 function paintTopbarHost(): void {
-  topbarHost.textContent = windowHost === "" ? "" : windowPersonName ?? hostLabel(windowHost);
+  const nome = windowHost === "" ? "" : windowPersonName ?? hostLabel(windowHost);
+  topbarHost.textContent = nome;
+  atalhosHost.textContent = nome;
 }
 function paintMini(): void {
   if (topbarMini.hidden) return;

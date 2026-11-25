@@ -105,8 +105,9 @@
     <aside id="sidebar" class="sidebar" hidden>
       <div class="sidebar-head">
         <!-- Tudo acima do seletor de lista (contas e atalhos) recolhe junto, por um chevron discreto: sao dez
-             linhas que comiam a altura da lista. O estado fica no localStorage da janela, como a barra de cima. -->
-        <button type="button" id="atalhos-toggle" class="atalhos-toggle" aria-expanded="false" aria-controls="atalhos" title="Recolher ou mostrar as contas e os atalhos"><span class="atalhos-seta">▾</span><span class="atalhos-dot" hidden></span></button>
+             linhas que comiam a altura da lista. O estado fica no localStorage da janela, como a barra de cima.
+             O nome da maquina desta janela fica ao lado da seta; a barra de cima so o mostra com a lista escondida. -->
+        <button type="button" id="atalhos-toggle" class="atalhos-toggle" aria-expanded="false" aria-controls="atalhos" title="Recolher ou mostrar as contas e os atalhos"><span class="atalhos-seta">▾</span><span id="atalhos-host" class="atalhos-host"></span><span class="atalhos-dot" hidden></span></button>
         <div id="atalhos" class="atalhos" hidden>
           <button type="button" id="tutoriais-line" class="wa-line acervo-line" title="Tutoriais: passo a passo do meu-bot, numa aba própria"><span class="acervo-icon">▤</span><span class="grow">Tutoriais</span><span id="tutoriais-count" class="acervo-count" data-pendencia></span></button>
           <button type="button" id="wa-line" class="wa-line" hidden title="WhatsApp do agente desta máquina (Hermes ou OpenClaw): clique para ver o estado ou parear"></button>
