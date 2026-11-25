@@ -139,6 +139,37 @@ export function classificarRespostaFeed(status: number, remaining: string | null
   return { tipo: "falha", msg: `GitHub respondeu ${status}` };
 }
 
+/**
+ * A última resposta boa do feed, guardada em disco com o ETag que o GitHub deu. Na consulta seguinte o app manda
+ * `If-None-Match`: se nada mudou, o GitHub responde 304 e essa consulta NÃO gasta a cota de 60 por hora por IP (sem
+ * isto, cada abertura do app gastava uma, e um Mac com vários apps reabertos ficava com "o GitHub limitou as
+ * consultas deste IP"). Vale só para a mesma URL: o canal estável e o staging leem endereços diferentes.
+ */
+export interface FeedCache { url: string; etag: string; corpo: unknown }
+export function parseFeedCache(v: unknown): FeedCache | null {
+  if (typeof v !== "object" || v === null) return null;
+  const o = v as Record<string, unknown>;
+  if (typeof o.url !== "string" || typeof o.etag !== "string" || o.etag === "" || o.etag.length > 200 || /[\r\n]/.test(o.etag) || !("corpo" in o)) return null;
+  return { url: o.url, etag: o.etag, corpo: o.corpo };
+}
+/** O cabeçalho da consulta condicional; vazio sem cache desta URL. */
+export const cabecalhoCondicional = (cache: FeedCache | null, url: string): Record<string, string> => (cache !== null && cache.url === url ? { "If-None-Match": cache.etag } : {});
+/**
+ * O que fazer com a resposta do feed tendo (ou não) a última resposta boa guardada:
+ * - 304 com cache desta URL: nada mudou, o corpo é o guardado;
+ * - limite de consultas com cache desta URL: o corpo guardado também serve (é a lista como estava na última consulta
+ *   boa; a próxima consulta periódica confere de novo), em vez de mostrar um erro que a pessoa não tem como resolver;
+ * - o resto segue o caminho de sempre (`classificarRespostaFeed`).
+ */
+export type UsoDoFeed = { tipo: "cache"; motivo: "304" | "limite"; corpo: unknown } | { tipo: "resposta"; r: RespostaFeed };
+export function usoDoFeed(status: number, remaining: string | null, reset: string | null, cache: FeedCache | null, url: string, hora: Hora = HORA_PADRAO): UsoDoFeed {
+  const doCache = cache !== null && cache.url === url ? cache : null;
+  if (status === 304 && doCache !== null) return { tipo: "cache", motivo: "304", corpo: doCache.corpo };
+  const r = classificarRespostaFeed(status, remaining, reset, hora);
+  if (r.tipo === "falha" && (status === 403 || status === 429) && remaining === "0" && doCache !== null) return { tipo: "cache", motivo: "limite", corpo: doCache.corpo };
+  return { tipo: "resposta", r };
+}
+
 /** Por que uma release que o feed trouxe não dá para instalar. */
 export type MotivoRelease = "corpo-inesperado" | "tag-inesperada" | "sem-ativo" | "sem-assinatura";
 

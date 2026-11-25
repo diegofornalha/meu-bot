@@ -254,6 +254,33 @@ test("decideDescarte: a troca só apaga a cópia anterior quando terminou e o ap
   assert.match(motivoManterTexto("app-ausente"), /não existe/);
 });
 
+test("feed condicional: 304 e limite de consultas usam a última resposta boa da mesma URL; sem cache, o caminho de sempre", () => {
+  const { parseFeedCache, cabecalhoCondicional, usoDoFeed } = createRequire(import.meta.url)("../../dist/main/atualizacao/updater-core.js");
+  const hora = () => "14:00";
+  const url = releasesUrl("staging"), outra = releasesUrl("estavel");
+  const cache = parseFeedCache({ url, etag: 'W/"abc"', corpo: [{ tag_name: "v1.0.0-staging.1" }] });
+  assert.deepEqual(cache, { url, etag: 'W/"abc"', corpo: [{ tag_name: "v1.0.0-staging.1" }] });
+  // Arquivo estragado ou de outra forma não vira cache (e um ETag com quebra de linha não vai para o cabeçalho).
+  for (const ruim of [null, "x", {}, { url, etag: "", corpo: [] }, { url, etag: 1, corpo: [] }, { url, etag: "a\r\nX: y", corpo: [] }, { url, etag: "a" }]) assert.equal(parseFeedCache(ruim), null);
+  assert.deepEqual(cabecalhoCondicional(cache, url), { "If-None-Match": 'W/"abc"' });
+  assert.deepEqual(cabecalhoCondicional(cache, outra), {}, "o cache de um canal não vale para o outro");
+  assert.deepEqual(cabecalhoCondicional(null, url), {});
+  // 304: nada mudou, o corpo é o guardado (e essa consulta não gasta a cota por IP).
+  assert.deepEqual(usoDoFeed(304, "59", null, cache, url, hora), { tipo: "cache", motivo: "304", corpo: cache.corpo });
+  // Limite de consultas com cache: em vez do erro, a lista da última consulta boa.
+  assert.deepEqual(usoDoFeed(403, "0", "1762300800", cache, url, hora), { tipo: "cache", motivo: "limite", corpo: cache.corpo });
+  assert.deepEqual(usoDoFeed(429, "0", null, cache, url, hora), { tipo: "cache", motivo: "limite", corpo: cache.corpo });
+  // Sem cache (ou cache de outra URL), o limite continua sendo a falha com a hora, e um 304 é um status inesperado.
+  assert.deepEqual(usoDoFeed(403, "0", "1762300800", null, url, hora), { tipo: "resposta", r: { tipo: "falha", msg: "o GitHub limitou as consultas deste IP; libera por volta das 14:00" } });
+  assert.deepEqual(usoDoFeed(403, "0", "1762300800", cache, outra, hora), { tipo: "resposta", r: { tipo: "falha", msg: "o GitHub limitou as consultas deste IP; libera por volta das 14:00" } });
+  assert.deepEqual(usoDoFeed(304, null, null, null, url, hora), { tipo: "resposta", r: { tipo: "falha", msg: "GitHub respondeu 304" } });
+  // Um 403 com cota de sobra (repositório privado ou renomeado) não usa o cache: é erro de verdade.
+  assert.deepEqual(usoDoFeed(403, "42", null, cache, url, hora), { tipo: "resposta", r: { tipo: "falha", msg: "GitHub respondeu 403" } });
+  // Resposta nova e 404 seguem como antes.
+  assert.deepEqual(usoDoFeed(200, "59", null, cache, url, hora), { tipo: "resposta", r: { tipo: "ler" } });
+  assert.deepEqual(usoDoFeed(404, null, null, cache, url, hora), { tipo: "resposta", r: { tipo: "sem-release" } });
+});
+
 test("classificarRespostaFeed: 404 sem release, 403 de limite e qualquer outro status são três coisas diferentes", () => {
   const hora = () => "14:00";
   // 404 é o repositório que ainda não publicou release: a instalada É a mais recente, e isso não é erro nenhum.

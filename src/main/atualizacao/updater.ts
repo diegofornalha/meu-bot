@@ -40,7 +40,7 @@ import { evento } from "../app/depuracao";
 import { offlineMessage } from "../app/net-core";
 import {
   abaixoDaMinima, alvosParaTrocar, argsDoInstalador, candidataDe, esperarInstaladorAbrir, decideAplicacaoEscolhida, decideInstalarListada, deveVerificarSozinho, listarReleases, parseFixada, podeTrocarComFixada, decideIdentidade, requisitoDeveloperId, assetName, CHECK_EVERY_MS, classificarRespostaFeed, compareVersions, decideAlvoAplicacao, decideFimDaEspera, CONFIRMA_FEED_MS, decideDescarte, decideReaproveitar, decideReconfirmacao, decideReinicioOcioso, decideRollback, escolherRelease, motivoManterTexto, motivoReleaseTexto, OCIOSO_SEG, parsePendente, parsePreparada, parseVersaoMinima,
-  destinoDaTroca, pastaSoLeitura, proximaVerificacaoMs, releasesUrl, repararTroca, TENTATIVAS_ATE_VOLTAR, TRAVA_VELHA_MS, travaAbandonada, verificaAssinatura,
+  destinoDaTroca, pastaSoLeitura, proximaVerificacaoMs, releasesUrl, cabecalhoCondicional, parseFeedCache, usoDoFeed, type FeedCache, repararTroca, TENTATIVAS_ATE_VOLTAR, TRAVA_VELHA_MS, travaAbandonada, verificaAssinatura,
   type EscolhaRelease, type EstadoSistema, type ReleaseListada, type UpdateFixada, type UpdateCandidate, type UpdateGatilho, type UpdatePendente, type UpdatePreparada,
 } from "./updater-core";
 
@@ -332,15 +332,29 @@ function check(trigger: UpdateTrigger): Promise<void> {
   return inflight;
 }
 
+/** A última resposta boa do feed (com o ETag), fora de updateDir porque a troca apaga a pasta. Ver FeedCache. */
+const feedCacheFile = (): string => path.join(app.getPath("userData"), "update-feed.json");
+function lerFeedCache(): FeedCache | null { try { return parseFeedCache(JSON.parse(fs.readFileSync(feedCacheFile(), "utf8"))); } catch { return null; } }
+
 async function consultarFeed(signal: AbortSignal): Promise<EscolhaRelease> {
-  const res = await fetch(releasesUrl(caps().canal), { headers: { "User-Agent": `${appTitle()}/${state.current}`, Accept: "application/vnd.github+json" }, signal: AbortSignal.any([signal, AbortSignal.timeout(FEED_TIMEOUT_MS)]) });
-  const r = classificarRespostaFeed(res.status, res.headers.get("x-ratelimit-remaining"), res.headers.get("x-ratelimit-reset"));
+  const url = releasesUrl(caps().canal), cache = lerFeedCache();
+  const res = await fetch(url, { headers: { "User-Agent": `${appTitle()}/${state.current}`, Accept: "application/vnd.github+json", ...cabecalhoCondicional(cache, url) }, signal: AbortSignal.any([signal, AbortSignal.timeout(FEED_TIMEOUT_MS)]) });
+  const uso = usoDoFeed(res.status, res.headers.get("x-ratelimit-remaining"), res.headers.get("x-ratelimit-reset"), cache, url);
+  const escolher = (corpo: unknown): EscolhaRelease => escolherRelease(corpo, { app: appTitle(), arch: arch(), current: state.current, canal: caps().canal, plataforma: process.platform });
+  if (uso.tipo === "cache") {
+    if (uso.motivo === "limite") log("[atualização] o GitHub limitou as consultas deste IP: usei a lista da última consulta boa");
+    return escolher(uso.corpo);
+  }
+  const r = uso.r;
   if (r.tipo === "sem-release") return { tipo: "nada-novo" }; // o repositório ainda não publicou: a instalada é a mais recente
   if (r.tipo === "falha") throw new UpdateFalha("github", r.msg);
   let corpo: unknown;
   // Corpo que não é JSON (portal de rede cativa, página de erro do proxy) não é falha de conexão: dizer o que é.
   try { corpo = await res.json(); } catch { throw new UpdateFalha("release", "o servidor de atualização respondeu algo que não consegui entender"); }
-  return escolherRelease(corpo, { app: appTitle(), arch: arch(), current: state.current, canal: caps().canal, plataforma: process.platform });
+  // Guarda a resposta para a próxima consulta ser condicional (um 304 não gasta a cota por IP). Sem ETag, não guarda.
+  const etag = res.headers.get("etag");
+  if (etag !== null && etag !== "") { try { gravarJson(feedCacheFile(), { url, etag, corpo } satisfies FeedCache); } catch (e) { log(`[atualização] não guardei a lista de versões: ${erroTexto(e)}`); } }
+  return escolher(corpo);
 }
 
 /** Sem internet, a culpa não é do GitHub nem do app: a frase diz isso (e a volta da rede refaz a checagem). */
