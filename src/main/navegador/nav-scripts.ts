@@ -7,7 +7,7 @@ import type { WebContents } from "electron";
 
 /** Texto e elementos interativos da página, numerados; o número é o que o agente usa em clicar/digitar. */
 export const readScript = (ignorar = ""): string => `(() => {
-  const vis = (e) => { const r = e.getBoundingClientRect(); const s = getComputedStyle(e); return r.width > 0 && r.height > 0 && s.visibility !== "hidden" && s.display !== "none"; };
+  const vis = (e) => { const r = e.getBoundingClientRect(); const s = getComputedStyle(e); return r.width > 0 && r.height > 0 && s.visibility !== "hidden" && s.display !== "none" && (!e.checkVisibility || e.checkVisibility()); };
   const items = []; const marcas = []; window.__meuBotEls = [];
   const sel = "a[href], button, input, textarea, select, [role=button], [role=link], [role=tab], [role=menuitem], [role=textbox], [contenteditable=true], summary";
   for (const e of document.querySelectorAll(sel)) {
