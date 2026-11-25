@@ -101,7 +101,8 @@ export function mountComputador(deps: ComputadorDeps): { open: () => void; repin
 
   async function agir(acao: AcaoComputador): Promise<void> {
     nota = null;
-    if (acao === "maquina") { void deps.api.openPicker(); return; } // o seletor, como "Nova janela em outra máquina" da paleta
+    // O seletor, como "Nova janela em outra máquina" da paleta. Falhou: o motivo aparece no cartão, em vez de o clique não fazer nada.
+    if (acao === "maquina") { void deps.api.openPicker().catch((e: unknown) => { nota = { text: `Não consegui abrir o seletor de máquinas: ${ipcErrorText(e)}`, bad: true }; render(); }); return; }
     if (acao === "status") { status = null; render(); await lerStatus(); return; }
     if (acao === "reconectar") { quedas = []; caiuDemais = false; await abrirTela(); return; }
     if (acao === "instalar") {
