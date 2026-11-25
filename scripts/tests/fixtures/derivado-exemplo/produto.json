@@ -6,6 +6,6 @@
   "portaWsl": 2340,
   "portaMcp": 7840,
   "abreEm": "extensao",
-  "extensao": { "api": 1, "rotulo": "Exemplo" },
+  "extensao": { "api": 1, "rotulo": "Exemplo", "icone": "🧪", "dica": "Exemplo: a página própria do derivado de teste do core" },
   "descricao": "Derivado de exemplo dos testes do core: uma página própria com um canal de eco."
 }

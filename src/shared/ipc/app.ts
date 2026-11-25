@@ -175,9 +175,10 @@ export interface Capabilities {
   inspector: boolean;
   /**
    * Página própria de um app derivado (o campo `extensao` da ficha; contrato em src/shared/ipc/derivado.ts): o texto do
-   * botão da lateral. null = o app não traz página própria, que é o caso de todo app da tabela.
+   * botão da lateral, o glifo do botão e da aba (null = o ✦ de toda extensão) e a dica do botão (null = o próprio
+   * rótulo). null = o app não traz página própria, que é o caso de todo app da tabela.
    */
-  extensao: { rotulo: string } | null;
+  extensao: { rotulo: string; icone: string | null; dica: string | null } | null;
   /**
    * Produto de módulos fixo deste app (o add-on cujo repositório o app baixa sempre, como o meu-bot-diego no
    * meu-bot-diego-staging, um app derivado): a página "Módulos" fica sempre. null = sem produto fixo; os add-ons com `modulos` na licença
