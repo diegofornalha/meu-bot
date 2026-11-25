@@ -9,7 +9,7 @@ import type { ProAccess } from "./pro.js";
 
 /** O que o painel está fazendo agora (o resto vem da máquina). */
 export type FaseComputador = "parado" | "instalando" | "acordando" | "conectando" | "ao-vivo";
-export type AcaoComputador = "status" | "instalar" | "acordar" | "reconectar";
+export type AcaoComputador = "status" | "instalar" | "acordar" | "reconectar" | "maquina";
 export type EstadoKind = "local" | "sem-plano" | "plano-desconhecido" | "carregando" | "maquina-fora" | "instalando" | "sem-tela" | "precisa-admin" | "acordando" | "dormindo" | "conectando" | "caiu" | "sem-imagem" | "ao-vivo";
 
 export interface EntradaComputador {
@@ -40,7 +40,7 @@ export interface EstadoComputador {
 const e = (kind: EstadoKind, titulo: string, texto: string, acao: AcaoComputador | null = null, botao: string | null = null, mostrarTela = false): EstadoComputador => ({ kind, titulo, texto, acao, botao, mostrarTela });
 
 export function estadoComputador(x: EntradaComputador): EstadoComputador {
-  if (x.local) return e("local", "O Computador mora numa máquina", "Este Mac não tem a tela de um bot. Abra uma janela numa máquina por SSH para ver o computador do agente.");
+  if (x.local) return e("local", "O Computador mora numa máquina", "Este Mac não tem a tela de um bot. Abra uma janela numa máquina por SSH para ver o computador do agente.", "maquina", "Abrir uma máquina");
   // Plano antes de tudo: sem ele não se pergunta nada à máquina, e o motivo é dito como é (não como falha técnica).
   if (x.acesso === "free" || x.acesso === "expired" || x.acesso === "assinatura") return e("sem-plano", "", "");
   if (x.acesso === "unknown") return e("plano-desconhecido", "Não consegui ler o plano desta máquina", "Pode ser o backend fora do ar ou antigo. Não é cobrança: confira a máquina no seletor e tente de novo.", "status", "Tentar de novo");

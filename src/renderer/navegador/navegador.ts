@@ -7,6 +7,7 @@ import { type ProAccess, proBlockText, tabLabel, displayUrl, browserAccess, paga
 import { blocoPagamento } from "../lib/aviso-pagamento.js";
 import { aoMudarConta, contaAtual, contaEntrou } from "../conta/conta.js";
 import { hostLabel } from "../lib/probe-text.js";
+import { contagemNavegador, etiquetaPro } from "../lib/casca.js";
 import { type RecortesPref, parseRecortesPref, recortesPara, recorteOculto, type Recorte, recorteTitulo } from "../lib/recortes.js";
 import { NAV_ZOOM_STEPS, caberAuto, larguraMinima, zoomParaCaber } from "../lib/nav-caber-core.js";
 import { barraCompacta } from "../lib/nav-barra-core.js";
@@ -543,7 +544,16 @@ export function paintNav(): void {
   e.agent.title = a.on ? `O agente da conversa pode abrir, ler e clicar nestas abas (túnel ${a.state === "up" ? `ativo, porta ${a.port}` : a.state}). Clique para desligar.` : "Deixar o agente da conversa usar este navegador (ele avisa antes de agir e não compra/envia nada sem você confirmar). Clique para ligar.";
   paintNavRail();
   if (navPage.tabEl !== null) { const title = navPage.tabEl.querySelector(".tab-title"); if (title !== null) title.textContent = `Navegador${navTabs.length > 1 ? ` (${navTabs.length})` : ""}`; }
-  $<HTMLElement>("navegador-count").textContent = navTabs.length === 0 ? "Pro" : navTabs.length === 1 ? "1 aba" : `${navTabs.length} abas`;
+  paintNavCount();
+}
+/**
+ * À direita da linha "Navegador" na lateral: as abas abertas; sem nenhuma (fechado, ou bloqueado pelo plano), a
+ * etiqueta "Pro", que só aparece para quem não tem o acesso (antes aparecia para todos, Pro inclusive). Segue a
+ * licença da janela, não o `navAccess`, que só existe depois de o Navegador abrir; refreshLicense repinta.
+ */
+export function paintNavCount(): void {
+  const acesso = ctx.navLicenseAsked ? browserAccess(ctx.license, ctx.windowHost, ctx.caps.planoExigido, ctx.caps.produto) : null;
+  $<HTMLElement>("navegador-count").textContent = contagemNavegador(navTabs.length, etiquetaPro(ctx.caps.planoExigido, acesso));
 }
 function paintNavMenu(): void {
   if (navEls === null) return;
@@ -968,7 +978,7 @@ export function disposeNav(): void {
   navTabs = []; navActive = null;
   navPage.panel.remove();
   navPage = null; navEls = null;
-  $<HTMLElement>("navegador-count").textContent = "Pro";
+  paintNavCount();
 }
 /* Câmera/microfone de um site (como o Brave): balão embaixo da barra do Navegador com as três respostas. */
 const navPermBaloes = new Map<string, HTMLElement>();

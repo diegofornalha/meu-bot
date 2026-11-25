@@ -109,11 +109,21 @@
              O nome da maquina desta janela fica ao lado da seta; a barra de cima so o mostra com a lista escondida. -->
         <button type="button" id="atalhos-toggle" class="atalhos-toggle" aria-expanded="false" aria-controls="atalhos" title="Recolher ou mostrar as contas e os atalhos"><span class="atalhos-seta">▾</span><span id="atalhos-host" class="atalhos-host"></span><span class="atalhos-dot" hidden></span></button>
         <div id="atalhos" class="atalhos" hidden>
+          <!-- Grupo "Agente": as linhas de estado (WhatsApp, Claude Code, Ollama). Com duas ou mais à mostra, o grupo
+               vira UMA linha de resumo ("2 de 3 prontos", ponto verde ou âmbar) e o clique abre as linhas com seus botões;
+               com uma só, ela aparece direto; sem nenhuma, o grupo some (pintarAgente, renderer.ts). -->
+          <div id="agente-grupo" class="lateral-grupo" hidden>
+            <div class="sidebar-group">Agente</div>
+            <button type="button" id="agente-resumo" class="wa-line agente-resumo" aria-expanded="false" aria-controls="agente-linhas" title="Mostrar ou recolher o WhatsApp, o Claude Code e o Ollama desta máquina" hidden><span class="dot"></span><span id="agente-resumo-texto" class="grow"></span><span class="agente-seta" aria-hidden="true">›</span></button>
+            <div id="agente-linhas" class="agente-linhas">
+              <button type="button" id="wa-line" class="wa-line" hidden title="WhatsApp do agente desta máquina (Hermes ou OpenClaw): clique para ver o estado ou parear"></button>
+              <div id="cl-line" class="wa-line cl-line" hidden title="Conta do Claude Code nesta máquina"><span class="dot"></span><span id="cl-line-text" class="grow"></span><button type="button" id="cl-line-btn" class="btn btn-ghost btn-small">sair</button></div>
+              <!-- Modo grátis (tutorial 16, staging): o Ollama do meu-bot neste Mac ou na máquina da janela, abaixo do Claude. -->
+              <div id="ollama-line" class="wa-line cl-line" hidden title="Modo grátis: o Ollama do meu-bot nesta máquina; é o que o modelo ollama-local usa"><span class="dot"></span><span id="ollama-line-text" class="grow"></span><button type="button" id="ollama-line-btn" class="btn btn-ghost btn-small">parar</button></div>
+            </div>
+          </div>
+          <div class="sidebar-group">Páginas</div>
           <button type="button" id="tutoriais-line" class="wa-line acervo-line" title="Tutoriais: passo a passo do meu-bot, numa aba própria"><span class="acervo-icon">▤</span><span class="grow">Tutoriais</span><span id="tutoriais-count" class="acervo-count" data-pendencia></span></button>
-          <button type="button" id="wa-line" class="wa-line" hidden title="WhatsApp do agente desta máquina (Hermes ou OpenClaw): clique para ver o estado ou parear"></button>
-          <div id="cl-line" class="wa-line cl-line" hidden title="Conta do Claude Code nesta máquina"><span class="dot"></span><span id="cl-line-text" class="grow"></span><button type="button" id="cl-line-btn" class="btn btn-ghost btn-small">sair</button></div>
-          <!-- Modo grátis (tutorial 16, staging): o Ollama do meu-bot neste Mac ou na máquina da janela, abaixo do Claude. -->
-          <div id="ollama-line" class="wa-line cl-line" hidden title="Modo grátis: o Ollama do meu-bot nesta máquina; é o que o modelo ollama-local usa"><span class="dot"></span><span id="ollama-line-text" class="grow"></span><button type="button" id="ollama-line-btn" class="btn btn-ghost btn-small">parar</button></div>
           <!-- Acervo: biblioteca de skills, acima da busca. Mesma dinâmica do WhatsApp: cada item vira um pedido pronto ao agente. -->
           <button type="button" id="acervo-line" class="wa-line acervo-line" title="Acervo: biblioteca de skills desta máquina; instalar é pedir ao agente"><span class="acervo-icon">▤</span><span class="grow">Acervo</span><span id="acervo-count" class="acervo-count">0 skills</span></button>
           <button type="button" id="conta-google-line" class="wa-line acervo-line" title="Conta Google: login, Gmail, Agenda, planilhas e backup no Drive (plano Pro)"><span class="acervo-icon">G</span><span class="grow">Conta Google</span><span id="conta-google-count" class="acervo-count"></span></button>
@@ -124,7 +134,7 @@
           <button type="button" id="modulos-line" class="wa-line acervo-line" title="Módulos deste app: ligue um a um, com as chaves de cada serviço" hidden><span class="acervo-icon">⧉</span><span class="grow">Módulos</span><span id="modulos-count" class="acervo-count"></span></button>
           <!-- Terminal oculto para abstrair o app; continua no Cmd+J e na paleta. -->
           <button type="button" id="terminal-line" class="wa-line acervo-line" hidden title="Terminal nesta máquina (Cmd+J; Option+clique ou Cmd+Shift+J abre mais um)"><span class="acervo-icon">&gt;_</span><span class="grow">Terminal</span><span id="terminal-count" class="acervo-count"></span></button>
-          <button type="button" id="navegador-line" class="wa-line acervo-line" title="Navegador dentro do meu-bot, com extensões do Chrome; o agente pode navegar por você (plano Pro)"><span class="acervo-icon">🌐</span><span class="grow">Navegador</span><span id="navegador-count" class="acervo-count">Pro</span></button>
+          <button type="button" id="navegador-line" class="wa-line acervo-line" title="Navegador dentro do meu-bot, com extensões do Chrome; o agente pode navegar por você (plano Pro)"><span class="acervo-icon">🌐</span><span class="grow">Navegador</span><span id="navegador-count" class="acervo-count"></span></button>
           <!-- meu-bot-admin: reabre a aba Suporte (saúde, plano, ações); escondido no meu-bot da pessoa (admin.css mostra). -->
           <button type="button" id="suporte-line" class="wa-line acervo-line" title="Suporte: saúde da máquina, plano e licença, ações e registros" hidden><span class="acervo-icon">⛨</span><span class="grow">Suporte</span></button>
           <!-- meu-bot-admin, só o super admin: aba Auditoria da máquina desta janela (o renderer mostra quando o main confirma). -->
@@ -180,12 +190,12 @@
           <div class="tut-top">
             <h2>Tutoriais</h2>
             <span class="spacer"></span>
-            <!-- Concluídos saem da lista e vão para "arquivados", como as conversas. -->
+            <!-- Concluídos saem da lista; o interruptor "concluídos" os traz de volta, em linhas. Pulados ficam sempre à vista. -->
             <!-- O número ao lado de "Tutoriais" na lateral (só os que faltam fazer); a pessoa desliga aqui. -->
             <label class="switch" title="Mostrar na lateral quantos tutoriais faltam fazer"><input id="tut-badge" type="checkbox" checked /><span class="track"></span><span class="switch-label">avisar na lateral</span></label>
-            <label class="switch" title="Mostrar também os tutoriais já concluídos"><input id="tut-archived" type="checkbox" /><span class="track"></span><span class="switch-label">arquivados</span></label>
+            <label class="switch" title="Mostrar também os tutoriais já concluídos"><input id="tut-archived" type="checkbox" /><span class="track"></span><span class="switch-label">concluídos</span></label>
           </div>
-          <p class="hint"><span id="tutoriais-summary"></span>. Passo a passo curtos do meu-bot; concluídos vão para os arquivados, de onde dá para rever.</p>
+          <p class="hint"><span id="tutoriais-summary"></span></p>
           <div id="tutoriais-list" class="acervo-list"></div>
         </section>
         <!-- Tela vazia (nenhuma aba): a cobrinha anda sozinha; setas viram, Novo ou Cmd+N abrem uma conversa. -->
@@ -242,7 +252,7 @@
     <div class="composer-modos">
     <div class="mode-wrap">
       <!-- Só o mascote na cor do modo: o nome vive no title, no menu e no toast ao trocar. -->
-      <button type="button" id="mode-btn" class="mode-btn" title="Modo do agente nesta conversa"><span id="mode-icon" class="mode-icon"></span></button>
+      <button type="button" id="mode-btn" class="mode-btn" title="Modo do agente nesta conversa" aria-label="Modo do agente nesta conversa"><span id="mode-icon" class="mode-icon"></span></button>
       <div id="mode-menu" class="mode-menu" hidden>
         <div class="mode-title">Modos do agente</div>
         <ul id="mode-list" class="mode-list" role="listbox"></ul>
@@ -256,9 +266,9 @@
       </select>
     </div>
       <!-- Atalho da lista lateral, para não precisar subir o mouse até o alternador do topo. -->
-      <button type="button" id="list-mode-btn" class="mode-btn list-mode-btn" hidden><span class="mode-icon">💬</span></button>
+      <button type="button" id="list-mode-btn" class="mode-btn list-mode-btn" aria-label="Trocar a lista entre o meu-bot e o WhatsApp" hidden><span class="mode-icon" aria-hidden="true">💬</span></button>
     </div>
-    <textarea id="input" rows="2" placeholder="Pergunte algo ou peça pra rodar um comando na VM… (Enter envia, Shift+Enter quebra linha)"></textarea>
+    <textarea id="input" rows="2" placeholder="Pergunte algo ou peça pra rodar um comando… (Enter envia, Shift+Enter quebra linha)"></textarea>
     <!-- Enviar em cima, Novo embaixo: coluna estreita ao lado da caixa, em vez de dois botões lado a lado. -->
     <div class="composer-acoes">
       <button id="btn-send" class="btn btn-primary" type="button">Enviar</button>
