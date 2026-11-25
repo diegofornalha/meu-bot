@@ -18,6 +18,9 @@ export const erroGoogleTexto = (e: unknown): string => ipcErrorText(e)
   .replace(/^PRO_REQUIRED$/, "esta máquina não tem o plano Pro")
   .replace(/^GMAIL_SEM_PERMISSAO$/, "a autorização desta conta é de antes da lixeira: reconecte a Conta Google uma vez");
 
+/** O aviso de "a conta desconectou" está na tela (`caiu`) e chegou um status conectado: a página apaga o aviso. */
+export const contaVoltou = (caiu: boolean, st: GoogleContaStatus | null): boolean => caiu && st?.conectado === true;
+
 /** Depois de um erro de conta desconectada, o status que a página deve mostrar (o main já apagou o token). */
 export function statusAposErro(status: GoogleContaStatus | null, e: unknown): GoogleContaStatus | null {
   if (status === null || !ehContaDesconectada(e)) return status;

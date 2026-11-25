@@ -562,7 +562,6 @@ dialog.perguntar input { font: inherit; padding: 8px 10px; border-radius: 8px; b
 .tut-steps li.current .tut-num { background: color-mix(in srgb, var(--ok) 15%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 25%, transparent); }
 .tut-finished { margin: 4px 0 0 40px; font-size: 14px; font-weight: 600; color: var(--ok); }
 .guide-panel .tut-steps { border-top: 1px solid var(--line); }
-.tut-card.finished .tut-icon { background: var(--ok); color: #fff; }
 .tut-card.next { border-color: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 22%, transparent); }
 .tut-card.next .tut-start { animation: tut-next 1.6s ease-in-out infinite; }
 @keyframes tut-next { 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--ok) 25%, transparent); } }
@@ -1027,9 +1026,34 @@ body.topbar-hidden .topbar { display: none; }
 .tw-skip { font: inherit; font-size: 14px; border: none; background: transparent; color: var(--muted); cursor: pointer; padding: 6px 0; }
 .tw-skip:hover { color: var(--fg); }
 @media (prefers-reduced-motion: reduce) { .tour-welcome { animation: none; } .tw-path { animation: none; } }
-/* Tutoriais: título com o interruptor "arquivados" à direita; concluídos aparecem esmaecidos quando ligado. */
-.tut-top { display: flex; align-items: center; gap: 10px; max-width: 760px; }
-.tut-card.archived { opacity: .72; }
+/* Tutoriais: título com os interruptores à direita; o cartão do pendente fica mais enxuto (só dentro de .tut-card: o
+   guia e as outras páginas usam .tut-icon/.tut-body/.tut-start com o tamanho de sempre). */
+.tut-top { display: flex; align-items: center; gap: 10px; max-width: 760px; flex-wrap: wrap; }
+.tut-card { padding: 16px 18px; border-radius: 14px; }
+.tut-card .tut-head { gap: 14px; }
+.tut-card .tut-icon { width: 44px; height: 44px; border-radius: 10px; }
+.tut-card .tut-icon svg { width: 22px; height: 22px; }
+.tut-card .tut-body h3 { font-size: 16px; }
+.tut-card .tut-body p { font-size: 13px; }
+.tut-card .tut-start, .tut-card .tut-soon { padding: 9px 18px; }
+/* Pulados e concluídos: uma linha por tutorial (título, estado apagado, ação discreta); o botão largo abre o detalhe. */
+.tut-rows { display: flex; flex-direction: column; border-bottom: 1px solid var(--line); }
+.tut-row { border-top: 1px solid var(--line); }
+.tut-row-line { display: flex; align-items: center; gap: 12px; min-height: 48px; }
+.tut-row-toggle { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0; background: transparent; border: 0; color: var(--fg); font: inherit; text-align: left; cursor: pointer; border-radius: 6px; }
+.tut-row-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tut-chev { flex: none; display: inline-flex; color: var(--muted); transition: transform .12s ease; }
+.tut-row-toggle[aria-expanded="true"] .tut-chev { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { .tut-chev { transition: none; } }
+.tut-row-text { flex: 1; min-width: 0; display: flex; align-items: baseline; flex-wrap: wrap; column-gap: 10px; }
+.tut-row-title { font-size: 14px; font-weight: 600; }
+.tut-row-toggle:hover .tut-row-title { text-decoration: underline; }
+.tut-row-state { font-size: 12px; color: var(--muted); }
+.tut-row-act { flex: none; color: var(--muted); }
+.tut-row-act.retomar { color: var(--accent); }
+.tut-row-detail { padding: 0 0 14px 24px; }
+.tut-row-detail[hidden] { display: none; }
+.tut-row-detail p { margin: 0; font-size: 13px; color: var(--muted); max-width: 640px; }
 .tut-group { margin: 6px 0 0; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 /* Boas-vindas do fim do tour: bolha do assistente com botão de login (se preciso) e uma etiqueta discreta. */
 .msg-welcome { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }

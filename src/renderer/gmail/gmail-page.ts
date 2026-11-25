@@ -15,7 +15,7 @@ import { cabecalho } from "../lib/pagina.js";
 import { carregando } from "../lib/carregando.js";
 import type { PageTab } from "../lib/pages-types.js";
 import { ipcErrorText } from "../lib/ipc-error.js";
-import { ehContaDesconectada, erroGoogleTexto, statusAposErro } from "../lib/erro-google.js";
+import { contaVoltou, ehContaDesconectada, erroGoogleTexto, statusAposErro } from "../lib/erro-google.js";
 import { blocosDoCorpo } from "../lib/email-texto-core.js";
 
 /** O que a página conta ao guia (tutorial 14): a pessoa leu uma mensagem, buscou, mandou para a lixeira, desfez. */
@@ -60,7 +60,7 @@ export function mountGmail(deps: GmailDeps): { open: () => void; refresh: () => 
   let agente: GmailAgenteState | null = null; let instalado: boolean | null | "?" = "?"; let instalando = false;
   /** A conta caiu no meio da sessão e o aviso vermelho está na tela: some quando ela volta. */
   let caiu = false;
-  const voltou = (st: GoogleContaStatus | null): void => { if (caiu && st?.conectado === true) { caiu = false; msg = null; } };
+  const voltou = (st: GoogleContaStatus | null): void => { if (contaVoltou(caiu, st)) { caiu = false; msg = null; } };
   deps.api.on("google-conta:changed", (st) => { status = st; voltou(st); if (!panel.hidden) { render(); if (st.conectado && !st.precisaReconectar) void carregarLista(); } });
   deps.api.on("gmail:agent", (st) => { agente = st; if (!panel.hidden) render(); });
 
