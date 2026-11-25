@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { MARCAR_SCRIPT, READ_SCRIPT, alvoDeClique, alvoDeDigitacao, codigoDaTecla, digitarValorScript, readScript } from "../../dist/main/navegador/nav-scripts.js";
+import { MARCAR_SCRIPT, READ_SCRIPT, alvoDeClique, alvoDeDigitacao, codigoDaTecla, comErro, digitarValorScript, readScript, valorOuErro } from "../../dist/main/navegador/nav-scripts.js";
 
 test("leitura: a do Navegador lê a página inteira; a da interface do app pula webviews e terminais", () => {
   assert.equal(READ_SCRIPT, readScript());
@@ -44,4 +44,12 @@ test("digitar na interface do app: o valor entra como JSON e o campo avisa com i
 test("marcas: com um <dialog> aberto vão dentro dele (a camada de cima cobre qualquer z-index)", () => {
   assert.match(MARCAR_SCRIPT, /dialog\[open\]/);
   assert.doesNotThrow(() => new Function(`return ${MARCAR_SCRIPT}`));
+});
+
+test("erro lançado na página chega com a mensagem dele, não como 'Script failed to execute'", () => {
+  const rodar = (script) => new Function(`return ${comErro(script)}`)();
+  assert.equal(valorOuErro(rodar("1 + 1")), 2);
+  assert.equal(valorOuErro(rodar("undefined")), undefined);
+  assert.throws(() => valorOuErro(rodar('(() => { throw new Error("nada com o seletor"); })()')), /nada com o seletor/);
+  assert.throws(() => valorOuErro(rodar('(() => { throw "texto solto"; })()')), /texto solto/);
 });
