@@ -36,7 +36,12 @@ if (googleConta === "permitido") console.warn(`⚠ ${name} sai sem Conta Google 
 // daqui antes de empacotar, para a ficha de um derivado empacotado antes não ir junto.
 const fichaEmbutida = join("dist", "main", "app", FICHA_EMBUTIDA);
 rmSync(fichaEmbutida, { force: true });
-if (produto.ficha !== undefined) writeFileSync(fichaEmbutida, `${JSON.stringify(produto.ficha)}\n`);
+if (produto.ficha !== undefined) {
+  writeFileSync(fichaEmbutida, `${JSON.stringify(produto.ficha)}\n`);
+  // Depois de empacotar (ou se o empacotamento quebrar no meio), a ficha sai de dist/: lá ela só serve ao asar deste
+  // pacote. No `exit` para valer também quando o packager lança.
+  process.on("exit", () => { try { rmSync(fichaEmbutida, { force: true }); } catch { /* fica para o próximo package.mjs, que apaga antes de começar */ } });
+}
 // Só a pasta desta variante: empacotar uma não apaga a outra (nem os .dmg em out/).
 rmSync(empacotado(produto, plataforma).pasta, { recursive: true, force: true });
 const paths = await packager({
@@ -71,8 +76,6 @@ const paths = await packager({
   extraResource: ["backend-colima", "config", "scripts/alivio"],
   ignore: [/^\/hermes-agent($|\/)/, /^\/backend-colima($|\/)/, /^\/conta-api($|\/)/, /^\/backend-vm($|\/)/, /^\/docs($|\/)/, /^\/assets($|\/)/, /^\/build($|\/)/, /^\/src($|\/)/, /^\/scripts($|\/)/, /^\/config($|\/)/, /^\/tsconfig/, /^\/\.gitignore$/, /^\/\.gitmodules$/, /^\/out($|\/)/, /^\/extensao-crm($|\/)/, /^\/produtos($|\/)/],
 });
-// A ficha já está no asar: fora dele, em dist/, ela faria o `npm start` seguinte abrir como o derivado.
-rmSync(fichaEmbutida, { force: true });
 for (const p of paths) {
   const res = win ? join(p, "resources") : join(p, `${name}.app`, "Contents", "Resources");
   writeFileSync(join(res, "variant.json"), `${JSON.stringify({ variant: produto.variant })}\n`);

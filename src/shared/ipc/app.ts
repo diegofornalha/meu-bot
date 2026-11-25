@@ -142,7 +142,7 @@ export type ClienteMcp = "claude-code" | "cursor";
  * e os staging. Tabela em src/main/variant-core.ts.
  */
 /** `"derivado"`: um app cuja ficha vem de fora do repositório (o produto.json do repositório dele, embutido no asar como produto-embutido.json; variant-core.ts `parseFichaExterna` e `FICHA_EMBUTIDA`). */
-export type AppVariant = "client" | "admin" | "client-staging" | "inspector-staging" | "admin-mac" | "diego-staging" | "derivado";
+export type AppVariant = "client" | "admin" | "client-staging" | "inspector-staging" | "admin-mac" | "derivado";
 /** Canal do app: estável (só o aprovado) ou staging (o que está em teste), como VS Code e VS Code Insiders. */
 export type Canal = "estavel" | "staging";
 /**
@@ -175,7 +175,7 @@ export interface Capabilities {
   inspector: boolean;
   /**
    * Produto de módulos fixo deste app (o add-on cujo repositório o app baixa sempre, como o meu-bot-diego no
-   * meu-bot-diego-staging): a página "Módulos" fica sempre. null = sem produto fixo; os add-ons com `modulos` na licença
+   * meu-bot-diego-staging, um app derivado): a página "Módulos" fica sempre. null = sem produto fixo; os add-ons com `modulos` na licença
    * da máquina ainda trazem a página (src/main/modulos/modulos-fonte-core.ts, `produtosDeModulos`).
    */
   modulos: string | null;

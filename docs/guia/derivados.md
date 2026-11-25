@@ -12,9 +12,9 @@ acrescenta linha na tabela `PRODUTOS`, membro em `AppVariant` nem ícone em `ass
   primeiro, para todos.
 - O que nascer num derivado e servir a todos sobe para o core, e o derivado passa a usar o do core.
 
-Este guia cresce a cada etapa da saída dos derivados antigos (`meu-bot-diego-staging` e `meu-bot-inspector-staging`,
-ainda na tabela). Por enquanto ele cobre a **ficha** e o **empacotamento**; a release automática, a atualização pelo
-repositório do derivado e as páginas próprias vêm nas etapas seguintes.
+O `meu-bot-diego-staging` já saiu do core (`github.com/diegofornalha/meu-bot-diego-app`). O `meu-bot-inspector-staging`
+ainda está na tabela: ele tem uma página própria, e as páginas de derivado são a etapa que falta neste guia. Derivado
+novo nasce do modelo `github.com/diegofornalha/meu-bot-derivado-modelo`.
 
 ## O que o repositório de um derivado tem
 
@@ -35,6 +35,7 @@ assets/icon.icns    o ícone (com o .svg de origem ao lado)
 | `abreEm` | não | a página que fica na frente ao abrir: `"modulos"` (ou `null` para as conversas) |
 | `modulos` | não | o produto de módulos fixo do app (`meu-bot-<nome>`): a página Módulos baixa o repositório dele |
 | `addon` | não | o add-on do catálogo que é a razão do app |
+| `releases` | não | `"dono/repositório"` do GitHub, público, onde saem as releases do app; é lá que o atualizador dele procura. Sem o campo, procura no repositório do core |
 | `descricao` | não | uma frase, até 300 caracteres |
 
 Campo que não está na tabela é recusado, para um nome trocado não passar calado. Um derivado é sempre um app da pessoa:
@@ -57,6 +58,65 @@ integridade do asar a cobre. Ao abrir, o app a lê, registra o produto e passa a
 (`src/main/app/variant.ts`); o `variant.json` de um derivado só diz `{"variant":"derivado"}`.
 
 Em desenvolvimento: `MEU_BOT_PRODUTO=<pasta do derivado> npm start`.
+
+## Atualização
+
+O atualizador de um derivado consulta as releases do repositório da ficha (`releases`), com as mesmas regras do core:
+tag `vX.Y.Z-staging.N`, asset `<nome>-<versão>-<arch>.zip` com o `.sig` ao lado. A confiança não muda com o
+repositório: o zip tem de passar pela assinatura Ed25519 do core (`UPDATE_PUBLIC_KEYS`), ter o mesmo bundle id do app
+aberto e ser assinado com o Developer ID do time. Publicar num repositório não basta para um app aceitar o que está lá.
+
+## Release
+
+A release de um derivado é automática e roda no Mac que publica o core (a chave da release e o Developer ID estão no
+Chaveiro dele). Depois de cada release staging do core, o agente (`scripts/release-auto.mjs`) chama
+`scripts/release-derivados.mjs`, que para cada derivado da lista:
+
+1. leva o clone ao ramo padrão do repositório do derivado e valida a ficha;
+2. confere que a ficha manda procurar as releases no mesmo repositório onde vai publicar (`releases`);
+3. empacota contra o core recém-publicado, com a **mesma versão** dele (`X.Y.Z-staging.N`), assina, notariza, zipa e
+   assina o zip com a chave da release;
+4. publica com `gh release create -R <repositório do derivado>`: `<nome>-<versão>-<arch>.zip` e o `.sig`.
+
+A lista fica **fora do repositório do core**, em `~/Library/Application Support/meu-bot-release/derivados.json`:
+
+```json
+[ { "repo": "dono/meu-bot-x", "pasta": "/caminho/do/clone/do/derivado" } ]
+```
+
+- A pasta é um clone só do agente; mudança local nele é recusada.
+- O que já foi publicado é pulado: rodar de novo não repete nada.
+- A falha de um derivado não impede os outros nem desfaz a staging do core; o Mac avisa uma vez por versão.
+- **Um derivado não fica para trás:** enquanto a versão dele não alcança a staging do core, o agente tenta de novo a
+  cada rodada (10 min), sem esperar a próxima staging. Com tudo em dia a rodada só confere as tags: não empacota nem
+  pede a chave. O aviso de falha diz a causa (a última linha de erro do script). A nova tentativa só roda com o
+  worktree da release no commit da staging: se um merge novo entrou no `main`, quem refaz os derivados é a staging
+  seguinte, que sai em 10 minutos.
+- **Uma mudança no core não quebra a ficha de um derivado calada:** `scripts/tests/derivado-core.test.mjs` guarda as
+  fichas já publicadas e falha na PR do core que as recusaria. Ao publicar um derivado novo com um campo que nenhuma
+  ficha guardada usa, acrescente a ficha dele a esse teste.
+- Uma mudança só na ficha do derivado sai na próxima staging do core, ou à mão:
+  `node scripts/release-derivados.mjs --versao <versão staging já publicada do core>` não republica a mesma tag, então
+  espere a próxima.
+- `node scripts/release-derivados.mjs --conferir` diz o que publicaria, sem empacotar, sem pedir a chave e sem publicar.
+
+### Commit aprovado
+
+Quem tem permissão de escrita no repositório de um derivado listado faz o Mac publicar um app assinado com o que está
+lá. Para um derivado **só de ficha e ícone** isso é pouco: a ficha escolhe nome, portas e páginas do core, não traz
+código. Proteja o ramo padrão do repositório e pronto.
+
+Um derivado que traz **código próprio** (a pasta `codigo/`) é outra coisa: esse código é compilado, assinado com o
+Developer ID e distribuído por atualização automática. Por isso ele só sai do commit que o dono do Mac leu e aprovou,
+escrito na lista:
+
+```json
+[ { "repo": "dono/meu-bot-x", "pasta": "/caminho/do/clone", "commit": "<o hash inteiro do commit aprovado>" } ]
+```
+
+- Com `commit`, o agente empacota exatamente esse commit, não o ramo padrão. Código novo no repositório fica esperando.
+- Derivado com `codigo/` e sem `commit` na lista é recusado, e a mensagem já traz a linha a escrever.
+- Aprovar uma versão nova do código é ler o diff no repositório do derivado e trocar o hash na lista.
 
 ## Conferir
 
