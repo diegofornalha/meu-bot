@@ -19,8 +19,9 @@ export const SKILL_MAX_BYTES = 20 * 1024 * 1024;
 export const SKILLS_RESERVADAS: readonly string[] = [...SKILLS_DO_APP, OBJECTIVE_SKILL, "whatsapp-grupos"];
 
 /**
- * O link que a pessoa colou → a URL do git. Aceita "dono/repo", a página do GitHub (com ou sem /tree/…, ?aba, #ancora)
- * e qualquer URL que os módulos aceitam (`repoValido`: https, ssh://, git@host:caminho). null = não é um repositório.
+ * O link que a pessoa colou → a URL do git. Aceita "dono/repo", a página do GitHub (com https://, http:// ou sem nada
+ * na frente; com ou sem /tree/…, ?aba, #ancora) e qualquer URL que os módulos aceitam (`repoValido`: https, ssh://,
+ * git@host:caminho). null = não é um repositório.
  */
 export function linkDaSkill(texto: unknown): string | null {
   if (typeof texto !== "string") return null;
@@ -28,10 +29,11 @@ export function linkDaSkill(texto: unknown): string | null {
   if (t === "" || t.length > 400) return null;
   const curto = /^([A-Za-z0-9][A-Za-z0-9-]{0,38})\/([A-Za-z0-9._-]{1,100})$/.exec(t);
   if (curto !== null) return linkDaSkill(`https://github.com/${curto[1]}/${curto[2]}`);
-  const gh = /^https:\/\/(?:www\.)?github\.com\/([A-Za-z0-9][A-Za-z0-9-]{0,38})\/([A-Za-z0-9._-]{1,100}?)(?:\.git)?(?:[/?#].*)?$/.exec(t);
+  // A barra de endereço e as conversas entregam o link de vários jeitos (http://, sem https://, GitHub.com): todos viram https.
+  const gh = /^(?:https?:\/\/)?(?:www\.)?github\.com\/([A-Za-z0-9][A-Za-z0-9-]{0,38})\/([A-Za-z0-9._-]{1,100}?)(?:\.git)?(?:[/?#].*)?$/i.exec(t);
   if (gh !== null) { const url = `https://github.com/${gh[1]}/${gh[2]}.git`; return repoValido(url) ? url : null; }
   // Endereço do GitHub que não é dono/repositório (a página de um perfil, por exemplo) não é uma skill.
-  if (/^https?:\/\/(?:www\.)?github\.com(?:\/|$)/i.test(t)) return null;
+  if (/^(?:https?:\/\/)?(?:www\.)?github\.com(?:\/|$)/i.test(t)) return null;
   return repoValido(t) ? t : null;
 }
 

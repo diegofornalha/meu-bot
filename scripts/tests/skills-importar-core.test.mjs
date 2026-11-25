@@ -16,6 +16,8 @@ test("linkDaSkill: dono/repo, a página do GitHub e as URLs de git; o resto é r
   assert.equal(c.linkDaSkill("https://github.com/fulano/minha-skill.git"), "https://github.com/fulano/minha-skill.git");
   assert.equal(c.linkDaSkill("https://github.com/fulano/minha-skill/tree/main/scripts?x=1#y"), "https://github.com/fulano/minha-skill.git");
   assert.equal(c.linkDaSkill("git@github.com:fulano/minha-skill.git"), "git@github.com:fulano/minha-skill.git");
+  for (const jeito of ["http://github.com/fulano/minha-skill", "github.com/fulano/minha-skill", "www.github.com/fulano/minha-skill/", "HTTPS://GitHub.com/fulano/minha-skill", "http://www.github.com/fulano/minha-skill.git"]) assert.equal(c.linkDaSkill(jeito), "https://github.com/fulano/minha-skill.git", jeito);
+  for (const perfil of ["http://github.com/fulano", "github.com/fulano", "github.com"]) assert.equal(c.linkDaSkill(perfil), null, perfil);
   for (const ruim of ["", "minha skill", "ext::sh -c id", "file:///etc", "/tmp/repo", "--upload-pack=x", "https://github.com/fulano", "fulano/../x", null, 3]) assert.equal(c.linkDaSkill(ruim), null, String(ruim));
 });
 
