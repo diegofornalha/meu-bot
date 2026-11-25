@@ -17,7 +17,7 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import type { WebContents } from "electron";
-import { DONO_SEM_IDENTIDADE, abasParaRecarregar, decidirAbrir, donoTexto, escolherAba, limpar, parseDono, podeFechar, tomar, abasDe, type Dono, type Posse, type Tipo } from "./nav-donos-core";
+import { DONO_SEM_IDENTIDADE, abasParaRecarregar, decidirAbrir, donoTexto, escolherAba, limpar, literalJs, parseDono, podeFechar, tomar, abasDe, type Dono, type Posse, type Tipo } from "./nav-donos-core";
 import { browserActiveWcId, browserAsk, browserDonos, browserConsole, browserExtensions, browserFavoriteAdd, browserFavoriteRemove, browserFavorites, browserServiceWorkers, browserWebContents } from "./browser";
 import { log } from "../maquina/tunnel";
 import { registrarAcao } from "../app/depuracao";
@@ -207,8 +207,8 @@ async function act(host: string, route: string, b: Req, dono: Dono | null): Prom
     }
     case "/clicar": return mexer(async (wc) => {
       const target = typeof b.n === "number" ? pick(b.n)
-        : typeof b.seletor === "string" ? `(() => { const e = document.querySelector(${JSON.stringify(b.seletor)}); if (!e) throw new Error("nada com o seletor"); return e; })()`
-          : typeof b.texto === "string" ? `(() => { const q = ${JSON.stringify(b.texto)}.toLowerCase(); const all = [...document.querySelectorAll("a, button, [role=button], [role=link], [role=tab], [role=menuitem], input[type=submit], input[type=button], summary, label")]; const e = all.find((x) => (x.innerText || x.value || x.getAttribute("aria-label") || "").toLowerCase().trim() === q) || all.find((x) => (x.innerText || x.value || x.getAttribute("aria-label") || "").toLowerCase().includes(q)); if (!e) throw new Error("nenhum botão/link com esse texto"); return e; })()`
+        : typeof b.seletor === "string" ? `(() => { const e = document.querySelector(${literalJs(b.seletor)}); if (!e) throw new Error("nada com o seletor"); return e; })()`
+          : typeof b.texto === "string" ? `(() => { const q = ${literalJs(b.texto)}.toLowerCase(); const all = [...document.querySelectorAll("a, button, [role=button], [role=link], [role=tab], [role=menuitem], input[type=submit], input[type=button], summary, label")]; const e = all.find((x) => (x.innerText || x.value || x.getAttribute("aria-label") || "").toLowerCase().trim() === q) || all.find((x) => (x.innerText || x.value || x.getAttribute("aria-label") || "").toLowerCase().includes(q)); if (!e) throw new Error("nenhum botão/link com esse texto"); return e; })()`
             : null;
       if (target === null) throw new Error("diga n (número do 'ler'), texto ou seletor");
       const ponto = await wc.executeJavaScript(`(() => { const e = ${target}; e.scrollIntoView({ block: "center" }); const r = e.getBoundingClientRect(); const ponto = { x: r.left + r.width / 2, y: r.top + r.height / 2, vw: innerWidth, vh: innerHeight }; e.focus && e.focus(); e.click(); return ponto; })()`, true) as unknown;
@@ -217,7 +217,7 @@ async function act(host: string, route: string, b: Req, dono: Dono | null): Prom
     });
     case "/digitar": return mexer(async (wc) => {
       if (typeof b.texto !== "string") throw new Error("falta texto");
-      const target = typeof b.n === "number" ? pick(b.n) : typeof b.seletor === "string" ? `(() => { const e = document.querySelector(${JSON.stringify(b.seletor)}); if (!e) throw new Error("nada com o seletor"); return e; })()` : "document.activeElement";
+      const target = typeof b.n === "number" ? pick(b.n) : typeof b.seletor === "string" ? `(() => { const e = document.querySelector(${literalJs(b.seletor)}); if (!e) throw new Error("nada com o seletor"); return e; })()` : "document.activeElement";
       // Foca e limpa; o texto entra como digitação de verdade (insertText), que apps como o Gmail entendem.
       const ponto = await wc.executeJavaScript(`(() => { const e = ${target}; e.scrollIntoView({ block: "center" }); const r = e.getBoundingClientRect(); const ponto = { x: r.left + r.width / 2, y: r.top + r.height / 2, vw: innerWidth, vh: innerHeight }; e.focus(); if ("value" in e && typeof e.value === "string") { e.select && e.select(); } else if (e.isContentEditable) { const r = document.createRange(); r.selectNodeContents(e); const s = getSelection(); s.removeAllRanges(); s.addRange(r); } return ponto; })()`, true) as unknown;
       await wc.insertText(b.texto);
