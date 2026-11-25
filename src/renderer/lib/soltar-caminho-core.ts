@@ -5,15 +5,18 @@
  */
 
 /**
- * O texto dos endereços soltos: um ao lado do outro; endereço com espaço ou aspa vai entre aspas, para não se partir em
- * dois, e a aspa de dentro ganha uma barra. A barra invertida fica como está: é o separador dos endereços do Windows
- * (onde nome de arquivo não tem aspa), e dobrá-la estragaria todo endereço com espaço de lá.
+ * Um endereço como texto. Sem espaço nem aspa, entra como está; com espaço, entre aspas. Com aspa no nome, entre aspas
+ * e com a aspa e a barra invertida de dentro escapadas (as duas, senão `\"` ficaria ambíguo). Sem aspa no nome a barra
+ * fica como está: é o separador dos endereços do Windows, onde nome de arquivo não tem aspa.
  */
+function textoDoCaminho(c: string): string {
+  if (c.includes('"')) return `"${c.replace(/(["\\])/g, "\\$1")}"`;
+  return /\s/.test(c) ? `"${c}"` : c;
+}
+
+/** O texto dos endereços soltos: um ao lado do outro, separados por espaço. */
 export function textoDosCaminhos(caminhos: readonly string[]): string {
-  return caminhos
-    .filter((c) => c !== "")
-    .map((c) => (/[\s"]/.test(c) ? `"${c.replace(/"/g, '\\"')}"` : c))
-    .join(" ");
+  return caminhos.filter((c) => c !== "").map(textoDoCaminho).join(" ");
 }
 
 /**

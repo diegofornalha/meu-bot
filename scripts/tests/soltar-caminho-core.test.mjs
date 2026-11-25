@@ -12,6 +12,7 @@ test("um endereço sem espaço entra como está; com espaço, entre aspas; vári
 test("aspa no nome: o endereço vai entre aspas e a de dentro ganha uma barra; a barra do Windows fica como está", () => {
   assert.equal(textoDosCaminhos(['/a/disco "novo"/x']), '"/a/disco \\"novo\\"/x"');
   assert.equal(textoDosCaminhos(['/a/b"c']), '"/a/b\\"c"');
+  assert.equal(textoDosCaminhos(['/a/b\\"c']), '"/a/b\\\\\\"c"', "barra antes da aspa: as duas escapadas");
   assert.equal(textoDosCaminhos(["C:\\Users\\a b\\x.txt"]), '"C:\\Users\\a b\\x.txt"');
 });
 
