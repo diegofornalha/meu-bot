@@ -34,7 +34,7 @@ export function estadoControleRemoto(): ControleRemotoView {
   const nome = appTitle().replace(/\s.*$/, ""); // "meu-bot-staging 0.80.0" → "meu-bot-staging"
   return {
     ligado: c.ligado, execucao: c.execucao, porta, portaPadrao: produto().portaMcp, token: c.token, rodando: servidor !== null, erro: erroAtual, url: urlMcp(porta), nome,
-    configClaudeCode: c.token === "" ? "" : configClaudeCode(nome, porta, c.token),
+    configClaudeCode: c.token === "" ? "" : configClaudeCode(nome, porta, c.token, process.platform === "win32"),
     configCursor: c.token === "" ? "" : configCursor(nome, porta, c.token),
     clientes: estadoClientes(nome, porta, c.token),
   };
