@@ -2,16 +2,21 @@
 // deste Mac, a conferência entre a ficha e o repositório onde se publica, a versão e os argumentos do gh.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { argsReleaseDerivado, decideAvisoDerivado, motivoDaFalhaDerivados, notasDoDerivado, parseDerivados, precisaDaChave, recusaDerivado, versaoDasTags, versaoStagingValida } from "../release-core.mjs";
+import { PASTA_DE_CODIGO, recusaCommitDoDerivado, argsReleaseDerivado, decideAvisoDerivado, motivoDaFalhaDerivados, notasDoDerivado, parseDerivados, precisaDaChave, recusaDerivado, versaoDasTags, versaoStagingValida } from "../release-core.mjs";
 
 test("lista de derivados: ausente é vazia; cada item tem repositório e pasta absoluta, sem repetição", () => {
   assert.deepEqual(parseDerivados(undefined), { itens: [] });
   assert.deepEqual(parseDerivados(null), { itens: [] });
   assert.deepEqual(parseDerivados([]), { itens: [] });
   const ok = [{ repo: "diegofornalha/meu-bot-vendas-app", pasta: "/Users/x/derivados/vendas" }, { repo: "outro/meu-bot-y", pasta: "/Users/x/derivados/y" }];
-  assert.deepEqual(parseDerivados(ok), { itens: ok });
-  // Campo a mais (um commit fixado, uma anotação) não entra no item.
-  assert.deepEqual(parseDerivados([{ ...ok[0], nota: "x" }]).itens, [ok[0]]);
+  const comNull = ok.map((x) => ({ ...x, commit: null }));
+  assert.deepEqual(parseDerivados(ok), { itens: comNull }, "sem commit aprovado: segue o ramo padrão");
+  // Campo a mais (uma anotação) não entra no item.
+  assert.deepEqual(parseDerivados([{ ...ok[0], nota: "x" }]).itens, [comNull[0]]);
+  // Commit aprovado: o hash inteiro; ramo, tag ou prefixo não servem (tem de ser exatamente o que foi lido).
+  const hash = "e370fa82f45e89ba87189f267fe659f76abc50ea";
+  assert.deepEqual(parseDerivados([{ ...ok[0], commit: hash }]).itens, [{ ...ok[0], commit: hash }]);
+  for (const commit of ["main", "e370fa8", hash.toUpperCase(), `${hash}0`, "", 7]) assert.match(parseDerivados([{ ...ok[0], commit }]).erro, /commit tem de ser o hash inteiro/, String(commit));
   assert.match(parseDerivados({}).erro, /array/);
   assert.match(parseDerivados(["x"]).erro, /item 1/);
   for (const repo of ["meu-bot-x", "a/b/c", "https://github.com/a/b", "a/..", "a/b c", 7]) assert.match(parseDerivados([{ repo, pasta: "/x" }]).erro, /item 1: repo/, String(repo));
@@ -72,4 +77,21 @@ test("a chave da release só é pedida quando há o que publicar: conferência e
   assert.equal(precisaDaChave({ conferir: false, faltam: 0 }), false, "tudo em dia: é o caso de toda rodada do agente");
   assert.equal(precisaDaChave({ conferir: true, faltam: 2 }), false);
   assert.equal(precisaDaChave({ conferir: true, faltam: 0 }), false);
+});
+
+test("derivado com código só sai do commit aprovado na lista deste Mac; só de ficha e ícone segue o ramo padrão", () => {
+  const a = "e370fa82f45e89ba87189f267fe659f76abc50ea", b = "0123456789abcdef0123456789abcdef01234567";
+  assert.equal(PASTA_DE_CODIGO, "codigo");
+  // Só ficha e ícone: sem commit aprovado pode (a ficha não traz código); com commit aprovado, é ele.
+  assert.equal(recusaCommitDoDerivado({ repo: "a/b", temCodigo: false, commitAprovado: null, commitAtual: a }), null);
+  assert.equal(recusaCommitDoDerivado({ repo: "a/b", temCodigo: false, commitAprovado: undefined, commitAtual: a }), null);
+  assert.equal(recusaCommitDoDerivado({ repo: "a/b", temCodigo: false, commitAprovado: a, commitAtual: a }), null);
+  // Com código e sem aprovação: recusa, e a frase já traz a linha a escrever na lista.
+  const semAprovar = recusaCommitDoDerivado({ repo: "a/b", temCodigo: true, commitAprovado: null, commitAtual: a });
+  assert.match(semAprovar, /traz código próprio \(pasta codigo\/\)/);
+  assert.ok(semAprovar.includes(`"commit": "${a}"`));
+  // Com código e aprovado: só aquele commit. Código novo no repositório não é assinado sozinho.
+  assert.equal(recusaCommitDoDerivado({ repo: "a/b", temCodigo: true, commitAprovado: a, commitAtual: a }), null);
+  assert.match(recusaCommitDoDerivado({ repo: "a/b", temCodigo: true, commitAprovado: a, commitAtual: b }), /está em 0123456789ab, e o commit aprovado é e370fa82f45e/);
+  assert.match(recusaCommitDoDerivado({ repo: "a/b", temCodigo: false, commitAprovado: a, commitAtual: b }), /commit aprovado/);
 });
