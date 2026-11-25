@@ -30,7 +30,7 @@ import { app, powerMonitor } from "electron";
 import { log } from "../maquina/backend";
 import { anyConversationBusy } from "../conversa/conversation";
 import { liveTerminals } from "../terminal/terminal";
-import { appTitle, caps, compilacao } from "../app/variant";
+import { appTitle, caps, compilacao, produto } from "../app/variant";
 import { broadcast, getLastFocusedHost } from "../app/windows";
 import { getAtualizarOcioso } from "../app/settings";
 import { run, runText } from "../app/proc";
@@ -215,7 +215,8 @@ export async function releasesPublicadas(forcar = false): Promise<ReleaseListada
   await exigeSuper();
   if (!ativo()) throw new Error("a escolha de versão só funciona no app instalado");
   if (!forcar && listaCache !== null && Date.now() - listaCache.em < LISTA_CACHE_MS) return listaCache.itens;
-  const res = await fetch("https://api.github.com/repos/diegofornalha/meu-bot/releases?per_page=30", { headers: { "User-Agent": `${appTitle()}/${state.current}`, Accept: "application/vnd.github+json" }, signal: AbortSignal.timeout(FEED_TIMEOUT_MS) });
+  // A lista inteira (com as de teste), do repositório das releases deste app: o mesmo que o ciclo consulta.
+  const res = await fetch(releasesUrl("staging", produto().repoReleases), { headers: { "User-Agent": `${appTitle()}/${state.current}`, Accept: "application/vnd.github+json" }, signal: AbortSignal.timeout(FEED_TIMEOUT_MS) });
   const r = classificarRespostaFeed(res.status, res.headers.get("x-ratelimit-remaining"), res.headers.get("x-ratelimit-reset"));
   if (r.tipo === "falha") throw new Error(r.msg);
   const corpo: unknown = r.tipo === "sem-release" ? [] : await res.json();
@@ -343,7 +344,7 @@ const AUTOMATICAS: readonly UpdateTrigger[] = ["inicio", "periodico", "rede-volt
  * falha (quem chama segue com a versão já conferida).
  */
 async function consultarFeed(signal: AbortSignal, trigger: UpdateTrigger | null): Promise<EscolhaRelease> {
-  const url = releasesUrl(caps().canal), cache = lerFeedCache();
+  const url = releasesUrl(caps().canal, produto().repoReleases), cache = lerFeedCache();
   const escolher = (corpo: unknown): EscolhaRelease => escolherRelease(corpo, { app: appTitle(), arch: arch(), current: state.current, canal: caps().canal, plataforma: process.platform });
   // Reabrir o app logo depois de uma consulta boa não gasta outra das 60 por hora deste IP.
   const recente = trigger === "inicio" ? feedRecente(cache, url, Date.now()) : null;

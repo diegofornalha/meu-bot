@@ -112,7 +112,8 @@ export function compareVersions(a: string, b: string): number {
 /** Tag de um build staging: v0.2.0-staging.3. */
 export const STAGING_TAG = /^v?\d+\.\d+\.\d+-staging\.\d+$/;
 /** De onde o app lê as releases: o estável, a última (sem pre-release); o staging, a lista (as pre-releases). */
-export const releasesUrl = (canal: "estavel" | "staging"): string => `https://api.github.com/repos/${UPDATE_REPO}/releases${canal === "staging" ? "?per_page=30" : "/latest"}`;
+/** `repo` ("dono/nome") é o repositório das releases do produto (Produto.repoReleases); null = o do core. */
+export const releasesUrl = (canal: "estavel" | "staging", repo: string | null = null): string => `https://api.github.com/repos/${repo ?? UPDATE_REPO}/releases${canal === "staging" ? "?per_page=30" : "/latest"}`;
 
 /** Hora do dia para as frases do atualizador; injetável para o teste não depender do fuso da máquina. */
 export type Hora = (d: Date) => string;
