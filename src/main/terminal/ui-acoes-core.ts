@@ -17,8 +17,10 @@ export const rodarComando = (id: string): string => `(() => { const d = { id: ${
 export const enviarMensagem = (texto: string): string => `(() => {
   const campo = document.getElementById("input"); const botao = document.getElementById("btn-send");
   if (!campo || !botao) throw new Error("esta janela não tem conversa");
-  if (botao.classList.contains("btn-bad")) throw new Error("o agente ainda está respondendo nesta conversa: espere ou abra outra (comando a:new)");
-  if (campo.disabled || botao.disabled) throw new Error("a conversa não aceita mensagem agora (janela carregando ou sem máquina)");
+  // Sem conversa na frente (uma página como o Navegador está à vista) o botão fica desligado; com o agente respondendo
+  // a caixa fica desligada e o botão vira "Parar".
+  if (botao.disabled) throw new Error("nenhuma conversa na frente: traga uma (ui_clicar na aba dela) ou abra outra (comando_rodar a:new)");
+  if (campo.disabled || botao.classList.contains("btn-bad")) throw new Error("o agente ainda está respondendo nesta conversa: espere (conversa_ler diz ocupada) ou abra outra (comando_rodar a:new)");
   campo.value = ${JSON.stringify(texto)}; campo.dispatchEvent(new Event("input", { bubbles: true }));
   botao.click();
   return true;
