@@ -12,7 +12,7 @@ const INFO = { nome: "meu-bot", versao: "1.2.3", execucao: true };
 
 test("catálogo: as ferramentas do app-mcp (menos apps/app_abrir) mais as do app; cada uma com schema e anotações", () => {
   const nomes = FERRAMENTAS.map((f) => f.name);
-  for (const n of ["terminais", "terminal_abrir", "terminal_ler", "terminal_digitar", "terminal_fechar", "tela_dividir", "tela_juntar", "nav_abas", "nav_abrir", "nav_ler", "nav_clicar", "nav_digitar", "nav_tecla", "nav_print", "nav_recarregar", "nav_voltar", "nav_js", "nav_fechar", "nota", "depuracao", "app", "janela_abrir", "pagina_abrir", "tema", "print_janela"]) assert.ok(nomes.includes(n), `falta ${n}`);
+  for (const n of ["terminais", "terminal_abrir", "terminal_ler", "terminal_digitar", "terminal_fechar", "tela_dividir", "tela_juntar", "nav_abas", "nav_abrir", "nav_ler", "nav_clicar", "nav_digitar", "nav_tecla", "nav_print", "nav_recarregar", "nav_voltar", "nav_js", "nav_fechar", "nota", "depuracao", "app", "janela_abrir", "pagina_abrir", "tema", "print_janela", "ui_ler", "ui_clicar", "ui_digitar", "ui_tecla", "erros_ler", "log_ler"]) assert.ok(nomes.includes(n), `falta ${n}`);
   assert.ok(!nomes.includes("apps") && !nomes.includes("app_abrir"), "de dentro do app não se abre outro app");
   assert.equal(new Set(nomes).size, nomes.length, "nome repetido");
   for (const f of FERRAMENTAS) { assert.equal(f.inputSchema.type, "object"); assert.equal(typeof f.annotations.readOnlyHint, "boolean"); assert.ok(f.description.length > 10); assert.equal("outputSchema" in f, false, "sem outputSchema o resultado vai só como texto"); }
@@ -24,10 +24,15 @@ test("catálogo: as ferramentas do app-mcp (menos apps/app_abrir) mais as do app
   assert.deepEqual(ferramenta("pagina_abrir").inputSchema.properties.pagina.enum, [...PAGINAS_APP]);
 });
 
-test("execução arbitrária (terminal_digitar, nav_js) só aparece com o interruptor ligado", () => {
-  assert.deepEqual([...FERRAMENTAS_EXECUCAO], ["terminal_digitar", "nav_js"]);
+test("execução (terminal_digitar, nav_js e agir na interface do app) só aparece com o interruptor ligado", () => {
+  assert.deepEqual([...FERRAMENTAS_EXECUCAO], ["terminal_digitar", "nav_js", "ui_clicar", "ui_digitar", "ui_tecla"]);
   const sem = ferramentasVisiveis(false).map((f) => f.name);
   assert.ok(!sem.includes("terminal_digitar") && !sem.includes("nav_js"));
+  // Um clique na interface do app desconecta o WhatsApp ou sai da conta: agir nela é execução; ler, não.
+  assert.ok(!sem.includes("ui_clicar") && !sem.includes("ui_digitar") && !sem.includes("ui_tecla"));
+  assert.ok(sem.includes("ui_ler") && sem.includes("print_janela"));
+  for (const n of ["ui_clicar", "ui_digitar", "ui_tecla"]) assert.equal(ferramenta(n).annotations.destructiveHint, true, n);
+  assert.equal(ferramenta("ui_ler").annotations.readOnlyHint, true);
   assert.ok(sem.includes("terminal_ler") && sem.includes("nav_clicar") && sem.includes("nav_digitar"), "ler, clicar e digitar em campos continuam");
   assert.equal(ferramentasVisiveis(true).length, FERRAMENTAS.length);
 });
@@ -49,6 +54,15 @@ test("roteador: tudo vai para um socket do app (terminal, com as rotas do app, o
   assert.deepEqual(roteador("pagina_abrir", { pagina: "gmail", maquina: "colima" }), { alvo: "terminal", rota: "pagina", corpo: { pagina: "gmail", maquina: "colima" } });
   assert.deepEqual(roteador("tema", { tema: "dark" }), { alvo: "terminal", rota: "tema", corpo: { tema: "dark" } });
   assert.deepEqual(roteador("print_janela", {}), { alvo: "terminal", rota: "print", corpo: {} });
+  // A interface do app vai pelo term.sock (só neste Mac), nunca pelo socket do Navegador, que chega às máquinas.
+  assert.deepEqual(roteador("ui_ler", { maquina: "local" }), { alvo: "terminal", rota: "ui/ler", corpo: { maquina: "local" } });
+  assert.deepEqual(roteador("ui_clicar", { texto: "Conta Google" }), { alvo: "terminal", rota: "ui/clicar", corpo: { texto: "Conta Google" } });
+  assert.deepEqual(roteador("ui_digitar", { n: 3, texto: "oi", enter: true }), { alvo: "terminal", rota: "ui/digitar", corpo: { n: 3, texto: "oi", enter: true } });
+  assert.deepEqual(roteador("ui_tecla", { tecla: "esc" }), { alvo: "terminal", rota: "ui/tecla", corpo: { tecla: "esc" } });
+  assert.deepEqual(roteador("erros_ler", { maquina: "local", limite: 5 }), { alvo: "terminal", rota: "erros", corpo: { limite: 5, maquina: "local" } });
+  assert.deepEqual(roteador("log_ler", { filtro: "atualização" }), { alvo: "terminal", rota: "log", corpo: { filtro: "atualização" } });
+  // Ler erros e log é leitura: continua com a execução desligada.
+  for (const n of ["erros_ler", "log_ler"]) { assert.equal(ferramenta(n).annotations.readOnlyHint, true, n); assert.ok(ferramentasVisiveis(false).some((f) => f.name === n), n); }
   assert.deepEqual(roteador("nav_abas", {}), { alvo: "navegador", rota: "abas" });
   assert.deepEqual(roteador("nav_abas", { maquina: "colima" }), { alvo: "navegador", rota: "abas", maquina: "colima" });
   assert.deepEqual(roteador("nav_abrir", { url: "https://x", nova: true, maquina: "colima" }), { alvo: "navegador", rota: "abrir", corpo: { url: "https://x", nova: true }, maquina: "colima" });
@@ -134,7 +148,9 @@ test("execução desligada: tools/list esconde terminal_digitar e nav_js, e cham
   const chamar = async (nome) => { chamadas.push(nome); return { ok: true }; };
   const info = { ...INFO, execucao: false };
   const lista = await responderJsonRpc({ jsonrpc: "2.0", id: 1, method: "tools/list" }, chamar, info);
-  assert.equal(lista.result.tools.length, FERRAMENTAS.length - 2);
+  assert.equal(lista.result.tools.length, FERRAMENTAS.length - FERRAMENTAS_EXECUCAO.length);
+  const clique = await responderJsonRpc({ jsonrpc: "2.0", id: 5, method: "tools/call", params: { name: "ui_clicar", arguments: { texto: "Desconectar" } } }, chamar, info);
+  assert.equal(clique.result.isError, true, "agir na interface do app é execução");
   const r = await responderJsonRpc({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "terminal_digitar", arguments: { id: "t1", texto: "rm -rf /", enter: true } } }, chamar, info);
   assert.equal(r.result.isError, true); assert.match(r.result.content[0].text, /desligada/);
   const js = await responderJsonRpc({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "nav_js", arguments: { codigo: "1" } } }, chamar, info);
