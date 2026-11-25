@@ -301,3 +301,24 @@ test("site: com a promoção desligada, a página dela responde a 404 do site po
     assert.equal(ligada.corpo, readFileSync(new URL("../public/site/promocao.html", import.meta.url), "utf8"));
   }
 });
+
+test("acessibilidade da home e dos planos: uma região principal, logo fora do nome do link e bolinhas do carrossel com nome e área de toque", () => {
+  const ler = (nome) => readFileSync(new URL(`../public/site/${nome}`, import.meta.url), "utf8");
+  for (const nome of ["index.html", "suporte.html"]) {
+    const html = ler(nome);
+    assert.equal(html.match(/<main[\s>]/g)?.length, 1, `${nome}: um <main>`);
+    assert.ok(html.indexOf("</header>") < html.indexOf("<main") && html.indexOf("</main>") < html.indexOf("<footer"), `${nome}: o <main> fica entre o cabeçalho e o rodapé`);
+    // O link da marca: o nome acessível é o texto visível ("meu-bot"); o logo "mb" não entra nele.
+    assert.ok(html.includes('<a class="marca" href="/"><span class="logo" aria-hidden="true">mb</span><span>meu-bot</span></a>'), `${nome}: marca`);
+  }
+  const home = ler("index.html");
+  const bolinhas = home.match(/id="carrossel-bolinhas">(.*?)<\/div>/s)?.[1] ?? "";
+  const botoes = bolinhas.match(/<button[^>]*>/g) ?? [];
+  assert.ok(botoes.length >= 2, "achou as bolinhas");
+  for (const b of botoes) assert.match(b, /aria-label="[^"]+"/, b);
+  // Todo aria-label de link com texto visível começa por esse texto (WCAG 2.5.3).
+  for (const [, rotulo, texto] of home.matchAll(/<a [^>]*aria-label="([^"]+)"[^>]*>([^<]+)<\/a>/g)) assert.ok(rotulo.toLowerCase().startsWith(texto.replace(/[→\s]+$/, "").toLowerCase()), `"${rotulo}" × "${texto}"`);
+  const css = ler("home.css");
+  assert.match(css, /\.bolinhas button \{[^}]*min-width: 24px; height: 24px;/, "área de toque de 24 px");
+  assert.match(css, /\.feito-por strong \{[^}]*color: var\(--ok-tx\)/, "rótulo dos pedidos no verde de contraste 4,5+");
+});
