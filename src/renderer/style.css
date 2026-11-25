@@ -1361,3 +1361,26 @@ table.fin-abc tr.fin-abc-C td.fin-abc-tag { color: #757575; }
 .agente-balao { position: absolute; left: 16px; bottom: 30px; max-width: 300px; padding: 5px 10px; border: 2px solid #111; border-radius: 14px 14px 14px 4px; background: var(--card); color: var(--fg); font: 500 12px/1.35 -apple-system, system-ui, sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: 0 4px 14px rgb(0 0 0 / .25); opacity: 0; transition: opacity .18s; }
 .agente-balao.on { opacity: 1; } .agente-balao.agente-balao-erro { border-color: hsl(0 85% 50%); }
 .agente-anel { position: fixed; z-index: 9001; pointer-events: none; width: 30px; height: 30px; border: 2px solid #111; border-radius: 50%; }
+
+/* Páginas em seções que abrem (lib/pagina.ts, 25 nov): resumo em uma linha → clique abre o detalhe. É o desenho das
+   seções das Configurações (`dialog details.group`: marcador nativo escondido, "›" que gira, `.sum-hint`) sem o escopo
+   `dialog` e sem a caixa: aqui as seções só se separam por uma linha fina. O `<details>` guarda só o `<summary>`; a ação
+   da linha e o corpo são irmãos dele (botão dentro de summary alternaria a seção), e o corpo some enquanto ele está fechado. */
+.pagina-cab { display: flex; flex-direction: column; gap: 6px; padding-bottom: 8px; }
+.pagina-cab h2 { margin: 0; font-size: 22px; font-weight: 700; }
+.pagina-cab p { margin: 0; font-size: 14px; color: var(--muted); max-width: 640px; }
+.pagina-secao { display: flex; flex-wrap: wrap; align-items: center; column-gap: 12px; max-width: 760px; border-top: 1px solid var(--line); }
+.pagina-secao:not(:has(+ .pagina-secao)) { border-bottom: 1px solid var(--line); }
+.pagina-secao > details { flex: 1 1 240px; min-width: 0; }
+.pagina-secao > details > summary { cursor: pointer; list-style: none; display: flex; align-items: baseline; gap: 12px; padding: 13px 0; font-size: 14px; border-radius: 6px; }
+.pagina-secao > details > summary::-webkit-details-marker { display: none; }
+.pagina-secao > details > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pagina-secao > details > summary::after { content: "›"; display: inline-block; width: 12px; text-align: center; color: var(--muted); transition: transform .15s; }
+.pagina-secao > details[open] > summary::after { transform: rotate(90deg); }
+.pagina-secao-titulo { flex: 0 0 auto; min-width: 150px; font-weight: 600; }
+.pagina-secao .sum-hint { flex: 1; min-width: 0; font-weight: 400; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.pagina-secao > .pagina-secao-acao { flex: none; }
+.pagina-secao > .pagina-secao-corpo { flex: 1 1 100%; min-width: 0; display: flex; flex-direction: column; gap: 10px; padding: 2px 0 16px; }
+.pagina-secao > details:not([open]) ~ .pagina-secao-corpo { display: none; }
+.pagina-secao-corpo > .btn { align-self: flex-start; }
+@media (prefers-reduced-motion: reduce) { .pagina-secao > details > summary::after { transition: none; } }

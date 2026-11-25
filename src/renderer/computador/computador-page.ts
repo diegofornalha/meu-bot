@@ -23,7 +23,7 @@ export interface ComputadorDeps {
   licenseKnown: () => boolean;
   planoExigido: PlanName;
   produto: string;
-  api: Pick<MeuBotApi, "browserRequestPro" | "computadorStatus" | "computadorAcordar" | "computadorInstalar" | "computadorUrl">;
+  api: Pick<MeuBotApi, "browserRequestPro" | "computadorStatus" | "computadorAcordar" | "computadorInstalar" | "computadorUrl" | "openPicker">;
 }
 
 /** O pouco do <webview> que a tela usa (o renderer não tem os tipos do Electron). */
@@ -101,6 +101,7 @@ export function mountComputador(deps: ComputadorDeps): { open: () => void; repin
 
   async function agir(acao: AcaoComputador): Promise<void> {
     nota = null;
+    if (acao === "maquina") { void deps.api.openPicker(); return; } // o seletor, como "Nova janela em outra máquina" da paleta
     if (acao === "status") { status = null; render(); await lerStatus(); return; }
     if (acao === "reconectar") { quedas = []; caiuDemais = false; await abrirTela(); return; }
     if (acao === "instalar") {

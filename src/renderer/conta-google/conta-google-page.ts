@@ -2,6 +2,8 @@
  * Página "Conta Google" (login + backup no Drive; os e-mails têm página própria, "E-mail", desde 31 out) no visual do meu-bot. A conta mora neste Mac (token cifrado
  * no Keychain, via main › conta-google.ts); aqui só se conecta, lê e escreve. A verificação de telefone/QR, quando o
  * Google pede, é feita pela pessoa na tela oficial. Fábrica com dependências explícitas, como modulos-page.ts.
+ * Desde 25 nov a página é resumo → detalhe (lib/pagina.ts): "Sua conta" e "Backup no Drive" são linhas que abrem; o que
+ * a pessoa precisa fazer (plano, entrar, reconectar) continua à vista, num cartão.
  */
 import type { BackupCopiaOrigem, BackupCopiasView, BackupDadosProgresso, BackupDadosView, BackupRestauroProgresso, BackupRestauroResultado, GoogleContaStatus, MeuBotApi } from "../../shared/ipc";
 import type { LicenseView, PlanName } from "../../shared/ipc";
@@ -13,6 +15,8 @@ import type { PageTab } from "../lib/pages-types.js";
 import { ipcErrorText } from "../lib/ipc-error.js";
 import { erroGoogleTexto } from "../lib/erro-google.js";
 import { aplicarProgresso, aplicarRestauro, fmtBytes, terminou, textoAndamento, textoRestauro } from "./backup-andamento.js";
+import { atencaoBackup, resumoBackup } from "./backup-resumo.js";
+import { cabecalho, secao } from "../lib/pagina.js";
 
 export interface ContaGoogleDeps {
   panelsEl: HTMLElement;
@@ -97,11 +101,23 @@ export function mountContaGoogle(deps: ContaGoogleDeps): { open: () => void; ref
   const field = (label: string, ctl: HTMLElement): HTMLElement => { const w = el("label", "admin-field"); w.append(el("span", "hint", label), ctl); return w; };
   const card = (titulo: string): HTMLElement => { const c = el("div", "admin-card"); c.append(el("strong", "", titulo)); return c; };
 
+  /** Botões lado a lado no tamanho do texto: `.admin-card` é flex em coluna e esticaria o botão solto à largura toda. */
+  const acoes = (...bs: HTMLElement[]): HTMLElement => { const a = el("div", "admin-actions"); a.append(...bs); return a; };
+  /**
+   * Ação destrutiva: cor de perigo desde o primeiro olhar e segundo clique pelo `armConfirm`. Ele tira o `btn-bad` ao
+   * desarmar (é a classe que ele mesmo põe ao armar), então a cor é devolvida aqui depois dos 4 s dele.
+   */
+  const perigo = (label: string, confirmar: string, run: () => void): HTMLButtonElement => {
+    const b = btn(label, "btn-bad", () => { deps.armConfirm(b, confirmar, run); window.setTimeout(() => { b.classList.add("btn-bad"); }, 4100); });
+    return b;
+  };
+  // O motivo de atenção do backup enquanto o estado é relido (cada ação relê): sem isto a seção piscaria fechada.
+  let atencaoDoBackup = "";
+
   function render(): void {
     panel.replaceChildren();
-    const head = el("div", "guide-head"); const hb = el("div", "tut-body");
-    hb.append(el("span", "tut-badge", "conta google"), el("h2", "", "Conta Google"), el("p", "", status !== null ? `Conta Google da máquina ${status.maquina}: cada máquina entra com a sua, e desconectar aqui não mexe nas outras. É por ela que o meu-bot lê o Gmail, a Agenda e as planilhas e guarda o backup no Drive. O acesso fica guardado só neste Mac.` : "Entre com a conta do Google desta máquina."));
-    head.append(hb); panel.append(head);
+    // Uma frase só; o resto da explicação (cada máquina com a sua conta, acesso só neste Mac) mora na seção "Sua conta".
+    panel.append(cabecalho("Conta Google", "É por ela que o meu-bot lê o Gmail, a Agenda e as planilhas."));
     // Módulo Pro: sem o plano, a página é o bloqueio (como a aba Navegador), com o pedido ao admin.
     if (!deps.licenseKnown()) { panel.append(carregando("Consultando a licença desta máquina…")); return; }
     const acesso = browserAccess(deps.license(), deps.host(), deps.planoExigido, deps.produto);
@@ -112,7 +128,7 @@ export function mountContaGoogle(deps: ContaGoogleDeps): { open: () => void; ref
       if (pg !== null) c.append(blocoPagamento(pg));
       if (t.askAdmin) {
         const b = btn(proPedido ? "Pedido enviado ao admin ✓" : acesso === "assinatura" ? "Avisar o admin" : acesso === "expired" ? "Pedir a renovação ao admin" : "Pedir o Pro ao admin", "btn-primary", () => { void agir(async () => { await deps.api.browserRequestPro(); proPedido = true; }, "pedido enviado ao admin; assim que ele liberar, esta página abre"); });
-        b.disabled = busy || proPedido; c.append(b);
+        b.disabled = busy || proPedido; c.append(acoes(b));
       }
       panel.append(c); if (msg) panel.append(el("p", `hint ${msg.bad ? "bad-hint" : ""}`, msg.text)); return;
     }
@@ -123,40 +139,64 @@ export function mountContaGoogle(deps: ContaGoogleDeps): { open: () => void; ref
       c.append(el("p", "", "Este build veio sem o client OAuth do Google (google-conta-oauth.json). O app procurou na última release e vai buscar sozinho assim que o admin publicar uma com o arquivo; até lá, esta página fica assim."));
       if (status.busca) c.append(el("p", "hint", `Última tentativa: ${status.busca}.`));
       const b = btn(busy ? "Buscando…" : "Buscar de novo agora", "btn-ghost", () => { void agir(async () => { status = await deps.api.googleContaStatus(true); }, status?.configurado ? "client do Google encontrado" : "ainda sem o client na release"); });
-      b.disabled = busy; c.append(b);
+      b.disabled = busy; c.append(acoes(b));
       panel.append(c); return;
     }
 
-    // Perfil
-    const pc = card("Sua conta");
+    // O que a pessoa precisa fazer (entrar, reconectar) fica à vista, num cartão; o que é só consulta vira seção que abre.
     if (!status.conectado) {
+      const pc = card("Sua conta");
       pc.append(el("p", "hint", "Ao entrar, o login abre no Navegador. Qualquer verificação de telefone é feita por você, no seu celular, na tela do Google."));
       // Procedência do client: um arquivo velho vencendo em silêncio já custou uma caçada longa, e
       // o Google só diz "access_denied" no navegador, longe daqui. Aqui a origem fica à vista.
       if (status.cliente !== null) pc.append(el("p", "hint", `Entrando pelo projeto ${status.cliente.projeto} do Google Cloud (client vindo do ${status.cliente.origem}). Se o Google recusar dizendo que o app não foi verificado, é este projeto que precisa liberar o seu e-mail.`));
-      pc.append(btn("Entrar com Google", "btn-primary", () => { void agir(() => deps.api.googleContaConectar(), "login aberto no Navegador desta máquina; conclua lá e volte"); }));
+      pc.append(acoes(btn("Entrar com Google", "btn-primary", () => { void agir(() => deps.api.googleContaConectar(), "login aberto no Navegador desta máquina; conclua lá e volte"); })));
       // A conta que estava conectada no Mac antes de a conta ser por máquina: só vale aqui por escolha explícita.
       if (status.contaDoMac !== null) {
         pc.append(el("p", "hint", `Antes, este Mac tinha uma conta só para todas as máquinas: ${status.contaDoMac}. Se ela é a certa para ${status.maquina}, use-a aqui sem entrar de novo.`));
-        pc.append(btn(`Usar ${status.contaDoMac} nesta máquina`, "btn-ghost", () => { void agir(() => deps.api.googleContaAdotarDoMac(), `conta ${status?.contaDoMac ?? ""} em uso nesta máquina`); }));
+        pc.append(acoes(btn(`Usar ${status.contaDoMac} nesta máquina`, "btn-ghost", () => { void agir(() => deps.api.googleContaAdotarDoMac(), `conta ${status?.contaDoMac ?? ""} em uso nesta máquina`); })));
       }
-    } else {
-      const linha = el("div", "conta-perfil");
-      // Sempre a `fotoLocal` (data URL): a URL do Google cai no CSP `img-src 'self' data:` e nao carregaria.
-      if (status.perfil?.fotoLocal) { const img = el("img", "conta-foto"); img.src = status.perfil.fotoLocal; img.alt = ""; linha.append(img); }
-      const info = el("div"); info.append(el("strong", "", status.perfil?.nome ?? "conta conectada"), el("div", "hint", status.perfil?.email ?? ""));
-      linha.append(info); pc.append(linha);
-      if (status.precisaReconectar) { pc.append(el("p", "hint bad-hint", "Faltam permissões (Gmail, Agenda, Sheets ou Drive). Quem conectou antes do backup no Drive precisa reconectar uma vez para a cópia diária funcionar."));pc.append(btn("Reconectar", "btn-primary", () => { void agir(() => deps.api.googleContaConectar(), "reautorização aberta no Navegador"); })); }
-      const d = btn("Desconectar", "btn-ghost", () => { deps.armConfirm(d, "Confirmar? tira a conta só desta máquina", () => { void agir(() => deps.api.googleContaDesconectar(), "conta desconectada"); }); });
-      pc.append(d);
+      panel.append(pc);
+    } else if (status.precisaReconectar) {
+      const rc = el("div", "admin-card");
+      rc.append(el("p", "hint bad-hint", "Faltam permissões (Gmail, Agenda, Sheets ou Drive). Quem conectou antes do backup no Drive precisa reconectar uma vez para a cópia diária funcionar."));
+      rc.append(acoes(btn("Reconectar", "btn-primary", () => { void agir(() => deps.api.googleContaConectar(), "reautorização aberta no Navegador"); })));
+      panel.append(rc);
     }
-    panel.append(pc);
+    // O resultado da ação e a espera do login ficam fora das seções: valem para a página, não para um detalhe.
     if (msg) panel.append(el("p", `hint ${msg.bad ? "bad-hint" : "audio-ok"}`, msg.text));
     if (status.conectando) panel.append(el("p", "hint", "Esperando você concluir o login no Navegador…"));
-    if (!status.conectado || status.precisaReconectar) return;
+    if (!status.conectado) return;
 
-    // Backup: a cópia do CRM e do financeiro desta máquina no Drive desta conta.
-    const bc = card("Backup no Drive");
+    // Sua conta: fechada é "e-mail · conectada"; aberta, o perfil, a explicação que saiu do cabeçalho e "Desconectar".
+    const email = status.perfil?.email ?? "";
+    const sp = secao({ chave: "conta-google:conta", titulo: "Sua conta", resumo: `${email !== "" ? email : status.perfil?.nome ?? "conta"} · ${status.precisaReconectar ? "precisa reconectar" : "conectada"}` });
+    const linha = el("div", "conta-perfil");
+    // Sempre a `fotoLocal` (data URL): a URL do Google cai no CSP `img-src 'self' data:` e nao carregaria.
+    if (status.perfil?.fotoLocal) { const img = el("img", "conta-foto"); img.src = status.perfil.fotoLocal; img.alt = ""; linha.append(img); }
+    const info = el("div"); info.append(el("strong", "", status.perfil?.nome ?? "conta conectada"), el("div", "hint", email));
+    linha.append(info);
+    sp.corpo.append(linha, el("p", "hint", `Conta Google da máquina ${status.maquina}: cada máquina entra com a sua, e desconectar aqui não mexe nas outras. O acesso fica guardado só neste Mac.`));
+    sp.corpo.append(acoes(perigo("Desconectar", "Confirmar? tira a conta só desta máquina", () => { void agir(() => deps.api.googleContaDesconectar(), "conta desconectada"); })));
+    panel.append(sp.raiz);
+    if (status.precisaReconectar) return;
+
+    // Backup: a cópia do CRM e do financeiro desta máquina no Drive desta conta. Fechada, o estado em uma linha e
+    // "Guardar agora"; abre sozinha quando há o que resolver ou acompanhar (erro, senha faltando, cópia ou restauro em curso).
+    const guardando = andamento !== null;
+    const restaurando = copiasAberto || restauro !== null || restauroResultado !== null;
+    if (backup !== null || backupErro !== null) atencaoDoBackup = atencaoBackup({ erroLeitura: backup === null, falhou: backup !== null && backup.erro !== null, semSenha: backup !== null && !backup.temSenha, guardando, restauro: restaurando });
+    else atencaoDoBackup = atencaoBackup({ erroLeitura: atencaoDoBackup.includes("leitura"), falhou: atencaoDoBackup.includes("erro"), semSenha: atencaoDoBackup.includes("sem-senha"), guardando, restauro: restaurando });
+    const agora = btn(guardando ? "Guardando…" : "Guardar agora", "btn-primary", () => {
+      andamento = [];
+      void agir(async () => { try { backup = await deps.api.backupDadosAgora(); } finally { andamento = null; } }, "cópia guardada no Drive");
+    });
+    agora.disabled = busy || backup === null;
+    const sb = secao({
+      chave: "conta-google:backup", titulo: "Backup no Drive", atencao: atencaoDoBackup, acao: agora,
+      resumo: resumoBackup({ lido: backup !== null, erroLeitura: backupErro !== null, ligado: backup?.ligado ?? false, ultimaEm: backup !== null && backup.ultimaEm !== null ? fmtData(backup.ultimaEm) : null, guardando, falhou: backup !== null && backup.erro !== null }),
+    });
+    const bc = sb.corpo;
     if (backup === null) pendente(bc, backupErro, "o estado do backup");
     else {
       bc.append(el("p", "hint", "Uma vez por dia o CRM e o financeiro desta máquina são guardados no Drive desta conta, em pastas separadas, e uma cópia fica aqui no Mac. Fica só a mais recente de cada um."));
@@ -174,36 +214,44 @@ export function mountContaGoogle(deps: ContaGoogleDeps): { open: () => void; ref
       } else if (backup.erro === null) bc.append(el("p", "hint", "Ainda não foi feita nenhuma cópia desta máquina."));
       // O erro da tentativa anterior sai da tela enquanto a nova roda: a pessoa acabou de pedir outra.
       if (backup.erro !== null && andamento === null) bc.append(el("p", "hint bad-hint", `${backup.tentativaEm !== null ? `Última tentativa em ${fmtData(backup.tentativaEm)}: ` : ""}${backup.erro}`));
+
+      const pasta = acoes(btn("Abrir a pasta no Mac", "btn-ghost", () => { void agir(() => deps.api.backupDadosAbrirPasta(), "pasta aberta no Finder"); }));
+      if (!copiasAberto) pasta.append(btn("Restaurar uma cópia…", "btn-ghost", () => { copiasAberto = true; restauroResultado = null; void carregarCopias(); }));
+      bc.append(pasta);
+      if (copiasAberto) secaoRestauro(bc);
+
       // Senha do pacote de credenciais. Sem ela esse conjunto é pulado; os outros sobem normalmente.
       const sc = el("div", "admin-actions");
+      // Senha curta: o clique dizia nada. O aviso entra no lugar, sem repintar (repintar apagaria o que foi digitado).
+      const curta = el("p", "hint bad-hint", "A senha precisa de pelo menos 8 caracteres."); curta.hidden = true;
+      const senhaOk = (i: HTMLInputElement): boolean => { curta.hidden = i.value.trim().length >= 8; return curta.hidden; };
       if (backup.temSenha) {
+        // Senha definida é assunto resolvido: trocar e apagar ficam numa seção própria, fechada, dentro do backup.
         sc.append(el("p", "hint audio-ok", "As credenciais da máquina sobem cifradas com a sua senha. Guarde-a fora do computador: sem ela esse pacote não abre."));
         // Sem prompt(): o Electron não implementa window.prompt (devolvia undefined e o botão virava no-op). Campo inline.
         const nova = input("nova senha (mínimo 8 caracteres)", "", 200); nova.type = "password";
-        sc.append(field("Trocar a senha", nova), btn("Trocar", "btn-ghost", () => { if (nova.value.trim().length < 8) return; void agir(async () => { backup = await deps.api.backupDadosSenha(nova.value); }, "senha trocada; vale a partir da próxima cópia"); }));
-        const lb = btn("Apagar a senha", "btn-ghost", () => { deps.armConfirm(lb, "Confirmar? as credenciais param de ser copiadas", () => { void agir(async () => { backup = await deps.api.backupDadosLimparSenha(); }, "senha apagada; as credenciais não sobem mais"); }); });
-        sc.append(lb);
+        sc.append(field("Trocar a senha", nova), btn("Trocar", "btn-ghost", () => { if (!senhaOk(nova)) return; void agir(async () => { backup = await deps.api.backupDadosSenha(nova.value); }, "senha trocada; vale a partir da próxima cópia"); }));
+        sc.append(perigo("Apagar a senha", "Confirmar? as credenciais param de ser copiadas", () => { void agir(async () => { backup = await deps.api.backupDadosLimparSenha(); }, "senha apagada; as credenciais não sobem mais"); }));
+        sc.append(curta);
+        const ss = secao({ chave: "conta-google:senha", titulo: "Senha das credenciais", resumo: "definida" });
+        ss.corpo.append(sc); bc.append(ss.raiz);
       } else {
+        // Senha faltando é pendência: fica à vista no corpo (e a seção do backup abre sozinha por causa dela).
         sc.append(el("p", "hint bad-hint", "As credenciais da máquina (tokens e sessão do WhatsApp) não estão sendo copiadas: defina uma senha. Elas nunca sobem sem cifra."));
         const inp = input("senha do backup cifrado", "", 200); inp.type = "password";
-        sc.append(field("Senha", inp), btn("Definir a senha", "btn-primary", () => { if (inp.value.trim().length < 8) return; void agir(async () => { backup = await deps.api.backupDadosSenha(inp.value); }, "senha definida; as credenciais entram na próxima cópia"); }));
+        sc.append(field("Senha", inp), btn("Definir a senha", "btn-ghost", () => { if (!senhaOk(inp)) return; void agir(async () => { backup = await deps.api.backupDadosSenha(inp.value); }, "senha definida; as credenciais entram na próxima cópia"); }));
+        sc.append(curta);
+        bc.append(sc);
       }
-      bc.append(sc);
 
-      const acoes = el("div", "admin-actions");
-      acoes.append(btn(andamento !== null ? "Guardando…" : "Guardar agora", "btn-ghost", () => {
-        andamento = [];
-        void agir(async () => { try { backup = await deps.api.backupDadosAgora(); } finally { andamento = null; } }, "cópia guardada no Drive");
-      }));
-      acoes.append(btn("Abrir a pasta no Mac", "btn-ghost", () => { void agir(() => deps.api.backupDadosAbrirPasta(), "pasta aberta no Finder"); }));
-      acoes.append(btn(backup.ligado ? "Desligar a cópia diária" : "Ligar a cópia diária", "btn-ghost", () => { void agir(async () => { backup = await deps.api.backupDadosLigar(!(backup?.ligado ?? true)); }, backup?.ligado === true ? "cópia diária desligada" : "cópia diária ligada"); }));
-      if (!copiasAberto) acoes.append(btn("Restaurar uma cópia…", "btn-ghost", () => { copiasAberto = true; restauroResultado = null; void carregarCopias(); }));
-      bc.append(acoes);
-      if (copiasAberto) secaoRestauro(bc);
+      // Desligar para a proteção: cor de perigo e segundo clique, como "Apagar a senha". Ligar não.
+      const ligado = backup.ligado;
+      const alternar = (): void => { void agir(async () => { backup = await deps.api.backupDadosLigar(!ligado); }, ligado ? "cópia diária desligada" : "cópia diária ligada"); };
+      bc.append(acoes(ligado ? perigo("Desligar a cópia diária", "Confirmar? a máquina para de ser copiada", alternar) : btn("Ligar a cópia diária", "btn-ghost", alternar)));
     }
-    panel.append(bc);
+    panel.append(sb.raiz);
 
-    if (deps.openGmail !== undefined) { const abrir = deps.openGmail; const tg = el("div", "admin-actions"); tg.append(btn("Abrir o E-mail", "btn-ghost", abrir)); panel.append(tg); }
+    if (deps.openGmail !== undefined) panel.append(acoes(btn("Abrir o E-mail", "btn-ghost", deps.openGmail)));
   }
   /** O cartão de restaurar: escolha da máquina de origem e dos conjuntos, andamento e resumo. */
   function secaoRestauro(bc: HTMLElement): void {
