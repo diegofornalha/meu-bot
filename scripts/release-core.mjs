@@ -536,3 +536,51 @@ export function plistDoAgente({ rotulo, node, principal, wt, path, log, interval
 `;
 }
 
+
+/* ---------- release dos apps derivados (scripts/release-derivados.mjs) ---------- */
+
+const REPO_GITHUB = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\/[A-Za-z0-9_.-]{1,100}$/;
+/**
+ * A lista dos derivados que este Mac publica, lida de fora do repositório do core (pasta de estado do agente): cada
+ * item diz o repositório público do derivado e a pasta do clone dele neste Mac. Devolve `{ itens }` ou `{ erro }`.
+ * Lista ausente é lista vazia: o core não sabe de derivado nenhum, e publicar é decisão de quem cuida deste Mac.
+ */
+export function parseDerivados(raw) {
+  if (raw === undefined || raw === null) return { itens: [] };
+  if (!Array.isArray(raw)) return { erro: "a lista de derivados tem de ser um array de { repo, pasta }" };
+  const itens = [];
+  for (const [i, x] of raw.entries()) {
+    if (typeof x !== "object" || x === null) return { erro: `item ${i + 1}: tem de ser { repo, pasta }` };
+    const { repo, pasta } = x;
+    if (typeof repo !== "string" || !REPO_GITHUB.test(repo) || repo.includes("..")) return { erro: `item ${i + 1}: repo tem de ser "dono/repositório" do GitHub` };
+    if (typeof pasta !== "string" || !pasta.startsWith("/")) return { erro: `item ${i + 1} (${repo}): pasta tem de ser o caminho absoluto do clone do derivado` };
+    if (itens.some((y) => y.repo.toLowerCase() === repo.toLowerCase())) return { erro: `item ${i + 1}: ${repo} aparece duas vezes` };
+    if (itens.some((y) => y.pasta === pasta)) return { erro: `item ${i + 1}: a pasta ${pasta} aparece duas vezes` };
+    itens.push({ repo, pasta });
+  }
+  return { itens };
+}
+/**
+ * Por que a ficha de um derivado não pode ser publicada em `repo`, ou null. O app procura as atualizações no
+ * repositório que a ficha diz (`releases`): publicar noutro lugar deixaria os instalados sem atualização, calados.
+ */
+export function recusaDerivado(produto, repo) {
+  if (produto.repoReleases === null || produto.repoReleases === undefined) return `a ficha de ${produto.nome} não diz onde saem as releases: ponha "releases": "${repo}" no produto.json`;
+  if (produto.repoReleases.toLowerCase() !== repo.toLowerCase()) return `a ficha de ${produto.nome} manda procurar as releases em ${produto.repoReleases}, e a lista deste Mac publica em ${repo}`;
+  if (produto.canal !== "staging") return `${produto.nome} não é do canal staging: a release automática de derivados só publica o canal de teste`;
+  return null;
+}
+/** A versão de um derivado é a do core de onde ele foi feito: tem de ser uma staging (`X.Y.Z-staging.N`). */
+export const versaoStagingValida = (v) => typeof v === "string" && STAGING.test(`v${v}`);
+/** A versão staging das tags que apontam para o commit de onde se empacota (a release do core acabou de criá-la); null sem nenhuma. */
+export function versaoDasTags(tagsNoHead) {
+  let melhor = null;
+  for (const t of tagsNoHead) { const m = STAGING.exec(t.trim()); if (m !== null && (melhor === null || Number(m[2]) > melhor.n)) melhor = { v: t.trim().slice(1), n: Number(m[2]) }; }
+  return melhor === null ? null : melhor.v;
+}
+/** As notas da release de um derivado: de qual core e de qual commit do derivado ela saiu (o que mudou está no core). */
+export const notasDoDerivado = ({ nome, versao, commitCore, commitDerivado }) =>
+  `${nome} ${versao}, feito do meu-bot ${versao} (core ${commitCore}) e da ficha deste repositório (${commitDerivado}).\n\nO que mudou no app está nas notas do meu-bot: https://github.com/diegofornalha/meu-bot/releases/tag/v${versao}\n`;
+/** Os argumentos do `gh release create` de um derivado: sempre com `-R` (o repositório dele), pre-release e o commit do derivado como alvo da tag. */
+export const argsReleaseDerivado = ({ tag, repo, arquivos, titulo, notasArquivo, commitDerivado }) =>
+  ["release", "create", tag, ...arquivos, "-R", repo, "--title", titulo, "--notes-file", notasArquivo, "--prerelease", "--target", commitDerivado];

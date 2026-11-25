@@ -66,6 +66,35 @@ tag `vX.Y.Z-staging.N`, asset `<nome>-<versão>-<arch>.zip` com o `.sig` ao lado
 repositório: o zip tem de passar pela assinatura Ed25519 do core (`UPDATE_PUBLIC_KEYS`), ter o mesmo bundle id do app
 aberto e ser assinado com o Developer ID do time. Publicar num repositório não basta para um app aceitar o que está lá.
 
+## Release
+
+A release de um derivado é automática e roda no Mac que publica o core (a chave da release e o Developer ID estão no
+Chaveiro dele). Depois de cada release staging do core, o agente (`scripts/release-auto.mjs`) chama
+`scripts/release-derivados.mjs`, que para cada derivado da lista:
+
+1. leva o clone ao ramo padrão do repositório do derivado e valida a ficha;
+2. confere que a ficha manda procurar as releases no mesmo repositório onde vai publicar (`releases`);
+3. empacota contra o core recém-publicado, com a **mesma versão** dele (`X.Y.Z-staging.N`), assina, notariza, zipa e
+   assina o zip com a chave da release;
+4. publica com `gh release create -R <repositório do derivado>`: `<nome>-<versão>-<arch>.zip` e o `.sig`.
+
+A lista fica **fora do repositório do core**, em `~/Library/Application Support/meu-bot-release/derivados.json`:
+
+```json
+[ { "repo": "dono/meu-bot-x", "pasta": "/caminho/do/clone/do/derivado" } ]
+```
+
+- A pasta é um clone só do agente; mudança local nele é recusada.
+- O que já foi publicado é pulado: rodar de novo não repete nada.
+- A falha de um derivado não impede os outros nem desfaz a staging do core; o Mac avisa.
+- Uma mudança só na ficha do derivado sai na próxima staging do core, ou à mão:
+  `node scripts/release-derivados.mjs --versao <versão staging já publicada do core>` não republica a mesma tag, então
+  espere a próxima.
+- `node scripts/release-derivados.mjs --conferir` diz o que publicaria, sem empacotar, sem pedir a chave e sem publicar.
+
+Quem tem permissão de escrita no repositório de um derivado listado faz o Mac publicar um app assinado com a ficha de
+lá. A ficha só escolhe nome, portas e páginas (não traz código), mas proteja o ramo padrão do repositório.
+
 ## Conferir
 
 - A ferramenta `app` do controle externo devolve o nome do derivado e `variante: "derivado"`.

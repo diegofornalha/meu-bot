@@ -105,3 +105,18 @@ test("releases do derivado: a ficha diz o repositório, e é nele que o atualiza
   assert.equal(releasesUrl("staging", r.produto.repoReleases), "https://api.github.com/repos/diegofornalha/meu-bot-vendas-app/releases?per_page=30");
   assert.equal(releasesUrl("estavel", r.produto.repoReleases), "https://api.github.com/repos/diegofornalha/meu-bot-vendas-app/releases/latest");
 });
+
+test("contrato da ficha: a ficha do modelo público e a de um derivado publicado continuam valendo (mudar o core não pode quebrá-las)", () => {
+  // Cópias exatas do produto.json de github.com/diegofornalha/meu-bot-derivado-modelo e de um derivado já publicado.
+  // Os derivados moram fora deste repositório e são reempacotados a cada staging do core: se uma mudança aqui fizer
+  // estas fichas serem recusadas, a release deles para (ficam na versão anterior). Este teste falha antes disso. Para
+  // mudar o contrato, a ficha antiga tem de continuar aceita, ou a mudança tem de chegar junto aos repositórios deles.
+  const modelo = { nome: "meu-bot-exemplo-staging", bundleId: "local.meu-bot-exemplo.staging", canal: "staging", portaLocal: 8840, portaWsl: 2340, portaMcp: 7840, herdaDe: null, abreEm: null, modulos: null, addon: null, releases: "diegofornalha/meu-bot-derivado-modelo", descricao: "Troque esta frase pelo que o seu app é, em até 300 caracteres." };
+  const publicado = { nome: "meu-bot-diego-staging", bundleId: "local.meu-bot-diego.staging", canal: "staging", portaLocal: 8794, portaWsl: 2294, portaMcp: 7836, herdaDe: "meu-bot-staging", abreEm: "modulos", modulos: "meu-bot-diego", addon: "meu-bot-diego", releases: "diegofornalha/meu-bot-diego-app", descricao: "O meu-bot em teste com os módulos do Diego na frente." };
+  for (const ficha of [modelo, publicado]) {
+    const r = parseFichaExterna(ficha);
+    assert.equal(r.ok, true, `${ficha.nome}: ${r.erro}`);
+    assert.deepEqual([r.produto.nome, r.produto.bundleId, r.produto.userData, r.produto.repoReleases], [ficha.nome, ficha.bundleId, ficha.nome, ficha.releases]);
+    assert.deepEqual([r.produto.portaLocal, r.produto.portaWsl, r.produto.portaMcp], [ficha.portaLocal, ficha.portaWsl, ficha.portaMcp]);
+  }
+});
