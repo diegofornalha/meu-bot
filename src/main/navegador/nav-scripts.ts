@@ -59,6 +59,8 @@ export function alvoDeClique(b: { n?: unknown; seletor?: unknown; texto?: unknow
   if (target === null) throw new Error("diga n (número do 'ler'), texto ou seletor");
   return target;
 }
+/** Clique direito: o evento `contextmenu` no centro do elemento, que é o que abre os menus da aba e do WhatsApp. */
+export const cliqueDireitoScript = (target: string): string => `(() => { const e = ${target}; e.scrollIntoView({ block: "center" }); const r = e.getBoundingClientRect(); e.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, button: 2, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 })); return true; })()`;
 /** Rola até o elemento, mede o ponto (para a faixa de depuração), foca e clica. */
 export const clicarScript = (target: string): string => `(() => { const e = ${target}; e.scrollIntoView({ block: "center" }); const r = e.getBoundingClientRect(); const ponto = { x: r.left + r.width / 2, y: r.top + r.height / 2, vw: innerWidth, vh: innerHeight }; e.focus && e.focus(); e.click(); return ponto; })()`;
 /** O campo onde digitar: pelo número, por seletor, ou o que já está com o foco. */

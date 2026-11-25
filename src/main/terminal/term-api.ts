@@ -22,6 +22,10 @@
  *   de fora: têm as ferramentas deles) · POST /ui/clicar {n | texto | seletor} · POST /ui/digitar {texto, n?, seletor?, enter?}
  * · POST /erros {maquina?, desde?, limite?}: erros e avisos do console da interface dessa janela, quedas e travamentos
  * · POST /log {linhas?, filtro?, desde?}: as últimas linhas do meu-bot.log deste app
+ * · POST /menu: os itens do menu nativo aberto (o da aba da conversa, o do WhatsApp), ou null · POST /menu/escolher {rotulo | fechar}
+ * · POST /conversa/exportar {id, formato?: md|json}: o texto da conversa, sem o "Salvar como"
+ * · Nas rotas /ui/…, alvo: "pagina" mira a página embutida que está à vista (Inspector, página de módulo), que é outra
+ *   página dentro da janela; as abas do Navegador ficam com as rotas dele, que respeitam de quem é cada aba
  * · POST /estado {maquina?}: o retrato da máquina (configurações, WhatsApp, Claude, Ollama, Google, backup, licença, módulos)
  * · POST /conversas {maquina?}: as conversas da máquina · POST /conversa/ler {id, ultimas?}: as últimas mensagens de uma
  * · POST /comandos {maquina?}: tudo o que a paleta de comandos oferece (ações, conversas, tutoriais), com o id de cada item
@@ -34,7 +38,7 @@
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
-import { app, BrowserWindow, nativeTheme } from "electron";
+import { app, BrowserWindow, nativeTheme, webContents, type WebContents } from "electron";
 import type { Theme } from "../../shared/ipc";
 import { controlDir } from "../app/control-dir";
 import { allMainWindows, broadcast, hostOfWindow, lastFocusedWindow, openMainWindow, sendWhenLoaded, windowForHost } from "../app/windows";
@@ -47,21 +51,40 @@ import { PAGINAS_APP } from "../controle-remoto/controle-remoto-core";
 import { closeTerminal, liveTerminals, replayTerminal, terminalById, waitNewTerminal, writeTerminal } from "./terminal";
 import { entradaDigitar, textoDoTerminal } from "./term-api-core";
 import { parseDono, type Dono } from "../navegador/nav-donos-core";
-import { alvoDeClique, alvoDeDigitacao, apertar, clicarScript, codigoDaTecla, comErro, DESMARCAR_SCRIPT, digitarValorScript, focarScript, MARCAR_SCRIPT, readScript, valorOuErro } from "../navegador/nav-scripts";
+import { alvoDeClique, alvoDeDigitacao, apertar, clicarScript, cliqueDireitoScript, codigoDaTecla, comErro, DESMARCAR_SCRIPT, digitarValorScript, focarScript, MARCAR_SCRIPT, readScript, valorOuErro } from "../navegador/nav-scripts";
 import { log } from "../maquina/backend";
 import { errosDaJanela, lerLog } from "../app/erros-janela";
 import { enviarMensagem, LISTAR_COMANDOS, rodarComando } from "./ui-acoes-core";
-import { conversasDaMaquina, estadoDaMaquina, lerConversa } from "../controle-remoto/estado";
+import { conversasDaMaquina, estadoDaMaquina, exportarConversa, lerConversa } from "../controle-remoto/estado";
+import { escolherNoMenu, menuAberto } from "../app/menu-aberto";
+import { browserWebContents } from "../navegador/browser";
 import { estado as estadoDepuracao, evento as eventoDepuracao, modoDepuracao, registrarAcao, setDepuracao } from "../app/depuracao";
 
 export const termSocketPath = (): string => path.join(controlDir(), "term.sock");
 
-interface Req { id?: unknown; maquina?: unknown; linhas?: unknown; texto?: unknown; enter?: unknown; tecla?: unknown; pagina?: unknown; on?: unknown; tema?: unknown; n?: unknown; seletor?: unknown; marcas?: unknown; desde?: unknown; limite?: unknown; filtro?: unknown; ultimas?: unknown }
+interface Req { id?: unknown; maquina?: unknown; linhas?: unknown; texto?: unknown; enter?: unknown; tecla?: unknown; pagina?: unknown; on?: unknown; tema?: unknown; n?: unknown; seletor?: unknown; marcas?: unknown; desde?: unknown; limite?: unknown; filtro?: unknown; ultimas?: unknown; alvo?: unknown; direito?: unknown; rotulo?: unknown; fechar?: unknown; formato?: unknown }
 /** O que a leitura da interface pula: o conteúdo das webviews (Navegador, Inspector, módulos) e dos terminais não é interface do app. */
 const UI_IGNORAR = "webview, .xterm";
 const assentar = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
-/** Roda o trecho na janela do app e devolve o valor; o erro lançado lá chega aqui com a mensagem dele. */
-const naJanela = async (w: BrowserWindow, script: string): Promise<unknown> => valorOuErro(await w.webContents.executeJavaScript(comErro(script), true));
+/** Roda o trecho numa página e devolve o valor; o erro lançado lá chega aqui com a mensagem dele. */
+const naPagina = async (wc: WebContents, script: string): Promise<unknown> => valorOuErro(await wc.executeJavaScript(comErro(script), true));
+const naJanela = (w: BrowserWindow, script: string): Promise<unknown> => naPagina(w.webContents, script);
+/** Os ids das páginas embutidas (<webview>) que estão à vista na janela, de cima para baixo. */
+const WEBVIEWS_A_VISTA = `[...document.querySelectorAll("webview")].filter((v) => { const r = v.getBoundingClientRect(); return r.width > 0 && r.height > 0 && (!v.checkVisibility || v.checkVisibility()); }).map((v) => { try { return v.getWebContentsId(); } catch { return null; } }).filter((id) => typeof id === "number")`;
+/**
+ * Onde a rota /ui/… age: a janela do app, ou (alvo "pagina") a página embutida à vista que não é aba do Navegador.
+ * As abas do Navegador têm dono (nav-donos-core) e ficam só com as rotas dele.
+ */
+async function alvoDaUi(b: Req): Promise<{ w: BrowserWindow; wc: WebContents; embutida: boolean }> {
+  const w = janela(b.maquina);
+  if (b.alvo === undefined || b.alvo === "app") return { w, wc: w.webContents, embutida: false };
+  if (b.alvo !== "pagina") throw new Error('alvo: "app" (a interface do app, o padrão) ou "pagina" (a página embutida à vista)');
+  const doNavegador = new Set(browserWebContents(hostOfWindow(w) ?? "").map((x) => x.id));
+  const ids = (await naJanela(w, WEBVIEWS_A_VISTA) as number[]).filter((id) => !doNavegador.has(id));
+  const wc = ids.map((id) => webContents.fromId(id)).find((x) => x !== undefined && !x.isDestroyed());
+  if (wc === undefined) throw new Error("nenhuma página embutida à vista nesta janela (as abas do Navegador usam nav_ler, nav_clicar…)");
+  return { w, wc, embutida: true };
+}
 const PAGINAS = ["navegador", "tutoriais", "acervo", "vazia"] as const;
 
 /** Janela da máquina pedida (ou a última focada que tenha máquina). */
@@ -224,31 +247,36 @@ async function act(route: string, b: Req, dono: Dono): Promise<unknown> {
       return { ok: true, maquina: hostOfWindow(w) };
     }
     case "/ui/ler": {
-      const w = janela(b.maquina);
-      const { marcas: _m, url: _u, ...lido } = await w.webContents.executeJavaScript(readScript(UI_IGNORAR), true) as Record<string, unknown>;
-      return { maquina: hostOfWindow(w), ...lido };
+      const { w, wc, embutida } = await alvoDaUi(b);
+      const lido = await wc.executeJavaScript(readScript(embutida ? "" : UI_IGNORAR), true) as Record<string, unknown>;
+      const { marcas: _m, ...resto } = lido; if (!embutida) delete resto["url"]; // a url da janela do app é um caminho de arquivo
+      return { maquina: hostOfWindow(w), alvo: embutida ? "pagina" : "app", ...resto };
     }
     case "/ui/clicar": {
-      const w = janela(b.maquina);
-      await naJanela(w, clicarScript(alvoDeClique(b)));
+      const { w, wc } = await alvoDaUi(b);
+      // O clique direito abre os menus nativos (o da aba, o do WhatsApp), que se leem e escolhem por /menu.
+      await naPagina(wc, (b.direito === true ? cliqueDireitoScript : clicarScript)(alvoDeClique(b)));
       await assentar(300); // a tela repinta antes da próxima leitura
       return { ok: true, maquina: hostOfWindow(w) };
     }
     case "/ui/digitar": {
       if (typeof b.texto !== "string") throw new Error("falta texto");
-      const w = janela(b.maquina); const wc = w.webContents;
+      const { w, wc } = await alvoDaUi(b);
       // Campo de valor: entra direto, com os eventos (funciona com a janela atrás). Área editável: digitação de verdade.
       const alvo = alvoDeDigitacao(b);
-      if (await naJanela(w, digitarValorScript(alvo, b.texto)) !== true) { await naJanela(w, focarScript(alvo)); wc.focus(); await wc.insertText(b.texto); }
+      if (await naPagina(wc, digitarValorScript(alvo, b.texto)) !== true) { await naPagina(wc, focarScript(alvo)); wc.focus(); await wc.insertText(b.texto); }
       if (b.enter === true) { apertar(wc, "Return"); await assentar(300); }
       return { ok: true, maquina: hostOfWindow(w) };
     }
     case "/ui/tecla": {
-      const w = janela(b.maquina);
-      apertar(w.webContents, codigoDaTecla(b.tecla));
+      const { w, wc } = await alvoDaUi(b);
+      apertar(wc, codigoDaTecla(b.tecla));
       await assentar(300);
       return { ok: true, maquina: hostOfWindow(w) };
     }
+    case "/menu": return { menu: menuAberto() };
+    case "/menu/escolher": return { ok: true, ...escolherNoMenu(b.rotulo, b.fechar) };
+    case "/conversa/exportar": return exportarConversa(hostOfWindow(janela(b.maquina)) ?? "", b.id, b.formato);
     default: throw Object.assign(new Error(`rota desconhecida: ${route}`), { status: 404 });
   }
 }
@@ -278,7 +306,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
   try {
     const r = await act(route, body, dono);
     send(200, r);
-    if (route !== "/terminais" && route !== "/ler" && route !== "/ui/ler" && !["/erros", "/log", "/comandos", "/estado", "/conversas", "/conversa/ler"].includes(route)) log(`[terminal] controle (${dono.origem}: ${dono.id}): ${route}${typeof body.id === "string" ? ` ${body.id}` : ""}`);
+    if (route !== "/terminais" && route !== "/ler" && route !== "/ui/ler" && !["/erros", "/log", "/comandos", "/estado", "/conversas", "/conversa/ler", "/conversa/exportar", "/menu"].includes(route)) log(`[terminal] controle (${dono.origem}: ${dono.id}): ${route}${typeof body.id === "string" ? ` ${body.id}` : ""}`);
     // /nota já entrou no fluxo como "nota" dentro do act(); as outras rotas entram como ações do terminal (o /print sem o PNG).
     if (route !== "/nota") registrarAcao({ origem: "terminal", dono, rota: route, corpo: body as Record<string, unknown>, t0, resultado: route === "/print" ? { png: true } : r });
   } catch (e) {

@@ -7,6 +7,7 @@ import { ollamaStatusLocal } from "../agente/ollamaLocal";
 import { settingsView } from "../app/settings";
 import { caps } from "../app/variant";
 import { getConversation, listConversationsForHost } from "../conversa/conversation";
+import { conversationToMarkdown } from "../conversa/export";
 import { contaStatus } from "../google/conta-google";
 import { estadoDadosDrive } from "../google/dados-drive";
 import { lerLicencaDaMaquina } from "../licenca/licenca-maquina";
@@ -42,4 +43,14 @@ export function lerConversa(host: string, id: unknown, ultimas: unknown): Record
   const c = typeof id === "string" ? listConversationsForHost(host).find((x) => x.id === id) : undefined;
   if (c === undefined) throw new Error("conversa não encontrada nesta máquina: veja os ids em conversas_listar");
   return { ...resumoDaConversa(c, getConversation(c.id)?.busy === true), ultimas: ultimasMensagens(c.messages, ultimas) };
+}
+
+/** A conversa como texto (Markdown, o padrão) ou JSON: o mesmo que "Exportar" grava, sem abrir o "Salvar como". */
+export function exportarConversa(host: string, id: unknown, formato: unknown): Record<string, unknown> {
+  exigeConversa();
+  const c = typeof id === "string" ? listConversationsForHost(host).find((x) => x.id === id) : undefined;
+  if (c === undefined) throw new Error("conversa não encontrada nesta máquina: veja os ids em conversas_listar");
+  if (formato !== undefined && formato !== "md" && formato !== "json") throw new Error("formato: md (padrão) ou json");
+  const texto = formato === "json" ? JSON.stringify(c, null, 2) : conversationToMarkdown(c);
+  return { id: c.id, formato: formato === "json" ? "json" : "md", texto: texto.slice(0, 200_000), cortado: texto.length > 200_000 };
 }

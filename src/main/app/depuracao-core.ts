@@ -50,6 +50,9 @@ export function resumoAcao(origem: string, rota: string, corpo: Corpo, resultado
       case "/ui/digitar": return `digitou ${texto(corpo["texto"])} caracteres na interface${corpo["n"] !== undefined ? ` no ${num(corpo["n"])}` : ""}${corpo["enter"] === true ? " + Enter" : ""}`;
       case "/ui/tecla": return `tecla ${str(corpo["tecla"], 20)} na interface`;
       case "/estado": return "leu o estado da máquina";
+      case "/menu": return `leu o menu aberto${Array.isArray(r["menu"]) ? ` · ${(r["menu"] as unknown[]).length} itens` : " · nenhum"}`;
+      case "/menu/escolher": return r["escolhido"] === null ? "fechou o menu" : `escolheu "${str(r["escolhido"], 60)}" no menu`;
+      case "/conversa/exportar": return `exportou a conversa ${str(corpo["id"], 40)}`;
       case "/conversas": return `listou as conversas${Array.isArray(r["conversas"]) ? ` · ${(r["conversas"] as unknown[]).length}` : ""}`;
       case "/conversa/ler": return `leu a conversa ${str(corpo["id"], 40)}`;
       case "/comandos": return `listou os comandos${Array.isArray(r["comandos"]) ? ` · ${(r["comandos"] as unknown[]).length}` : ""}`;

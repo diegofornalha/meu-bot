@@ -58,6 +58,7 @@ function pedir(socketPath, route, body) {
 const S = (props, required = []) => ({ type: 'object', properties: props, required });
 const APP = { app: { type: 'string', description: 'qual app (meu-bot, meu-bot-staging, meu-bot-inspector-staging…); opcional se só um está aberto' } };
 const MAQ = { maquina: { type: 'string', description: 'máquina da janela (ex.: agente-box-lv); opcional se só uma' } };
+const ALVO = { alvo: { type: 'string', enum: ['app', 'pagina'], description: 'app (padrão): a interface do app; pagina: a página embutida à vista' } };
 const ABA = { aba: { type: 'number', description: 'id da aba do Navegador (veja nav_abas); sem ele, a aba desta conversa' } };
 const TOOLS = [
   { name: 'apps', description: 'Apps meu-bot abertos neste Mac e as máquinas com Navegador aberto; também os apps instalados (para app_abrir).', inputSchema: S({}) },
@@ -88,8 +89,8 @@ const TOOLS = [
   { name: 'pagina_abrir', description: 'Põe uma página na frente da janela: tutoriais, acervo, inspector, modulos, conta-google, gmail, computador, navegador.', inputSchema: S({ ...APP, ...MAQ, pagina: { type: 'string', enum: ['tutoriais', 'acervo', 'inspector', 'modulos', 'conta-google', 'gmail', 'computador', 'navegador'] } }, ['pagina']) },
   { name: 'tema', description: 'Troca o tema do app (system, light, dark); vale para todas as janelas.', inputSchema: S({ ...APP, tema: { type: 'string', enum: ['system', 'light', 'dark'] } }, ['tema']) },
   { name: 'print_janela', description: 'Captura a janela inteira do app (a da máquina pedida, ou a em foco) como imagem. marcas=true desenha o número de cada elemento da última leitura (ui_ler).', inputSchema: S({ ...APP, ...MAQ, marcas: { type: 'boolean' } }) },
-  { name: 'ui_ler', description: 'A interface do app na janela: o texto à vista e os botões, links e campos numerados. O conteúdo das abas do Navegador (nav_ler) e dos terminais (terminal_ler) fica de fora.', inputSchema: S({ ...APP, ...MAQ }) },
-  { name: 'ui_clicar', description: 'Clica num elemento da interface do app: n (de ui_ler), ou por texto ou seletor CSS. A pessoa vê acontecer.', inputSchema: S({ ...APP, ...MAQ, n: { type: 'number' }, texto: { type: 'string' }, seletor: { type: 'string' } }) },
+  { name: 'ui_ler', description: 'A interface do app na janela: o texto à vista e os botões, links e campos numerados. O conteúdo das abas do Navegador (nav_ler) e dos terminais (terminal_ler) fica de fora.', inputSchema: S({ ...APP, ...MAQ, ...ALVO }) },
+  { name: 'ui_clicar', description: 'Clica num elemento da interface do app: n (de ui_ler), ou por texto ou seletor CSS. A pessoa vê acontecer.', inputSchema: S({ ...APP, ...MAQ, ...ALVO, direito: { type: 'boolean' }, n: { type: 'number' }, texto: { type: 'string' }, seletor: { type: 'string' } }) },
   { name: 'ui_digitar', description: 'Digita num campo da interface do app (n de ui_ler, seletor, ou o campo em foco); enter=true confirma.', inputSchema: S({ ...APP, ...MAQ, n: { type: 'number' }, seletor: { type: 'string' }, texto: { type: 'string' }, enter: { type: 'boolean' } }, ['texto']) },
   { name: 'comando_listar', description: 'Tudo o que a paleta de comandos (Cmd+K) oferece nessa janela: ações, conversas, tutoriais e modelos, cada um com o id para comando_rodar.', inputSchema: S({ ...APP, ...MAQ }) },
   { name: 'comando_rodar', description: 'Roda um item da paleta de comandos pelo id (de comando_listar).', inputSchema: S({ ...APP, ...MAQ, id: { type: 'string' } }, ['id']) },
@@ -97,12 +98,15 @@ const TOOLS = [
   { name: 'estado', description: 'Retrato da máquina da janela, sem depender da tela: configurações, WhatsApp, Claude Code, Ollama, Conta Google, backup, licença e módulos. Sem chaves nem senhas.', inputSchema: S({ ...APP, ...MAQ }) },
   { name: 'conversas_listar', description: 'As conversas com o agente nessa máquina: id, título, mensagens, aberta, arquivada, ocupada.', inputSchema: S({ ...APP, ...MAQ }) },
   { name: 'conversa_ler', description: 'As últimas mensagens de uma conversa (id de conversas_listar; ultimas: padrão 20, até 100).', inputSchema: S({ ...APP, ...MAQ, id: { type: 'string' }, ultimas: { type: 'number' } }, ['id']) },
+  { name: 'menu_ler', description: 'Os itens do menu nativo aberto na janela (aba de conversa, contato ou grupo do WhatsApp), ou null. Abra com ui_clicar direito=true.', inputSchema: S(APP) },
+  { name: 'menu_escolher', description: 'Escolhe um item do menu nativo aberto pelo rótulo (de menu_ler), ou fechar=true só fecha.', inputSchema: S({ ...APP, rotulo: { type: 'string' }, fechar: { type: 'boolean' } }) },
+  { name: 'conversa_exportar', description: 'O texto de uma conversa em Markdown (padrão) ou JSON, sem abrir a janela de salvar.', inputSchema: S({ ...APP, ...MAQ, id: { type: 'string' }, formato: { type: 'string', enum: ['md', 'json'] } }, ['id']) },
   { name: 'erros_ler', description: 'Erros e avisos do console da interface do app nessa janela, quedas do processo da página e travamentos. desde (data ISO ou ms) traz só os posteriores.', inputSchema: S({ ...APP, ...MAQ, desde: { type: ['string', 'number'] }, limite: { type: 'number' } }) },
   { name: 'log_ler', description: 'Últimas linhas do log do app (meu-bot.log). filtro (texto), desde (data ISO ou ms), linhas (padrão 100, até 500).', inputSchema: S({ ...APP, linhas: { type: 'number' }, filtro: { type: 'string' }, desde: { type: ['string', 'number'] } }) },
   { name: 'ui_tecla', description: 'Aperta uma tecla na interface do app (enter, tab, esc, down, up…).', inputSchema: S({ ...APP, ...MAQ, tecla: { type: 'string' } }, ['tecla']) },
 ];
 const NAV_ROTAS = { nav_abas: 'abas', nav_abrir: 'abrir', nav_ler: 'ler', nav_clicar: 'clicar', nav_digitar: 'digitar', nav_tecla: 'tecla', nav_print: 'print', nav_recarregar: 'recarregar', nav_voltar: 'voltar', nav_js: 'js', nav_fechar: 'fechar' };
-const APP_ROTAS = { app: 'app', janela_abrir: 'janela', pagina_abrir: 'pagina', tema: 'tema', print_janela: 'print', ui_ler: 'ui/ler', ui_clicar: 'ui/clicar', ui_digitar: 'ui/digitar', ui_tecla: 'ui/tecla', erros_ler: 'erros', log_ler: 'log', comando_listar: 'comandos', comando_rodar: 'comando', conversa_enviar: 'conversa/enviar', estado: 'estado', conversas_listar: 'conversas', conversa_ler: 'conversa/ler' };
+const APP_ROTAS = { app: 'app', janela_abrir: 'janela', pagina_abrir: 'pagina', tema: 'tema', print_janela: 'print', ui_ler: 'ui/ler', ui_clicar: 'ui/clicar', ui_digitar: 'ui/digitar', ui_tecla: 'ui/tecla', erros_ler: 'erros', log_ler: 'log', comando_listar: 'comandos', comando_rodar: 'comando', conversa_enviar: 'conversa/enviar', estado: 'estado', conversas_listar: 'conversas', conversa_ler: 'conversa/ler', menu_ler: 'menu', menu_escolher: 'menu/escolher', conversa_exportar: 'conversa/exportar' };
 
 async function call(name, args) {
   const { app, maquina, ...resto } = args;
