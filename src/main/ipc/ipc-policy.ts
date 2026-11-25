@@ -68,6 +68,8 @@ export const CLIENT_CHANNELS = [
   "guarda:status", "guarda:install", "guarda:uninstall", "navegador:status", "navegador:install", "gmail:agent", "gmail:status", "gmail:install", "modulos:atualizar-fonte", "modulos:abrir-pagina", "modulos:planilha", "modulos:testar", "modulos:listar", "modulos:ligar", "modulos:desligar", "modulos:credenciais", "modulos:opcoes", "crm:info", "crm:local", "crm:pipeline-criar", "crm:pipeline-padrao", "crm:install", "crm:set", "crm:test", "crm:reset",
   // aba Navegador (módulo Pro)
   "browser:open", "browser:permissao", "browser:permissoes-esquecer", "browser:agent-whatsapp", "browser:extensions", "browser:remove-extension", "browser:request-pro", "plano:avisar-pagamento", "plano:usar-da-conta", "plano:conferir-device", "plano:tirar-da-conta", "computador:status", "computador:acordar", "computador:instalar", "computador:url", "inspector:abrir", "browser:agent", "browser:active", "browser:favorite-add", "browser:favorite-remove", "browser:workspaces-set",
+  // página própria de um app derivado: um canal só, genérico; o despacho por nome é do main (src/main/extensao)
+  "ext:invoke",
   "tailscale:disable-check", "tailscale:restore",
   // tutorial 7: objetivo do WhatsApp (objetivo.json, skill no workspace do OpenClaw, trava do nível)
   "objective:info", "objective:set", "objective:save", "objective:reset",

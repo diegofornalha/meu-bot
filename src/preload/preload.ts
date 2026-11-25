@@ -239,6 +239,7 @@ const clientApi: MeuBotClientApi = {
   computadorInstalar: () => ipcRenderer.invoke("computador:instalar", {}),
   computadorUrl: () => ipcRenderer.invoke("computador:url", {}),
   inspectorAbrir: () => ipcRenderer.invoke("inspector:abrir", {}),
+  extInvocar: (nome: string, payload: unknown) => ipcRenderer.invoke("ext:invoke", { nome, payload }),
   browserPermissao: (id: string, decisao: "sempre" | "agora" | "nunca") => ipcRenderer.invoke("browser:permissao", { id, decisao }),
   browserPermissoesEsquecer: (origem?: string) => ipcRenderer.invoke("browser:permissoes-esquecer", origem === undefined ? {} : { origem }),
   browserFavoriteAdd: (f: { titulo: string; url: string }) => ipcRenderer.invoke("browser:favorite-add", f),

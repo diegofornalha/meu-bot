@@ -14,7 +14,7 @@
  * Rotas do app em si (6 nov; o scripts/app-mcp.mjs e o controle externo por MCP usam as duas famílias):
  * · GET /app: nome, versão, tema, janelas abertas (qual em foco) e máquinas conhecidas
  * · POST /janela {maquina}: abre (ou traz) a janela de uma máquina do ~/.ssh/config, ou "local"
- * · POST /pagina {pagina, maquina?}: põe uma página na frente (tutoriais, acervo, inspector, modulos, conta-google, gmail, computador, navegador)
+ * · POST /pagina {pagina, maquina?}: põe uma página na frente (tutoriais, acervo, inspector, modulos, extensao, conta-google, gmail, computador, navegador)
  * · POST /tema {tema: system|light|dark} · POST /print {maquina?}: a janela inteira como PNG (png_base64, ≤ 1280 px)
  * Quem pede vem no cabeçalho `X-Meu-Bot-Dono` (o mesmo do Navegador, nav-donos-core.ts) e aparece como selo no
  * terminal ("✳️ Claude Code (Mac) · digitou"), para a pessoa saber quem está mexendo.
