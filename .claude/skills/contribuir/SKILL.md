@@ -70,6 +70,11 @@ nesta sessão** (branch de outra sessão: só avise o usuário).
     `gh api graphql -f query='{repository(owner:"diegofornalha",name:"meu-bot"){pullRequest(number:<n>){reviewThreads(first:50){nodes{id isResolved comments(first:1){nodes{path body}}}}}}}'`
     e `gh api graphql -f query='mutation{resolveReviewThread(input:{threadId:"<id>"}){thread{isResolved}}}'`. Só
     resolva o que foi corrigido ou respondido com o motivo; a do CodeQL se resolve sozinha quando o alerta some.
+  - **Mostrar como ficou**, sem esperar o usuário pedir (pedido dele em 25 nov 2026: "sempre que fizer uma PR e ela
+    passar gostaria de ver como ficou"): PR que muda o que se vê e entrou → abra o resultado na tela dele e mande a
+    captura. Mudança no app: skill `testar-no-app`, "Ver um ramo no meu-bot-staging" (fecha o app, abre o build do
+    commit, `print_janela`), e volte ao da release quando ele terminar de ver. Mudança no site: o Worker local ou o
+    site de staging, com a captura da página (skill `publicar-site`). PR sem nada visível: diga isso em uma linha.
   - Conferir depois (`gh pr view <n> --json state,autoMergeRequest`), mover o cartão para Arquivados e apagar o
     worktree. `node scripts/auto-merge.mjs <n> --check` mostra o que o workflow decide para a PR.
   - PR de outra sessão ou pessoa, e mudança que o usuário pediu para ver antes: ponha `nao-mesclar` e mande para
