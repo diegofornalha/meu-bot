@@ -396,6 +396,7 @@ const topbarMini = $<HTMLElement>("topbar-mini");
 const composerMini = $<HTMLElement>("composer-mini");
 const miniText = $<HTMLSpanElement>("mini-text");
 const topbarHost = $<HTMLSpanElement>("topbar-host");
+const atalhosHost = $<HTMLSpanElement>("atalhos-host");
 const topbarHideBtn = $<HTMLButtonElement>("btn-topbar-hide");
 const topbarShowBtn = $<HTMLButtonElement>("btn-topbar-show");
 const paletteEl = $<HTMLElement>("palette");
@@ -1063,8 +1064,7 @@ function setTopbarHidden(hidden: boolean): void {
 function paintTopbarHost(): void {
   const nome = windowHost === "" ? "" : windowPersonName ?? hostLabel(windowHost);
   topbarHost.textContent = nome;
-  const naSeta = document.getElementById("atalhos-host");
-  if (naSeta !== null) naSeta.textContent = nome;
+  atalhosHost.textContent = nome;
 }
 function paintMini(): void {
   if (topbarMini.hidden) return;
