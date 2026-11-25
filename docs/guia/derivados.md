@@ -12,9 +12,9 @@ acrescenta linha na tabela `PRODUTOS`, membro em `AppVariant` nem ícone em `ass
   primeiro, para todos.
 - O que nascer num derivado e servir a todos sobe para o core, e o derivado passa a usar o do core.
 
-Este guia cresce a cada etapa da saída dos derivados antigos (`meu-bot-diego-staging` e `meu-bot-inspector-staging`,
-ainda na tabela). Por enquanto ele cobre a **ficha** e o **empacotamento**; a release automática, a atualização pelo
-repositório do derivado e as páginas próprias vêm nas etapas seguintes.
+O `meu-bot-diego-staging` já saiu do core (`github.com/diegofornalha/meu-bot-diego-app`). O `meu-bot-inspector-staging`
+ainda está na tabela: ele tem uma página própria, e as páginas de derivado são a etapa que falta neste guia. Derivado
+novo nasce do modelo `github.com/diegofornalha/meu-bot-derivado-modelo`.
 
 ## O que o repositório de um derivado tem
 

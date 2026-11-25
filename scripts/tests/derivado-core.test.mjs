@@ -76,9 +76,9 @@ test("derivado ao abrir: a ficha embutida no pacote é registrada e dela saem t�
   } finally { registrarDerivado(null); }
 });
 
-test("os derivados antigos da tabela já cabem numa ficha de fora (a saída deles do core não muda nome, bundle, dados nem portas)", () => {
+test("o derivado antigo que resta na tabela já cabe numa ficha de fora (a saída dele do core não muda nome, bundle, dados nem portas)", () => {
   const antigos = PRODUTOS.filter((p) => !produtosDoCore().includes(p));
-  assert.deepEqual(antigos.map((p) => p.nome).sort(), ["meu-bot-diego-staging", "meu-bot-inspector-staging"]);
+  assert.deepEqual(antigos.map((p) => p.nome).sort(), ["meu-bot-inspector-staging"], "o meu-bot-diego-staging já saiu");
   for (const a of antigos) {
     const r = parseFichaExterna({ nome: a.nome, bundleId: a.bundleId, canal: a.canal, portaLocal: a.portaLocal, portaWsl: a.portaWsl, portaMcp: a.portaMcp, herdaDe: a.herdaDe, abreEm: a.abreEm, modulos: a.caps.modulos, inspector: a.caps.inspector, addon: a.addon, descricao: a.descricao });
     assert.equal(r.ok, true, `${a.nome}: ${r.erro}`);

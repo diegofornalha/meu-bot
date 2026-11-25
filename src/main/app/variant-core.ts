@@ -139,12 +139,6 @@ export const PRODUTOS: readonly Produto[] = [
   // interface oficial do @modelcontextprotocol/inspector já ligada ao controle externo deste app). Nome, ícone, dados e portas próprios; nasce como cópia dos dados do meu-bot-staging. Só staging.
   { ...staging(CLIENT, "inspector-staging", 8793, 2293, 7835), nome: "meu-bot-inspector-staging", bundleId: "local.meu-bot-inspector.staging", icone: "assets/icon-inspector-staging.icns", userData: "meu-bot-inspector-staging", herdaDe: "meu-bot-staging", fundeDe: null, addon: null, instalador: false, abreEm: "inspector", caps: { ...PESSOA, inspector: true },
     descricao: "O meu-bot em teste com o MCP Inspector na frente (abre na página Inspector): a interface oficial do Inspector ligada ao controle externo (MCP) do próprio app." },
-  // meu-bot-diego-staging: o meu-bot em teste com a página Módulos na frente. O app não leva módulo nenhum: baixa-os
-  // com git do repositório do produto (diegofornalha/meu-bot-diego, src/main/modulos/modulos-fonte-core.ts) e cada
-  // módulo traz o MCP, as regras e o tutorial dele. Liberado pelo add-on meu-bot-diego na licença. Fica fora da release
-  // automática (release-core.mjs, `caps.modulos`): empacota-se à mão (docs/guia/meu-bot-diego.md).
-  { ...staging(CLIENT, "diego-staging", 8794, 2294, 7836), nome: "meu-bot-diego-staging", bundleId: "local.meu-bot-diego.staging", icone: "assets/icon-diego-staging.icns", userData: "meu-bot-diego-staging", herdaDe: "meu-bot-staging", fundeDe: null, addon: "meu-bot-diego", instalador: false, abreEm: "modulos", caps: { ...PESSOA, modulos: "meu-bot-diego" },
-    descricao: "O meu-bot em teste com os módulos do Diego na frente (abre na página Módulos): os módulos vêm do repositório meu-bot-diego, baixados pelo app, com MCP e tutorial." },
 ];
 
 /**
@@ -174,8 +168,9 @@ export const esquemaDe = (p: Produto): string => p.nome;
  * (variant.ts) e passa a ser a variante "derivado". Assim um derivado novo não acrescenta linha nenhuma ao core
  * (docs/guia/derivados.md).
  *
- * As duas linhas da tabela com `herdaDe: "meu-bot-staging"` (inspector e diego) são os derivados antigos, de saída
- * para os repositórios deles; enquanto não saem, uma ficha externa pode repetir o nome e o bundle id delas.
+ * A linha da tabela com `herdaDe: "meu-bot-staging"` (o inspector) é o último derivado antigo, de saída para o
+ * repositório dele; enquanto não sai, uma ficha externa pode repetir o nome e o bundle id dela. O meu-bot-diego-staging
+ * já saiu: mora em github.com/diegofornalha/meu-bot-diego-app.
  */
 const ehDerivadoDaTabela = (p: Produto): boolean => p.herdaDe === "meu-bot-staging";
 /** Os apps do core: a tabela sem os derivados antigos. */
