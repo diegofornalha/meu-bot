@@ -2,7 +2,7 @@
 // deste Mac, a conferência entre a ficha e o repositório onde se publica, a versão e os argumentos do gh.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { argsReleaseDerivado, notasDoDerivado, parseDerivados, recusaDerivado, versaoDasTags, versaoStagingValida } from "../release-core.mjs";
+import { argsReleaseDerivado, decideAvisoDerivado, motivoDaFalhaDerivados, notasDoDerivado, parseDerivados, precisaDaChave, recusaDerivado, versaoDasTags, versaoStagingValida } from "../release-core.mjs";
 
 test("lista de derivados: ausente é vazia; cada item tem repositório e pasta absoluta, sem repetição", () => {
   assert.deepEqual(parseDerivados(undefined), { itens: [] });
@@ -44,4 +44,32 @@ test("gh release create do derivado: sempre com -R do repositório dele, pre-rel
   assert.deepEqual(a, ["release", "create", "v1.2.3-staging.9", "out/a.zip", "out/a.zip.sig", "-R", "diegofornalha/meu-bot-vendas-app", "--title", "meu-bot-vendas-staging 1.2.3-staging.9", "--notes-file", "out/notas.md", "--prerelease", "--target", "abc123"]);
   const n = notasDoDerivado({ nome: "meu-bot-vendas-staging", versao: "1.2.3-staging.9", commitCore: "78653b01", commitDerivado: "abc123" });
   for (const pedaco of ["meu-bot-vendas-staging 1.2.3-staging.9", "core 78653b01", "abc123", "releases/tag/v1.2.3-staging.9"]) assert.ok(n.includes(pedaco), pedaco);
+});
+
+test("derivado atrasado: avisa uma vez por versão, tenta calado nas rodadas seguintes e registra quando volta a ficar em dia", () => {
+  const v = "1.2.3-staging.10";
+  assert.equal(decideAvisoDerivado({ versao: v, falhouAntes: null, ok: true }), "nada");
+  assert.equal(decideAvisoDerivado({ versao: v, falhouAntes: undefined, ok: true }), "nada", "estado antigo, sem o campo");
+  assert.equal(decideAvisoDerivado({ versao: v, falhouAntes: null, ok: false }), "avisar", "primeira falha na versão");
+  assert.equal(decideAvisoDerivado({ versao: v, falhouAntes: v, ok: false }), "calar", "mesma versão: sem repetir o aviso a cada 10 min");
+  assert.equal(decideAvisoDerivado({ versao: v, falhouAntes: "1.2.3-staging.9", ok: false }), "avisar", "versão nova que também falha avisa de novo");
+  assert.equal(decideAvisoDerivado({ versao: v, falhouAntes: v, ok: true }), "limpar");
+  assert.equal(decideAvisoDerivado({ versao: v, falhouAntes: "1.2.3-staging.9", ok: true }), "limpar");
+});
+
+test("o aviso diz por que falhou: a última linha de erro do script, sem o resumo", () => {
+  const saida = ["▶ diegofornalha/meu-bot-a", "  falta publicar meu-bot-a 1.2.3-staging.10", "▶ lendo a chave da release no Chaveiro", "✗ diegofornalha/meu-bot-a: meu-bot-a.app não saiu notarizado", "", "✗ 1 de 2 derivado(s) não foram publicados"].join("\n");
+  assert.equal(motivoDaFalhaDerivados(saida), "diegofornalha/meu-bot-a: meu-bot-a.app não saiu notarizado");
+  assert.equal(motivoDaFalhaDerivados("✗ a chave da release não está no Chaveiro (ou o acesso foi negado): nada foi publicado\n"), "a chave da release não está no Chaveiro (ou o acesso foi negado): nada foi publicado");
+  assert.equal(motivoDaFalhaDerivados("✗ primeiro\n✗ segundo\n✗ 2 de 2 derivado(s) não foram publicados"), "segundo");
+  for (const vazio of ["", "nada de erro aqui", null, undefined, "✗ 1 de 1 derivado(s) não passaram na conferência"]) assert.equal(motivoDaFalhaDerivados(vazio), null);
+  const longo = motivoDaFalhaDerivados(`✗ ${"x".repeat(400)}`);
+  assert.equal(longo.length, 180); assert.ok(longo.endsWith("…"), "cabe na notificação");
+});
+
+test("a chave da release só é pedida quando há o que publicar: conferência e tudo em dia não tocam o Chaveiro", () => {
+  assert.equal(precisaDaChave({ conferir: false, faltam: 2 }), true);
+  assert.equal(precisaDaChave({ conferir: false, faltam: 0 }), false, "tudo em dia: é o caso de toda rodada do agente");
+  assert.equal(precisaDaChave({ conferir: true, faltam: 2 }), false);
+  assert.equal(precisaDaChave({ conferir: true, faltam: 0 }), false);
 });

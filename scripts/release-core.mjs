@@ -583,3 +583,31 @@ export const notasDoDerivado = ({ nome, versao, commitCore, commitDerivado }) =>
 /** Os argumentos do `gh release create` de um derivado: sempre com `-R` (o repositório dele), pre-release e o commit do derivado como alvo da tag. */
 export const argsReleaseDerivado = ({ tag, repo, arquivos, titulo, notasArquivo, commitDerivado }) =>
   ["release", "create", tag, ...arquivos, "-R", repo, "--title", titulo, "--notes-file", notasArquivo, "--prerelease", "--target", commitDerivado];
+
+/**
+ * O que o agente faz depois de tentar a release dos derivados numa versão: `ok` = o script saiu 0 (tudo publicado ou
+ * já em dia); `falhouAntes` = a versão em que a tentativa anterior falhou (do estado), ou null.
+ * - "limpar": voltou a ficar em dia depois de uma falha (registra no log e limpa o estado);
+ * - "avisar": primeira falha nesta versão (grava o estado e avisa a pessoa);
+ * - "calar": continua falhando na mesma versão (a tentativa se repete a cada rodada; o aviso, não);
+ * - "nada": em dia, sem falha anterior.
+ */
+export function decideAvisoDerivado({ versao, falhouAntes, ok }) {
+  const antes = falhouAntes ?? null;
+  if (ok) return antes === null ? "nada" : "limpar";
+  return antes === versao ? "calar" : "avisar";
+}
+/**
+ * Por que a release dos derivados falhou, para o aviso dizer mais que "falhou": a última linha `✗ …` da saída do
+ * script que não seja o resumo ("✗ 1 de 2 derivado(s)…"), sem o `✗`, cortada para caber na notificação. null se a
+ * saída não tem nenhuma (o script morreu antes de dizer).
+ */
+export function motivoDaFalhaDerivados(saida) {
+  const linhas = String(saida ?? "").split("\n").map((l) => l.trim()).filter((l) => l.startsWith("✗ ") && !/^✗ \d+ de \d+ derivado/.test(l));
+  const ultima = linhas[linhas.length - 1];
+  if (ultima === undefined) return null;
+  const texto = ultima.slice(2).trim();
+  return texto.length > 180 ? `${texto.slice(0, 179)}…` : texto;
+}
+/** A chave da release e o Developer ID só entram quando há o que publicar de verdade: na conferência ou com tudo em dia, o Chaveiro nem é tocado. */
+export const precisaDaChave = ({ conferir, faltam }) => !conferir && faltam > 0;

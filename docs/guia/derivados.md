@@ -86,7 +86,15 @@ A lista fica **fora do repositório do core**, em `~/Library/Application Support
 
 - A pasta é um clone só do agente; mudança local nele é recusada.
 - O que já foi publicado é pulado: rodar de novo não repete nada.
-- A falha de um derivado não impede os outros nem desfaz a staging do core; o Mac avisa.
+- A falha de um derivado não impede os outros nem desfaz a staging do core; o Mac avisa uma vez por versão.
+- **Um derivado não fica para trás:** enquanto a versão dele não alcança a staging do core, o agente tenta de novo a
+  cada rodada (10 min), sem esperar a próxima staging. Com tudo em dia a rodada só confere as tags: não empacota nem
+  pede a chave. O aviso de falha diz a causa (a última linha de erro do script). A nova tentativa só roda com o
+  worktree da release no commit da staging: se um merge novo entrou no `main`, quem refaz os derivados é a staging
+  seguinte, que sai em 10 minutos.
+- **Uma mudança no core não quebra a ficha de um derivado calada:** `scripts/tests/derivado-core.test.mjs` guarda as
+  fichas já publicadas e falha na PR do core que as recusaria. Ao publicar um derivado novo com um campo que nenhuma
+  ficha guardada usa, acrescente a ficha dele a esse teste.
 - Uma mudança só na ficha do derivado sai na próxima staging do core, ou à mão:
   `node scripts/release-derivados.mjs --versao <versão staging já publicada do core>` não republica a mesma tag, então
   espere a próxima.
