@@ -10,7 +10,7 @@
  * dados e porta próprios, que recebe o que está em teste; a linha staging sai da estável (`staging()`), não é
  * escrita à mão. O meu-bot-admin é só estável.
  */
-import type { AppVariant, Canal, Capabilities, PlanName } from "../../shared/ipc";
+import type { AppVariant, Canal, Capabilities, DerivadoApiVersao, PlanName } from "../../shared/ipc";
 
 export type { AppVariant, Canal, Capabilities };
 
@@ -100,16 +100,16 @@ export const NAO_ADDON: readonly string[] = ["meu-bot-admin", "meu-bot-crm"];
 /** O plano "personalizado" (removido em 22 out) liberava o Pro e estes add-ons; quem o tinha vira Pro com eles. */
 export const ADDONS_DO_PERSONALIZADO: readonly string[] = ["meu-bot-finance"];
 /** Páginas que um produto pode pôr na frente ao abrir (Produto.abreEm); o renderer sabe abrir cada uma. */
-export const PAGINAS_INICIAIS = ["inspector", "modulos"] as const;
+export const PAGINAS_INICIAIS = ["inspector", "modulos", "extensao"] as const;
 export type PaginaInicial = (typeof PAGINAS_INICIAIS)[number];
 
 const PESSOA: Produto["caps"] = {
   chat: true, pair: true, login: true, manageWa: true, tunnel: true, install: true, supportClient: true, supportAdmin: false,
-  navegador: true, planoExigido: "free", usuariosMac: false, inspector: false, modulos: null,
+  navegador: true, planoExigido: "free", usuariosMac: false, inspector: false, modulos: null, extensao: null,
 };
 const ADMIN: Produto["caps"] = {
   chat: false, pair: false, login: false, manageWa: false, tunnel: false, install: false, supportClient: false, supportAdmin: true,
-  navegador: false, planoExigido: "free", usuariosMac: false, inspector: false, modulos: null,
+  navegador: false, planoExigido: "free", usuariosMac: false, inspector: false, modulos: null, extensao: null,
 };
 
 // meu-bot: o app da pessoa. Traz as duas extensões; o CRM próprio no Gmail abre pela licença da máquina (Pro ou superior,
@@ -177,7 +177,7 @@ const ehDerivadoDaTabela = (p: Produto): boolean => p.herdaDe === "meu-bot-stagi
 export const produtosDoCore = (): readonly Produto[] => PRODUTOS.filter((p) => !ehDerivadoDaTabela(p));
 
 /** Campos que a ficha de um derivado aceita; qualquer outro é erro (um nome trocado não pode passar calado). */
-const CAMPOS_DA_FICHA = ["nome", "bundleId", "canal", "portaLocal", "portaWsl", "portaMcp", "herdaDe", "abreEm", "modulos", "inspector", "addon", "descricao", "releases"] as const;
+const CAMPOS_DA_FICHA = ["nome", "bundleId", "canal", "portaLocal", "portaWsl", "portaMcp", "herdaDe", "abreEm", "modulos", "inspector", "extensao", "addon", "descricao", "releases"] as const;
 /**
  * O nome é também a pasta de dados, o esquema do deep link e o nome do app no servidor de contas, que só aceita
  * `meu-bot` mais até 6 pedaços de letras e dígitos, com no máximo 30 caracteres depois de "meu-bot-"
@@ -190,12 +190,35 @@ const PRODUTO_MODULOS_RE = /^meu-bot-[a-z0-9-]{1,30}$/;
 /** "dono/repositório" do GitHub: só o que cabe num caminho de URL sem barra a mais, ponto-ponto nem espaço. */
 export const REPO_GITHUB_RE = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\/[A-Za-z0-9_.-]{1,100}$/;
 export const repoGithubValido = (v: unknown): v is string => typeof v === "string" && REPO_GITHUB_RE.test(v) && !v.includes("..");
+/**
+ * Versão do contrato de extensão que este core fala (src/shared/ipc/derivado.ts): um derivado pode trazer UMA página
+ * própria, e a ficha dele diz em `extensao.api` para qual versão o código foi escrito. Sobe quando o contrato muda de
+ * um jeito que o código de um derivado antigo não aguenta; a ficha que pede outra é recusada, em vez de o app abrir
+ * com uma página que quebra.
+ */
+export const DERIVADO_API: DerivadoApiVersao = 1;
+/** Texto do botão da lateral e da aba da página de uma extensão: curto, de uma linha só. */
+const ROTULO_EXTENSAO_MAX = 30;
+/** O campo `extensao` da ficha: `{ api, rotulo }`, mais nada. Devolve o que vira `caps.extensao`, ou o motivo da recusa. */
+function parseExtensao(v: unknown): { ok: true; extensao: { rotulo: string } | null } | { ok: false; erro: string } {
+  if (v === undefined || v === null) return { ok: true, extensao: null };
+  if (typeof v !== "object" || Array.isArray(v)) return { ok: false, erro: 'extensao: null ou um objeto { "api": 1, "rotulo": "…" }' };
+  const e = v as Record<string, unknown>;
+  const estranho = Object.keys(e).find((k) => k !== "api" && k !== "rotulo");
+  if (estranho !== undefined) return { ok: false, erro: `extensao: campo desconhecido "${estranho}" (aceitos: api, rotulo)` };
+  if (e.api !== DERIVADO_API) return { ok: false, erro: `extensao.api: este core fala a API ${DERIVADO_API} de extensão; a ficha pede ${typeof e.api === "number" || typeof e.api === "string" ? String(e.api) : "um valor que não é número"}` };
+  const rotulo = e.rotulo;
+  // Sem espaço nas pontas nem caractere de controle (quebra de linha, tab): é o texto de um botão.
+  if (typeof rotulo !== "string" || rotulo === "" || rotulo.length > ROTULO_EXTENSAO_MAX || rotulo !== rotulo.trim() || /[\u0000-\u001f\u007f]/.test(rotulo)) return { ok: false, erro: `extensao.rotulo: o texto do botão, de 1 a ${ROTULO_EXTENSAO_MAX} caracteres, numa linha só` };
+  return { ok: true, extensao: { rotulo } };
+}
 const ehPorta = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 1024 && v <= 65535;
 export type FichaExterna = { ok: true; produto: Produto } | { ok: false; erro: string };
 /**
  * A ficha de um derivado (o `produto.json` do repositório dele) vira um Produto, ou o motivo da recusa. Um derivado é
  * sempre um app da pessoa (as capacidades do meu-bot): a ficha escolhe o nome, o bundle id, o canal, as portas, de
- * quem herda os dados na primeira abertura, a página que abre na frente e o produto de módulos fixo. O resto vem do
+ * quem herda os dados na primeira abertura, a página que abre na frente, o produto de módulos fixo e se o app traz uma
+ * página própria (`extensao`; o código dela mora na pasta `codigo/` do repositório do derivado). O resto vem do
  * meu-bot (extensões, licença "meu-bot") e não é da ficha. Não pode repetir nome, bundle id nem porta de um app do core.
  */
 export function parseFichaExterna(raw: unknown): FichaExterna {
@@ -221,8 +244,11 @@ export function parseFichaExterna(raw: unknown): FichaExterna {
   const herdaDe = o.herdaDe ?? null;
   // Só de um app da pessoa do core: é de lá que vêm as configurações que um derivado sabe ler.
   if (herdaDe !== null && !core.some((p) => p.nome === herdaDe && p.caps.chat)) return nao(`herdaDe: null ou um destes: ${core.filter((p) => p.caps.chat).map((p) => p.nome).join(", ")}`);
+  const ext = parseExtensao(o.extensao);
+  if (!ext.ok) return nao(ext.erro);
   const abreEm = o.abreEm ?? null;
   if (abreEm !== null && !(PAGINAS_INICIAIS as readonly unknown[]).includes(abreEm)) return nao(`abreEm: null ou uma destas: ${PAGINAS_INICIAIS.join(", ")}`);
+  if (abreEm === "extensao" && ext.extensao === null) return nao('abreEm: "extensao" só vale numa ficha que tem o campo extensao');
   const modulos = o.modulos ?? null;
   if (modulos !== null && (typeof modulos !== "string" || !PRODUTO_MODULOS_RE.test(modulos))) return nao("modulos: null ou o nome do produto de módulos (meu-bot-<nome>)");
   const inspector = o.inspector ?? false;
@@ -235,7 +261,7 @@ export function parseFichaExterna(raw: unknown): FichaExterna {
   if (typeof descricao !== "string" || descricao.length > 300) return nao("descricao: um texto de até 300 caracteres");
   return { ok: true, produto: {
     ...CLIENT, variant: "derivado", nome, bundleId, icone: "assets/icon.icns", userData: nome, canal, herdaDe: herdaDe as string | null, portaLocal: portaLocal as number, portaWsl: portaWsl as number, portaMcp: portaMcp as number,
-    fundeDe: null, descricao, addon: addon as string | null, instalador: false, windows: false, abreEm: abreEm as PaginaInicial | null, repoReleases: releases, caps: { ...PESSOA, inspector, modulos: modulos as string | null },
+    fundeDe: null, descricao, addon: addon as string | null, instalador: false, windows: false, abreEm: abreEm as PaginaInicial | null, repoReleases: releases, caps: { ...PESSOA, inspector, modulos: modulos as string | null, extensao: ext.extensao },
   } };
 }
 /** Nome do arquivo da ficha embutida, ao lado do variant-core.js compilado (dentro do asar). */

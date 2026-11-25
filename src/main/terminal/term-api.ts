@@ -14,7 +14,7 @@
  * Rotas do app em si (6 nov; o scripts/app-mcp.mjs e o controle externo por MCP usam as duas famílias):
  * · GET /app: nome, versão, tema, janelas abertas (qual em foco) e máquinas conhecidas
  * · POST /janela {maquina}: abre (ou traz) a janela de uma máquina do ~/.ssh/config, ou "local"
- * · POST /pagina {pagina, maquina?}: põe uma página na frente (tutoriais, acervo, inspector, modulos, conta-google, gmail, computador, navegador)
+ * · POST /pagina {pagina, maquina?}: põe uma página na frente (tutoriais, acervo, inspector, modulos, extensao, conta-google, gmail, computador, navegador)
  * · POST /tema {tema: system|light|dark} · POST /print {maquina?, marcas?}: a janela inteira como PNG (png_base64, ≤ 1280 px)
  * A interface do app em si (25 nov): o que o Navegador já tinha para as páginas da web, agora na janela do app, com os
  * mesmos trechos (nav-scripts.ts). Fica só neste socket, que não vai pelo túnel: o agente da máquina nunca a alcança.

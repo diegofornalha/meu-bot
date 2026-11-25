@@ -15,6 +15,8 @@ import { avisarMaquinaVista, avisoDaRenovacao, renovarSePreciso, tirarProDaConta
 import { assertAcesso } from "../licenca/acesso";
 import { telaAcordar, telaStatus, telaUrl } from "../maquina/tela";
 import { abrirInspector } from "../inspector/inspector";
+import { despacharExtInvoke } from "../extensao/extensao-core";
+import { estadoDaExtensao } from "../extensao/registro";
 import { esquecerPermissoes, responderPermissao } from "../navegador/nav-permissoes";
 import { navWhatsappInfo, setNavWhatsapp } from "../navegador/navegador-whatsapp";
 import { numerosOk } from "../navegador/navegador-whatsapp-hermes-core";
@@ -304,6 +306,9 @@ export function registerClientIpc(): void {
   handleClient("computador:url", async (event) => telaUrl(await comp(event)));
   // Inspector: só no produto que tem a capacidade (meu-bot-inspector-staging); nos outros o canal recusa.
   handleClient("inspector:abrir", exigeCap("controleRemoto", async () => { if (!caps().inspector) throw new Error("o Inspector só existe no meu-bot-inspector-staging"); return abrirInspector(); }));
+  // Página própria de um app derivado: o canal único por onde ela fala com o código do derivado no main. Só exige que
+  // haja extensão (sem ela, ou com nome que ela não registrou, recusa); cada handler valida o que recebe.
+  handleClient("ext:invoke", (_event, payload) => despacharExtInvoke(estadoDaExtensao(), payload));
   // A própria pessoa leva a licença da conta dela (Pro e add-ons pagos) à máquina desta janela, e tira.
   const relerLicenca = (host: string) => async (): Promise<LicenseView | null> => { const lic = await lerLicencaDaMaquina(host); void browserSincronizarCrm(host, lic); void avisarMaquinaVista(host, lic.view?.origem); return lic.view; };
   handleClient("plano:usar-da-conta", async (event) => { const h = ctxOf(event); const r = await usarProDaConta(h.host, relerLicenca(h.host)); void registrar(h.host, "plano.conta", "usou a licença da conta nesta máquina", r.ok ? "ok" : r.erro); return r; });
