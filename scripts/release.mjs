@@ -14,6 +14,8 @@
 // cada .sig é conferido com UPDATE_PUBLIC_KEYS do build antes do upload: o app só instala o que confere com uma delas,
 // como o SUPublicEDKey do Sparkle no Brave. Emergência (principal perdida ou vazada, troca de chave):
 // `-- --emergencia --chave-arquivo <arquivo>` assina com a reserva (scripts/chave-release.mjs, skill publicar).
+// Sem um certificado "Developer ID Application" válido no chaveiro a release é recusada (sairia com "meu-bot local",
+// sem notarização); `-- --sem-developer-id` é só para ensaiar num Mac sem o certificado.
 // Antes de empacotar, recusa publicar um componente da máquina (backend, CRM, guarda) que mudou desde a
 // última release sem subir a versão: o seletor só atualiza para cima, então a mudança nunca chegaria às máquinas.
 import { sign } from "node:crypto";
@@ -24,8 +26,9 @@ import { join } from "node:path";
 import { CHAVE_RELEASE_ANTIGA, lerChaveArquivo, lerChavePrincipal } from "./chave-release.mjs";
 import { componentesPendentes } from "./release-checar.mjs";
 import { lerFragmentos } from "./changelog-fragmentos.mjs";
-import { clientesGoogleParaPublicar, dependenciasDesalinhadas, faltasParaPublicar, notasDaRelease, produtosComInstalador, produtosDoCanal, proximaStaging, recusaPromocao } from "./release-core.mjs";
+import { clientesGoogleParaPublicar, dependenciasDesalinhadas, faltasParaPublicar, notasDaRelease, produtosComInstalador, produtosDoCanal, proximaStaging, recusaPromocao, recusaSemDeveloperId } from "./release-core.mjs";
 import { notarizar } from "./notarizar.mjs";
+import { identidadeDeveloperId } from "./assinatura.mjs";
 
 const staging = process.argv.includes("--staging");
 // `--conferir`: roda todas as recusas e conferências e sai antes de empacotar, sem tag nem release (skill aprovar-estavel).
@@ -44,6 +47,13 @@ if (execSync(`git tag -l ${tag}`, { encoding: "utf8" }).trim() !== "") { console
 if (!staging) {
   const recusa = recusaPromocao(base, execSync("git tag --points-at HEAD", { encoding: "utf8" }).split("\n").filter(Boolean));
   if (recusa !== null) { console.error(`✗ ${recusa}`); process.exit(64); }
+}
+// Sem Developer ID no chaveiro a release sairia com "meu-bot local" e sem notarização: recusa antes de qualquer trabalho.
+const semDeveloperId = process.argv.includes("--sem-developer-id");
+{
+  const recusa = recusaSemDeveloperId(identidadeDeveloperId(), semDeveloperId);
+  if (recusa !== null) { console.error(`✗ ${recusa}\nnada foi publicado`); process.exit(64); }
+  if (semDeveloperId && identidadeDeveloperId() === null) console.log("⚠ --sem-developer-id: esta release sai assinada com \"meu-bot local\", sem notarização (não a distribua)");
 }
 
 // A chave vem do Chaveiro (o macOS pede aprovação) antes de qualquer trabalho: negou, nada é publicado.
@@ -103,9 +113,9 @@ for (const p of produtosDoCanal(PRODUTOS, staging ? "staging" : "estavel")) {
   const app = join("out", `${name}-darwin-${arch}`, `${name}.app`);
   if (!existsSync(app)) { console.error(`✗ não achei ${app}`); process.exit(1); }
   // Developer ID: o .app vai notarizado e grampeado dentro do .zip (o atualizador troca o app sem passar pelo .dmg).
-  // Sem Developer ID, notarizar() só avisa: a release sai assinada com "meu-bot local", como antes.
+  // Sem Developer ID a release já foi recusada lá em cima; só o ensaio (--sem-developer-id) passa sem notarizar.
   step(`notarizando ${name}`);
-  notarizar(app);
+  if (!notarizar(app) && !semDeveloperId) { console.error(`✗ ${name}.app não saiu notarizado: nada foi publicado`); process.exit(1); }
   const zip = join("out", `${name}-${version}-${arch}.zip`);
   rmSync(zip, { force: true });
   execFileSync("ditto", ["-c", "-k", "--keepParent", app, zip]);
