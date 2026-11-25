@@ -13,8 +13,10 @@
   }
   const ga = window.meuBotGa || { pagina() {}, evento() {} };
   ga.pagina();
-  // Quem chega de Windows (anúncio de Pesquisa não separa Mac de Windows) não baixa o app do Mac: vira contato no
-  // WhatsApp, "avise-me quando sair para Windows" (evento lista_windows). Windows Phone conta como celular.
+  // Quem chega de Windows (anúncio de Pesquisa não separa Mac de Windows) não baixa o app do Mac: o botão principal
+  // leva à /baixar-windows (versão de teste, cliente de máquina remota; evento pagina_windows) e a lista de espera
+  // fica como segunda saída, para a versão que roda no próprio Windows (evento lista_windows). Windows Phone conta
+  // como celular.
   // O código do clique do anúncio (gclid e afins) fica na aba para a lista de espera saber de qual anúncio veio o contato.
   try { const q = new URLSearchParams(location.search); const cl = q.get("gclid") || q.get("gbraid") || q.get("wbraid"); if (cl) sessionStorage.setItem("mb-clique", cl.slice(0, 200)); } catch { /* sem sessionStorage */ }
   const ua = navigator.userAgent;
@@ -57,8 +59,11 @@
       if (fixo && zap) { fixo.href = zap.href; fixo.target = "_blank"; fixo.rel = "noopener"; fixo.dataset.ev = "falar_whatsapp"; fixo.dataset.origem = "fixo"; fixo.textContent = "Falar no WhatsApp"; }
     } else if (windows) {
       document.body.classList.add("windows");
-      const wa = $("cta-win-wa");
-      if (fixo && wa) { fixo.href = wa.href; fixo.target = "_blank"; fixo.rel = "noopener"; fixo.dataset.ev = "lista_windows"; fixo.dataset.origem = "fixo"; fixo.textContent = "Avise-me quando sair para Windows"; }
+      const baixar = $("cta-win-baixar");
+      if (fixo && baixar) { fixo.href = baixar.href; fixo.dataset.ev = "pagina_windows"; fixo.dataset.origem = "fixo"; fixo.textContent = "Baixar para Windows"; }
+      // O botão do topo dizia "Baixar para Mac" a quem está no Windows.
+      const topo = document.querySelector("a.nav-cta");
+      if (topo && baixar) { topo.href = baixar.href; topo.dataset.ev = "pagina_windows"; topo.dataset.origem = "topo"; topo.textContent = "Baixar para Windows"; }
     }
     document.addEventListener("click", (e) => {
       const a = e.target instanceof Element ? e.target.closest("[data-ev]") : null;
@@ -68,6 +73,7 @@
       else if (a.dataset.ev === "plano_interesse") ga.evento("plano_interesse", { plano: a.dataset.plano || "chip-coflow" });
       else if (a.dataset.ev === "falar_whatsapp") ga.evento("falar_whatsapp", { origem: a.dataset.origem || "home" });
       else if (a.dataset.ev === "baixar_windows") ga.evento("baixar_windows", { origem: a.dataset.origem || "baixar-windows" });
+      else if (a.dataset.ev === "pagina_windows") ga.evento("pagina_windows", { origem: a.dataset.origem || "home" });
       else ga.evento("baixar_mac", { origem: a.dataset.origem || "home" });
     });
   }
@@ -106,7 +112,8 @@
   if ($("btn-denovo")) {
     const ver = /[?&]ver=1/.test(location.search);
     $("btn-denovo").addEventListener("click", () => ga.evento("download_repetido", { versao: versao || "desconhecida" }));
-    // No Windows não há o que baixar: a página vira o convite da lista de espera (o link do Mac continua lá embaixo).
+    // No Windows o .dmg não serve: a página oferece a versão de teste (/baixar-windows) e a lista de espera (o link do
+    // Mac continua lá embaixo).
     const blocoWin = $("obrigado-win"); const blocoMac = $("obrigado-mac");
     if (windows && blocoWin && blocoMac) { blocoWin.hidden = false; blocoMac.hidden = true; const passos = $("obrigado-passos"); if (passos) passos.hidden = true; ga.evento("windows_sem_download", {}); }
     // O download começa sozinho (?ver=1 só mostra a página): o evento sai antes de navegar.

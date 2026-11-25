@@ -262,7 +262,8 @@ async function sitePagina(req: Request, env: Env, url: URL): Promise<Response> {
     return comCabecalhos(Response.redirect(d?.url ?? `https://github.com/${REPO}/releases/latest`, 302), { "cache-control": "no-store" });
   }
   // Windows: a versão de teste (instalador do meu-bot-staging, ainda sem assinatura da Microsoft) sai nos dois sites
-  // desde 17 nov 2026, a pedido do dono; a página diz que é teste e não entra no sitemap nem nos botões da home.
+  // desde 17 nov 2026, a pedido do dono; a página diz que é teste e não entra no sitemap. Desde 25 nov 2026 a home
+  // leva o visitante de Windows até ela (site.js, evento pagina_windows).
   if ((url.pathname === "/download/windows" || url.pathname === "/download/windows.json")) {
     const d = await downloadWindows();
     if (url.pathname.endsWith(".json")) return comCabecalhos(json(d ?? { erro: "nenhuma versão de teste trouxe o instalador do Windows ainda" }, d === null ? 503 : 200, { "cache-control": "public, max-age=300" }), {});

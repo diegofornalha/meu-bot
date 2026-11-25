@@ -103,7 +103,8 @@ nesta versão: o rodapé do site diz que medimos visitas sem anúncios e sem dad
 | site | `plano_interesse` | `plano`: `chip-coflow` (R$ 97/mês), `proprio-chip` (cotação), `promo-primeiro-mes` (página /promocao); os botões levam ao console da conta |
 | site | `link_celular` | `via`: `whatsapp`, `email` (no celular, o download vira "mandar o link para o meu Mac") |
 | site | `lista_windows` | visitante de Windows pediu para ser avisado: `via`: `whatsapp` (abriu a conversa com a Coflow), `formulario` (gravou o contato em `lista_espera`); `origem`: `hero`, `final`, `fixo`, `obrigado` |
-| site | `windows_sem_download` | a /obrigado foi aberta no Windows: mostrou o convite da lista em vez de baixar o `.dmg` |
+| site | `windows_sem_download` | a /obrigado foi aberta no Windows: mostrou a versão de teste e o convite da lista em vez de baixar o `.dmg` |
+| site | `pagina_windows` | visitante de Windows clicou em "Baixar para Windows" e foi à /baixar-windows; `origem`: `hero`, `topo`, `final`, `fixo`, `obrigado`. O download em si é o `baixar_windows`, na página |
 | site | `falar_whatsapp` | `origem`: `flutuante`… (botão "Falar no WhatsApp") |
 | site | `download_iniciado` | `versao` (da release) |
 | site | `download_repetido` | `versao`: clique em "use este link" na /obrigado (não conta como conversão) |
@@ -150,11 +151,12 @@ enviando agora), `sem-visita`
 `qualify_lead` precisa ser evento principal na propriedade e conversão importada na conta do Ads.
 
 **Lista de espera (Windows).** A rede de Pesquisa do Google Ads não separa Mac de Windows no computador. Quem chega de
-Windows não recebe o download do Mac: vê "Avise-me quando sair para Windows" (WhatsApp da Coflow) e um campo de e-mail
-ou WhatsApp, gravado por `POST /lista-espera` (host do site, sem login, limite por IP; `src/rotas/lista.ts`, regras em
+Windows não recebe o download do Mac: o botão principal leva à /baixar-windows (versão de teste, cliente de máquina
+remota; evento `pagina_windows`, desde 25 nov 2026) e, como segunda saída, vê "Avise-me da versão que roda no próprio
+Windows" (WhatsApp da Coflow) e um campo de e-mail ou WhatsApp, gravado por `POST /lista-espera` (host do site, sem login, limite por IP; `src/rotas/lista.ts`, regras em
 `src/lista-core.ts`, tabela `lista_espera`, migração 0009). O super admin vê e copia os contatos em console ›
-Assinaturas › Lista de espera. `lista_windows` **não** deve virar conversão de lance no Ads (o Google otimizaria para
-Windows); no GA4 serve só para medir quanto do tráfego pago é Windows.
+Assinaturas › Lista de espera. `lista_windows`, `pagina_windows` e `baixar_windows` **não** devem virar conversão de lance no Ads (o Google
+otimizaria para Windows); no GA4 serve só para medir quanto do tráfego pago é Windows.
 
 O que o Analytics não faz sozinho, na propriedade (Administrador): eventos principais (`download_iniciado`,
 `login_concluido`, `cadastro_concluido`, `org_criada`, depois de aparecerem na lista de eventos; `baixar_mac` não);

@@ -9,9 +9,13 @@ Estado em 17 de novembro de 2026. Não há prazo: este arquivo existe para a dec
   `src/main/app/variant-core.ts`; `docs/guia/app.md`, seção "Windows (x64, cliente remoto)").
 - Só o `meu-bot-staging` sai para Windows (`windows: true`). O instalador NSIS é montado no Mac
   (`scripts/instalador-win.mjs`) e **não tem assinatura Authenticode**: o SmartScreen avisa na instalação.
-- O site entrega o instalador só no staging: `/baixar-windows` e `/download/windows(.json)` respondem 404 em produção.
+- O site entrega o instalador de teste nos dois ambientes (decisão do dono, 17/11): `/baixar-windows` e
+  `/download/windows(.json)`. A página diz que é teste, fica fora do Google e do sitemap.
 - A campanha de Pesquisa não separa Mac de Windows no computador. Desde 17/11 o site desvia o visitante de Windows
   para a lista de espera (`lista_espera`, `conta-api/README.md`, "Lista de espera (Windows)").
+- Desde 25/11 (pedido do dono) o botão principal do visitante de Windows na home, na /obrigado e no botão fixo leva
+  à `/baixar-windows`; a lista de espera continua como segunda saída, para a versão que roda no próprio Windows. O
+  instalador segue sem assinatura: o item 1 abaixo continua valendo.
 
 ## O que falta, na ordem
 
