@@ -11,7 +11,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const req = createRequire(import.meta.url);
 const { parseFichaExterna, fichaEmbutida, registrarDerivado, capsFor, DERIVADO_API, PAGINAS_INICIAIS, PRODUTOS } = req("../../dist/main/app/variant-core.js");
-const { NOME_DE_CANAL_RE, PARTICAO_DE_EXTENSAO_RE, ERRO_SEM_EXTENSAO, ERRO_EXTENSAO_NAO_CARREGOU, criarRegistro, despacharExtInvoke, navegacaoDeExtensaoPermitida, urlDeExtensaoPermitida, ativarDoModulo } = req("../../dist/main/extensao/extensao-core.js");
+const { NOME_DE_CANAL_RE, PARTICAO_DE_EXTENSAO_RE, ERRO_SEM_EXTENSAO, ERRO_EXTENSAO_NAO_CARREGOU, encerrarDoRetorno, criarRegistro, despacharExtInvoke, navegacaoDeExtensaoPermitida, urlDeExtensaoPermitida, ativarDoModulo } = req("../../dist/main/extensao/extensao-core.js");
 const { CLIENT_CHANNELS, SHARED_CHANNELS, ADMIN_CHANNELS } = req("../../dist/main/ipc/ipc-policy.js");
 const { PAGINAS_APP } = req("../../dist/main/controle-remoto/controle-remoto-core.js");
 const { ABAS_FIXAVEIS } = req("../../dist/main/app/settings-normalize.js");
@@ -350,4 +350,13 @@ test("limpeza: o código de um derivado sai de dist/ antes de empacotar qualquer
   assert.match(pkg.slice(pkg.lastIndexOf('process.on("exit"', noExit), noExit + 40), /process\.on\("exit", \(\) => \{[\s\S]*limparCodigo\(\)/);
   // scripts/ (onde mora a fixture) e src/ não vão para o pacote: só dist/.
   assert.match(pkg, /ignore: \[.*\/\^\\\/src\(\$\|\\\/\)\/.*\/\^\\\/scripts\(\$\|\\\/\)\//);
+});
+
+test("encerrarDoRetorno: acha o encerrar do que o ativar devolveu (ligado ao objeto), ou null; é por ele que o core para a extensão, na saída e depois de uma falha", () => {
+  let parou = 0;
+  const r = { n: 2, encerrar() { parou += this.n; } };
+  const f = encerrarDoRetorno(r);
+  assert.equal(typeof f, "function");
+  f(); assert.equal(parou, 2, "chamado com o this do objeto devolvido");
+  for (const sem of [undefined, null, 7, "x", {}, { encerrar: "não é função" }, []]) assert.equal(encerrarDoRetorno(sem), null);
 });

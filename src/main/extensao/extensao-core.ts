@@ -117,3 +117,12 @@ export function ativarDoModulo(m: unknown): ((api: unknown) => unknown) | null {
   const f = (m as { ativar?: unknown }).ativar;
   return typeof f === "function" ? (f as (api: unknown) => unknown) : null;
 }
+/**
+ * O `encerrar` do que o `ativar` devolveu, já ligado ao objeto; null se o retorno não tem um (o contrato exige
+ * `{ encerrar }`). Separado para o carregador usar igual no caminho normal e na limpeza depois de uma falha.
+ */
+export function encerrarDoRetorno(r: unknown): (() => void) | null {
+  if (typeof r !== "object" || r === null) return null;
+  const f = (r as { encerrar?: unknown }).encerrar;
+  return typeof f === "function" ? () => { (f as () => void).call(r); } : null;
+}

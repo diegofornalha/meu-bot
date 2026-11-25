@@ -14,7 +14,7 @@ import { caps } from "../app/variant";
 import { garantirControleRemoto } from "../controle-remoto/garantir";
 import { log } from "../maquina/backend";
 import { findNode } from "../maquina/localBackend";
-import { ativarDoModulo, criarRegistro } from "./extensao-core";
+import { ativarDoModulo, criarRegistro, encerrarDoRetorno } from "./extensao-core";
 import { definirEstadoDaExtensao } from "./registro";
 
 /** Onde o empacotamento deixa o compilado do derivado: ao lado desta pasta, em dist/main/derivado (dentro do asar). */
@@ -27,6 +27,8 @@ const motivo = (e: unknown): string => (e instanceof Error ? e.message : String(
 export function ativarExtensao(): void {
   if (caps().extensao === null || ativa !== null) return;
   const registro = criarRegistro();
+  // O que o `ativar` devolveu, guardado fora do try: se algo falhar depois dele, é por aqui que se para o que ele iniciou.
+  let devolvido: unknown;
   try {
     const api: ExtensaoMainApi = {
       pastaDados: path.join(app.getPath("userData"), "extensao"),
@@ -41,15 +43,21 @@ export function ativarExtensao(): void {
     const ativar = ativarDoModulo(modulo);
     if (ativar === null) throw new Error("o código do derivado não exporta a função ativar");
     const r = ativar(api);
+    devolvido = r;
     registro.fechar();
-    const encerrar = typeof r === "object" && r !== null ? (r as { encerrar?: unknown }).encerrar : undefined;
-    if (typeof encerrar !== "function") throw new Error("o ativar não devolveu { encerrar }");
-    ativa = { encerrar: () => { encerrar.call(r); } };
+    const encerrar = encerrarDoRetorno(r);
+    if (encerrar === null) throw new Error("o ativar não devolveu { encerrar }");
+    ativa = { encerrar };
     definirEstadoDaExtensao({ kind: "ativa", registro });
     const wv = registro.webviewDeclarado();
     log(`[extensão] ativa: canais ${registro.nomes().join(", ") || "(nenhum)"}${wv === null ? "" : `; <webview> na partição ${wv.particao}`}`);
   } catch (e) {
     registro.fechar();
+    // O `ativar` pode já ter subido um processo ou um timer antes de a ativação falhar: se devolveu um `encerrar`, ele
+    // roda agora, para nada ficar de pé sem dono. Sem `encerrar` devolvido não há o que chamar; por isso o contrato
+    // diz que o `ativar` não inicia nada que o `encerrar` devolvido não pare (docs/guia/derivados.md).
+    const encerrar = encerrarDoRetorno(devolvido);
+    if (encerrar !== null) { try { encerrar(); } catch (err) { log(`[extensão] o encerrar depois da falha também falhou: ${motivo(err)}`); } }
     definirEstadoDaExtensao({ kind: "falhou" });
     log(`[extensão] não carregou, o app segue sem a página: ${motivo(e)}${app.isPackaged ? "" : " (em dev, compile o código do derivado depois do build: node scripts/derivado-codigo.mjs <pasta>)"}`);
   }

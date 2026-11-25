@@ -119,7 +119,10 @@ Um exemplo inteiro, que os testes do core compilam e carregam, está em `scripts
 | `canal(nome, handler)` | registra um canal que a página chama; nome `^[a-z][a-z0-9-]{0,40}$`, uma vez só, e só durante o `ativar` |
 | `webview({ particao, urlPermitida })` | declara o único `<webview>` da página: partição `ext-<nome>` (sempre em memória) e a URL que ele pode carregar |
 
-Devolve `{ encerrar() }`, chamado ao sair do app.
+Devolve `{ encerrar() }`, chamado ao sair do app. O `ativar` não inicia nada (processo, timer, servidor) que o
+`encerrar` devolvido não pare: se a ativação falhar depois de ele devolver, o core chama esse `encerrar` na hora; se ele
+não devolver `{ encerrar }`, a extensão conta como não carregada e não há por onde parar o que ficou de pé. O que demora
+ou pode falhar fica para um canal, chamado quando a página abre.
 
 **O que `montar` recebe** (`ExtensaoPaginaApi`, em `src/renderer/extensao/api.ts`): `panelsEl`, `definePage` (só com o
 id `"extensao"`, uma vez), `openPage`, `invocar(nome, payload)` (chama um canal do `ativar`), `zoomFactorNow()` e
