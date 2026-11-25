@@ -28,7 +28,7 @@ export function resumoAgente(linhas: readonly LinhaAgente[]): ResumoAgente {
 }
 
 /** Páginas cujo id é o da linha da lateral sem o sufixo (`gmail` → `#gmail-line`). */
-const COM_LINHA = new Set(["tutoriais", "acervo", "conta-google", "gmail", "computador", "inspector", "modulos", "navegador", "suporte", "auditoria", "preparar", "usuarios", "claude-global", "link-publico"]);
+const COM_LINHA = new Set(["tutoriais", "acervo", "conta-google", "gmail", "computador", "inspector", "modulos", "extensao", "navegador", "suporte", "auditoria", "preparar", "usuarios", "claude-global", "link-publico"]);
 /**
  * O id da linha da lateral que leva à página na frente, para o realce de "você está aqui"; null quando a página não
  * tem linha (conversa do WhatsApp, atividade do agente, coluna vazia). Páginas filhas realçam a linha de onde saíram:

@@ -41,6 +41,8 @@ import { mountGmail } from "./gmail/gmail-page.js";
 import { gmailGuiaFato, ligarGmailGuia, refreshGmailGuia } from "./gmail/gmail-guia.js";
 import { mountComputador } from "./computador/computador-page.js";
 import { mountInspector } from "./inspector/inspector-page.js";
+import { montarExtensao } from "./extensao/extensao.js";
+import type { PaginaDeExtensao } from "./extensao/api.js";
 import { clampSplitRatio, maxColunas, minDireita, parseSplitPref, splitAdd, splitLabel, splitLayout, splitPrefPageIds, SPLIT_MIN_PX } from "./lib/split.js";
 import { recorteOculto, recorteTitulo, recortesPara, parseRecortesPref, type Recorte, type RecortesPref } from "./lib/recortes.js";
 import { favLabel, favOf, favTitleFor } from "./lib/favoritos.js";
@@ -378,7 +380,7 @@ let usuariosAdmin: { open: () => void } | null = null;
 let appVersion = "";
 /** Build deste app (`WindowInfo.build`): o cache só devolve o que este mesmo build gravou. */
 let appBuild = "";
-let caps: Capabilities = { variant: "client", produto: "meu-bot", canal: "estavel", nome: "meu-bot", titulo: "meu-bot", chat: true, pair: true, login: true, manageWa: true, tunnel: true, install: true, supportClient: true, supportAdmin: false, navegador: true, planoExigido: "free", usuariosMac: false, inspector: false, modulos: null, addon: null, abreEm: null, addons: [], hostLocal: true, terminalLocal: true, atalhosMesa: true, agenteNavegador: true, controleRemoto: true, telaComputador: true, semaforoNaBarra: true, teclaCmd: true, hostWsl: false };
+let caps: Capabilities = { variant: "client", produto: "meu-bot", canal: "estavel", nome: "meu-bot", titulo: "meu-bot", chat: true, pair: true, login: true, manageWa: true, tunnel: true, install: true, supportClient: true, supportAdmin: false, navegador: true, planoExigido: "free", usuariosMac: false, inspector: false, modulos: null, extensao: null, addon: null, abreEm: null, addons: [], hostLocal: true, terminalLocal: true, atalhosMesa: true, agenteNavegador: true, controleRemoto: true, telaComputador: true, semaforoNaBarra: true, teclaCmd: true, hostWsl: false };
 const lastHostEl = $<HTMLParagraphElement>("last-host");
 const settingsError = $<HTMLParagraphElement>("settings-error");
 const cancelBtn = $<HTMLButtonElement>("btn-cancel");
@@ -1929,6 +1931,8 @@ let contaGooglePage: ReturnType<typeof mountContaGoogle> | null = null;
 let computadorPage: ReturnType<typeof mountComputador> | null = null;
 /** Só existe no produto com a capacidade `inspector` (meu-bot-inspector-staging). */
 let inspectorPage: ReturnType<typeof mountInspector> | null = null;
+/** Página própria de um app derivado (`caps.extensao`); null nos apps da tabela e quando o código dela não carregou. */
+let extensaoPage: PaginaDeExtensao | null = null;
 let modulosPage: ReturnType<typeof mountModulosPage> | null = null;
 /**
  * Etiqueta "Pro" nas linhas da lateral (Conta Google, E-mail, Computador e Navegador): só no produto free e só para
@@ -1970,6 +1974,7 @@ window.meuBot.on("ui:abrir-pagina", ({ pagina }) => {
   if (pagina === "tutoriais") openPage(tutoriaisPage);
   else if (pagina === "acervo") openPage(acervoPage);
   else if (pagina === "inspector") inspectorPage?.open();
+  else if (pagina === "extensao") extensaoPage?.open();
   else if (pagina === "modulos") modulosPage?.open();
   else if (pagina === "conta-google") contaGooglePage?.open();
   else if (pagina === "gmail") gmailPage?.open();
@@ -2176,12 +2181,25 @@ void (async () => {
   window.addEventListener("focus", aplicarApagadas);
   renderSidebar();
   tabsReady = true;
+  // Página própria de um app derivado: o código veio no pacote (dist/renderer/derivado/pagina.js). Montada aqui, antes
+  // da aba fixada e da tela dividida, que podem pedi-la; se não carregar, o botão segue escondido e o app abre igual.
+  if (caps.extensao !== null) {
+    extensaoPage = await montarExtensao({ panelsEl, definePage, openPage, api: window.meuBot, registrar: (linha) => { console.error(linha); } });
+    if (extensaoPage !== null) {
+      const linha = $<HTMLButtonElement>("extensao-line");
+      $<HTMLElement>("extensao-rotulo").textContent = caps.extensao.rotulo;
+      linha.title = caps.extensao.rotulo;
+      linha.hidden = false;
+      linha.addEventListener("click", () => extensaoPage?.open());
+    }
+  }
   // A aba fixada (📌) fica na frente depois de restaurar as conversas: Tutoriais por padrão (quem chega leigo começa
   // pelo passo a passo), Inspector no inspector-staging; desafixar volta a abrir na conversa.
   const fixa = abaFixaAtual();
   if (fixa === "tutoriais") openPage(tutoriaisPage);
   else if (fixa === "acervo") openPage(acervoPage);
   else if (fixa === "inspector") inspectorPage?.open();
+  else if (fixa === "extensao") extensaoPage?.open();
   else if (fixa === "modulos") modulosPage?.open();
   else if (fixa === "conta-google") contaGoogle.open();
   else if (fixa === "gmail") gmail.open();
