@@ -91,11 +91,34 @@ test("hook num branch: mudança no código roda só os testes, não empacota, e 
   assert.equal(m.hook(wt).stdout.trim(), "", "carimbado: não repete a cada resposta");
 });
 
+test("depois de reempacotar, a resposta seguinte pede para mostrar as PRs que entraram, uma vez só", () => {
+  const m = maquina();
+  m.hook(m.principal, "--run");
+  const de = sha(m.origin, "main");
+  assert.equal(existsSync(join(m.d, "estado", "a-mostrar")), false, "primeira instalação: não há build anterior para comparar");
+  // duas PRs entram no origin/main (o commit de merge do GitHub: assunto com o número, corpo com o título)
+  writeFileSync(join(m.seed, "src", "a.ts"), "2"); git(m.seed, "commit", "-qam", "Merge pull request #7 from dono/lateral", "-m", 'Lateral: o nome "ao lado" da seta');
+  writeFileSync(join(m.seed, "src", "a.ts"), "3"); git(m.seed, "commit", "-qam", "Merge pull request #8 from dono/site", "-m", "Site: botão do Windows");
+  git(m.seed, "push", "-q", "origin", "main");
+  m.hook(m.principal, "--run");
+  const para = sha(m.origin, "main");
+  assert.equal(readFileSync(join(m.d, "estado", "a-mostrar"), "utf8").trim(), `${de} ${para} meu-bot-admin-gestao`);
+  const h = m.hook(m.principal);
+  const saida = JSON.parse(h.stdout);
+  assert.equal(saida.decision, "block");
+  assert.match(saida.reason, new RegExp(`origin/main ${para} foi reinstalado em ~/Applications \\(meu-bot-admin-gestao\\)`));
+  assert.match(saida.reason, /#8 Site: botão do Windows; #7 Lateral: o nome "ao lado" da seta/, "as PRs, da mais nova para a mais velha, com aspas escapadas no JSON");
+  assert.match(saida.reason, /testar-no-app/);
+  assert.equal(existsSync(join(m.d, "estado", "a-mostrar")), false, "lido e apagado");
+  assert.equal(m.hook(m.principal).stdout.trim(), "", "a resposta seguinte fica calada");
+});
+
 test("--run com testes quebrados no origin/main: nada empacotado, e o hook não insiste até o main mudar", () => {
   const m = maquina();
   writeFileSync(join(m.d, "falhar"), "");
   m.hook(m.principal, "--run");
   assert.equal(m.instalado(), `${sha(m.origin, "main")} falhou`);
+  assert.equal(existsSync(join(m.d, "estado", "a-mostrar")), false, "build que falhou não tem o que mostrar");
   assert.ok(!m.chamadas().some((c) => c.startsWith("npm run dist")), "sem empacotar");
   assert.equal(m.hook(m.principal).stdout.trim(), "", "o mesmo commit não é tentado de novo");
 });
