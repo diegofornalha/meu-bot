@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, webFrame } from "electron";
+import { contextBridge, ipcRenderer, webFrame, webUtils } from "electron";
 import type { CrmPipelineExtras, BackupRestauroPedido, ClienteMcp, AdminAction, AlertPrefs, AudioSetup, BackendModel, SupportProgress, SupportShare, ConversationRef, ExportFormat, FreedomLevel, LicensePatch, MainEventChannel, MainEvents, MemoryView, ObjectiveChoice, MeuBotApi, MeuBotAdminApi, MeuBotClientApi, MeuBotSharedApi, SettingsUpdate, SettingsView, StoredConversationView, TabMenuAction, WaMarkPatch, WhatsappGroupAgent, WhatsappGroupPatch, TypingChoice, WindowInfo, StatusLineSegments, ContaId, ZoomAction, ZoomState, WhatsappAlvo, WhatsappSugestaoPedido } from "../shared/ipc";
 
 // Preload roda em sandbox: não pode importar módulos do app, por isso a lista fica aqui.
@@ -74,6 +74,9 @@ const MAIN_EVENT_CHANNELS: readonly MainEventChannel[] = [
 /** Os dois apps. */
 const sharedApi: MeuBotSharedApi = {
   openExternal: (url: string) => ipcRenderer.invoke("shell:open-external", { url }),
+  caminhoDoArquivo: (arquivo: object): string => {
+    try { return webUtils.getPathForFile(arquivo as Parameters<typeof webUtils.getPathForFile>[0]); } catch { return ""; }
+  },
   getMemory: (): Promise<MemoryView> => ipcRenderer.invoke("memory:get", {}),
   setMemory: (update: { notas?: string; perfil?: string }): Promise<MemoryView> => ipcRenderer.invoke("memory:set", update),
   getSettings: (): Promise<SettingsView> => ipcRenderer.invoke("settings:get", {}),

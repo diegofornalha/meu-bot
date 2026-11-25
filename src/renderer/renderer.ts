@@ -88,6 +88,7 @@ import { ligarCursorAgente } from "./depuracao/cursor-agente.js";
 import { aceleracaoInput, atualizarOciosoInput, corretorInput, lastUpdate, ligarAtualizacao, notificacaoSomInput, notificacoesInput, paintUpdateState } from "./atualizacao/atualizacao.js";
 import { abrirAtalhos, abrirBusca, buscaAberta, ligarAlvoWebview, ligarBusca, pararBusca, usarTeclaCmd, type AlvoWebview } from "./busca/busca.js";
 import { dicaTeclas, ehDoShell, rotuloTeclas, temTeclaDoApp } from "./lib/teclas-core.js";
+import { ligarSoltarCaminho } from "./lib/soltar-caminho.js";
 import { ligarConfiguracoes, maybeAskNotificationsOnce } from "./configuracoes/configuracoes.js";
 import { aoMudarConta, contaAtual, ligarConta } from "./conta/conta.js";
 import { ligarAvisoPlano } from "./lib/aviso-pagamento.js";
@@ -1831,6 +1832,8 @@ sendBtn.addEventListener("click", () => {
   void sendMessage();
 });
 inputEl.addEventListener("input", () => { cancelAutoSend(); const t = active(); sendBtn.classList.toggle("shine", t !== null && !t.busy && (sendPhase.get(t.id) ?? "idle") === "idle" && inputEl.value.trim().length >= 2); });
+// Arrastar um arquivo ou pasta do Finder para a caixa escreve o endereço dele no texto, como no terminal.
+ligarSoltarCaminho(inputEl, (f) => window.meuBot.caminhoDoArquivo(f));
 inputEl.addEventListener("keydown", (ev) => {
   if (ev.key === "Escape" && autoSend !== null) { ev.preventDefault(); cancelAutoSend(); return; }
   if (ev.key === "Enter" && !ev.shiftKey) {
